@@ -692,16 +692,16 @@ func (k *KubernetesClient) GetVolumeSnapshot(ctx context.Context, name string) (
 	}
 
 	// Parse just the fields we need (nolint:govet - anonymous struct used for JSON parsing)
-	var snapshot struct { //nolint:govet
-		Metadata struct {
-			Name string `json:"name"`
-		} `json:"metadata"`
+	var snapshot struct {
 		Status struct {
 			ReadyToUse *bool `json:"readyToUse"`
 			Error      *struct {
 				Message string `json:"message"`
 			} `json:"error"`
 		} `json:"status"`
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &snapshot); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal volumesnapshot: %w", err)
@@ -764,17 +764,17 @@ func (k *KubernetesClient) GetVolumeSnapshotContent(ctx context.Context, snapsho
 	}
 
 	// Parse the content
-	var content struct { //nolint:govet
+	var content struct {
+		Status struct {
+			SnapshotHandle *string `json:"snapshotHandle"`
+			ReadyToUse     *bool   `json:"readyToUse"`
+		} `json:"status"`
 		Metadata struct {
 			Name string `json:"name"`
 		} `json:"metadata"`
 		Spec struct {
 			DeletionPolicy string `json:"deletionPolicy"`
 		} `json:"spec"`
-		Status struct {
-			SnapshotHandle *string `json:"snapshotHandle"`
-			ReadyToUse     *bool   `json:"readyToUse"`
-		} `json:"status"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &content); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal volumesnapshotcontent: %w", err)
