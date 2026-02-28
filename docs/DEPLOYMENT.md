@@ -242,7 +242,7 @@ The easiest way to deploy the CSI driver is using the Helm chart from Docker Hub
 **For NFS:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.12.1 \
+  --version 0.12.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -257,7 +257,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **For NVMe-oF:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.12.1 \
+  --version 0.12.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -275,7 +275,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **For iSCSI:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.12.1 \
+  --version 0.12.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -315,15 +315,15 @@ If you want to build your own image instead of using the published one:
 make build
 
 # Build Docker image
-docker build -t your-registry/tns-csi-driver:v0.12.1 .
+docker build -t your-registry/tns-csi-driver:v0.12.3 .
 
 # Push to your registry (DockerHub, GitHub Container Registry, etc.)
-docker push your-registry/tns-csi-driver:v0.12.1
+docker push your-registry/tns-csi-driver:v0.12.3
 ```
 
 If using a private registry, ensure your Kubernetes cluster has pull access.
 
-The published image is available at: `bfenski/tns-csi:v0.12.1`
+The published image is available at: `bfenski/tns-csi:v0.12.3`
 
 ## Step 3: Configure Deployment Manifests (Manual Deployment Only)
 
@@ -350,7 +350,7 @@ image: your-registry/tns-csi-driver:latest
 
 With:
 ```yaml
-image: your-registry/tns-csi-driver:v0.12.1
+image: your-registry/tns-csi-driver:v0.12.3
 ```
 
 ### 3.3 Update StorageClass
@@ -771,7 +771,7 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 2. Upgrade the driver:
    ```bash
    helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-     --version 0.12.1 \
+     --version 0.12.3 \
      --namespace kube-system \
      --reuse-values
    ```
