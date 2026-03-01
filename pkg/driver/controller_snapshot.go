@@ -62,16 +62,6 @@ const (
 	// Slower than clone+promote but provides complete independence.
 	DetachedVolumesFromVolumesParam = "detachedVolumesFromVolumes"
 
-	// COWVolumesFromSnapshotsParam is the StorageClass parameter to explicitly use COW clones
-	// when restoring from snapshots. The default is promoted mode; set this to "true" to use
-	// standard COW clones where the clone depends on the source snapshot.
-	COWVolumesFromSnapshotsParam = "cowVolumesFromSnapshots"
-
-	// COWVolumesFromVolumesParam is the StorageClass parameter to explicitly use COW clones
-	// when cloning from volumes. The default is promoted mode; set this to "true" to use
-	// standard COW clones where the clone depends on the temp snapshot.
-	COWVolumesFromVolumesParam = "cowVolumesFromVolumes"
-
 	// VolumeSourceSnapshotPrefix is the prefix for temporary snapshots created during volume-to-volume
 	// cloning. Uses the same naming convention as democratic-csi for compatibility.
 	VolumeSourceSnapshotPrefix = "volume-source-for-volume-"

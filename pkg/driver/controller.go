@@ -771,12 +771,10 @@ func validateCapacityCompatibility(volumeName string, existingCapacity, reqCapac
 // createVolumeFromVolume creates a new volume by cloning an existing volume.
 // This is done by creating a temporary snapshot and cloning from it.
 //
-// By default, the clone is promoted after creation (reversed dependency), which allows
-// the temporary snapshot to be deleted immediately. This avoids COW dependency chains
-// that can cause issues with backup tools like VolSync.
-//
-// Set cowVolumesFromVolumes=true in StorageClass to use traditional COW clones where
-// the clone depends on the temporary snapshot.
+// The clone maintains a COW (Copy-on-Write) relationship with the temporary snapshot.
+// This is space-efficient as the clone shares blocks with the source until modified.
+// The temporary snapshot is kept because the clone depends on it - this is fundamental
+// ZFS behavior where clones always depend on their origin snapshot.
 func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("=== createVolumeFromVolume CALLED === New volume: %s, Source volume: %s", req.GetName(), sourceVolumeID)
 
@@ -797,21 +795,18 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 
 	// Determine clone mode from StorageClass parameters:
 	// - detachedVolumesFromVolumes=true: Use send/receive for truly independent copy
-	// - cowVolumesFromVolumes=true: Explicit COW clone (clone depends on temp snapshot)
-	// - promotedVolumesFromVolumes=true: Explicit clone+promote (same as default)
-	// - default: Promoted clone (reversed dependency, compatible with VolSync/backup tools)
+	// - promotedVolumesFromVolumes=true: Use clone+promote (reversed dependency)
+	// - default: Standard COW clone (clone depends on temp snapshot)
+	//
+	// WARNING: Promoted mode reverses the ZFS dependency — the SOURCE volume becomes
+	// dependent on the CLONE. This means you cannot delete the clone while the source
+	// exists. Only use promoted mode when you intend to delete the source first.
 	detachedMode := params[DetachedVolumesFromVolumesParam] == VolumeContextValueTrue
 	promotedMode := params[PromotedVolumesFromVolumesParam] == VolumeContextValueTrue
-	cowMode := params[COWVolumesFromVolumesParam] == VolumeContextValueTrue
 
 	if detachedMode && promotedMode {
 		klog.Warningf("Both detachedVolumesFromVolumes and promotedVolumesFromVolumes are set; using detached mode")
 		promotedMode = false
-	}
-
-	// Resolve effective mode: default is promoted
-	if !detachedMode && !cowMode {
-		promotedMode = true
 	}
 
 	// Build expected dataset name for source volume
@@ -878,13 +873,10 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	}
 
 	// Handle temp snapshot cleanup based on clone mode:
-	// - Default (promoted): Delete snapshot - dependency was reversed, snapshot depends on clone
+	// - Default (COW clone): Keep snapshot - clone depends on it
+	// - Promoted: Delete snapshot - dependency was reversed, snapshot depends on clone
 	// - Detached: Delete snapshot - no dependency exists (full data copy)
-	// - Explicit COW: Keep snapshot - clone depends on it
-	if cowMode {
-		// Explicit COW mode - keep temporary snapshot as clone depends on it
-		klog.V(4).Infof("Keeping temporary snapshot %s (clone depends on it for COW)", snapshot.ID)
-	} else {
+	if promotedMode || detachedMode {
 		modeDesc := "promoted"
 		if detachedMode {
 			modeDesc = "detached"
@@ -896,6 +888,9 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 		} else {
 			klog.V(4).Infof("Successfully deleted temporary snapshot %s", snapshot.ID)
 		}
+	} else {
+		// Default COW mode - keep temporary snapshot as clone depends on it
+		klog.V(4).Infof("Keeping temporary snapshot %s (clone depends on it for COW)", snapshot.ID)
 	}
 
 	return resp, nil
