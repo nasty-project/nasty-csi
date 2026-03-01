@@ -224,9 +224,15 @@ var _ = Describe("Reclaim Policy", func() {
 				GinkgoWriter.Printf("[%s] Retain reclaim policy verified - PV retained in %s state\n", proto.name, pv.Status.Phase)
 			}
 
-			By("Getting volume handle before cleaning up retained PV")
+			By("Getting volume handle and protocol metadata before cleaning up retained PV")
 			volumeHandle, handleErr := f.K8s.GetVolumeHandle(ctx, pvName)
 			Expect(handleErr).NotTo(HaveOccurred(), "Failed to get volume handle")
+
+			// Extract NVMe-oF subsystem NQN from PV before deletion (needed for cleanup)
+			var subsystemNQN string
+			if proto.id == "nvmeof" && pv.Spec.CSI != nil {
+				subsystemNQN = pv.Spec.CSI.VolumeAttributes["nqn"]
+			}
 
 			By("Cleaning up retained PV")
 			err = f.K8s.DeletePV(ctx, pvName)
@@ -234,7 +240,7 @@ var _ = Describe("Reclaim Policy", func() {
 
 			By("Cleaning up retained TrueNAS resources")
 			if f.TrueNAS != nil && volumeHandle != "" {
-				cleanupRetainedTrueNASResources(ctx, f.TrueNAS, proto.id, volumeHandle)
+				cleanupRetainedTrueNASResources(ctx, f.TrueNAS, proto.id, volumeHandle, subsystemNQN)
 			}
 		})
 	}
@@ -242,7 +248,8 @@ var _ = Describe("Reclaim Policy", func() {
 
 // cleanupRetainedTrueNASResources removes TrueNAS backend resources that are left behind
 // when a volume uses Retain reclaim policy (K8s PV deletion does not trigger CSI DeleteVolume).
-func cleanupRetainedTrueNASResources(ctx context.Context, truenas *framework.TrueNASVerifier, protocol, volumeHandle string) {
+// For NVMe-oF, subsystemNQN should be extracted from the PV's CSI volumeAttributes["nqn"] before PV deletion.
+func cleanupRetainedTrueNASResources(ctx context.Context, truenas *framework.TrueNASVerifier, protocol, volumeHandle, subsystemNQN string) {
 	switch protocol {
 	case "nfs":
 		sharePath := "/mnt/" + volumeHandle
@@ -253,9 +260,10 @@ func cleanupRetainedTrueNASResources(ctx context.Context, truenas *framework.Tru
 			klog.Warningf("Failed to cleanup retained NFS dataset %s: %v", volumeHandle, err)
 		}
 	case "nvmeof":
-		subsystemNQN := "nqn.2137.csi.tns:" + path.Base(volumeHandle)
-		if err := truenas.DeleteNVMeOFSubsystem(ctx, subsystemNQN); err != nil {
-			klog.Warningf("Failed to cleanup retained NVMe-oF subsystem %s: %v", subsystemNQN, err)
+		if subsystemNQN != "" {
+			if err := truenas.DeleteNVMeOFSubsystem(ctx, subsystemNQN); err != nil {
+				klog.Warningf("Failed to cleanup retained NVMe-oF subsystem %s: %v", subsystemNQN, err)
+			}
 		}
 		if err := truenas.DeleteDataset(ctx, volumeHandle); err != nil {
 			klog.Warningf("Failed to cleanup retained ZVOL %s: %v", volumeHandle, err)

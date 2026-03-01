@@ -3,6 +3,7 @@ package iscsi_test
 import (
 	"context"
 	"fmt"
+	"path"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -131,11 +132,12 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		GinkgoWriter.Printf("Successfully verified ZVOL %s was retained on TrueNAS\n", zvolPath)
 
 		By("Cleaning up retained iSCSI target from TrueNAS")
-		err = f.TrueNAS.DeleteISCSITarget(ctx, volumeHandle)
+		targetName := path.Base(volumeHandle)
+		err = f.TrueNAS.DeleteISCSITarget(ctx, targetName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI target from TrueNAS")
 
 		By("Cleaning up retained iSCSI extent from TrueNAS")
-		err = f.TrueNAS.DeleteISCSIExtent(ctx, volumeHandle)
+		err = f.TrueNAS.DeleteISCSIExtent(ctx, targetName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI extent from TrueNAS")
 
 		By("Cleaning up retained ZVOL from TrueNAS")
