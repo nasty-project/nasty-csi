@@ -1,6 +1,7 @@
 # AI assistant instructions (local only - do not commit)
 AGENTS.md
 CLAUDE.md
+.beads/
 
 # Credentials and secrets
 .tns-credentials
