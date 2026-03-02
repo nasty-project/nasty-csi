@@ -1888,8 +1888,9 @@ func (c *Client) QuerySnapshotIDs(ctx context.Context, filters []interface{}) ([
 
 // CloneSnapshotParams represents parameters for cloning a snapshot.
 type CloneSnapshotParams struct {
-	Snapshot string `json:"snapshot"`    // Source snapshot ID (dataset@snapshot)
-	Dataset  string `json:"dataset_dst"` // Destination dataset name
+	DatasetProperties map[string]string `json:"dataset_properties,omitempty"`
+	Snapshot          string            `json:"snapshot"`
+	Dataset           string            `json:"dataset_dst"`
 }
 
 // CloneSnapshot clones a ZFS snapshot to a new dataset.

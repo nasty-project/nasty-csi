@@ -15,10 +15,11 @@ import (
 
 // cloneParameters holds validated parameters for snapshot cloning.
 type cloneParameters struct {
-	pool           string
-	parentDataset  string
-	newVolumeName  string
-	newDatasetName string
+	datasetProperties map[string]string
+	pool              string
+	parentDataset     string
+	newVolumeName     string
+	newDatasetName    string
 }
 
 // cloneInfo holds metadata about how a clone was created.
@@ -326,12 +327,24 @@ func (s *ControllerService) validateCloneParameters(req *csi.CreateVolumeRequest
 	klog.Infof("Cloning snapshot %s (dataset: %s) to new volume %s (new dataset: %s)",
 		snapshotMeta.SnapshotName, snapshotMeta.DatasetName, newVolumeName, newDatasetName)
 
-	return &cloneParameters{
+	cp := &cloneParameters{
 		pool:           pool,
 		parentDataset:  parentDataset,
 		newVolumeName:  newVolumeName,
 		newDatasetName: newDatasetName,
-	}, nil
+	}
+
+	// SMB datasets need NFSv4 ACLs (set by share_type: "SMB" on new datasets).
+	// ZFS clones inherit acltype from the parent in the hierarchy, NOT the origin.
+	// Explicitly set acltype/aclmode so the clone matches the source dataset.
+	if snapshotMeta.Protocol == ProtocolSMB {
+		cp.datasetProperties = map[string]string{
+			"acltype": "NFSV4",
+			"aclmode": "RESTRICTED",
+		}
+	}
+
+	return cp, nil
 }
 
 // executeSnapshotClone performs the actual snapshot clone operation.
@@ -339,8 +352,9 @@ func (s *ControllerService) executeSnapshotClone(ctx context.Context, snapshotMe
 	klog.Infof("Cloning snapshot %s to dataset %s", snapshotMeta.SnapshotName, params.newDatasetName)
 
 	cloneParams := tnsapi.CloneSnapshotParams{
-		Snapshot: snapshotMeta.SnapshotName,
-		Dataset:  params.newDatasetName,
+		Snapshot:          snapshotMeta.SnapshotName,
+		Dataset:           params.newDatasetName,
+		DatasetProperties: params.datasetProperties,
 	}
 
 	clonedDataset, err := s.apiClient.CloneSnapshot(ctx, cloneParams)
@@ -370,8 +384,9 @@ func (s *ControllerService) executePromotedSnapshotClone(ctx context.Context, sn
 
 	// Step 1: Clone the snapshot (same as regular clone)
 	cloneParams := tnsapi.CloneSnapshotParams{
-		Snapshot: snapshotMeta.SnapshotName,
-		Dataset:  params.newDatasetName,
+		Snapshot:          snapshotMeta.SnapshotName,
+		Dataset:           params.newDatasetName,
+		DatasetProperties: params.datasetProperties,
 	}
 
 	clonedDataset, err := s.apiClient.CloneSnapshot(ctx, cloneParams)
@@ -527,8 +542,9 @@ func (s *ControllerService) executeDetachedSnapshotRestore(ctx context.Context, 
 	klog.V(4).Infof("Cloning snapshot %s to %s", tempSnapshotFullName, params.newDatasetName)
 
 	cloneSnapshotParams := tnsapi.CloneSnapshotParams{
-		Snapshot: tempSnapshotFullName,
-		Dataset:  params.newDatasetName,
+		Snapshot:          tempSnapshotFullName,
+		Dataset:           params.newDatasetName,
+		DatasetProperties: params.datasetProperties,
 	}
 
 	clonedDataset, err := s.apiClient.CloneSnapshot(ctx, cloneSnapshotParams)

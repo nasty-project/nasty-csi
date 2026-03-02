@@ -165,7 +165,6 @@ func (s *ControllerService) createSMBShareForDataset(ctx context.Context, datase
 		Name:    params.volumeName,
 		Path:    dataset.Mountpoint,
 		Comment: comment,
-		Purpose: "LEGACY_SHARE",
 		Enabled: true,
 	})
 	if err != nil {
@@ -385,7 +384,6 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 		Name:    volumeName,
 		Path:    dataset.Mountpoint,
 		Comment: "CSI Volume (from snapshot): " + volumeName,
-		Purpose: "LEGACY_SHARE",
 		Enabled: true,
 	})
 	if err != nil {
@@ -509,7 +507,6 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 			Name:    volumeName,
 			Path:    dataset.Mountpoint,
 			Comment: comment,
-			Purpose: "LEGACY_SHARE",
 			Enabled: true,
 		})
 		if createErr != nil {
