@@ -50,7 +50,7 @@ See detailed comparisons:
 
 ### Protocol Selection Guide
 
-This driver supports three storage protocols:
+This driver supports four storage protocols:
 
 - **NFS**: Best for shared file storage where multiple pods need concurrent access (ReadWriteMany)
 - **NVMe-oF**: Best for high-performance block storage with lowest latency and highest IOPS - ideal for databases and latency-sensitive workloads

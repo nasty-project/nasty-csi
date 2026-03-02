@@ -112,7 +112,6 @@
 - You need production-ready, battle-tested software
 - You're running older TrueNAS/FreeNAS versions or TrueNAS CORE
 - You need Windows node support
-- You need Windows node support
 - You want multi-backend flexibility (ZoL, Synology, ObjectiveFS, etc.)
 - You need local/ephemeral volume support
 - You need Nomad or Docker Swarm support
