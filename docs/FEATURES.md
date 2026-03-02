@@ -156,7 +156,7 @@ reclaimPolicy: Delete
 | NFS | macOS | `vers=4`, `nolock` |
 | NVMe-oF | Linux | `noatime` |
 | iSCSI | Linux | `noatime`, `_netdev` |
-| SMB | Linux | `vers=3.0` |
+| SMB | Linux | `vers=3.0`, `file_mode=0777`, `dir_mode=0777` |
 
 **Example StorageClass with Custom Mount Options:**
 ```yaml

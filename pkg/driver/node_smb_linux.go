@@ -3,7 +3,9 @@
 package driver
 
 // Default SMB/CIFS mount options for Linux.
-var defaultSMBMountOptions = []string{"vers=3.0"}
+// file_mode/dir_mode=0777 ensures containers can read/write regardless of UID
+// (CIFS doesn't support POSIX ownership like NFS; permissions are set at mount time).
+var defaultSMBMountOptions = []string{"vers=3.0", "file_mode=0777", "dir_mode=0777"}
 
 // getSMBMountOptions merges user-provided mount options with sensible defaults.
 // User options take precedence over defaults.

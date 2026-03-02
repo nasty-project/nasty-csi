@@ -286,12 +286,12 @@ SMB mount options can be customized via the StorageClass:
 | Option | Description |
 |--------|-------------|
 | `vers=3.0` | SMB protocol version (default) |
+| `file_mode=0777` | File permission mask (default) |
+| `dir_mode=0777` | Directory permission mask (default) |
 | `seal` | Enable SMB3 encryption in transit |
 | `cache=strict` | Strict caching for data consistency |
 | `uid=1000` | Map files to specific UID |
 | `gid=1000` | Map files to specific GID |
-| `file_mode=0644` | File permission mask |
-| `dir_mode=0755` | Directory permission mask |
 
 ## Snapshots
 
