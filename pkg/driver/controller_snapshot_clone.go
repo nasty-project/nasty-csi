@@ -336,11 +336,14 @@ func (s *ControllerService) validateCloneParameters(req *csi.CreateVolumeRequest
 
 	// SMB datasets need NFSv4 ACLs (set by share_type: "SMB" on new datasets).
 	// ZFS clones inherit acltype from the parent in the hierarchy, NOT the origin.
-	// Explicitly set acltype/aclmode so the clone matches the source dataset.
+	// Explicitly set acltype/aclmode/aclinherit so the clone matches the source dataset.
+	// aclinherit=passthrough is critical: without it Samba cannot serve the share because
+	// new files/directories get incorrect inherited ACLs.
 	if snapshotMeta.Protocol == ProtocolSMB {
 		cp.datasetProperties = map[string]string{
-			"acltype": "nfsv4",
-			"aclmode": "restricted",
+			"acltype":    "nfsv4",
+			"aclmode":    "restricted",
+			"aclinherit": "passthrough",
 		}
 	}
 
