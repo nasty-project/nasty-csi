@@ -381,6 +381,18 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 
 	volumeName := req.GetName()
 
+	// Set NFSv4 ACLs BEFORE share creation. This is critical for clones because
+	// sharing.smb.create regenerates smb4.conf by calling path_get_acltype() on the
+	// share path via os.getxattr(). If the clone doesn't have proper NFS4 ACL metadata
+	// at that point, the share gets silently excluded from the config (Samba doesn't
+	// serve it). For fresh volumes, TrueNAS sets ACLs during pool.dataset.create
+	// (via share_type: "SMB") before the share is created — we replicate that ordering.
+	if dataset.Mountpoint != "" {
+		if aclErr := s.apiClient.SetFilesystemACL(ctx, dataset.Mountpoint); aclErr != nil {
+			klog.Errorf("Failed to set ACL on cloned dataset %s: %v (SMB share may not be served)", dataset.Mountpoint, aclErr)
+		}
+	}
+
 	smbShare, err := s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
 		Name:    volumeName,
 		Path:    dataset.Mountpoint,
@@ -416,21 +428,6 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 			klog.Infof("[SMB clone diag]   share[%d]: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%s",
 				i, sh.ID, sh.Name, sh.Path, sh.Enabled, shLocked)
 		}
-	}
-
-	// Set NFSv4 ACLs AFTER share creation (same as new volumes)
-	if dataset.Mountpoint != "" {
-		if aclErr := s.apiClient.SetFilesystemACL(ctx, dataset.Mountpoint); aclErr != nil {
-			klog.Errorf("Failed to set ACL on cloned dataset %s: %v (SMB writes will likely fail with Permission denied)", dataset.Mountpoint, aclErr)
-		}
-	}
-
-	// Reload SMB service to regenerate smb4.conf. TrueNAS's initial config generation
-	// during sharing.smb.create can silently exclude shares for ZFS clones if the
-	// filesystem metadata isn't fully ready for os.getxattr() yet. By this point the
-	// ACL is set and the filesystem is confirmed accessible, so a reload picks it up.
-	if reloadErr := s.apiClient.ReloadSMBService(ctx); reloadErr != nil {
-		klog.Warningf("Failed to reload SMB service after clone share creation: %v (mount may fail)", reloadErr)
 	}
 
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
