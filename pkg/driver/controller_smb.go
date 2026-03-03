@@ -392,9 +392,8 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 		klog.Infof("SMB clone: converting ACLs from POSIX to NFSv4 for %s", dataset.ID)
 
 		_, updateErr := s.apiClient.UpdateDataset(ctx, dataset.ID, tnsapi.DatasetUpdateParams{
-			Acltype:    "NFSV4",
-			Aclmode:    "RESTRICTED",
-			Aclinherit: "PASSTHROUGH",
+			Acltype: "NFSV4",
+			Aclmode: "RESTRICTED",
 		})
 		if updateErr != nil {
 			klog.Errorf("SMB clone: failed to update ACL properties on %s: %v", dataset.ID, updateErr)

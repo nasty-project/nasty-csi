@@ -1818,7 +1818,6 @@ type DatasetUpdateParams struct {
 	Comments            string `json:"comments,omitempty"`             // Comments
 	Acltype             string `json:"acltype,omitempty"`              // ACL type: OFF, NFSV4, POSIX
 	Aclmode             string `json:"aclmode,omitempty"`              // ACL mode: PASSTHROUGH, RESTRICTED, DISCARD
-	Aclinherit          string `json:"aclinherit,omitempty"`           // ACL inherit: DISCARD, NOALLOW, RESTRICTED, PASSTHROUGH
 }
 
 // UpdateDataset updates a ZFS dataset or ZVOL.
