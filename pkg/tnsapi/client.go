@@ -1816,6 +1816,9 @@ type DatasetUpdateParams struct {
 	Volsize             *int64 `json:"volsize,omitempty"`              // Volume size in bytes (for ZVOLs)
 	RefreservPercentage *int   `json:"refreserv_percentage,omitempty"` // Reference reservation percentage
 	Comments            string `json:"comments,omitempty"`             // Comments
+	Acltype             string `json:"acltype,omitempty"`              // ACL type: OFF, NFSV4, POSIX
+	Aclmode             string `json:"aclmode,omitempty"`              // ACL mode: PASSTHROUGH, RESTRICTED, DISCARD
+	Aclinherit          string `json:"aclinherit,omitempty"`           // ACL inherit: DISCARD, NOALLOW, RESTRICTED, PASSTHROUGH
 }
 
 // UpdateDataset updates a ZFS dataset or ZVOL.

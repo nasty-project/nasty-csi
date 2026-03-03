@@ -380,19 +380,40 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 
 	volumeName := req.GetName()
 
-	// Diagnostic: check clone's ACL type before share creation.
-	// TrueNAS's etc.generate('smb') calls path_get_acltype() via os.getxattr()
-	// on share paths. If this fails for clones, the share gets silently excluded.
+	// ZFS clones inherit acltype from the PARENT in the hierarchy (e.g., "storage"),
+	// NOT from the origin snapshot's dataset. The parent typically has acltype=posixacl,
+	// so clones get POSIX1E ACLs. TrueNAS's etc.generate('smb') calls path_get_acltype()
+	// and silently excludes shares with POSIX ACLs from smb4.conf.
+	//
+	// Fix: convert the clone's ACLs from POSIX to NFSv4 before creating the SMB share.
+	// Step 1: Update dataset properties (acltype, aclmode, aclinherit)
+	// Step 2: Set NFSv4 ACEs on the filesystem
 	if dataset.Mountpoint != "" {
-		if err := s.apiClient.FilesystemStat(ctx, dataset.Mountpoint); err != nil {
-			klog.Errorf("[SMB clone diag] filesystem.stat FAILED for %s: %v", dataset.Mountpoint, err)
-		} else {
-			klog.Infof("[SMB clone diag] filesystem.stat OK for %s", dataset.Mountpoint)
+		klog.Infof("SMB clone: converting ACLs from POSIX to NFSv4 for %s", dataset.ID)
+
+		_, updateErr := s.apiClient.UpdateDataset(ctx, dataset.ID, tnsapi.DatasetUpdateParams{
+			Acltype:    "NFSV4",
+			Aclmode:    "RESTRICTED",
+			Aclinherit: "PASSTHROUGH",
+		})
+		if updateErr != nil {
+			klog.Errorf("SMB clone: failed to update ACL properties on %s: %v", dataset.ID, updateErr)
+			if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup cloned dataset after ACL update failure: %v", delErr)
+			}
+			return nil, status.Errorf(codes.Internal, "Failed to set NFSv4 ACL type on cloned dataset: %v", updateErr)
 		}
+		klog.Infof("SMB clone: updated dataset ACL properties to NFSv4 for %s", dataset.ID)
+
+		if aclErr := s.apiClient.SetFilesystemACL(ctx, dataset.Mountpoint); aclErr != nil {
+			klog.Errorf("SMB clone: failed to set NFSv4 ACEs on %s: %v", dataset.Mountpoint, aclErr)
+		}
+
+		// Verify the conversion worked.
 		if acltype, err := s.apiClient.GetFilesystemACL(ctx, dataset.Mountpoint); err != nil {
-			klog.Errorf("[SMB clone diag] filesystem.getacl FAILED for %s: %v", dataset.Mountpoint, err)
+			klog.Warningf("SMB clone: failed to verify ACL type for %s: %v", dataset.Mountpoint, err)
 		} else {
-			klog.Infof("[SMB clone diag] filesystem.getacl OK: acltype=%s for %s", acltype, dataset.Mountpoint)
+			klog.Infof("SMB clone: verified ACL type after conversion: acltype=%s for %s", acltype, dataset.Mountpoint)
 		}
 	}
 
@@ -408,34 +429,6 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 			klog.Errorf("Failed to cleanup cloned dataset after SMB share creation failure: %v", delErr)
 		}
 		return nil, status.Errorf(codes.Internal, "Failed to create SMB share for cloned volume: %v", err)
-	}
-
-	klog.Infof("[SMB clone diag] Created share: ID=%d, Name=%q, Path=%q, Enabled=%v",
-		smbShare.ID, smbShare.Name, smbShare.Path, smbShare.Enabled)
-
-	// Delete and re-create the share after a delay. The first sharing.smb.create
-	// triggers etc.generate('smb') which may silently exclude the clone share.
-	// By deleting and re-creating after 3 seconds, we give the system time to
-	// fully propagate the clone's filesystem state.
-	klog.Infof("[SMB clone diag] Waiting 3s then delete+recreate share to force clean config generation")
-	time.Sleep(3 * time.Second)
-
-	if delErr := s.apiClient.DeleteSMBShare(ctx, smbShare.ID); delErr != nil {
-		klog.Warningf("[SMB clone diag] Failed to delete share %d for re-creation: %v", smbShare.ID, delErr)
-	} else {
-		klog.Infof("[SMB clone diag] Deleted share %d, re-creating...", smbShare.ID)
-		smbShare, err = s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
-			Name:    volumeName,
-			Path:    dataset.Mountpoint,
-			Comment: "CSI Volume (from clone): " + volumeName,
-			Enabled: true,
-		})
-		if err != nil {
-			klog.Errorf("[SMB clone diag] Re-creation of share failed: %v — volume will likely fail to mount", err)
-			// Don't return error — the dataset exists, just the share is broken
-		} else {
-			klog.Infof("[SMB clone diag] Re-created share: ID=%d, Name=%q", smbShare.ID, smbShare.Name)
-		}
 	}
 
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
