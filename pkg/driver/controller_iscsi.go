@@ -552,6 +552,18 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
+	// Guard: block deletion if CSI-managed snapshots exist (prevents VolSync deadlock)
+	if meta.DatasetID != "" {
+		hasCSISnaps, err := s.datasetHasCSIManagedSnapshots(ctx, meta.DatasetID)
+		if err != nil {
+			klog.Warningf("Failed to check for CSI snapshots on %s: %v (continuing with deletion)", meta.DatasetID, err)
+		} else if hasCSISnaps {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"dataset %s has CSI-managed snapshots; volume will be deleted after snapshots are removed", meta.DatasetID)
+		}
+	}
+
 	// Step 1: Delete target-extent associations
 	if meta.ISCSITargetID != 0 {
 		targetExtents, err := s.apiClient.ISCSITargetExtentByTarget(ctx, meta.ISCSITargetID)

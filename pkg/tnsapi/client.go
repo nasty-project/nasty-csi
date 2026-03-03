@@ -1912,6 +1912,35 @@ func (c *Client) QuerySnapshots(ctx context.Context, filters []interface{}) ([]S
 	return result, nil
 }
 
+// SnapshotWithUserProperties extends Snapshot with ZFS user properties.
+// Used by QuerySnapshotsWithUserProperties to return snapshot metadata
+// needed for CSI-managed snapshot detection.
+type SnapshotWithUserProperties struct {
+	Snapshot
+	UserProperties map[string]UserProperty `json:"user_properties,omitempty"`
+}
+
+// QuerySnapshotsWithUserProperties queries ZFS snapshots and includes user properties in the response.
+// This is used to check for CSI-managed snapshots (those with tns-csi:managed_by property)
+// before deleting a dataset, preventing VolSync deadlocks.
+func (c *Client) QuerySnapshotsWithUserProperties(ctx context.Context, filters []interface{}) ([]SnapshotWithUserProperties, error) {
+	klog.V(4).Infof("Querying snapshots with user properties, filters: %+v", filters)
+
+	queryOpts := map[string]interface{}{
+		"extra": map[string]interface{}{
+			"user_properties": true,
+		},
+	}
+	var result []SnapshotWithUserProperties
+	err := c.Call(ctx, "pool.snapshot.query", []interface{}{filters, queryOpts}, &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query snapshots with user properties: %w", err)
+	}
+
+	klog.V(4).Infof("Found %d snapshots with user properties", len(result))
+	return result, nil
+}
+
 // QuerySnapshotIDs is a lightweight version of QuerySnapshots that only returns snapshot IDs.
 // It uses select: ["id"] to minimize response size, which is critical when datasets have
 // many snapshots with large property sets (e.g., after migration from democratic-csi).

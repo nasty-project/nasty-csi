@@ -271,7 +271,7 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 
 // deleteSMBVolume deletes an SMB volume with ownership verification.
 //
-//nolint:dupl // Intentionally similar dataset deletion pattern as NFS/iSCSI
+//nolint:dupl,gocyclo // Intentionally similar dataset deletion pattern as NFS/iSCSI; complexity from ownership checks + CSI snapshot guard
 func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "delete")
 	klog.V(4).Infof("Deleting SMB volume: %s (dataset: %s, share ID: %d)", meta.Name, meta.DatasetName, meta.SMBShareID)
@@ -343,6 +343,16 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 
 	// Step 2: Delete dataset
 	if meta.DatasetID != "" {
+		// Guard: block deletion if CSI-managed snapshots exist (prevents VolSync deadlock)
+		hasCSISnaps, err := s.datasetHasCSIManagedSnapshots(ctx, meta.DatasetID)
+		if err != nil {
+			klog.Warningf("Failed to check for CSI snapshots on %s: %v (continuing with deletion)", meta.DatasetID, err)
+		} else if hasCSISnaps {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"dataset %s has CSI-managed snapshots; volume will be deleted after snapshots are removed", meta.DatasetID)
+		}
+
 		klog.V(4).Infof("Deleting dataset: %s", meta.DatasetID)
 
 		firstErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)

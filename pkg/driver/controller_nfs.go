@@ -546,7 +546,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 // Dataset deletion is retried for busy resource errors.
 // If deleteStrategy is "retain", the volume is kept but CSI returns success.
 //
-//nolint:dupl // Intentionally similar dataset deletion pattern as iSCSI
+//nolint:dupl,gocyclo // Intentionally similar dataset deletion pattern as iSCSI; complexity from ownership checks + CSI snapshot guard
 func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (dataset: %s, share ID: %d)", meta.Name, meta.DatasetName, meta.NFSShareID)
@@ -651,6 +651,16 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	if meta.DatasetID == "" {
 		klog.V(4).Infof("No dataset ID provided, skipping dataset deletion")
 	} else {
+		// Guard: block deletion if CSI-managed snapshots exist (prevents VolSync deadlock)
+		hasCSISnaps, err := s.datasetHasCSIManagedSnapshots(ctx, meta.DatasetID)
+		if err != nil {
+			klog.Warningf("Failed to check for CSI snapshots on %s: %v (continuing with deletion)", meta.DatasetID, err)
+		} else if hasCSISnaps {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"dataset %s has CSI-managed snapshots; volume will be deleted after snapshots are removed", meta.DatasetID)
+		}
+
 		klog.V(4).Infof("Deleting dataset: %s", meta.DatasetID)
 
 		firstErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)

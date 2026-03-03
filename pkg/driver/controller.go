@@ -390,6 +390,34 @@ func (s *ControllerService) lookupSnapshotByCSIName(ctx context.Context, poolDat
 // prevent dataset deletion. By deleting snapshots with defer=true first, ZFS will automatically
 // clean them up once all dependents are destroyed.
 //
+// datasetHasCSIManagedSnapshots checks if a dataset has any CSI-managed snapshots
+// (snapshots with tns-csi:managed_by = "tns-csi"). This is used as a pre-deletion guard
+// to prevent destroying snapshots that external tools like VolSync depend on.
+//
+// When CSI-managed snapshots exist, DeleteVolume should return FAILED_PRECONDITION
+// so Kubernetes retries until the snapshots are explicitly removed via DeleteSnapshot.
+// This matches democratic-csi's behavior of blocking deletion when managed snapshots exist.
+func (s *ControllerService) datasetHasCSIManagedSnapshots(ctx context.Context, datasetID string) (bool, error) {
+	snapCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	filters := []interface{}{
+		[]interface{}{"dataset", "=", datasetID},
+	}
+	snapshots, err := s.apiClient.QuerySnapshotsWithUserProperties(snapCtx, filters)
+	if err != nil {
+		return false, fmt.Errorf("failed to query snapshots with properties for %s: %w", datasetID, err)
+	}
+
+	for _, snap := range snapshots {
+		if prop, ok := snap.UserProperties[tnsapi.PropertyManagedBy]; ok && prop.Value == tnsapi.ManagedByValue {
+			klog.Infof("Dataset %s has CSI-managed snapshot: %s", datasetID, snap.ID)
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // This is necessary because after ZFS clone promotion:
 //   - The snapshot moves from the source to the promoted clone.
 //   - The original source volume becomes a dependent of the promoted snapshot.
