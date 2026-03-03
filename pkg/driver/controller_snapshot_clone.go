@@ -334,18 +334,12 @@ func (s *ControllerService) validateCloneParameters(req *csi.CreateVolumeRequest
 		newDatasetName: newDatasetName,
 	}
 
-	// SMB datasets need NFSv4 ACLs (set by share_type: "SMB" on new datasets).
-	// ZFS clones inherit acltype from the parent in the hierarchy, NOT the origin.
-	// Explicitly set acltype/aclmode/aclinherit so the clone matches the source dataset.
-	// aclinherit=passthrough is critical: without it Samba cannot serve the share because
-	// new files/directories get incorrect inherited ACLs.
-	if snapshotMeta.Protocol == ProtocolSMB {
-		cp.datasetProperties = map[string]string{
-			"acltype":    "nfsv4",
-			"aclmode":    "restricted",
-			"aclinherit": "passthrough",
-		}
-	}
+	// SMB clones: Do NOT set explicit acltype/aclmode/aclinherit properties.
+	// ZFS clones inherit ACL properties and data from the origin snapshot, which
+	// was created with share_type: "SMB" (setting nfsv4 ACLs). Explicitly setting
+	// these properties during clone may disrupt filesystem ACL metadata, causing
+	// TrueNAS's path_get_acltype() to fail during smb4.conf generation and
+	// silently exclude the share. This matches democratic-csi's approach.
 
 	return cp, nil
 }

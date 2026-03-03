@@ -381,17 +381,11 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 
 	volumeName := req.GetName()
 
-	// Set NFSv4 ACLs BEFORE share creation. This is critical for clones because
-	// sharing.smb.create regenerates smb4.conf by calling path_get_acltype() on the
-	// share path via os.getxattr(). If the clone doesn't have proper NFS4 ACL metadata
-	// at that point, the share gets silently excluded from the config (Samba doesn't
-	// serve it). For fresh volumes, TrueNAS sets ACLs during pool.dataset.create
-	// (via share_type: "SMB") before the share is created — we replicate that ordering.
-	if dataset.Mountpoint != "" {
-		if aclErr := s.apiClient.SetFilesystemACL(ctx, dataset.Mountpoint); aclErr != nil {
-			klog.Errorf("Failed to set ACL on cloned dataset %s: %v (SMB share may not be served)", dataset.Mountpoint, aclErr)
-		}
-	}
+	// Do NOT call SetFilesystemACL for clones. The clone inherits ACL properties
+	// and data from the origin snapshot (which was created with share_type: "SMB").
+	// Calling SetFilesystemACL may disrupt the filesystem's ACL xattr metadata,
+	// causing TrueNAS's path_get_acltype() to fail during smb4.conf generation
+	// and silently exclude the share. This matches democratic-csi's approach.
 
 	smbShare, err := s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
 		Name:    volumeName,
