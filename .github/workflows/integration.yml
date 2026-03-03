@@ -389,8 +389,10 @@ jobs:
           sudo k3s ctr images import /tmp/tns-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
           sudo k3s crictl images | grep tns-csi || true
-      - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+      - name: Install Ginkgo and smbclient
+        run: |
+          go install github.com/onsi/ginkgo/v2/ginkgo@latest
+          sudo apt-get install -y smbclient 2>/dev/null || true
       - name: Run SMB E2E Tests
         env:
           TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
@@ -424,24 +426,11 @@ jobs:
           echo "=== CSI Driver Pods ===" >> /tmp/test-logs/events.log
           kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver -o wide >> /tmp/test-logs/events.log 2>&1 || true
 
-          # SMB-specific diagnostics
-          echo "=== SMB Share Listing (smbclient) ===" > /tmp/test-logs/smb-diag.log
-          sudo apt-get install -y smbclient 2>/dev/null || true
+          # SMB-specific diagnostics (note: runs after test cleanup, so shares may be gone)
+          echo "=== SMB Share Listing (smbclient -L) ===" > /tmp/test-logs/smb-diag.log
           smbclient -L "//${TRUENAS_HOST}" -U "${SMB_USERNAME}%${SMB_PASSWORD}" --option="client min protocol=SMB3" 2>&1 >> /tmp/test-logs/smb-diag.log || true
-
           echo "" >> /tmp/test-logs/smb-diag.log
-          echo "=== TrueNAS SMB Shares (API) ===" >> /tmp/test-logs/smb-diag.log
-          echo '{"id":"1","msg":"connect","version":"1","support":["1"]}
-          {"id":"2","msg":"method","method":"auth.login_with_api_key","params":["'"${TRUENAS_API_KEY}"'"]}
-          {"id":"3","msg":"method","method":"sharing.smb.query","params":[]}' | \
-            websocat -n -k "wss://${TRUENAS_HOST}/api/current" 2>&1 | tail -1 | python3 -m json.tool >> /tmp/test-logs/smb-diag.log 2>&1 || true
-
-          echo "" >> /tmp/test-logs/smb-diag.log
-          echo "=== TrueNAS SMB Service Status (API) ===" >> /tmp/test-logs/smb-diag.log
-          echo '{"id":"1","msg":"connect","version":"1","support":["1"]}
-          {"id":"2","msg":"method","method":"auth.login_with_api_key","params":["'"${TRUENAS_API_KEY}"'"]}
-          {"id":"3","msg":"method","method":"service.query","params":[[["service","=","cifs"]]]}' | \
-            websocat -n -k "wss://${TRUENAS_HOST}/api/current" 2>&1 | tail -1 | python3 -m json.tool >> /tmp/test-logs/smb-diag.log 2>&1 || true
+          echo "=== NOTE: Real-time share diagnostics are in controller.log [SMB clone diag] lines ===" >> /tmp/test-logs/smb-diag.log
       - name: Upload diagnostic logs
         if: failure()
         uses: actions/upload-artifact@v6

@@ -4,6 +4,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -395,17 +396,25 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 	}
 
 	// Diagnostic: verify the share was registered properly by querying it back.
-	// TrueNAS may silently exclude clone-backed shares from smb4.conf during
-	// the initial config generation (FileNotFoundError on os.getxattr for the clone path).
-	klog.Infof("[SMB clone diag] Created share: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%v",
-		smbShare.ID, smbShare.Name, smbShare.Path, smbShare.Enabled, smbShare.Locked)
-	if verifyShares, verifyErr := s.apiClient.QuerySMBShare(ctx, dataset.Mountpoint); verifyErr != nil {
-		klog.Warningf("[SMB clone diag] Failed to verify share after creation: %v", verifyErr)
+	lockedStr := "<nil>"
+	if smbShare.Locked != nil {
+		lockedStr = strconv.FormatBool(*smbShare.Locked)
+	}
+	klog.Infof("[SMB clone diag] Created share: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%s",
+		smbShare.ID, smbShare.Name, smbShare.Path, smbShare.Enabled, lockedStr)
+
+	// Query ALL SMB shares to see the full picture (including fresh volume shares for comparison)
+	if allShares, allErr := s.apiClient.QueryAllSMBShares(ctx, "/mnt/"); allErr != nil {
+		klog.Warningf("[SMB clone diag] Failed to query all SMB shares: %v", allErr)
 	} else {
-		klog.Infof("[SMB clone diag] Shares at path %s: count=%d", dataset.Mountpoint, len(verifyShares))
-		for i, sh := range verifyShares {
-			klog.Infof("[SMB clone diag]   share[%d]: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%v",
-				i, sh.ID, sh.Name, sh.Path, sh.Enabled, sh.Locked)
+		klog.Infof("[SMB clone diag] Total SMB shares on server: %d", len(allShares))
+		for i, sh := range allShares {
+			shLocked := "<nil>"
+			if sh.Locked != nil {
+				shLocked = strconv.FormatBool(*sh.Locked)
+			}
+			klog.Infof("[SMB clone diag]   share[%d]: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%s",
+				i, sh.ID, sh.Name, sh.Path, sh.Enabled, shLocked)
 		}
 	}
 
