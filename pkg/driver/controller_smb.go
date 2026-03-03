@@ -4,7 +4,6 @@ package driver
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -381,29 +380,21 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 
 	volumeName := req.GetName()
 
-	// Wait for the clone's mountpoint to be accessible before creating the SMB share.
-	// sharing.smb.create triggers etc.generate('smb') which calls path_get_acltype()
-	// via os.getxattr() on the share path. If the clone isn't fully mounted yet,
-	// the path check fails and the share is silently excluded from smb4.conf.
-	// ZFS clones are typically mounted instantly, but we verify to be safe.
+	// Diagnostic: check clone's ACL type before share creation.
+	// TrueNAS's etc.generate('smb') calls path_get_acltype() via os.getxattr()
+	// on share paths. If this fails for clones, the share gets silently excluded.
 	if dataset.Mountpoint != "" {
-		const maxWait = 5
-		for i := range maxWait {
-			if err := s.apiClient.FilesystemStat(ctx, dataset.Mountpoint); err == nil {
-				klog.Infof("[SMB clone] Clone mountpoint %s is accessible (attempt %d)", dataset.Mountpoint, i+1)
-				break
-			} else if i < maxWait-1 {
-				klog.Warningf("[SMB clone] Clone mountpoint %s not accessible yet (attempt %d/%d): %v — waiting 1s", dataset.Mountpoint, i+1, maxWait, err)
-				time.Sleep(1 * time.Second)
-			} else {
-				klog.Errorf("[SMB clone] Clone mountpoint %s still not accessible after %d attempts: %v — proceeding anyway", dataset.Mountpoint, maxWait, err)
-			}
+		if err := s.apiClient.FilesystemStat(ctx, dataset.Mountpoint); err != nil {
+			klog.Errorf("[SMB clone diag] filesystem.stat FAILED for %s: %v", dataset.Mountpoint, err)
+		} else {
+			klog.Infof("[SMB clone diag] filesystem.stat OK for %s", dataset.Mountpoint)
+		}
+		if acltype, err := s.apiClient.GetFilesystemACL(ctx, dataset.Mountpoint); err != nil {
+			klog.Errorf("[SMB clone diag] filesystem.getacl FAILED for %s: %v", dataset.Mountpoint, err)
+		} else {
+			klog.Infof("[SMB clone diag] filesystem.getacl OK: acltype=%s for %s", acltype, dataset.Mountpoint)
 		}
 	}
-
-	// Do NOT call SetFilesystemACL for clones. The clone inherits ACL properties
-	// and data from the origin snapshot (which was created with share_type: "SMB").
-	// This matches democratic-csi's approach.
 
 	smbShare, err := s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
 		Name:    volumeName,
@@ -419,41 +410,32 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 		return nil, status.Errorf(codes.Internal, "Failed to create SMB share for cloned volume: %v", err)
 	}
 
-	// Diagnostic: verify the share was registered properly by querying it back.
-	lockedStr := "<nil>"
-	if smbShare.Locked != nil {
-		lockedStr = strconv.FormatBool(*smbShare.Locked)
-	}
-	klog.Infof("[SMB clone diag] Created share: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%s",
-		smbShare.ID, smbShare.Name, smbShare.Path, smbShare.Enabled, lockedStr)
+	klog.Infof("[SMB clone diag] Created share: ID=%d, Name=%q, Path=%q, Enabled=%v",
+		smbShare.ID, smbShare.Name, smbShare.Path, smbShare.Enabled)
 
-	// Query ALL SMB shares to see the full picture (including fresh volume shares for comparison)
-	if allShares, allErr := s.apiClient.QueryAllSMBShares(ctx, "/mnt/"); allErr != nil {
-		klog.Warningf("[SMB clone diag] Failed to query all SMB shares: %v", allErr)
+	// Delete and re-create the share after a delay. The first sharing.smb.create
+	// triggers etc.generate('smb') which may silently exclude the clone share.
+	// By deleting and re-creating after 3 seconds, we give the system time to
+	// fully propagate the clone's filesystem state.
+	klog.Infof("[SMB clone diag] Waiting 3s then delete+recreate share to force clean config generation")
+	time.Sleep(3 * time.Second)
+
+	if delErr := s.apiClient.DeleteSMBShare(ctx, smbShare.ID); delErr != nil {
+		klog.Warningf("[SMB clone diag] Failed to delete share %d for re-creation: %v", smbShare.ID, delErr)
 	} else {
-		klog.Infof("[SMB clone diag] Total SMB shares on server: %d", len(allShares))
-		for i, sh := range allShares {
-			shLocked := "<nil>"
-			if sh.Locked != nil {
-				shLocked = strconv.FormatBool(*sh.Locked)
-			}
-			klog.Infof("[SMB clone diag]   share[%d]: ID=%d, Name=%q, Path=%q, Enabled=%v, Locked=%s",
-				i, sh.ID, sh.Name, sh.Path, sh.Enabled, shLocked)
+		klog.Infof("[SMB clone diag] Deleted share %d, re-creating...", smbShare.ID)
+		smbShare, err = s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
+			Name:    volumeName,
+			Path:    dataset.Mountpoint,
+			Comment: "CSI Volume (from clone): " + volumeName,
+			Enabled: true,
+		})
+		if err != nil {
+			klog.Errorf("[SMB clone diag] Re-creation of share failed: %v — volume will likely fail to mount", err)
+			// Don't return error — the dataset exists, just the share is broken
+		} else {
+			klog.Infof("[SMB clone diag] Re-created share: ID=%d, Name=%q", smbShare.ID, smbShare.Name)
 		}
-	}
-
-	// Force TrueNAS to regenerate smb4.conf by updating the share. During the initial
-	// sharing.smb.create, TrueNAS calls etc.generate('smb') which runs path_get_acltype()
-	// on all share paths. For ZFS clones, the filesystem metadata may not be fully
-	// propagated yet (even after SetFilesystemACL returns), causing the share to be
-	// silently excluded from smb4.conf. This update triggers another etc.generate('smb')
-	// cycle, by which time the metadata is ready.
-	if _, updateErr := s.apiClient.UpdateSMBShare(ctx, smbShare.ID, tnsapi.SMBShareUpdateParams{
-		Comment: "CSI Volume (from clone): " + volumeName,
-	}); updateErr != nil {
-		klog.Warningf("[SMB clone diag] Failed to update share %d to force config regeneration: %v", smbShare.ID, updateErr)
-	} else {
-		klog.Infof("[SMB clone diag] Updated share %d to force smb4.conf regeneration", smbShare.ID)
 	}
 
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()

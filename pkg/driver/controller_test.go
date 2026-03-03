@@ -130,6 +130,10 @@ func (m *mockAPIClient) FilesystemStat(ctx context.Context, path string) error {
 	return nil
 }
 
+func (m *mockAPIClient) GetFilesystemACL(ctx context.Context, path string) (string, error) {
+	return "NFS4", nil
+}
+
 func (m *mockAPIClient) SetFilesystemACL(ctx context.Context, path string) error {
 	return nil
 }

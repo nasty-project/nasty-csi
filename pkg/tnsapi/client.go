@@ -1257,6 +1257,21 @@ func (c *Client) FilesystemStat(ctx context.Context, path string) error {
 	return nil
 }
 
+// GetFilesystemACL retrieves the ACL information for a path.
+// Returns the acltype ("NFS4" or "POSIX1E") and the full ACL response.
+// This is useful for diagnosing ACL issues on ZFS clones.
+func (c *Client) GetFilesystemACL(ctx context.Context, path string) (string, error) {
+	var result map[string]interface{}
+	err := c.Call(ctx, "filesystem.getacl", []interface{}{path}, &result)
+	if err != nil {
+		return "", fmt.Errorf("filesystem.getacl failed for %s: %w", path, err)
+	}
+	acltype, _ := result["acltype"].(string) //nolint:errcheck // type assertion ok to fail
+	trivial, _ := result["trivial"].(bool)   //nolint:errcheck // type assertion ok to fail
+	klog.Infof("[SMB clone diag] filesystem.getacl(%s): acltype=%s, trivial=%v", path, acltype, trivial)
+	return acltype, nil
+}
+
 // SetFilesystemACL sets NFSv4 ACLs on a dataset to allow full access for SMB users.
 // SMB datasets are created with share_type=SMB which gives them NFSv4 ACLs, but
 // the default ACL only grants access to root. This sets everyone@ FULL_CONTROL

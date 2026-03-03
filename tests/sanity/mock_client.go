@@ -757,6 +757,11 @@ func (m *MockClient) FilesystemStat(ctx context.Context, path string) error {
 	return nil
 }
 
+// GetFilesystemACL mocks filesystem.getacl.
+func (m *MockClient) GetFilesystemACL(ctx context.Context, path string) (string, error) {
+	return "NFS4", nil
+}
+
 // SetFilesystemACL mocks filesystem.setacl.
 func (m *MockClient) SetFilesystemACL(ctx context.Context, path string) error {
 	return nil

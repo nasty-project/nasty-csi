@@ -52,6 +52,7 @@ type ClientInterface interface {
 
 	// Filesystem operations
 	FilesystemStat(ctx context.Context, path string) error
+	GetFilesystemACL(ctx context.Context, path string) (string, error)
 	SetFilesystemACL(ctx context.Context, path string) error
 
 	// ZVOL operations
