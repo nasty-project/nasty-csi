@@ -357,6 +357,9 @@ func (s *ControllerService) handleExistingNVMeOFVolume(ctx context.Context, para
 		klog.V(4).Infof("NVMe-oF volume already exists (namespace ID: %d, NSID: %d), returning existing volume",
 			namespace.ID, namespace.NSID)
 
+		// Ensure properties are set (handles retry after context expired during property-setting)
+		s.ensureNVMeOFProperties(ctx, existingZvol.ID, params, subsystem, namespace)
+
 		// Use subsystem.NQN (what TrueNAS actually has) not params.subsystemNQN (what we would request)
 		resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, subsystem.NQN, existingZvol, subsystem, namespace, existingCapacity)
 		injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
@@ -366,6 +369,39 @@ func (s *ControllerService) handleExistingNVMeOFVolume(ctx context.Context, para
 
 	// ZVOL exists but no namespace - continue with namespace creation
 	return nil, false, nil
+}
+
+// ensureNVMeOFProperties checks if ZFS properties are set on the ZVOL and sets them if missing.
+// This handles the case where a ZVOL was created but context expired before properties were set.
+func (s *ControllerService) ensureNVMeOFProperties(ctx context.Context, zvolID string, params *nvmeofVolumeParams, subsystem *tnsapi.NVMeOFSubsystem, namespace *tnsapi.NVMeOFNamespace) {
+	existing, err := s.apiClient.GetDatasetProperties(ctx, zvolID, []string{tnsapi.PropertyManagedBy})
+	if err != nil {
+		klog.Warningf("Failed to check properties on ZVOL %s: %v (skipping property recovery)", zvolID, err)
+		return
+	}
+	if existing[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
+		return // Properties already set
+	}
+
+	klog.Infof("Recovering missing ZFS properties on ZVOL %s (orphaned from interrupted creation)", zvolID)
+	props := tnsapi.NVMeOFVolumePropertiesV1(tnsapi.NVMeOFVolumeParams{
+		VolumeID:       params.volumeName,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		SubsystemID:    subsystem.ID,
+		NamespaceID:    namespace.ID,
+		SubsystemNQN:   subsystem.NQN,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+	})
+	if err := s.apiClient.SetDatasetProperties(ctx, zvolID, props); err != nil {
+		klog.Warningf("Failed to recover ZFS properties on ZVOL %s: %v (volume will still work)", zvolID, err)
+	} else {
+		klog.Infof("Successfully recovered ZFS properties on ZVOL %s", zvolID)
+	}
 }
 
 // getZvolCapacity extracts the capacity from a ZVOL dataset's volsize property.
@@ -521,7 +557,7 @@ func (s *ControllerService) createSubsystemForVolume(ctx context.Context, params
 	})
 	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem '%s' for ZVOL %s: %v", params.subsystemNQN, params.zvolName, err)
 	}
 
 	klog.V(4).Infof("Created NVMe-oF subsystem: ID=%d, Name=%s, NQN=%s", subsystem.ID, subsystem.Name, subsystem.NQN)
@@ -550,7 +586,7 @@ func (s *ControllerService) bindSubsystemToPort(ctx context.Context, subsystemID
 	klog.Infof("Binding subsystem %d to port %d", subsystemID, portID)
 	if err := s.apiClient.AddSubsystemToPort(ctx, subsystemID, portID); err != nil {
 		timer.ObserveError()
-		return status.Errorf(codes.Internal, "Failed to bind subsystem to port: %v", err)
+		return status.Errorf(codes.Internal, "Failed to bind subsystem (ID: %d) to port %d: %v", subsystemID, portID, err)
 	}
 
 	klog.Infof("Successfully bound subsystem %d to port %d", subsystemID, portID)
@@ -625,7 +661,7 @@ func (s *ControllerService) getOrCreateZVOL(ctx context.Context, params *nvmeofV
 	zvol, err := s.apiClient.CreateZvol(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, createVolumeError("Failed to create ZVOL", err)
+		return nil, createVolumeError(fmt.Sprintf("Failed to create ZVOL %s (%d bytes)", params.zvolName, params.requestedCapacity), err)
 	}
 
 	klog.V(4).Infof("Created ZVOL: %s (ID: %s)", zvol.Name, zvol.ID)
@@ -648,7 +684,7 @@ func (s *ControllerService) createNVMeOFNamespaceForZVOL(ctx context.Context, zv
 	})
 	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF namespace: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF namespace in subsystem '%s' (ID: %d) for ZVOL %s: %v", subsystem.NQN, subsystem.ID, zvol.Name, err)
 	}
 
 	klog.V(4).Infof("Created NVMe-oF namespace: ID=%d, NSID=%d, device=%s, subsystem=%d",
@@ -1067,12 +1103,12 @@ func (s *ControllerService) setupNVMeOFVolumeFromClone(ctx context.Context, req 
 	})
 	if err != nil {
 		// Cleanup: delete the cloned ZVOL if subsystem creation fails
-		klog.Errorf("Failed to create NVMe-oF subsystem, cleaning up cloned ZVOL: %v", err)
+		klog.Errorf("Failed to create NVMe-oF subsystem '%s', cleaning up cloned ZVOL: %v", subsystemNQN, err)
 		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
 			klog.Errorf(msgFailedCleanupClonedZVOL, delErr)
 		}
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem '%s' for cloned ZVOL %s: %v", subsystemNQN, zvol.ID, err)
 	}
 
 	klog.Infof("Created NVMe-oF subsystem: ID=%d, Name=%s", subsystem.ID, subsystem.Name)

@@ -1303,6 +1303,6 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 ---
 
 **Last Updated**: 2026-01-29
-**Driver Version**: v0.15.4
+**Driver Version**: v0.15.5
 **Kubernetes Version Tested**: 1.27+
 **Go Version**: 1.26.0+

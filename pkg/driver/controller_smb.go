@@ -152,10 +152,47 @@ func (s *ControllerService) handleExistingSMBVolume(ctx context.Context, params 
 	}
 	klog.V(4).Infof("SMB volume already exists (share ID: %d), returning existing volume", existingShare.ID)
 
+	// Ensure properties are set (handles retry after context expired during property-setting)
+	s.ensureSMBProperties(ctx, existingDataset.ID, params, existingShare)
+
 	resp := buildSMBVolumeResponse(params.volumeName, params.server, existingDataset, existingShare, params.requestedCapacity)
 
 	timer.ObserveSuccess()
 	return resp, true, nil
+}
+
+// ensureSMBProperties checks if ZFS properties are set on the dataset and sets them if missing.
+// This handles the case where a dataset was created but context expired before properties were set.
+//
+//nolint:dupl // Intentionally similar property-recovery pattern as NFS
+func (s *ControllerService) ensureSMBProperties(ctx context.Context, datasetID string, params *smbVolumeParams, share *tnsapi.SMBShare) {
+	existing, err := s.apiClient.GetDatasetProperties(ctx, datasetID, []string{tnsapi.PropertyManagedBy})
+	if err != nil {
+		klog.Warningf("Failed to check properties on dataset %s: %v (skipping property recovery)", datasetID, err)
+		return
+	}
+	if existing[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
+		return // Properties already set
+	}
+
+	klog.Infof("Recovering missing ZFS properties on dataset %s (orphaned from interrupted creation)", datasetID)
+	props := tnsapi.SMBVolumePropertiesV1(tnsapi.SMBVolumeParams{
+		VolumeID:       params.volumeName,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		ShareID:        share.ID,
+		ShareName:      share.Name,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+	})
+	if err := s.apiClient.SetDatasetProperties(ctx, datasetID, props); err != nil {
+		klog.Warningf("Failed to recover ZFS properties on dataset %s: %v (volume will still work)", datasetID, err)
+	} else {
+		klog.Infof("Successfully recovered ZFS properties on dataset %s", datasetID)
+	}
 }
 
 // createSMBShareForDataset creates an SMB share for a dataset and stores ZFS properties.
@@ -168,12 +205,12 @@ func (s *ControllerService) createSMBShareForDataset(ctx context.Context, datase
 		Enabled: true,
 	})
 	if err != nil {
-		klog.Errorf("Failed to create SMB share, cleaning up dataset: %v", err)
+		klog.Errorf("Failed to create SMB share '%s' for dataset %s (mountpoint: %s): %v", params.volumeName, dataset.ID, dataset.Mountpoint, err)
 		if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
 			klog.Errorf("Failed to cleanup dataset after SMB share creation failure: %v", delErr)
 		}
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create SMB share: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create SMB share '%s' for dataset %s: %v", params.volumeName, dataset.ID, err)
 	}
 
 	klog.V(4).Infof("Created SMB share %q with ID: %d for path: %s", smbShare.Name, smbShare.ID, smbShare.Path)

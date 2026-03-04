@@ -368,9 +368,45 @@ func (s *ControllerService) handleExistingISCSIVolume(ctx context.Context, param
 	klog.V(4).Infof("iSCSI volume already exists (target ID: %d, extent ID: %d, IQN: %s), returning existing volume",
 		target.ID, extent.ID, fullIQN)
 
+	// Ensure properties are set (handles retry after context expired during property-setting)
+	s.ensureISCSIProperties(ctx, existingZvol.ID, params, target, extent, fullIQN)
+
 	resp := buildISCSIVolumeResponse(params.volumeName, params.server, fullIQN, existingZvol, target, extent, existingCapacity)
 	timer.ObserveSuccess()
 	return resp, true, nil
+}
+
+// ensureISCSIProperties checks if ZFS properties are set on the ZVOL and sets them if missing.
+// This handles the case where a ZVOL was created but context expired before properties were set.
+func (s *ControllerService) ensureISCSIProperties(ctx context.Context, zvolID string, params *iscsiVolumeParams, target *tnsapi.ISCSITarget, extent *tnsapi.ISCSIExtent, fullIQN string) {
+	existing, err := s.apiClient.GetDatasetProperties(ctx, zvolID, []string{tnsapi.PropertyManagedBy})
+	if err != nil {
+		klog.Warningf("Failed to check properties on ZVOL %s: %v (skipping property recovery)", zvolID, err)
+		return
+	}
+	if existing[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
+		return // Properties already set
+	}
+
+	klog.Infof("Recovering missing ZFS properties on ZVOL %s (orphaned from interrupted creation)", zvolID)
+	props := tnsapi.ISCSIVolumePropertiesV1(tnsapi.ISCSIVolumeParams{
+		VolumeID:       params.volumeName,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		TargetID:       target.ID,
+		ExtentID:       extent.ID,
+		TargetIQN:      fullIQN,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+	})
+	if err := s.apiClient.SetDatasetProperties(ctx, zvolID, props); err != nil {
+		klog.Warningf("Failed to recover ZFS properties on ZVOL %s: %v (volume will still work)", zvolID, err)
+	} else {
+		klog.Infof("Successfully recovered ZFS properties on ZVOL %s", zvolID)
+	}
 }
 
 // getOrCreateZVOLForISCSI creates a ZVOL for iSCSI or returns existing one.
@@ -424,7 +460,7 @@ func (s *ControllerService) getOrCreateZVOLForISCSI(ctx context.Context, params 
 	zvol, err := s.apiClient.CreateZvol(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, createVolumeError("Failed to create ZVOL "+params.zvolName, err)
+		return nil, createVolumeError(fmt.Sprintf("Failed to create ZVOL %s (%d bytes)", params.zvolName, params.requestedCapacity), err)
 	}
 
 	klog.V(4).Infof("Created ZVOL: %s (ID: %s)", params.zvolName, zvol.ID)
@@ -444,7 +480,7 @@ func (s *ControllerService) createISCSIExtent(ctx context.Context, params *iscsi
 	extent, err := s.apiClient.CreateISCSIExtent(ctx, extentParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI extent: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI extent for ZVOL %s (target: %s): %v", params.zvolName, params.volumeName, err)
 	}
 
 	klog.V(4).Infof("Created iSCSI extent: %d for ZVOL %s", extent.ID, params.zvolName)
@@ -504,7 +540,7 @@ func (s *ControllerService) createISCSITarget(ctx context.Context, params *iscsi
 	target, err := s.apiClient.CreateISCSITarget(ctx, targetParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target '%s' for ZVOL %s: %v", params.volumeName, params.zvolName, err)
 	}
 
 	klog.V(4).Infof("Created iSCSI target: %s (ID: %d)", target.Name, target.ID)
@@ -524,7 +560,7 @@ func (s *ControllerService) createISCSITargetExtent(ctx context.Context, targetI
 	te, err := s.apiClient.CreateISCSITargetExtent(ctx, teParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create target-extent association: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to associate iSCSI target (ID: %d) with extent (ID: %d): %v", targetID, extentID, err)
 	}
 
 	klog.V(4).Infof("Created target-extent association: %d", te.ID)

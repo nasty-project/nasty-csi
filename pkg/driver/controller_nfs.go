@@ -354,6 +354,9 @@ func (s *ControllerService) handleExistingNFSVolume(ctx context.Context, params 
 
 	klog.V(4).Infof("Capacity is compatible, returning existing volume")
 
+	// Ensure properties are set (handles retry after context expired during property-setting)
+	s.ensureNFSProperties(ctx, existingDataset.ID, params, existingShare)
+
 	// Use existingCapacity if available, otherwise use requestedCapacity (for backward compatibility)
 	capacityToReturn := params.requestedCapacity
 	if existingCapacity > 0 {
@@ -364,6 +367,40 @@ func (s *ControllerService) handleExistingNFSVolume(ctx context.Context, params 
 
 	timer.ObserveSuccess()
 	return resp, true, nil
+}
+
+// ensureNFSProperties checks if ZFS properties are set on the dataset and sets them if missing.
+// This handles the case where a dataset was created but context expired before properties were set.
+//
+//nolint:dupl // Intentionally similar property-recovery pattern as SMB
+func (s *ControllerService) ensureNFSProperties(ctx context.Context, datasetID string, params *nfsVolumeParams, share *tnsapi.NFSShare) {
+	existing, err := s.apiClient.GetDatasetProperties(ctx, datasetID, []string{tnsapi.PropertyManagedBy})
+	if err != nil {
+		klog.Warningf("Failed to check properties on dataset %s: %v (skipping property recovery)", datasetID, err)
+		return
+	}
+	if existing[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
+		return // Properties already set
+	}
+
+	klog.Infof("Recovering missing ZFS properties on dataset %s (orphaned from interrupted creation)", datasetID)
+	props := tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
+		VolumeID:       params.volumeName,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		ShareID:        share.ID,
+		SharePath:      share.Path,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+	})
+	if err := s.apiClient.SetDatasetProperties(ctx, datasetID, props); err != nil {
+		klog.Warningf("Failed to recover ZFS properties on dataset %s: %v (volume will still work)", datasetID, err)
+	} else {
+		klog.Infof("Successfully recovered ZFS properties on dataset %s", datasetID)
+	}
 }
 
 // getOrCreateDataset gets an existing dataset or creates a new one.
@@ -435,7 +472,7 @@ func (s *ControllerService) getOrCreateDataset(ctx context.Context, params *nfsV
 	dataset, err := s.apiClient.CreateDataset(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, createVolumeError("Failed to create dataset", err)
+		return nil, createVolumeError(fmt.Sprintf("Failed to create dataset %s (%d bytes)", params.datasetName, params.requestedCapacity), err)
 	}
 
 	klog.V(4).Infof("Created dataset: %s with mountpoint: %s", dataset.Name, dataset.Mountpoint)
@@ -453,12 +490,12 @@ func (s *ControllerService) createNFSShareForDataset(ctx context.Context, datase
 		Enabled:      true,
 	})
 	if err != nil {
-		klog.Errorf("Failed to create NFS share, cleaning up dataset: %v", err)
+		klog.Errorf("Failed to create NFS share for dataset %s (mountpoint: %s): %v", dataset.ID, dataset.Mountpoint, err)
 		if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
 			klog.Errorf("Failed to cleanup dataset after NFS share creation failure: %v", delErr)
 		}
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NFS share: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for dataset %s (mountpoint: %s): %v", dataset.ID, dataset.Mountpoint, err)
 	}
 
 	klog.V(4).Infof("Created NFS share with ID: %d for path: %s", nfsShare.ID, nfsShare.Path)

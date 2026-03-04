@@ -728,38 +728,10 @@ func (s *ControllerService) checkExistingVolume(ctx context.Context, req *csi.Cr
 		volumeMeta = meta
 		volumeContext = ctx
 
-	case ProtocolNVMeOF:
-		// For NVMe-oF, we would need to query subsystems and namespaces
-		// This is a placeholder for future implementation
-		klog.Warningf("NVMe-oF idempotency check not fully implemented")
-		volumeMeta = VolumeMetadata{
-			Name:        req.GetName(),
-			Protocol:    protocol,
-			DatasetID:   existingDataset.ID,
-			DatasetName: expectedDatasetName,
-		}
-
-	case ProtocolISCSI:
-		// For iSCSI, we would need to query targets and extents
-		// This is a placeholder for future implementation
-		klog.Warningf("iSCSI idempotency check not fully implemented")
-		volumeMeta = VolumeMetadata{
-			Name:        req.GetName(),
-			Protocol:    protocol,
-			DatasetID:   existingDataset.ID,
-			DatasetName: expectedDatasetName,
-		}
-
-	case ProtocolSMB:
-		// For SMB, we would need to query shares
-		// This is a placeholder for future implementation
-		klog.Warningf("SMB idempotency check not fully implemented")
-		volumeMeta = VolumeMetadata{
-			Name:        req.GetName(),
-			Protocol:    protocol,
-			DatasetID:   existingDataset.ID,
-			DatasetName: expectedDatasetName,
-		}
+	case ProtocolNVMeOF, ProtocolISCSI, ProtocolSMB:
+		// Defer to protocol-specific handler which validates all resources
+		// (subsystem/target/share exist + capacity match + builds complete VolumeContext)
+		return nil, ErrVolumeNotFound
 
 	default:
 		klog.Errorf("Unknown protocol: %s", protocol)
