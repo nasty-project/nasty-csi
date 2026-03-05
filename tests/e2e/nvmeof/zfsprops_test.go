@@ -2,7 +2,6 @@ package nvmeof_test
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -17,7 +16,6 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 	var ctx context.Context
 	var err error
 
-	// Timeouts (longer for NVMe-oF)
 	const (
 		pvcTimeout = 360 * time.Second
 		podTimeout = 360 * time.Second
@@ -56,7 +54,7 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 			return f.K8s.DeleteStorageClass(ctx, zfsStorageClass)
 		})
 
-		By("Creating a PVC with ZFS properties StorageClass")
+		By("Creating PVC")
 		pvcName := "test-pvc-nvmeof-zfsprops"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
@@ -70,7 +68,7 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 			return f.K8s.DeletePVC(ctx, pvcName)
 		})
 
-		By("Creating a POD to trigger PVC binding and test volume I/O")
+		By("Creating POD to trigger provisioning")
 		podName := "test-pod-nvmeof-zfsprops"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      podName,
@@ -79,9 +77,6 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pod).NotTo(BeNil())
-		f.Cleanup.Add(func() error {
-			return f.K8s.DeletePod(ctx, podName)
-		})
 
 		By("Waiting for POD to be ready")
 		err = f.K8s.WaitForPodReady(ctx, podName, podTimeout)
@@ -91,33 +86,21 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 		err = f.K8s.WaitForPVCBound(ctx, pvcName, pvcTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Writing test data to verify volume is usable")
-		testData := "NVMe-oF ZFS Properties Test Data"
-		_, err = f.K8s.ExecInPod(ctx, podName, []string{
-			"sh", "-c", fmt.Sprintf("echo '%s' > /data/test.txt && sync", testData),
-		})
+		By("Getting dataset path from PV")
+		pvName, err := f.K8s.GetPVName(ctx, pvcName)
 		Expect(err).NotTo(HaveOccurred())
+		datasetPath, err := f.K8s.GetVolumeHandle(ctx, pvName)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(datasetPath).NotTo(BeEmpty())
 
-		By("Reading back test data")
-		output, err := f.K8s.ExecInPod(ctx, podName, []string{"cat", "/data/test.txt"})
+		By("Verifying compression is set to lz4")
+		compression, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(Equal(testData))
+		Expect(compression).To(Equal("LZ4"), "compression should be LZ4")
 
-		By("Writing larger data to test block device")
-		// Write 50MB to verify ZVOL is working correctly
-		_, err = f.K8s.ExecInPod(ctx, podName, []string{
-			"sh", "-c", "dd if=/dev/zero of=/data/testfile.bin bs=1M count=50 && sync",
-		})
+		By("Verifying volblocksize is set to 16K")
+		volblocksize, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "volblocksize")
 		Expect(err).NotTo(HaveOccurred())
-
-		By("Verifying file was created")
-		output, err = f.K8s.ExecInPod(ctx, podName, []string{"ls", "-la", "/data/testfile.bin"})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(ContainSubstring("testfile.bin"))
-
-		By("Checking controller logs for ZVOL creation")
-		logs, err := f.K8s.GetControllerLogs(ctx, 100)
-		Expect(err).NotTo(HaveOccurred())
-		GinkgoWriter.Printf("Controller logs (ZVOL properties check):\n%s\n", logs)
+		Expect(volblocksize).To(Equal("16K"), "volblocksize should be 16K")
 	})
 })

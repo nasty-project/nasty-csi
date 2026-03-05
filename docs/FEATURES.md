@@ -436,6 +436,32 @@ spec:
   - Node logs: Mount/unmount operations, device management
   - Structured logging with context
 
+### In-Cluster Web Dashboard
+- **Status**: ✅ Fully implemented
+- **Port**: 9090 (configurable)
+- **Enable**: `controller.dashboard.enabled: true` in Helm values
+- **Features**:
+  - Live volume inventory with protocol, capacity, and health status
+  - Volume health checks (verifies datasets, shares, subsystems, targets exist)
+  - Kubernetes enrichment (PV/PVC binding, namespace, attached pods)
+  - Snapshot and clone tracking
+  - Unmanaged volume discovery (non-CSI volumes on same pool)
+  - Parsed Prometheus metrics summary
+  - JSON API endpoints for programmatic access
+- **Access**: `kubectl port-forward svc/tns-csi-driver-dashboard 9090:9090`, or configure Ingress
+
+### kubectl Plugin Dashboard
+- **Status**: ✅ Fully implemented
+- **Port**: 2137 (default, configurable via `--port`)
+- **Command**: `kubectl tns-csi dashboard`
+- **Description**: Local dashboard that connects directly to TrueNAS via WebSocket. Same UI as the in-cluster dashboard but runs on your machine. Auto-discovers credentials from installed driver.
+
+### Grafana Dashboard
+- **Status**: ✅ Fully implemented
+- **Enable**: `grafana.dashboards.enabled: true` in Helm values
+- **Description**: Pre-built Grafana dashboard (`tns-csi-overview.json`) provisioned via ConfigMap with sidecar auto-discovery
+- **Panels**: WebSocket health, operation counts by protocol, operations by type (create/delete/expand), message throughput, per-protocol breakdown (NFS, NVMe-oF, iSCSI, SMB)
+
 ## Deployment Features
 
 ### Helm Chart
@@ -1303,6 +1329,6 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 ---
 
 **Last Updated**: 2026-01-29
-**Driver Version**: v0.15.5
+**Driver Version**: v0.15.6
 **Kubernetes Version Tested**: 1.27+
 **Go Version**: 1.26.0+

@@ -60,9 +60,17 @@ See detailed comparisons:
 - [TNS-CSI vs truenas-csi (Official)](docs/COMPARISON-TRUENAS-CSI.md)
 - [TNS-CSI vs Democratic-CSI](docs/COMPARISON-DEMOCRATIC-CSI.md)
 
-## Dashboard
+## Dashboard and Observability
 
 <img width="1380" height="914" alt="image" src="https://github.com/user-attachments/assets/5d2ce624-2031-442d-8f6f-5422bce9bab7" />
+
+The driver includes two dashboard options and a pre-built Grafana dashboard:
+
+- **In-cluster dashboard** — runs inside the controller pod (port 9090), enable with `controller.dashboard.enabled: true`
+- **kubectl plugin dashboard** — runs locally via `kubectl tns-csi dashboard` (port 2137)
+- **Grafana dashboard** — pre-built Prometheus dashboard, enable with `grafana.dashboards.enabled: true`
+
+Both web dashboards show volume health, Kubernetes binding, snapshots, clones, and metrics. See [METRICS.md](docs/METRICS.md) for setup details.
 
 ### Protocol Selection Guide
 
@@ -109,7 +117,7 @@ kubectl krew install tns-csi
 | `kubectl tns-csi health` | Check health of all volumes |
 | `kubectl tns-csi troubleshoot <pvc>` | Diagnose PVC issues |
 | `kubectl tns-csi cleanup` | Delete orphaned volumes |
-| `kubectl tns-csi serve` | Start web dashboard on http://localhost:2137 |
+| `kubectl tns-csi dashboard` | Start web dashboard on http://localhost:2137 |
 
 The plugin **auto-discovers credentials** from the installed driver, so it works out of the box on clusters with tns-csi installed.
 
@@ -168,7 +176,7 @@ The TNS CSI Driver is published to both Docker Hub and GitHub Container Registry
 #### Docker Hub (recommended)
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -183,7 +191,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **NVMe-oF Example:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -202,7 +210,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **iSCSI Example:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -219,7 +227,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **SMB Example:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \

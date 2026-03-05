@@ -731,3 +731,33 @@ func (v *TrueNASVerifier) GetDatasetProperty(ctx context.Context, datasetPath, p
 
 	return "", nil // Property not set or unexpected format
 }
+
+// GetZFSProperty retrieves a native ZFS property (e.g., "compression", "recordsize", "atime", "volblocksize")
+// from a dataset. Returns the parsed value as a string. Returns empty string if the property doesn't exist.
+func (v *TrueNASVerifier) GetZFSProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
+	var datasets []map[string]any
+	filter := []any{[]any{"id", "=", datasetPath}}
+	if err := v.client.Call(ctx, "pool.dataset.query", []any{filter}, &datasets); err != nil {
+		return "", fmt.Errorf("failed to query dataset: %w", err)
+	}
+	if len(datasets) == 0 {
+		return "", fmt.Errorf("%s: %w", datasetPath, ErrDatasetNotFound)
+	}
+
+	dataset := datasets[0]
+	propData, ok := dataset[propertyName]
+	if !ok {
+		return "", nil
+	}
+
+	// Native ZFS properties are returned as {"value": "lz4", "rawvalue": "lz4", "parsed": "...", "source": "LOCAL"}
+	if propMap, isMap := propData.(map[string]any); isMap {
+		if val, hasValue := propMap["value"]; hasValue {
+			if strVal, isStr := val.(string); isStr {
+				return strVal, nil
+			}
+		}
+	}
+
+	return "", nil
+}

@@ -23,11 +23,11 @@ These metrics track all CSI RPC operations:
 
 ### Volume Operation Metrics
 
-Protocol-specific volume operations (NFS, NVMe-oF, and iSCSI):
+Protocol-specific volume operations (NFS, NVMe-oF, iSCSI, and SMB):
 
 - **`tns_volume_operations_total`** (counter)
   - Total number of volume operations
-  - Labels: `protocol` (nfs, nvmeof, or iscsi), `operation` (create, delete, expand), `status` (success or error)
+  - Labels: `protocol` (nfs, nvmeof, iscsi, or smb), `operation` (create, delete, expand), `status` (success or error)
 
 - **`tns_volume_operations_duration_seconds`** (histogram)
   - Duration of volume operations in seconds
@@ -207,22 +207,111 @@ histogram_quantile(0.95,
 
 ## Grafana Dashboard
 
-Example Grafana panels:
+The Helm chart includes a pre-built Grafana dashboard (`tns-csi-overview.json`) that provides a comprehensive view of driver operations.
 
-### Volume Operations Panel
-- Query: `sum by (protocol) (rate(tns_volume_operations_total[5m]))`
-- Visualization: Time series
-- Legend: `{{protocol}}`
+### Enabling the Grafana Dashboard
 
-### WebSocket Connection Status Panel
-- Query: `tns_websocket_connected`
-- Visualization: Stat
-- Thresholds: Red (0), Green (1)
+Enable automatic provisioning via Helm values:
 
-### Operation Latency Panel
-- Query: `histogram_quantile(0.95, rate(tns_volume_operations_duration_seconds_bucket[5m]))`
-- Visualization: Time series
-- Unit: seconds (s)
+```yaml
+grafana:
+  dashboards:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"    # Must match your Grafana sidecar label selector
+    annotations: {}
+```
+
+This creates a ConfigMap (`tns-csi-driver-grafana-dashboard`) with the `grafana_dashboard: "1"` label. If your Grafana deployment uses a sidecar (standard with kube-prometheus-stack), the dashboard is auto-discovered and loaded.
+
+### Dashboard Panels
+
+The dashboard includes:
+
+- **WebSocket Connection** — connection status, duration, and reconnect count
+- **Operations Overview** — total operations by protocol (NFS, NVMe-oF, iSCSI, SMB) with success/error breakdown
+- **Operations by Type** — create, delete, expand counts per protocol
+- **Message Throughput** — WebSocket messages sent/received over time
+- **Per-Protocol Breakdown** — dedicated panels for NFS, NVMe-oF, iSCSI, and SMB operations
+
+### Manual Import
+
+If you don't use Grafana sidecar discovery, import the dashboard JSON manually:
+
+1. Copy `charts/tns-csi-driver/dashboards/tns-csi-overview.json`
+2. In Grafana: **Dashboards** > **Import** > paste the JSON
+3. Select your Prometheus data source
+
+## In-Cluster Web Dashboard
+
+The controller pod can serve a live web dashboard showing volume health, Kubernetes binding, and protocol-specific details.
+
+### Enabling the Dashboard
+
+```yaml
+controller:
+  dashboard:
+    enabled: true
+    port: 9090
+    service:
+      enabled: true
+      type: ClusterIP
+      port: 9090
+    ingress:
+      enabled: false    # Optional: expose via Ingress
+```
+
+### Accessing the Dashboard
+
+```bash
+# Port-forward to the dashboard service
+kubectl port-forward -n kube-system svc/tns-csi-driver-dashboard 9090:9090
+
+# Open http://localhost:9090/dashboard/
+```
+
+### Dashboard Features
+
+The in-cluster dashboard provides:
+
+- **Volume inventory** — all managed volumes with protocol, capacity, and health status
+- **Volume health checks** — verifies dataset exists, NFS shares/SMB shares/NVMe-oF subsystems/iSCSI targets are valid
+- **Kubernetes binding** — shows PV/PVC names, namespaces, and attached pods
+- **Snapshot and clone tracking** — lists all snapshots and clones with source volumes
+- **Unmanaged volume discovery** — finds non-CSI volumes on the same pool (requires `--dashboard-pool`)
+- **Metrics summary** — parsed Prometheus metrics (operations, WebSocket health)
+
+### API Endpoints
+
+The dashboard exposes JSON API endpoints at `/dashboard/api/`:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /dashboard/api/volumes` | List all managed volumes |
+| `GET /dashboard/api/volumes/{id}` | Volume details with health check |
+| `GET /dashboard/api/snapshots` | List all snapshots |
+| `GET /dashboard/api/clones` | List all clones |
+| `GET /dashboard/api/summary` | Summary statistics |
+| `GET /dashboard/api/unmanaged` | Unmanaged volumes (needs `--dashboard-pool`) |
+| `GET /dashboard/api/metrics` | Parsed Prometheus metrics |
+| `GET /dashboard/api/metrics/raw` | Raw Prometheus text format |
+
+### kubectl Plugin Dashboard
+
+The kubectl plugin includes a local dashboard that connects directly to TrueNAS:
+
+```bash
+# Start dashboard (auto-opens browser at http://localhost:2137)
+kubectl tns-csi dashboard
+
+# Custom port, without auto-open
+kubectl tns-csi dashboard --port 9090 --open=false
+
+# With pool for unmanaged volume discovery
+kubectl tns-csi dashboard --pool storage
+```
+
+The plugin auto-discovers TrueNAS credentials from the installed driver's Secret. Both dashboards (in-cluster and kubectl plugin) share the same UI — the difference is where they run: in-cluster runs inside the controller pod, while the plugin runs locally on your machine.
 
 ## Troubleshooting
 
@@ -267,4 +356,4 @@ Metrics are collected in:
 - `pkg/metrics/metrics.go` - Metric definitions and registration
 - `pkg/driver/driver.go` - CSI operation metrics via gRPC interceptor
 - `pkg/tnsapi/client.go` - WebSocket connection metrics
-- `pkg/driver/controller_nfs.go`, `controller_nvmeof.go`, and `controller_iscsi.go` - Protocol-specific volume operation metrics
+- `pkg/driver/controller_nfs.go`, `controller_nvmeof.go`, `controller_iscsi.go`, and `controller_smb.go` - Protocol-specific volume operation metrics

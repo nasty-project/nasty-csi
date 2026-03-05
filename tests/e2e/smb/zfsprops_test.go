@@ -3,7 +3,6 @@ package smb
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -18,7 +17,6 @@ var _ = Describe("SMB ZFS Properties", func() {
 	var ctx context.Context
 	var err error
 
-	// Timeouts
 	const (
 		pvcTimeout = 120 * time.Second
 		podTimeout = 120 * time.Second
@@ -57,7 +55,7 @@ var _ = Describe("SMB ZFS Properties", func() {
 			return f.K8s.DeleteStorageClass(ctx, zfsStorageClass)
 		})
 
-		By("Creating a PVC with ZFS properties StorageClass")
+		By("Creating PVC")
 		pvcName := "test-pvc-zfsprops"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
@@ -71,11 +69,7 @@ var _ = Describe("SMB ZFS Properties", func() {
 			return f.K8s.DeletePVC(ctx, pvcName)
 		})
 
-		By("Waiting for PVC to be bound")
-		err = f.K8s.WaitForPVCBound(ctx, pvcName, pvcTimeout)
-		Expect(err).NotTo(HaveOccurred())
-
-		By("Creating a POD to test volume I/O")
+		By("Creating POD to trigger provisioning")
 		podName := "test-pod-zfsprops"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      podName,
@@ -84,44 +78,35 @@ var _ = Describe("SMB ZFS Properties", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pod).NotTo(BeNil())
-		f.Cleanup.Add(func() error {
-			return f.K8s.DeletePod(ctx, podName)
-		})
 
 		By("Waiting for POD to be ready")
 		err = f.K8s.WaitForPodReady(ctx, podName, podTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Writing test data to verify volume is usable")
-		testData := "ZFS Properties Test Data"
-		_, err = f.K8s.ExecInPod(ctx, podName, []string{
-			"sh", "-c", fmt.Sprintf("echo '%s' > /data/test.txt", testData),
-		})
+		By("Waiting for PVC to be bound")
+		err = f.K8s.WaitForPVCBound(ctx, pvcName, pvcTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Reading back test data")
-		output, err := f.K8s.ExecInPod(ctx, podName, []string{"cat", "/data/test.txt"})
+		By("Getting dataset path from PV")
+		pvName, err := f.K8s.GetPVName(ctx, pvcName)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(Equal(testData))
-
-		By("Writing larger data to test compression benefit")
-		// Write 10MB of zeros which should compress well with lz4
-		_, err = f.K8s.ExecInPod(ctx, podName, []string{
-			"sh", "-c", "dd if=/dev/zero of=/data/compressible.bin bs=1M count=10 2>/dev/null",
-		})
+		datasetPath, err := f.K8s.GetVolumeHandle(ctx, pvName)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(datasetPath).NotTo(BeEmpty())
 
-		By("Verifying file was created")
-		output, err = f.K8s.ExecInPod(ctx, podName, []string{"ls", "-la", "/data/compressible.bin"})
+		By("Verifying compression is set to lz4")
+		compression, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(ContainSubstring("compressible.bin"))
+		Expect(compression).To(Equal("LZ4"), "compression should be LZ4")
 
-		By("Checking controller logs for ZFS property application")
-		logs, err := f.K8s.GetControllerLogs(ctx, 100)
+		By("Verifying atime is set to off")
+		atime, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "atime")
 		Expect(err).NotTo(HaveOccurred())
+		Expect(atime).To(Equal("OFF"), "atime should be OFF")
 
-		// The controller should have processed the volume with ZFS properties
-		// Even if not explicitly logged, volume creation success indicates properties were handled
-		GinkgoWriter.Printf("Controller logs (ZFS properties check):\n%s\n", logs)
+		By("Verifying recordsize is set to 128K")
+		recordsize, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "recordsize")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(recordsize).To(Equal("128K"), "recordsize should be 128K")
 	})
 })

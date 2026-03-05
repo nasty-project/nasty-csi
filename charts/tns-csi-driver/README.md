@@ -5,7 +5,7 @@ A Container Storage Interface (CSI) driver for TrueNAS Scale 25.10+ that enables
 ## Features
 
 - **Dynamic Volume Provisioning**: Automatically create and delete storage volumes
-- **Multiple Protocols**: Support for NFS, NVMe-oF, and iSCSI
+- **Multiple Protocols**: Support for NFS, NVMe-oF, iSCSI, and SMB
 - **Volume Snapshots**: Create, delete, and restore from snapshots (all protocols)
 - **Detached Snapshots**: Independent snapshot copies that survive source volume deletion
 - **Volume Cloning**: Create new volumes from existing snapshots
@@ -291,6 +291,38 @@ Detached snapshots use `zfs send/receive` to create independent dataset copies t
 | `node.resources.limits.memory` | Memory limit | `200Mi` |
 | `node.resources.requests.cpu` | CPU request | `10m` |
 | `node.resources.requests.memory` | Memory request | `20Mi` |
+
+### Dashboard Settings
+
+The controller can serve an in-cluster web dashboard showing volume health, Kubernetes binding, and metrics.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `controller.dashboard.enabled` | Enable the in-cluster web dashboard | `false` |
+| `controller.dashboard.port` | Dashboard listen port | `9090` |
+| `controller.dashboard.service.enabled` | Create a Service for the dashboard | `true` |
+| `controller.dashboard.service.type` | Service type | `ClusterIP` |
+| `controller.dashboard.service.port` | Service port | `9090` |
+| `controller.dashboard.service.annotations` | Service annotations | `{}` |
+| `controller.dashboard.ingress.enabled` | Enable Ingress for external access | `false` |
+| `controller.dashboard.ingress.className` | Ingress class name | `""` |
+| `controller.dashboard.ingress.annotations` | Ingress annotations | `{}` |
+| `controller.dashboard.ingress.hosts` | Ingress hostnames | `[]` |
+| `controller.dashboard.ingress.tls` | Ingress TLS configuration | `[]` |
+
+Access via port-forward: `kubectl port-forward -n kube-system svc/tns-csi-driver-dashboard 9090:9090`, then open `http://localhost:9090/dashboard/`.
+
+### Grafana Dashboard Settings
+
+A pre-built Grafana dashboard is included for Prometheus metrics visualization.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `grafana.dashboards.enabled` | Create Grafana dashboard ConfigMap | `false` |
+| `grafana.dashboards.labels` | Labels for Grafana sidecar discovery | `{grafana_dashboard: "1"}` |
+| `grafana.dashboards.annotations` | ConfigMap annotations | `{}` |
+
+When enabled, a ConfigMap with the `grafana_dashboard: "1"` label is created. Grafana sidecars (standard with kube-prometheus-stack) auto-discover and load the dashboard.
 
 ### Image Settings
 

@@ -289,7 +289,7 @@ The easiest way to deploy the CSI driver is using the Helm chart from Docker Hub
 **For NFS:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -304,7 +304,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **For NVMe-oF:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -322,7 +322,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **For iSCSI:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -339,7 +339,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 **For SMB:**
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-  --version 0.15.5 \
+  --version 0.15.6 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -381,15 +381,15 @@ If you want to build your own image instead of using the published one:
 make build
 
 # Build Docker image
-docker build -t your-registry/tns-csi-driver:v0.15.5 .
+docker build -t your-registry/tns-csi-driver:v0.15.6 .
 
 # Push to your registry (DockerHub, GitHub Container Registry, etc.)
-docker push your-registry/tns-csi-driver:v0.15.5
+docker push your-registry/tns-csi-driver:v0.15.6
 ```
 
 If using a private registry, ensure your Kubernetes cluster has pull access.
 
-The published image is available at: `bfenski/tns-csi:v0.15.5`
+The published image is available at: `bfenski/tns-csi:v0.15.6`
 
 ## Step 3: Configure Deployment Manifests (Manual Deployment Only)
 
@@ -416,7 +416,7 @@ image: your-registry/tns-csi-driver:latest
 
 With:
 ```yaml
-image: your-registry/tns-csi-driver:v0.15.5
+image: your-registry/tns-csi-driver:v0.15.6
 ```
 
 ### 3.3 Update StorageClass
@@ -859,7 +859,7 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 2. Upgrade the driver:
    ```bash
    helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
-     --version 0.15.5 \
+     --version 0.15.6 \
      --namespace kube-system \
      --reuse-values
    ```
@@ -949,7 +949,7 @@ kubectl get pvc upgrade-test
    - Use encrypted storage classes
    - Regularly rotate API keys
 
-4. **Monitoring**: Set up monitoring for CSI driver metrics
+4. **Monitoring**: Set up monitoring for CSI driver metrics; enable Grafana dashboard and/or in-cluster web dashboard
 
 5. **Backup**: Ensure TrueNAS pool has proper backup strategy
 
@@ -975,6 +975,39 @@ The following features are fully implemented and tested:
 - **Volume Cloning**: Create new volumes from snapshots
 - **Volume Health Monitoring**: CSI `GET_VOLUME` capability for Kubernetes volume health reporting
 - **Metrics**: Prometheus metrics endpoint (see [METRICS.md](METRICS.md))
+- **Web Dashboard**: In-cluster dashboard for volume health and inventory (see [METRICS.md](METRICS.md#in-cluster-web-dashboard))
+- **Grafana Dashboard**: Pre-built dashboard for Prometheus metrics visualization (see [METRICS.md](METRICS.md#grafana-dashboard))
+
+## Enabling the Dashboard
+
+### In-Cluster Web Dashboard
+
+Enable the web dashboard on the controller pod:
+
+```yaml
+controller:
+  dashboard:
+    enabled: true
+    port: 9090
+```
+
+Access via port-forward:
+```bash
+kubectl port-forward -n kube-system svc/tns-csi-driver-dashboard 9090:9090
+# Open http://localhost:9090/dashboard/
+```
+
+### Grafana Dashboard
+
+Enable automatic Grafana dashboard provisioning:
+
+```yaml
+grafana:
+  dashboards:
+    enabled: true
+```
+
+This creates a ConfigMap that Grafana sidecars (kube-prometheus-stack) auto-discover. See [METRICS.md](METRICS.md#grafana-dashboard) for details.
 
 ## Future Enhancements
 
