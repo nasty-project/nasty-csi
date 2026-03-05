@@ -610,21 +610,86 @@ func (s *ControllerService) createISCSITargetExtent(ctx context.Context, targetI
 	return te, nil
 }
 
+// verifyISCSIOwnership verifies ownership of an iSCSI volume via ZFS properties.
+// Returns the deleteStrategy and a "not found" flag. If the ZVOL doesn't exist, returns ("", true, nil)
+// so the caller can handle idempotent deletion. Also reconciles stored target/extent IDs with metadata.
+func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *VolumeMetadata) (deleteStrategy string, notFound bool, err error) {
+	deleteStrategy = tnsapi.DeleteStrategyDelete
+
+	props, err := s.apiClient.GetDatasetProperties(ctx, meta.DatasetID, []string{
+		tnsapi.PropertyManagedBy,
+		tnsapi.PropertyCSIVolumeName,
+		tnsapi.PropertyISCSITargetID,
+		tnsapi.PropertyISCSIExtentID,
+		tnsapi.PropertyDeleteStrategy,
+	})
+	if err != nil {
+		if isNotFoundError(err) {
+			return "", true, nil
+		}
+		klog.Warningf("Failed to verify dataset ownership via ZFS properties: %v (continuing with deletion)", err)
+		return deleteStrategy, false, nil
+	}
+
+	if managedBy, ok := props[tnsapi.PropertyManagedBy]; ok && managedBy != tnsapi.ManagedByValue {
+		return "", false, status.Errorf(codes.FailedPrecondition,
+			"Dataset %s is not managed by tns-csi (managed_by=%s)", meta.DatasetID, managedBy)
+	}
+
+	if volumeName, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
+		nameMatches := volumeName == meta.Name || (isDatasetPathVolumeID(meta.Name) && strings.HasSuffix(meta.Name, "/"+volumeName))
+		if !nameMatches {
+			return "", false, status.Errorf(codes.FailedPrecondition,
+				"Dataset %s volume name mismatch (stored=%s, requested=%s)", meta.DatasetID, volumeName, meta.Name)
+		}
+	}
+
+	if targetIDStr, ok := props[tnsapi.PropertyISCSITargetID]; ok {
+		storedTargetID := tnsapi.StringToInt(targetIDStr)
+		if storedTargetID > 0 && meta.ISCSITargetID > 0 && storedTargetID != meta.ISCSITargetID {
+			klog.Warningf("iSCSI target ID mismatch: stored=%d, metadata=%d (using stored ID)", storedTargetID, meta.ISCSITargetID)
+			meta.ISCSITargetID = storedTargetID
+		}
+	}
+
+	if extentIDStr, ok := props[tnsapi.PropertyISCSIExtentID]; ok {
+		storedExtentID := tnsapi.StringToInt(extentIDStr)
+		if storedExtentID > 0 && meta.ISCSIExtentID > 0 && storedExtentID != meta.ISCSIExtentID {
+			klog.Warningf("iSCSI extent ID mismatch: stored=%d, metadata=%d (using stored ID)", storedExtentID, meta.ISCSIExtentID)
+			meta.ISCSIExtentID = storedExtentID
+		}
+	}
+
+	if strategy, ok := props[tnsapi.PropertyDeleteStrategy]; ok && strategy != "" {
+		deleteStrategy = strategy
+	}
+
+	klog.V(4).Infof("Ownership verified for ZVOL %s (volume: %s)", meta.DatasetID, meta.Name)
+	return deleteStrategy, false, nil
+}
+
 // deleteISCSIVolume deletes an iSCSI volume and all associated resources.
 // Uses ZVOL-first delete order: if the ZVOL can't be deleted (dependent clones), bail without
 // touching iSCSI resources (target, extent) to prevent orphaning the ZVOL.
+//
+//nolint:gocognit // Complexity from ownership verification + CSI snapshot guard + dependent clones guard + ZVOL-first delete order
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, "delete")
 	klog.Infof("Deleting iSCSI volume: %s (Dataset: %s, Target: %d, Extent: %d)",
 		meta.Name, meta.DatasetID, meta.ISCSITargetID, meta.ISCSIExtentID)
 
-	// Check delete strategy from ZFS properties
-	props, err := s.apiClient.GetDatasetProperties(ctx, meta.DatasetID, []string{tnsapi.PropertyDeleteStrategy})
+	// Step 0: Verify ownership via ZFS properties before deletion
+	deleteStrategy, notFound, err := s.verifyISCSIOwnership(ctx, meta)
 	if err != nil {
-		klog.Warningf("Failed to get delete strategy for %s: %v (will use default 'delete')", meta.DatasetID, err)
+		timer.ObserveError()
+		return nil, err
+	}
+	if notFound {
+		klog.V(4).Infof("Dataset %s not found, assuming already deleted (idempotency)", meta.DatasetID)
+		timer.ObserveSuccess()
+		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	deleteStrategy := props[tnsapi.PropertyDeleteStrategy]
 	if deleteStrategy == tnsapi.DeleteStrategyRetain {
 		klog.Infof("Volume %s has delete strategy 'retain', skipping deletion", meta.Name)
 		timer.ObserveSuccess()
