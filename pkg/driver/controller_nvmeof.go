@@ -339,9 +339,25 @@ func (s *ControllerService) handleExistingNVMeOFVolume(ctx context.Context, para
 	klog.V(4).Infof("Checking for existing subsystem with NQN: %s", params.subsystemNQN)
 	subsystem, err := s.apiClient.NVMeOFSubsystemByNQN(ctx, params.subsystemNQN)
 	if err != nil {
-		// Subsystem doesn't exist - this could mean partial creation, continue to create it
-		klog.V(4).Infof("Subsystem not found for existing ZVOL, will create: %v", err)
-		return nil, false, nil
+		// NQN lookup failed — try property-based fallback (handles NQN prefix changes across clusters)
+		klog.V(4).Infof("Subsystem not found by computed NQN %s, trying property-based fallback", params.subsystemNQN)
+		storedProps, propErr := s.apiClient.GetDatasetProperties(ctx, existingZvol.ID, []string{
+			tnsapi.PropertyNVMeSubsystemNQN,
+			tnsapi.PropertyNVMeSubsystemID,
+			tnsapi.PropertyNVMeNamespaceID,
+		})
+		if propErr == nil {
+			storedNQN := storedProps[tnsapi.PropertyNVMeSubsystemNQN]
+			if storedNQN != "" && storedNQN != params.subsystemNQN {
+				klog.Infof("NQN mismatch: computed=%s, stored=%s — looking up subsystem by stored NQN", params.subsystemNQN, storedNQN)
+				subsystem, err = s.apiClient.NVMeOFSubsystemByNQN(ctx, storedNQN)
+			}
+		}
+		if err != nil {
+			// Subsystem still not found - this could mean partial creation, continue to create it
+			klog.V(4).Infof("Subsystem not found for existing ZVOL (including property fallback), will create: %v", err)
+			return nil, false, nil
+		}
 	}
 
 	// Check if namespace already exists for this ZVOL
@@ -464,7 +480,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	}
 
 	// Step 1: Create ZVOL
-	zvol, err := s.getOrCreateZVOL(ctx, params, existingZvols, timer)
+	zvol, zvolIsNew, err := s.getOrCreateZVOL(ctx, params, existingZvols, timer)
 	if err != nil {
 		return nil, err
 	}
@@ -472,23 +488,31 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	// Step 2: Create dedicated subsystem for this volume
 	subsystem, err := s.createSubsystemForVolume(ctx, params, timer)
 	if err != nil {
-		// Cleanup: delete ZVOL if subsystem creation fails
-		klog.Errorf("Failed to create subsystem, cleaning up ZVOL: %v", err)
-		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+		// Cleanup: only delete ZVOL if we just created it (never destroy pre-existing data)
+		if zvolIsNew {
+			klog.Errorf("Failed to create subsystem, cleaning up newly-created ZVOL: %v", err)
+			if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Failed to create subsystem: %v (skipping ZVOL cleanup — volume was pre-existing)", err)
 		}
 		return nil, err
 	}
 
 	// Step 3: Bind subsystem to port (if portID specified or use first available port)
 	if bindErr := s.bindSubsystemToPort(ctx, subsystem.ID, params.portID, timer); bindErr != nil {
-		// Cleanup: delete subsystem and ZVOL
+		// Cleanup: delete subsystem (always new), only delete ZVOL if newly created
 		klog.Errorf("Failed to bind subsystem to port, cleaning up: %v", bindErr)
 		if delErr := s.apiClient.DeleteNVMeOFSubsystem(ctx, subsystem.ID); delErr != nil {
 			klog.Errorf("Failed to cleanup subsystem: %v", delErr)
 		}
-		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+		if zvolIsNew {
+			if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Skipping ZVOL cleanup — volume was pre-existing")
 		}
 		return nil, bindErr
 	}
@@ -496,13 +520,17 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	// Step 4: Create NVMe-oF namespace (NSID will be 1 since this is a new subsystem)
 	namespace, err := s.createNVMeOFNamespaceForZVOL(ctx, zvol, subsystem, timer)
 	if err != nil {
-		// Cleanup: delete subsystem and ZVOL
+		// Cleanup: delete subsystem (always new), only delete ZVOL if newly created
 		klog.Errorf("Failed to create namespace, cleaning up: %v", err)
 		if delErr := s.apiClient.DeleteNVMeOFSubsystem(ctx, subsystem.ID); delErr != nil {
 			klog.Errorf("Failed to cleanup subsystem: %v", delErr)
 		}
-		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+		if zvolIsNew {
+			if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Skipping ZVOL cleanup — volume was pre-existing")
 		}
 		return nil, err
 	}
@@ -594,11 +622,13 @@ func (s *ControllerService) bindSubsystemToPort(ctx context.Context, subsystemID
 }
 
 // getOrCreateZVOL gets an existing ZVOL or creates a new one.
-func (s *ControllerService) getOrCreateZVOL(ctx context.Context, params *nvmeofVolumeParams, existingZvols []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, error) {
+// Returns (zvol, isNewlyCreated, error). isNewlyCreated is true only when the ZVOL was created
+// by this call — callers use this to guard cleanup (never delete pre-existing volumes on failure).
+func (s *ControllerService) getOrCreateZVOL(ctx context.Context, params *nvmeofVolumeParams, existingZvols []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, bool, error) {
 	if len(existingZvols) > 0 {
 		zvol := &existingZvols[0]
 		klog.V(4).Infof("Using existing ZVOL: %s (ID: %s)", zvol.Name, zvol.ID)
-		return zvol, nil
+		return zvol, false, nil
 	}
 
 	// Build ZVOL creation parameters with ZFS properties
@@ -661,11 +691,11 @@ func (s *ControllerService) getOrCreateZVOL(ctx context.Context, params *nvmeofV
 	zvol, err := s.apiClient.CreateZvol(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, createVolumeError(fmt.Sprintf("Failed to create ZVOL %s (%d bytes)", params.zvolName, params.requestedCapacity), err)
+		return nil, false, createVolumeError(fmt.Sprintf("Failed to create ZVOL %s (%d bytes)", params.zvolName, params.requestedCapacity), err)
 	}
 
 	klog.V(4).Infof("Created ZVOL: %s (ID: %s)", zvol.Name, zvol.ID)
-	return zvol, nil
+	return zvol, true, nil
 }
 
 // createNVMeOFNamespaceForZVOL creates an NVMe-oF namespace for a ZVOL.

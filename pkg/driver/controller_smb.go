@@ -196,7 +196,9 @@ func (s *ControllerService) ensureSMBProperties(ctx context.Context, datasetID s
 }
 
 // createSMBShareForDataset creates an SMB share for a dataset and stores ZFS properties.
-func (s *ControllerService) createSMBShareForDataset(ctx context.Context, dataset *tnsapi.Dataset, params *smbVolumeParams, timer *metrics.OperationTimer) (*tnsapi.SMBShare, error) {
+// datasetIsNew indicates whether the dataset was just created by this operation — if false, the dataset
+// is pre-existing and must NOT be deleted on failure (prevents data loss).
+func (s *ControllerService) createSMBShareForDataset(ctx context.Context, dataset *tnsapi.Dataset, params *smbVolumeParams, datasetIsNew bool, timer *metrics.OperationTimer) (*tnsapi.SMBShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	smbShare, err := s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
 		Name:    params.volumeName,
@@ -206,8 +208,12 @@ func (s *ControllerService) createSMBShareForDataset(ctx context.Context, datase
 	})
 	if err != nil {
 		klog.Errorf("Failed to create SMB share '%s' for dataset %s (mountpoint: %s): %v", params.volumeName, dataset.ID, dataset.Mountpoint, err)
-		if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup dataset after SMB share creation failure: %v", delErr)
+		if datasetIsNew {
+			if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup dataset after SMB share creation failure: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Skipping dataset cleanup — dataset was pre-existing")
 		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create SMB share '%s' for dataset %s: %v", params.volumeName, dataset.ID, err)
@@ -280,12 +286,12 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		comment:           params.comment,
 		shareType:         "SMB",
 	}
-	dataset, err := s.getOrCreateDataset(ctx, nfsParams, existingDatasets, timer)
+	dataset, datasetIsNew, err := s.getOrCreateDataset(ctx, nfsParams, existingDatasets, timer)
 	if err != nil {
 		return nil, err
 	}
 
-	smbShare, err := s.createSMBShareForDataset(ctx, dataset, params, timer)
+	smbShare, err := s.createSMBShareForDataset(ctx, dataset, params, datasetIsNew, timer)
 	if err != nil {
 		return nil, err
 	}

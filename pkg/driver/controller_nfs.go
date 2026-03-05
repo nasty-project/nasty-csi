@@ -404,11 +404,13 @@ func (s *ControllerService) ensureNFSProperties(ctx context.Context, datasetID s
 }
 
 // getOrCreateDataset gets an existing dataset or creates a new one.
-func (s *ControllerService) getOrCreateDataset(ctx context.Context, params *nfsVolumeParams, existingDatasets []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, error) {
+// Returns (dataset, isNewlyCreated, error). isNewlyCreated is true only when the dataset was created
+// by this call — callers use this to guard cleanup (never delete pre-existing volumes on failure).
+func (s *ControllerService) getOrCreateDataset(ctx context.Context, params *nfsVolumeParams, existingDatasets []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, bool, error) {
 	if len(existingDatasets) > 0 {
 		dataset := &existingDatasets[0]
 		klog.V(4).Infof("Using existing dataset: %s with mountpoint: %s", dataset.Name, dataset.Mountpoint)
-		return dataset, nil
+		return dataset, false, nil
 	}
 
 	// Build dataset creation parameters with ZFS properties
@@ -472,15 +474,17 @@ func (s *ControllerService) getOrCreateDataset(ctx context.Context, params *nfsV
 	dataset, err := s.apiClient.CreateDataset(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, createVolumeError(fmt.Sprintf("Failed to create dataset %s (%d bytes)", params.datasetName, params.requestedCapacity), err)
+		return nil, false, createVolumeError(fmt.Sprintf("Failed to create dataset %s (%d bytes)", params.datasetName, params.requestedCapacity), err)
 	}
 
 	klog.V(4).Infof("Created dataset: %s with mountpoint: %s", dataset.Name, dataset.Mountpoint)
-	return dataset, nil
+	return dataset, true, nil
 }
 
 // createNFSShareForDataset creates an NFS share for a dataset and stores ZFS properties for tracking.
-func (s *ControllerService) createNFSShareForDataset(ctx context.Context, dataset *tnsapi.Dataset, params *nfsVolumeParams, timer *metrics.OperationTimer) (*tnsapi.NFSShare, error) {
+// datasetIsNew indicates whether the dataset was just created by this operation — if false, the dataset
+// is pre-existing and must NOT be deleted on failure (prevents data loss).
+func (s *ControllerService) createNFSShareForDataset(ctx context.Context, dataset *tnsapi.Dataset, params *nfsVolumeParams, datasetIsNew bool, timer *metrics.OperationTimer) (*tnsapi.NFSShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	nfsShare, err := s.apiClient.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
 		Path:         dataset.Mountpoint,
@@ -491,8 +495,12 @@ func (s *ControllerService) createNFSShareForDataset(ctx context.Context, datase
 	})
 	if err != nil {
 		klog.Errorf("Failed to create NFS share for dataset %s (mountpoint: %s): %v", dataset.ID, dataset.Mountpoint, err)
-		if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup dataset after NFS share creation failure: %v", delErr)
+		if datasetIsNew {
+			if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup dataset after NFS share creation failure: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Skipping dataset cleanup — dataset was pre-existing")
 		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for dataset %s (mountpoint: %s): %v", dataset.ID, dataset.Mountpoint, err)
@@ -560,13 +568,13 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 	}
 
 	// Create or use existing dataset
-	dataset, err := s.getOrCreateDataset(ctx, params, existingDatasets, timer)
+	dataset, datasetIsNew, err := s.getOrCreateDataset(ctx, params, existingDatasets, timer)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create NFS share for the dataset
-	nfsShare, err := s.createNFSShareForDataset(ctx, dataset, params, timer)
+	nfsShare, err := s.createNFSShareForDataset(ctx, dataset, params, datasetIsNew, timer)
 	if err != nil {
 		return nil, err
 	}

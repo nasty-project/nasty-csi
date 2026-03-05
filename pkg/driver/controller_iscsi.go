@@ -232,7 +232,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 
 	// Step 1: Create ZVOL
-	zvol, err := s.getOrCreateZVOLForISCSI(ctx, params, existingZvols, timer)
+	zvol, zvolIsNew, err := s.getOrCreateZVOLForISCSI(ctx, params, existingZvols, timer)
 	if err != nil {
 		return nil, err
 	}
@@ -240,10 +240,14 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	// Step 2: Create iSCSI extent (points to the ZVOL)
 	extent, err := s.createISCSIExtent(ctx, params, timer)
 	if err != nil {
-		// Cleanup: delete ZVOL if extent creation fails
-		klog.Errorf("Failed to create iSCSI extent, cleaning up ZVOL: %v", err)
-		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+		// Cleanup: only delete ZVOL if we just created it (never destroy pre-existing data)
+		if zvolIsNew {
+			klog.Errorf("Failed to create iSCSI extent, cleaning up newly-created ZVOL: %v", err)
+			if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Failed to create iSCSI extent: %v (skipping ZVOL cleanup — volume was pre-existing)", err)
 		}
 		return nil, err
 	}
@@ -251,13 +255,17 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	// Step 3: Create iSCSI target
 	target, err := s.createISCSITarget(ctx, params, timer)
 	if err != nil {
-		// Cleanup: delete extent and ZVOL
+		// Cleanup: delete extent (always new), only delete ZVOL if newly created
 		klog.Errorf("Failed to create iSCSI target, cleaning up: %v", err)
 		if delErr := s.apiClient.DeleteISCSIExtent(ctx, extent.ID, false, false); delErr != nil {
 			klog.Errorf("Failed to cleanup iSCSI extent: %v", delErr)
 		}
-		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+		if zvolIsNew {
+			if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Skipping ZVOL cleanup — volume was pre-existing")
 		}
 		return nil, err
 	}
@@ -265,7 +273,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	// Step 4: Create target-extent association (LUN 0)
 	_, err = s.createISCSITargetExtent(ctx, target.ID, extent.ID, timer)
 	if err != nil {
-		// Cleanup: delete target, extent, and ZVOL
+		// Cleanup: delete target and extent (always new), only delete ZVOL if newly created
 		klog.Errorf("Failed to create target-extent association, cleaning up: %v", err)
 		if delErr := s.apiClient.DeleteISCSITarget(ctx, target.ID, false); delErr != nil {
 			klog.Errorf("Failed to cleanup iSCSI target: %v", delErr)
@@ -273,8 +281,12 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		if delErr := s.apiClient.DeleteISCSIExtent(ctx, extent.ID, false, false); delErr != nil {
 			klog.Errorf("Failed to cleanup iSCSI extent: %v", delErr)
 		}
-		if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+		if zvolIsNew {
+			if delErr := s.apiClient.DeleteDataset(ctx, zvol.ID); delErr != nil {
+				klog.Errorf("Failed to cleanup ZVOL: %v", delErr)
+			}
+		} else {
+			klog.Warningf("Skipping ZVOL cleanup — volume was pre-existing")
 		}
 		return nil, err
 	}
@@ -342,8 +354,37 @@ func (s *ControllerService) handleExistingISCSIVolume(ctx context.Context, param
 	// Check if target exists for this volume
 	target, err := s.apiClient.ISCSITargetByName(ctx, params.volumeName)
 	if err != nil {
-		// Target doesn't exist - this could mean partial creation, continue to create it
-		klog.V(4).Infof("iSCSI target not found for existing ZVOL, will create: %v", err)
+		// Target lookup by name failed — try property-based fallback (handles name changes across clusters)
+		klog.V(4).Infof("iSCSI target not found by name %s, trying property-based fallback", params.volumeName)
+		storedProps, propErr := s.apiClient.GetDatasetProperties(ctx, existingZvol.ID, []string{
+			tnsapi.PropertyISCSITargetID,
+			tnsapi.PropertyISCSIExtentID,
+			tnsapi.PropertyISCSIIQN,
+		})
+		if propErr == nil {
+			storedTargetID := tnsapi.StringToInt(storedProps[tnsapi.PropertyISCSITargetID])
+			storedExtentID := tnsapi.StringToInt(storedProps[tnsapi.PropertyISCSIExtentID])
+			storedIQN := storedProps[tnsapi.PropertyISCSIIQN]
+			if storedTargetID > 0 && storedExtentID > 0 && storedIQN != "" {
+				klog.Infof("Found stored iSCSI properties: targetID=%d, extentID=%d, IQN=%s — verifying resources exist",
+					storedTargetID, storedExtentID, storedIQN)
+				// Verify the stored target and extent still exist on TrueNAS
+				targets, targetErr := s.apiClient.QueryISCSITargets(ctx, []interface{}{[]interface{}{"id", "=", storedTargetID}})
+				extents, extentErr := s.apiClient.QueryISCSIExtents(ctx, []interface{}{[]interface{}{"id", "=", storedExtentID}})
+				if targetErr == nil && len(targets) > 0 && extentErr == nil && len(extents) > 0 {
+					klog.Infof("iSCSI volume found via stored properties (target=%d, extent=%d, IQN=%s)",
+						storedTargetID, storedExtentID, storedIQN)
+
+					s.ensureISCSIProperties(ctx, existingZvol.ID, params, &targets[0], &extents[0], storedIQN)
+
+					resp := buildISCSIVolumeResponse(params.volumeName, params.server, storedIQN, existingZvol, &targets[0], &extents[0], existingCapacity)
+					timer.ObserveSuccess()
+					return resp, true, nil
+				}
+			}
+		}
+		// Property fallback failed too — continue to create
+		klog.V(4).Infof("iSCSI target not found for existing ZVOL (including property fallback), will create: %v", err)
 		return nil, false, nil
 	}
 
@@ -410,10 +451,12 @@ func (s *ControllerService) ensureISCSIProperties(ctx context.Context, zvolID st
 }
 
 // getOrCreateZVOLForISCSI creates a ZVOL for iSCSI or returns existing one.
-func (s *ControllerService) getOrCreateZVOLForISCSI(ctx context.Context, params *iscsiVolumeParams, existingZvols []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, error) {
+// Returns (zvol, isNewlyCreated, error). isNewlyCreated is true only when the ZVOL was created
+// by this call — callers use this to guard cleanup (never delete pre-existing volumes on failure).
+func (s *ControllerService) getOrCreateZVOLForISCSI(ctx context.Context, params *iscsiVolumeParams, existingZvols []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, bool, error) {
 	if len(existingZvols) > 0 {
 		klog.V(4).Infof("Using existing ZVOL: %s", existingZvols[0].ID)
-		return &existingZvols[0], nil
+		return &existingZvols[0], false, nil
 	}
 
 	klog.V(4).Infof("Creating new ZVOL: %s with size %d bytes", params.zvolName, params.requestedCapacity)
@@ -460,11 +503,11 @@ func (s *ControllerService) getOrCreateZVOLForISCSI(ctx context.Context, params 
 	zvol, err := s.apiClient.CreateZvol(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, createVolumeError(fmt.Sprintf("Failed to create ZVOL %s (%d bytes)", params.zvolName, params.requestedCapacity), err)
+		return nil, false, createVolumeError(fmt.Sprintf("Failed to create ZVOL %s (%d bytes)", params.zvolName, params.requestedCapacity), err)
 	}
 
 	klog.V(4).Infof("Created ZVOL: %s (ID: %s)", params.zvolName, zvol.ID)
-	return zvol, nil
+	return zvol, true, nil
 }
 
 // createISCSIExtent creates an iSCSI extent pointing to the ZVOL.
