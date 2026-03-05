@@ -529,9 +529,19 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 				NVMeOFNamespaceID: 200,
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
+				zvolDeleted := false
 				namespaceDeleted := false
-				subsystemDeleted := false
+				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
+					if datasetID != "tank/test-nvmeof-volume" {
+						t.Errorf("Expected dataset ID tank/test-nvmeof-volume, got %s", datasetID)
+					}
+					zvolDeleted = true
+					return nil
+				}
 				m.DeleteNVMeOFNamespaceFunc = func(ctx context.Context, namespaceID int) error {
+					if !zvolDeleted {
+						t.Error("Expected ZVOL to be deleted before namespace")
+					}
 					if namespaceID != 200 {
 						t.Errorf("Expected namespace ID 200, got %d", namespaceID)
 					}
@@ -539,7 +549,6 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 					return nil
 				}
 				m.QueryAllNVMeOFNamespacesFunc = func(ctx context.Context) ([]tnsapi.NVMeOFNamespace, error) {
-					// Namespace is deleted
 					return []tnsapi.NVMeOFNamespace{}, nil
 				}
 				m.DeleteNVMeOFSubsystemFunc = func(ctx context.Context, subsystemID int) error {
@@ -548,16 +557,6 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 					}
 					if subsystemID != 100 {
 						t.Errorf("Expected subsystem ID 100, got %d", subsystemID)
-					}
-					subsystemDeleted = true
-					return nil
-				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
-					if !subsystemDeleted {
-						t.Error("Expected subsystem to be deleted before ZVOL")
-					}
-					if datasetID != "tank/test-nvmeof-volume" {
-						t.Errorf("Expected dataset ID tank/test-nvmeof-volume, got %s", datasetID)
 					}
 					return nil
 				}

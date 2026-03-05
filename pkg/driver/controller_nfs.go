@@ -591,7 +591,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 // Dataset deletion is retried for busy resource errors.
 // If deleteStrategy is "retain", the volume is kept but CSI returns success.
 //
-//nolint:dupl,gocyclo // Intentionally similar dataset deletion pattern as iSCSI; complexity from ownership checks + CSI snapshot guard
+//nolint:dupl,gocyclo,gocognit // Intentionally similar dataset deletion pattern as iSCSI; complexity from ownership checks + CSI snapshot guard + dependent clones guard
 func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (dataset: %s, share ID: %d)", meta.Name, meta.DatasetName, meta.NFSShareID)
@@ -714,6 +714,15 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 
 		firstErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
 		if firstErr != nil && !isNotFoundError(firstErr) {
+			// Fail fast for dependent clones — this will never resolve until clones are deleted
+			if isDependentClonesError(firstErr) {
+				klog.Warningf("Dataset %s has dependent clones — cannot delete", meta.DatasetID)
+				timer.ObserveError()
+				return nil, status.Errorf(codes.FailedPrecondition,
+					"cannot delete volume %s: dataset %s has dependent clones; delete the cloned volumes first",
+					meta.Name, meta.DatasetID)
+			}
+
 			klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
 				meta.DatasetID, firstErr)
 			s.deleteDatasetSnapshots(ctx, meta.DatasetID)

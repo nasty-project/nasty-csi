@@ -611,8 +611,8 @@ func (s *ControllerService) createISCSITargetExtent(ctx context.Context, targetI
 }
 
 // deleteISCSIVolume deletes an iSCSI volume and all associated resources.
-//
-//nolint:dupl // Intentionally similar ZVOL deletion pattern as NFS/NVMe-oF
+// Uses ZVOL-first delete order: if the ZVOL can't be deleted (dependent clones), bail without
+// touching iSCSI resources (target, extent) to prevent orphaning the ZVOL.
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, "delete")
 	klog.Infof("Deleting iSCSI volume: %s (Dataset: %s, Target: %d, Extent: %d)",
@@ -647,7 +647,47 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 		}
 	}
 
-	// Step 1: Delete target-extent associations
+	// Step 1: Delete ZVOL first (prevents orphaning iSCSI resources if ZVOL can't be deleted)
+	// If the ZVOL has dependent clones, we must bail immediately — deleting target/extent
+	// would leave an orphaned ZVOL with no presentation layer, making recovery impossible.
+	if meta.DatasetID != "" {
+		firstErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
+		if firstErr != nil && !isNotFoundError(firstErr) {
+			if isDependentClonesError(firstErr) {
+				klog.Warningf("ZVOL %s has dependent clones — skipping iSCSI resource cleanup to prevent orphaning", meta.DatasetID)
+				timer.ObserveError()
+				return nil, status.Errorf(codes.FailedPrecondition,
+					"cannot delete volume %s: ZVOL %s has dependent clones; delete the cloned volumes first",
+					meta.Name, meta.DatasetID)
+			}
+
+			// Try snapshot cleanup + retry for other errors
+			klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
+				meta.DatasetID, firstErr)
+			s.deleteDatasetSnapshots(ctx, meta.DatasetID)
+
+			retryConfig := retry.DeletionConfig("delete-iscsi-zvol")
+			err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
+				deleteErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
+				if deleteErr != nil && isNotFoundError(deleteErr) {
+					return nil
+				}
+				return deleteErr
+			})
+
+			if err != nil {
+				// ZVOL still exists — don't touch iSCSI resources to avoid orphaning
+				klog.Errorf("ZVOL %s deletion failed — skipping iSCSI resource cleanup to avoid orphaning: %v", meta.DatasetID, err)
+				timer.ObserveError()
+				return nil, status.Errorf(codes.Internal,
+					"Failed to delete ZVOL %s: %v (iSCSI resources preserved to prevent orphaning)", meta.DatasetID, err)
+			}
+		}
+		klog.V(4).Infof("Deleted ZVOL: %s", meta.DatasetID)
+	}
+
+	// Step 2: ZVOL is gone — clean up iSCSI resources (best effort)
+	// Even if these fail, data is already deleted and K8s will retry cleanup
 	if meta.ISCSITargetID != 0 {
 		targetExtents, err := s.apiClient.ISCSITargetExtentByTarget(ctx, meta.ISCSITargetID)
 		if err != nil {
@@ -663,51 +703,24 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 		}
 	}
 
-	// Step 2: Delete iSCSI target
 	if meta.ISCSITargetID != 0 {
 		if err := s.apiClient.DeleteISCSITarget(ctx, meta.ISCSITargetID, true); err != nil {
 			if !isNotFoundError(err) {
-				klog.Warningf("Failed to delete iSCSI target %d: %v", meta.ISCSITargetID, err)
+				klog.Warningf("Failed to delete iSCSI target %d (ZVOL already deleted, will retry): %v", meta.ISCSITargetID, err)
 			}
 		} else {
 			klog.V(4).Infof("Deleted iSCSI target: %d", meta.ISCSITargetID)
 		}
 	}
 
-	// Step 3: Delete iSCSI extent
 	if meta.ISCSIExtentID != 0 {
 		if err := s.apiClient.DeleteISCSIExtent(ctx, meta.ISCSIExtentID, false, true); err != nil {
 			if !isNotFoundError(err) {
-				klog.Warningf("Failed to delete iSCSI extent %d: %v", meta.ISCSIExtentID, err)
+				klog.Warningf("Failed to delete iSCSI extent %d (ZVOL already deleted, will retry): %v", meta.ISCSIExtentID, err)
 			}
 		} else {
 			klog.V(4).Infof("Deleted iSCSI extent: %d", meta.ISCSIExtentID)
 		}
-	}
-
-	// Step 4: Delete ZVOL (try direct first, snapshot cleanup on failure)
-	if meta.DatasetID != "" {
-		firstErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
-		if firstErr != nil && !isNotFoundError(firstErr) {
-			klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
-				meta.DatasetID, firstErr)
-			s.deleteDatasetSnapshots(ctx, meta.DatasetID)
-
-			retryConfig := retry.DeletionConfig("delete-iscsi-zvol")
-			err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-				deleteErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
-				if deleteErr != nil && isNotFoundError(deleteErr) {
-					return nil
-				}
-				return deleteErr
-			})
-
-			if err != nil {
-				timer.ObserveError()
-				return nil, status.Errorf(codes.Internal, "Failed to delete ZVOL %s: %v", meta.DatasetID, err)
-			}
-		}
-		klog.V(4).Infof("Deleted ZVOL: %s", meta.DatasetID)
 	}
 
 	// Clear volume capacity metric

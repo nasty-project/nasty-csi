@@ -618,6 +618,16 @@ func isNotFoundError(err error) bool {
 	return containsAny(errStr, []string{"not found", "does not exist", "ENOENT"})
 }
 
+// isDependentClonesError checks if an error indicates a dataset/ZVOL has dependent ZFS clones.
+// TrueNAS returns: "cannot destroy '...': volume has dependent clones"
+// This condition will never resolve until the clones themselves are deleted.
+func isDependentClonesError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return containsAny(err.Error(), []string{"dependent clones"})
+}
+
 // containsAny checks if a string contains any of the given substrings.
 func containsAny(s string, substrs []string) bool {
 	for _, substr := range substrs {
