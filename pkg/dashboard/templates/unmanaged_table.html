@@ -1,0 +1,59 @@
+{{define "unmanaged_table.html"}}
+{{if .}}
+<table>
+    <thead>
+        <tr>
+            <th class="sortable" onclick="sortTable(this)">Name</th>
+            <th class="sortable" onclick="sortTable(this)">Dataset</th>
+            <th class="sortable" onclick="sortTable(this)">Type</th>
+            <th class="sortable" onclick="sortTable(this)">Protocol</th>
+            <th class="sortable" onclick="sortTable(this)">Size</th>
+            <th class="sortable" onclick="sortTable(this)">Managed By</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .}}
+        <tr>
+            <td class="mono">{{.Name}}</td>
+            <td class="mono text-muted">{{.Dataset}}</td>
+            <td>
+                {{if .IsContainer}}
+                <span class="badge badge-cow">Container</span>
+                {{else if eq .Type "FILESYSTEM"}}
+                <span class="badge">Filesystem</span>
+                {{else if eq .Type "VOLUME"}}
+                <span class="badge badge-detached">Zvol</span>
+                {{else}}
+                <span class="badge">{{.Type}}</span>
+                {{end}}
+            </td>
+            <td>
+                {{if eq .Protocol "nfs"}}
+                <span class="badge badge-nfs">NFS</span>
+                {{else if eq .Protocol "block"}}
+                <span class="badge badge-nvmeof">Block</span>
+                {{else if .Protocol}}
+                <span class="badge">{{.Protocol}}</span>
+                {{else}}
+                <span class="text-muted">-</span>
+                {{end}}
+            </td>
+            <td>{{.Size}}</td>
+            <td>
+                {{if .ManagedBy}}
+                <span class="badge badge-cow">{{.ManagedBy}}</span>
+                {{else}}
+                <span class="text-muted">None</span>
+                {{end}}
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<div class="empty-state">
+    No unmanaged volumes found
+    <div class="hint">Datasets in the pool that are not managed by any CSI driver will appear here</div>
+</div>
+{{end}}
+{{end}}

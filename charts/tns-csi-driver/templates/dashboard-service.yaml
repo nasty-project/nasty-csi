@@ -1,0 +1,23 @@
+{{- if and .Values.controller.dashboard.enabled .Values.controller.dashboard.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tns-csi-driver.fullname" . }}-dashboard
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+  {{- with .Values.controller.dashboard.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.controller.dashboard.service.type }}
+  ports:
+    - name: dashboard
+      port: {{ .Values.controller.dashboard.service.port }}
+      targetPort: dashboard
+      protocol: TCP
+  selector:
+    {{- include "tns-csi-driver.controller.selectorLabels" . | nindent 4 }}
+{{- end }}

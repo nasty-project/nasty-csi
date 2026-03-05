@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -123,7 +124,7 @@ func buildVolumeStatus(ctx context.Context, client tnsapi.ClientInterface, ds *t
 	// Extract capacity from properties
 	if prop, ok := props[tnsapi.PropertyCapacityBytes]; ok {
 		status.CapacityBytes = tnsapi.StringToInt64(prop.Value)
-		status.CapacityHuman = formatBytes(status.CapacityBytes)
+		status.CapacityHuman = dashboard.FormatBytes(status.CapacityBytes)
 	}
 
 	// Try to get used/available from dataset info

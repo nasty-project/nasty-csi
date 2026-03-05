@@ -8,6 +8,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -96,7 +97,7 @@ func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef
 	// Get volumes to mark
 	var volumes []VolumeInfo
 	if all {
-		volumes, err = findManagedVolumes(ctx, client)
+		volumes, err = dashboard.FindManagedVolumes(ctx, client)
 		if err != nil {
 			return fmt.Errorf("failed to query volumes: %w", err)
 		}

@@ -1,0 +1,53 @@
+{{define "clones_table.html"}}
+{{if .}}
+<table>
+    <thead>
+        <tr>
+            <th class="sortable" onclick="sortTable(this)">Volume ID</th>
+            <th class="sortable" onclick="sortTable(this)">Protocol</th>
+            <th class="sortable" onclick="sortTable(this)">Clone Mode</th>
+            <th class="sortable" onclick="sortTable(this)">Source Type</th>
+            <th class="sortable" onclick="sortTable(this)">Source ID</th>
+            <th class="sortable" onclick="sortTable(this)">Dependency</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .}}
+        <tr>
+            <td class="mono">{{.VolumeID}}</td>
+            <td>
+                {{if eq .Protocol "nfs"}}
+                <span class="badge badge-nfs">NFS</span>
+                {{else if eq .Protocol "nvmeof"}}
+                <span class="badge badge-nvmeof">NVMe-oF</span>
+                {{else if eq .Protocol "iscsi"}}
+                <span class="badge badge-iscsi">iSCSI</span>
+                {{else}}
+                <span class="badge">{{.Protocol}}</span>
+                {{end}}
+            </td>
+            <td>
+                {{if eq .CloneMode "cow"}}
+                <span class="badge badge-cow">COW</span>
+                {{else if eq .CloneMode "promoted"}}
+                <span class="badge badge-promoted">Promoted</span>
+                {{else if eq .CloneMode "detached"}}
+                <span class="badge badge-detached">Detached</span>
+                {{else}}
+                <span class="badge">{{.CloneMode}}</span>
+                {{end}}
+            </td>
+            <td>{{.SourceType}}</td>
+            <td class="mono text-muted">{{.SourceID}}</td>
+            <td class="text-muted">{{.DependencyNote}}</td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<div class="empty-state">
+    No cloned volumes found
+    <div class="hint">Clones are created when provisioning volumes from snapshots or other volumes</div>
+</div>
+{{end}}
+{{end}}

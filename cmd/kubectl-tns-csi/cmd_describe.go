@@ -3,24 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
-)
-
-// Static errors for describe command.
-var (
-	errNoSharePath    = errors.New("no share path found in properties")
-	errNoNFSShare     = errors.New("no NFS share found")
-	errNoSMBShare     = errors.New("no SMB share found")
-	errNoSubsystemNQN = errors.New("no subsystem NQN found in properties")
 )
 
 // Protocol constants.
@@ -30,84 +22,6 @@ const (
 	protocolISCSI  = "iscsi"
 	protocolSMB    = "smb"
 )
-
-// VolumeDetails contains detailed information about a volume.
-//
-//nolint:govet // field alignment not critical for CLI output struct
-type VolumeDetails struct {
-	// Basic info
-	Dataset   string `json:"dataset"   yaml:"dataset"`
-	VolumeID  string `json:"volumeId"  yaml:"volumeId"`
-	Protocol  string `json:"protocol"  yaml:"protocol"`
-	Type      string `json:"type"      yaml:"type"` // "dataset" or "zvol"
-	MountPath string `json:"mountPath" yaml:"mountPath"`
-
-	// Capacity
-	CapacityBytes int64  `json:"capacityBytes" yaml:"capacityBytes"`
-	CapacityHuman string `json:"capacityHuman" yaml:"capacityHuman"`
-	UsedBytes     int64  `json:"usedBytes"     yaml:"usedBytes"`
-	UsedHuman     string `json:"usedHuman"     yaml:"usedHuman"`
-
-	// Metadata
-	CreatedAt      string `json:"createdAt"      yaml:"createdAt"`
-	DeleteStrategy string `json:"deleteStrategy" yaml:"deleteStrategy"`
-	Adoptable      bool   `json:"adoptable"      yaml:"adoptable"`
-
-	// Clone source (if applicable)
-	ContentSourceType string `json:"contentSourceType,omitempty" yaml:"contentSourceType,omitempty"`
-	ContentSourceID   string `json:"contentSourceId,omitempty"   yaml:"contentSourceId,omitempty"`
-
-	// Clone dependency info (if this is a clone)
-	CloneMode      string `json:"cloneMode,omitempty"      yaml:"cloneMode,omitempty"`      // cow, promoted, or detached
-	OriginSnapshot string `json:"originSnapshot,omitempty" yaml:"originSnapshot,omitempty"` // ZFS origin for COW clones
-	ZFSOrigin      string `json:"zfsOrigin,omitempty"      yaml:"zfsOrigin,omitempty"`      // Actual ZFS origin property
-
-	// Kubernetes binding info
-	K8s *K8sVolumeBinding `json:"k8s,omitempty" yaml:"k8s,omitempty"`
-
-	// NFS-specific (only if protocol is NFS)
-	NFSShare *NFSShareDetails `json:"nfsShare,omitempty" yaml:"nfsShare,omitempty"`
-
-	// NVMe-oF-specific (only if protocol is NVMe-oF)
-	NVMeOFSubsystem *NVMeOFSubsystemDetails `json:"nvmeofSubsystem,omitempty" yaml:"nvmeofSubsystem,omitempty"`
-
-	// SMB-specific (only if protocol is SMB)
-	SMBShare *SMBShareDetails `json:"smbShare,omitempty" yaml:"smbShare,omitempty"`
-
-	// All ZFS properties
-	Properties map[string]string `json:"properties" yaml:"properties"`
-}
-
-// NFSShareDetails contains NFS share information.
-//
-//nolint:govet // field alignment not critical for CLI output struct
-type NFSShareDetails struct {
-	ID      int      `json:"id"      yaml:"id"`
-	Path    string   `json:"path"    yaml:"path"`
-	Hosts   []string `json:"hosts"   yaml:"hosts"`
-	Enabled bool     `json:"enabled" yaml:"enabled"`
-}
-
-// NVMeOFSubsystemDetails contains NVMe-oF subsystem information.
-//
-//nolint:govet // field alignment not critical for CLI output struct
-type NVMeOFSubsystemDetails struct {
-	ID      int    `json:"id"      yaml:"id"`
-	Name    string `json:"name"    yaml:"name"`
-	NQN     string `json:"nqn"     yaml:"nqn"`
-	Serial  string `json:"serial"  yaml:"serial"`
-	Enabled bool   `json:"enabled" yaml:"enabled"`
-}
-
-// SMBShareDetails contains SMB share information.
-//
-//nolint:govet // field alignment not critical for CLI output struct
-type SMBShareDetails struct {
-	ID      int    `json:"id"      yaml:"id"`
-	Name    string `json:"name"    yaml:"name"`
-	Path    string `json:"path"    yaml:"path"`
-	Enabled bool   `json:"enabled" yaml:"enabled"`
-}
 
 func newDescribeCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
 	cmd := &cobra.Command{
@@ -151,7 +65,7 @@ func runDescribe(ctx context.Context, volumeRef string, url, apiKey, secretRef, 
 	defer client.Close()
 
 	// Find the volume
-	details, err := getVolumeDetails(ctx, client, volumeRef)
+	details, err := dashboard.GetVolumeDetails(ctx, client, volumeRef)
 	if err != nil {
 		return err
 	}
@@ -159,213 +73,13 @@ func runDescribe(ctx context.Context, volumeRef string, url, apiKey, secretRef, 
 	// Enrich with Kubernetes PV/PVC/Pod data (best-effort, include pods for detail view)
 	k8sData := enrichWithK8sData(ctx, true)
 	if k8sData.Available {
-		if binding := matchK8sBinding(k8sData.Bindings, details.Dataset, details.VolumeID); binding != nil {
+		if binding := dashboard.MatchK8sBinding(k8sData.Bindings, details.Dataset, details.VolumeID); binding != nil {
 			details.K8s = binding
 		}
 	}
 
 	// Output based on format
 	return outputVolumeDetails(details, *outputFormat)
-}
-
-// getVolumeDetails retrieves detailed information about a volume.
-//
-//nolint:gocyclo // complexity from protocol and property extraction is acceptable
-func getVolumeDetails(ctx context.Context, client tnsapi.ClientInterface, volumeRef string) (*VolumeDetails, error) {
-	var dataset *tnsapi.DatasetWithProperties
-
-	// Try to find by CSI volume name first
-	ds, err := client.FindDatasetByCSIVolumeName(ctx, "", volumeRef)
-	if err == nil && ds != nil {
-		dataset = ds
-	} else {
-		// Try to find by dataset path - query all managed datasets and filter
-		datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query datasets: %w", err)
-		}
-		for i := range datasets {
-			if datasets[i].ID == volumeRef {
-				dataset = &datasets[i]
-				break
-			}
-		}
-	}
-
-	if dataset == nil {
-		return nil, fmt.Errorf("%w: %s", errVolumeNotFound, volumeRef)
-	}
-
-	// Build details
-	details := &VolumeDetails{
-		Dataset:    dataset.ID,
-		Type:       dataset.Type,
-		Properties: make(map[string]string),
-	}
-
-	// Extract mount path
-	if dataset.Mountpoint != "" {
-		details.MountPath = dataset.Mountpoint
-	}
-
-	// Extract used space
-	if dataset.Used != nil {
-		if val, ok := dataset.Used["parsed"].(float64); ok {
-			details.UsedBytes = int64(val)
-			details.UsedHuman = formatBytes(details.UsedBytes)
-		}
-	}
-
-	// Extract properties from UserProperties
-	for key, prop := range dataset.UserProperties {
-		// Store all properties
-		details.Properties[key] = prop.Value
-
-		// Extract specific fields
-		switch key {
-		case tnsapi.PropertyCSIVolumeName:
-			details.VolumeID = prop.Value
-		case tnsapi.PropertyProtocol:
-			details.Protocol = prop.Value
-		case tnsapi.PropertyCapacityBytes:
-			details.CapacityBytes = tnsapi.StringToInt64(prop.Value)
-			details.CapacityHuman = formatBytes(details.CapacityBytes)
-		case tnsapi.PropertyCreatedAt:
-			details.CreatedAt = prop.Value
-		case tnsapi.PropertyDeleteStrategy:
-			details.DeleteStrategy = prop.Value
-		case tnsapi.PropertyAdoptable:
-			details.Adoptable = prop.Value == valueTrue
-		case tnsapi.PropertyContentSourceType:
-			details.ContentSourceType = prop.Value
-		case tnsapi.PropertyContentSourceID:
-			details.ContentSourceID = prop.Value
-		case tnsapi.PropertyCloneMode:
-			details.CloneMode = prop.Value
-		case tnsapi.PropertyOriginSnapshot:
-			details.OriginSnapshot = prop.Value
-		}
-	}
-
-	// Get protocol-specific details
-	switch details.Protocol {
-	case protocolNFS:
-		if shareDetails, err := getNFSShareDetails(ctx, client, dataset); err == nil {
-			details.NFSShare = shareDetails
-		}
-	case protocolNVMeOF:
-		if subsysDetails, err := getNVMeOFSubsystemDetails(ctx, client, dataset); err == nil {
-			details.NVMeOFSubsystem = subsysDetails
-		}
-	case protocolSMB:
-		if smbDetails, err := getSMBShareDetails(ctx, client, dataset); err == nil {
-			details.SMBShare = smbDetails
-		}
-	}
-
-	return details, nil
-}
-
-// getNFSShareDetails retrieves NFS share details for a dataset.
-func getNFSShareDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*NFSShareDetails, error) {
-	// Get share path from properties or mountpoint
-	sharePath := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyNFSSharePath]; ok {
-		sharePath = prop.Value
-	} else if dataset.Mountpoint != "" {
-		sharePath = dataset.Mountpoint
-	}
-
-	if sharePath == "" {
-		return nil, errNoSharePath
-	}
-
-	// Query the share
-	shares, err := client.QueryNFSShare(ctx, sharePath)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(shares) == 0 {
-		return nil, fmt.Errorf("%w for path %s", errNoNFSShare, sharePath)
-	}
-
-	share := shares[0]
-	return &NFSShareDetails{
-		ID:      share.ID,
-		Path:    share.Path,
-		Hosts:   share.Hosts,
-		Enabled: share.Enabled,
-	}, nil
-}
-
-// getNVMeOFSubsystemDetails retrieves NVMe-oF subsystem details for a dataset.
-func getNVMeOFSubsystemDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*NVMeOFSubsystemDetails, error) {
-	// Get subsystem NQN from properties
-	nqn := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		nqn = prop.Value
-	}
-
-	if nqn == "" {
-		return nil, errNoSubsystemNQN
-	}
-
-	// Query the subsystem
-	subsystem, err := client.NVMeOFSubsystemByNQN(ctx, nqn)
-	if err != nil {
-		return nil, err
-	}
-
-	return &NVMeOFSubsystemDetails{
-		ID:      subsystem.ID,
-		Name:    subsystem.Name,
-		NQN:     subsystem.NQN,
-		Serial:  subsystem.Serial,
-		Enabled: subsystem.Enabled,
-	}, nil
-}
-
-// getSMBShareDetails retrieves SMB share details for a dataset.
-func getSMBShareDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*SMBShareDetails, error) {
-	// Get share ID from properties
-	if prop, ok := dataset.UserProperties[tnsapi.PropertySMBShareID]; ok && prop.Value != "" {
-		shareID, err := strconv.Atoi(prop.Value)
-		if err == nil && shareID > 0 {
-			share, err := client.QuerySMBShareByID(ctx, shareID)
-			if err != nil {
-				return nil, err
-			}
-			return &SMBShareDetails{
-				ID:      share.ID,
-				Name:    share.Name,
-				Path:    share.Path,
-				Enabled: share.Enabled,
-			}, nil
-		}
-	}
-
-	// Fallback: query by path
-	sharePath := ""
-	if dataset.Mountpoint != "" {
-		sharePath = dataset.Mountpoint
-	}
-	if sharePath == "" {
-		return nil, errNoSharePath
-	}
-
-	shares, err := client.QuerySMBShare(ctx, sharePath)
-	if err != nil || len(shares) == 0 {
-		return nil, fmt.Errorf("%w for path %s", errNoSMBShare, sharePath)
-	}
-
-	share := shares[0]
-	return &SMBShareDetails{
-		ID:      share.ID,
-		Name:    share.Name,
-		Path:    share.Path,
-		Enabled: share.Enabled,
-	}, nil
 }
 
 // outputVolumeDetails outputs volume details in the specified format.

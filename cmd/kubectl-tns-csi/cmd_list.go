@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -26,25 +26,6 @@ const (
 	// datasetTypeVolume is the TrueNAS dataset type for ZVOLs.
 	datasetTypeVolume = "VOLUME"
 )
-
-// VolumeInfo represents a tns-csi managed volume.
-//
-//nolint:govet // field alignment not critical for CLI output struct
-type VolumeInfo struct {
-	Dataset           string            `json:"dataset"           yaml:"dataset"`
-	VolumeID          string            `json:"volumeId"          yaml:"volumeId"`
-	Protocol          string            `json:"protocol"          yaml:"protocol"`
-	CapacityHuman     string            `json:"capacityHuman"     yaml:"capacityHuman"`
-	DeleteStrategy    string            `json:"deleteStrategy"    yaml:"deleteStrategy"`
-	Type              string            `json:"type"              yaml:"type"`
-	ContentSourceType string            `json:"contentSourceType" yaml:"contentSourceType"` // "snapshot", "volume", or ""
-	ContentSourceID   string            `json:"contentSourceId"   yaml:"contentSourceId"`   // Source snapshot/volume ID
-	HealthStatus      string            `json:"healthStatus"      yaml:"healthStatus"`      // "Healthy", "Degraded", "Unhealthy", or ""
-	HealthIssue       string            `json:"healthIssue"       yaml:"healthIssue"`       // First health issue, if any
-	K8s               *K8sVolumeBinding `json:"k8s,omitempty"     yaml:"k8s,omitempty"`
-	CapacityBytes     int64             `json:"capacityBytes"     yaml:"capacityBytes"`
-	Adoptable         bool              `json:"adoptable"         yaml:"adoptable"`
-}
 
 func newListCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
 	cmd := &cobra.Command{
@@ -88,7 +69,7 @@ func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, 
 	defer client.Close()
 
 	// Query all datasets with user properties
-	volumes, err := findManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client)
 	spin.stop()
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
@@ -98,7 +79,7 @@ func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, 
 	k8sData := enrichWithK8sData(ctx, false)
 	if k8sData.Available {
 		for i := range volumes {
-			if binding := matchK8sBinding(k8sData.Bindings, volumes[i].Dataset, volumes[i].VolumeID); binding != nil {
+			if binding := dashboard.MatchK8sBinding(k8sData.Bindings, volumes[i].Dataset, volumes[i].VolumeID); binding != nil {
 				volumes[i].K8s = binding
 			}
 		}
@@ -106,71 +87,6 @@ func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, 
 
 	// Output based on format
 	return outputVolumes(volumes, *outputFormat)
-}
-
-// findManagedVolumes finds all datasets managed by tns-csi.
-func findManagedVolumes(ctx context.Context, client tnsapi.ClientInterface) ([]VolumeInfo, error) {
-	// Query all datasets with user properties
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
-	if err != nil {
-		return nil, err
-	}
-
-	var volumes []VolumeInfo
-	for _, ds := range datasets {
-		// Skip detached snapshots (they're datasets but not volumes)
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && prop.Value == valueTrue {
-			continue
-		}
-
-		// Skip datasets without volume ID (parent datasets, etc.)
-		volumeID := ""
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-			volumeID = prop.Value
-		}
-		if volumeID == "" {
-			continue
-		}
-
-		vol := VolumeInfo{
-			Dataset:  ds.ID,
-			VolumeID: volumeID,
-			Type:     ds.Type,
-		}
-
-		// Extract protocol
-		if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-			vol.Protocol = prop.Value
-		}
-
-		// Extract capacity
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCapacityBytes]; ok {
-			vol.CapacityBytes = tnsapi.StringToInt64(prop.Value)
-			vol.CapacityHuman = formatBytes(vol.CapacityBytes)
-		}
-
-		// Extract delete strategy
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDeleteStrategy]; ok {
-			vol.DeleteStrategy = prop.Value
-		}
-
-		// Extract adoptable flag
-		if prop, ok := ds.UserProperties[tnsapi.PropertyAdoptable]; ok {
-			vol.Adoptable = prop.Value == valueTrue
-		}
-
-		// Extract content source (for clones)
-		if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceType]; ok {
-			vol.ContentSourceType = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceID]; ok {
-			vol.ContentSourceID = prop.Value
-		}
-
-		volumes = append(volumes, vol)
-	}
-
-	return volumes, nil
 }
 
 // outputVolumes outputs volumes in the specified format.
@@ -214,28 +130,5 @@ func outputVolumes(volumes []VolumeInfo, format string) error {
 
 	default:
 		return fmt.Errorf("%w: %s", errUnknownOutputFormat, format)
-	}
-}
-
-// formatBytes converts bytes to human-readable format.
-func formatBytes(bytes int64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-		TB = GB * 1024
-	)
-
-	switch {
-	case bytes >= TB:
-		return fmt.Sprintf("%.1fTi", float64(bytes)/TB)
-	case bytes >= GB:
-		return fmt.Sprintf("%.1fGi", float64(bytes)/GB)
-	case bytes >= MB:
-		return fmt.Sprintf("%.1fMi", float64(bytes)/MB)
-	case bytes >= KB:
-		return fmt.Sprintf("%.1fKi", float64(bytes)/KB)
-	default:
-		return fmt.Sprintf("%dB", bytes)
 	}
 }

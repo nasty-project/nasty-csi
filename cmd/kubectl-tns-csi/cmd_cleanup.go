@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
@@ -117,7 +118,7 @@ func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 	}
 
 	// Query all managed volumes from TrueNAS
-	volumes, err := findManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client)
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
 	}

@@ -9,36 +9,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// K8sVolumeBinding holds Kubernetes PV/PVC/Pod data for a volume.
-type K8sVolumeBinding struct {
-	PVName       string   `json:"pvName"                 yaml:"pvName"`
-	PVCName      string   `json:"pvcName,omitempty"      yaml:"pvcName,omitempty"`
-	PVCNamespace string   `json:"pvcNamespace,omitempty" yaml:"pvcNamespace,omitempty"`
-	PVStatus     string   `json:"pvStatus"               yaml:"pvStatus"`
-	Pods         []string `json:"pods,omitempty"         yaml:"pods,omitempty"` // "namespace/name" format
-}
-
-// K8sEnrichmentResult contains the results of K8s enrichment.
-type K8sEnrichmentResult struct {
-	Bindings  map[string]*K8sVolumeBinding // keyed by CSI volume handle
-	Available bool                         // true if K8s data was successfully fetched
-}
-
-// matchK8sBinding tries to find a K8s binding by dataset path first (new volumes
-// where volumeHandle = dataset path), then falls back to csi_volume_name (old volumes
-// where volumeHandle = plain PVC name).
-func matchK8sBinding(bindings map[string]*K8sVolumeBinding, dataset, volumeID string) *K8sVolumeBinding {
-	if b, ok := bindings[dataset]; ok {
-		return b
-	}
-	if volumeID != "" && volumeID != dataset {
-		if b, ok := bindings[volumeID]; ok {
-			return b
-		}
-	}
-	return nil
-}
-
 // enrichWithK8sData fetches K8s PV/PVC data and optionally pod data.
 // Returns best-effort results — if K8s is unavailable, Available will be false.
 func enrichWithK8sData(ctx context.Context, includePods bool) *K8sEnrichmentResult {

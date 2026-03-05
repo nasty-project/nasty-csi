@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/spf13/cobra"
 )
 
@@ -97,7 +98,7 @@ func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTL
 	volumeCtx, volumeCancel := context.WithTimeout(ctx, 5*time.Second) //nolint:mnd
 	defer volumeCancel()
 
-	volumes, err := findManagedVolumes(volumeCtx, client)
+	volumes, err := dashboard.FindManagedVolumes(volumeCtx, client)
 	if err != nil {
 		printStepf(colorWarning, iconWarning, "Volume count: skipped (query timed out)")
 	} else {

@@ -89,6 +89,33 @@ controller:
       # MetricRelabelings to apply to samples before ingestion
       metricRelabelings: []
   
+  # In-cluster web dashboard
+  dashboard:
+    # Enable the in-cluster web dashboard
+    enabled: false
+    # Port to expose dashboard on
+    port: 9090
+    # Create a Service for the dashboard
+    service:
+      enabled: true
+      type: ClusterIP
+      port: 9090
+      annotations: {}
+    # Ingress for external access to dashboard
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      hosts: []
+      # - host: tns-csi.example.com
+      #   paths:
+      #     - path: /dashboard
+      #       pathType: Prefix
+      tls: []
+      # - secretName: tns-csi-tls
+      #   hosts:
+      #     - tns-csi.example.com
+
   # Resource requests and limits
   resources:
     requests:
@@ -580,3 +607,14 @@ customLabels: {}
 
 # Custom annotations to add to all resources
 customAnnotations: {}
+
+# Grafana dashboard integration
+grafana:
+  dashboards:
+    # Enable Grafana dashboard ConfigMap (auto-discovered by Grafana sidecar)
+    enabled: false
+    # Labels for Grafana sidecar discovery
+    labels:
+      grafana_dashboard: "1"
+    # Additional annotations for the ConfigMap
+    annotations: {}

@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
@@ -28,36 +29,6 @@ var (
 	errPoolNotConfigured   = errors.New("pool not configured - start dashboard with --pool flag")
 	errUnsupportedPlatform = errors.New("unsupported platform for opening browser")
 )
-
-// DashboardData contains all data for the dashboard template.
-//
-//nolint:govet // field alignment not critical for this struct
-type DashboardData struct {
-	Summary   SummaryData       `json:"summary"`
-	Volumes   []VolumeInfo      `json:"volumes"`
-	Snapshots []SnapshotInfo    `json:"snapshots"`
-	Clones    []CloneInfo       `json:"clones"`
-	Unmanaged []UnmanagedVolume `json:"unmanaged"`
-	Version   string            `json:"version"`
-	Error     string            `json:"error,omitempty"`
-}
-
-// SummaryData contains summary statistics.
-//
-//nolint:govet // field alignment not critical for this struct
-type SummaryData struct {
-	TotalVolumes     int    `json:"totalVolumes"`
-	NFSVolumes       int    `json:"nfsVolumes"`
-	NVMeOFVolumes    int    `json:"nvmeofVolumes"`
-	ISCSIVolumes     int    `json:"iscsiVolumes"`
-	SMBVolumes       int    `json:"smbVolumes"`
-	TotalSnapshots   int    `json:"totalSnapshots"`
-	TotalClones      int    `json:"totalClones"`
-	TotalCapacity    string `json:"totalCapacity"`
-	CapacityBytes    int64  `json:"capacityBytes"`
-	HealthyVolumes   int    `json:"healthyVolumes"`
-	UnhealthyVolumes int    `json:"unhealthyVolumes"`
-}
 
 // dashboardServer holds the server state.
 type dashboardServer struct {
@@ -255,7 +226,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	data := DashboardData{}
 
 	// Fetch volumes
-	volumes, err := findManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client)
 	if err != nil {
 		klog.Warningf("Failed to fetch volumes: %v", err)
 	} else {
@@ -263,7 +234,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	}
 
 	// Fetch snapshots
-	snapshots, err := findManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
 	if err != nil {
 		klog.Warningf("Failed to fetch snapshots: %v", err)
 	} else {
@@ -271,7 +242,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	}
 
 	// Fetch clones
-	clones, err := findClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client)
 	if err != nil {
 		klog.Warningf("Failed to fetch clones: %v", err)
 	} else {
@@ -280,87 +251,31 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 
 	// Fetch unmanaged volumes if pool is configured
 	if s.pool != "" {
-		unmanaged, err := findUnmanagedVolumes(ctx, client, s.pool, false)
-		if err != nil {
-			klog.Warningf("Failed to fetch unmanaged volumes: %v", err)
+		unmanaged, unmanagedErr := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false)
+		if unmanagedErr != nil {
+			klog.Warningf("Failed to fetch unmanaged volumes: %v", unmanagedErr)
 		} else {
 			data.Unmanaged = unmanaged
 		}
 	}
 
 	// Run health checks and annotate volumes
-	annotateVolumesWithHealth(ctx, client, data.Volumes)
+	dashboard.AnnotateVolumesWithHealth(ctx, client, data.Volumes)
 
 	// Enrich with Kubernetes PV/PVC data (best-effort, no pods for list view)
 	k8sData := enrichWithK8sData(ctx, false)
 	if k8sData.Available {
 		for i := range data.Volumes {
-			if binding := matchK8sBinding(k8sData.Bindings, data.Volumes[i].Dataset, data.Volumes[i].VolumeID); binding != nil {
+			if binding := dashboard.MatchK8sBinding(k8sData.Bindings, data.Volumes[i].Dataset, data.Volumes[i].VolumeID); binding != nil {
 				data.Volumes[i].K8s = binding
 			}
 		}
 	}
 
 	// Calculate summary
-	data.Summary = s.calculateSummary(data.Volumes, data.Snapshots, data.Clones)
+	data.Summary = dashboard.CalculateSummary(data.Volumes, data.Snapshots, data.Clones)
 
 	return data
-}
-
-// annotateVolumesWithHealth runs health checks and annotates VolumeInfo slices with health status.
-func annotateVolumesWithHealth(ctx context.Context, client tnsapi.ClientInterface, volumes []VolumeInfo) {
-	healthReport, err := checkVolumeHealth(ctx, client)
-	if err != nil {
-		klog.Warningf("Failed to check volume health: %v", err)
-		return
-	}
-
-	healthMap := make(map[string]*VolumeHealth, len(healthReport.Volumes))
-	for i := range healthReport.Volumes {
-		healthMap[healthReport.Volumes[i].VolumeID] = &healthReport.Volumes[i]
-	}
-
-	for i := range volumes {
-		if h, ok := healthMap[volumes[i].VolumeID]; ok {
-			volumes[i].HealthStatus = string(h.Status)
-			if len(h.Issues) > 0 {
-				volumes[i].HealthIssue = h.Issues[0]
-			}
-		}
-	}
-}
-
-func (s *dashboardServer) calculateSummary(volumes []VolumeInfo, snapshots []SnapshotInfo, clones []CloneInfo) SummaryData {
-	summary := SummaryData{
-		TotalVolumes:   len(volumes),
-		TotalSnapshots: len(snapshots),
-		TotalClones:    len(clones),
-	}
-
-	var totalBytes int64
-	for i := range volumes {
-		switch volumes[i].Protocol {
-		case protocolNFS:
-			summary.NFSVolumes++
-		case protocolNVMeOF:
-			summary.NVMeOFVolumes++
-		case protocolISCSI:
-			summary.ISCSIVolumes++
-		case protocolSMB:
-			summary.SMBVolumes++
-		}
-		totalBytes += volumes[i].CapacityBytes
-		if volumes[i].HealthStatus != "" && volumes[i].HealthStatus != string(HealthStatusHealthy) {
-			summary.UnhealthyVolumes++
-		} else {
-			summary.HealthyVolumes++
-		}
-	}
-
-	summary.CapacityBytes = totalBytes
-	summary.TotalCapacity = formatBytes(totalBytes)
-
-	return summary
 }
 
 func (s *dashboardServer) handleAPIVolumes(w http.ResponseWriter, r *http.Request) {
@@ -372,7 +287,7 @@ func (s *dashboardServer) handleAPIVolumes(w http.ResponseWriter, r *http.Reques
 	}
 	defer client.Close()
 
-	volumes, err := findManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -390,7 +305,7 @@ func (s *dashboardServer) handleAPISnapshots(w http.ResponseWriter, r *http.Requ
 	}
 	defer client.Close()
 
-	snapshots, err := findManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -408,7 +323,7 @@ func (s *dashboardServer) handleAPIClones(w http.ResponseWriter, r *http.Request
 	}
 	defer client.Close()
 
-	clones, err := findClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -439,20 +354,20 @@ func (s *dashboardServer) handlePartialVolumes(w http.ResponseWriter, r *http.Re
 	}
 	defer client.Close()
 
-	volumes, err := findManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Annotate with health status
-	annotateVolumesWithHealth(ctx, client, volumes)
+	dashboard.AnnotateVolumesWithHealth(ctx, client, volumes)
 
 	// Enrich with Kubernetes PV/PVC data (best-effort, no pods for table view)
 	k8sData := enrichWithK8sData(ctx, false)
 	if k8sData.Available {
 		for i := range volumes {
-			if binding := matchK8sBinding(k8sData.Bindings, volumes[i].Dataset, volumes[i].VolumeID); binding != nil {
+			if binding := dashboard.MatchK8sBinding(k8sData.Bindings, volumes[i].Dataset, volumes[i].VolumeID); binding != nil {
 				volumes[i].K8s = binding
 			}
 		}
@@ -474,7 +389,7 @@ func (s *dashboardServer) handlePartialSnapshots(w http.ResponseWriter, r *http.
 	}
 	defer client.Close()
 
-	snapshots, err := findManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -496,7 +411,7 @@ func (s *dashboardServer) handlePartialClones(w http.ResponseWriter, r *http.Req
 	}
 	defer client.Close()
 
-	clones, err := findClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -543,7 +458,7 @@ func (s *dashboardServer) handlePartialUnmanaged(w http.ResponseWriter, r *http.
 	}
 	defer client.Close()
 
-	unmanaged, err := findUnmanagedVolumes(ctx, client, s.pool, false)
+	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -571,7 +486,7 @@ func (s *dashboardServer) handleAPIUnmanaged(w http.ResponseWriter, r *http.Requ
 	}
 	defer client.Close()
 
-	unmanaged, err := findUnmanagedVolumes(ctx, client, s.pool, false)
+	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -597,7 +512,7 @@ func (s *dashboardServer) handlePartialVolumeDetail(w http.ResponseWriter, r *ht
 	}
 	defer client.Close()
 
-	details, err := getVolumeDetails(ctx, client, volumeID)
+	details, err := dashboard.GetVolumeDetails(ctx, client, volumeID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -606,7 +521,7 @@ func (s *dashboardServer) handlePartialVolumeDetail(w http.ResponseWriter, r *ht
 	// Enrich with Kubernetes PV/PVC/Pod data (best-effort, include pods for detail view)
 	k8sData := enrichWithK8sData(ctx, true)
 	if k8sData.Available {
-		if binding := matchK8sBinding(k8sData.Bindings, details.Dataset, details.VolumeID); binding != nil {
+		if binding := dashboard.MatchK8sBinding(k8sData.Bindings, details.Dataset, details.VolumeID); binding != nil {
 			details.K8s = binding
 		}
 	}
@@ -634,7 +549,7 @@ func (s *dashboardServer) handleAPIVolumeDetail(w http.ResponseWriter, r *http.R
 	}
 	defer client.Close()
 
-	details, err := getVolumeDetails(ctx, client, volumeID)
+	details, err := dashboard.GetVolumeDetails(ctx, client, volumeID)
 	if err != nil {
 		writeJSONError(w, err)
 		return

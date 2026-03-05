@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 )
 
@@ -226,7 +227,7 @@ func TestFindManagedVolumes(t *testing.T) {
 			mc := &mockClient{}
 			tt.setupMock(mc)
 
-			volumes, err := findManagedVolumes(ctx, mc)
+			volumes, err := dashboard.FindManagedVolumes(ctx, mc)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error but got nil")

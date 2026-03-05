@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -140,8 +141,8 @@ func gatherSummary(ctx context.Context, client tnsapi.ClientInterface) (*Summary
 
 	// Finalize summary
 	summary.Snapshots.Total = summary.Snapshots.Attached + summary.Snapshots.Detached
-	summary.Capacity.ProvisionedHuman = formatBytes(summary.Capacity.ProvisionedBytes)
-	summary.Capacity.UsedHuman = formatBytes(summary.Capacity.UsedBytes)
+	summary.Capacity.ProvisionedHuman = dashboard.FormatBytes(summary.Capacity.ProvisionedBytes)
+	summary.Capacity.UsedHuman = dashboard.FormatBytes(summary.Capacity.UsedBytes)
 	summary.Health.TotalVolumes = summary.Volumes.Total
 
 	return summary, nil

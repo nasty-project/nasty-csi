@@ -1,0 +1,47 @@
+{{define "snapshots_table.html"}}
+{{if .}}
+<table>
+    <thead>
+        <tr>
+            <th class="sortable" onclick="sortTable(this)">Snapshot Name</th>
+            <th class="sortable" onclick="sortTable(this)">Source Volume</th>
+            <th class="sortable" onclick="sortTable(this)">Protocol</th>
+            <th class="sortable" onclick="sortTable(this)">Type</th>
+            <th class="sortable" onclick="sortTable(this)">Source Dataset</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .}}
+        <tr>
+            <td class="mono">{{.Name}}</td>
+            <td class="mono">{{.SourceVolume}}</td>
+            <td>
+                {{if eq .Protocol "nfs"}}
+                <span class="badge badge-nfs">NFS</span>
+                {{else if eq .Protocol "nvmeof"}}
+                <span class="badge badge-nvmeof">NVMe-oF</span>
+                {{else if eq .Protocol "iscsi"}}
+                <span class="badge badge-iscsi">iSCSI</span>
+                {{else}}
+                <span class="badge">{{.Protocol}}</span>
+                {{end}}
+            </td>
+            <td>
+                {{if eq .Type "detached"}}
+                <span class="badge badge-detached">Detached</span>
+                {{else}}
+                <span class="badge badge-attached">Attached</span>
+                {{end}}
+            </td>
+            <td class="mono text-muted">{{.SourceDataset}}</td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<div class="empty-state">
+    No snapshots found
+    <div class="hint">Create VolumeSnapshots using tns-csi VolumeSnapshotClass to see them here</div>
+</div>
+{{end}}
+{{end}}

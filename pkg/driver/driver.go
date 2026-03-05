@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/metrics"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -27,6 +28,8 @@ type Config struct {
 	APIURL                    string
 	APIKey                    string
 	MetricsAddr               string // Address to expose Prometheus metrics (e.g., ":8080")
+	DashboardAddr             string // Address for in-cluster dashboard (e.g., ":9090", empty = disabled)
+	DashboardPool             string // ZFS pool for unmanaged volume discovery in dashboard
 	TestMode                  bool   // Enable test mode for sanity tests (skips actual mounts)
 	SkipTLSVerify             bool   // Skip TLS certificate verification (for self-signed certs)
 	EnableNVMeDiscovery       bool   // Run nvme discover before nvme connect (default: false)
@@ -35,14 +38,15 @@ type Config struct {
 
 // Driver is the TNS CSI driver.
 type Driver struct {
-	srv        *grpc.Server
-	metricsSrv *http.Server
-	apiClient  tnsapi.ClientInterface
-	controller *ControllerService
-	node       *NodeService
-	identity   *IdentityService
-	config     Config
-	testMode   bool // Test mode flag for sanity tests
+	srv          *grpc.Server
+	metricsSrv   *http.Server
+	dashboardSrv *dashboard.Server
+	apiClient    tnsapi.ClientInterface
+	controller   *ControllerService
+	node         *NodeService
+	identity     *IdentityService
+	config       Config
+	testMode     bool // Test mode flag for sanity tests
 }
 
 // NewDriver creates a new driver instance.
@@ -116,6 +120,21 @@ func (d *Driver) Run() error {
 		}()
 	}
 
+	// Start dashboard server if configured
+	if d.config.DashboardAddr != "" {
+		dashSrv, dashErr := dashboard.NewServer(d.apiClient, d.config.DashboardPool, d.config.Version)
+		if dashErr != nil {
+			klog.Errorf("Failed to create dashboard server: %v", dashErr)
+		} else {
+			d.dashboardSrv = dashSrv
+			go func() {
+				if serveErr := d.dashboardSrv.Start(d.config.DashboardAddr); serveErr != nil {
+					klog.Errorf("Dashboard server error: %v", serveErr)
+				}
+			}()
+		}
+	}
+
 	klog.Infof("Listening on %s://%s", u.Scheme, addr)
 	//nolint:noctx // net.Listen is acceptable here - CSI driver lifecycle is managed by gRPC server
 	listener, err := net.Listen(u.Scheme, addr)
@@ -141,6 +160,11 @@ func (d *Driver) Run() error {
 // Stop stops the driver.
 func (d *Driver) Stop() {
 	klog.Info("Stopping TNS CSI Driver")
+
+	// Stop dashboard server
+	if d.dashboardSrv != nil {
+		d.dashboardSrv.Stop()
+	}
 
 	// Stop metrics server
 	if d.metricsSrv != nil {

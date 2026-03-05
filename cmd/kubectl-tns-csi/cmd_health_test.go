@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 )
 
@@ -74,7 +75,7 @@ func TestCheckNFSHealth(t *testing.T) {
 			health := &VolumeHealth{
 				Issues: make([]string, 0),
 			}
-			checkNFSHealth(tt.ds, tt.nfsShareMap, health)
+			dashboard.CheckNFSHealth(tt.ds, tt.nfsShareMap, health)
 
 			if len(health.Issues) != tt.wantIssues {
 				t.Errorf("got %d issues, want %d; issues: %v", len(health.Issues), tt.wantIssues, health.Issues)
@@ -144,7 +145,7 @@ func TestCheckNVMeOFHealth(t *testing.T) {
 			health := &VolumeHealth{
 				Issues: make([]string, 0),
 			}
-			checkNVMeOFHealth(tt.ds, tt.nvmeSubsysMap, health)
+			dashboard.CheckNVMeOFHealth(tt.ds, tt.nvmeSubsysMap, health)
 
 			if len(health.Issues) != tt.wantIssues {
 				t.Errorf("got %d issues, want %d; issues: %v", len(health.Issues), tt.wantIssues, health.Issues)
@@ -263,7 +264,7 @@ func TestCheckVolumeHealth(t *testing.T) {
 			mc := &mockClient{}
 			tt.setupMock(mc)
 
-			report, err := checkVolumeHealth(ctx, mc)
+			report, err := dashboard.CheckVolumeHealth(ctx, mc)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error but got nil")

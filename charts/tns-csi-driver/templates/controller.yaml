@@ -52,6 +52,12 @@ spec:
             {{- if .Values.controller.metrics.enabled }}
             - "--metrics-addr=:{{ .Values.controller.metrics.port }}"
             {{- end }}
+            {{- if .Values.controller.dashboard.enabled }}
+            - "--dashboard-addr=:{{ .Values.controller.dashboard.port }}"
+            {{- with (index .Values.storageClasses 0) }}
+            - "--dashboard-pool={{ .pool }}"
+            {{- end }}
+            {{- end }}
           env:
             - name: NODE_ID
               valueFrom:
@@ -75,6 +81,11 @@ spec:
             {{- if .Values.controller.metrics.enabled }}
             - name: metrics
               containerPort: {{ .Values.controller.metrics.port }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.controller.dashboard.enabled }}
+            - name: dashboard
+              containerPort: {{ .Values.controller.dashboard.port }}
               protocol: TCP
             {{- end }}
             - name: healthz

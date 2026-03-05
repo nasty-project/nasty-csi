@@ -21,41 +21,6 @@ var (
 	errNoRunningControllerPod = errors.New("no running controller pod found")
 )
 
-// MetricsSummary contains parsed metrics for dashboard display.
-//
-//nolint:govet // field alignment not critical for display struct
-type MetricsSummary struct {
-	// Connection status
-	WebSocketConnected     bool    `json:"websocketConnected"`
-	WebSocketReconnects    int64   `json:"websocketReconnects"`
-	ConnectionDurationSecs float64 `json:"connectionDurationSecs"`
-
-	// Operation counts
-	TotalOperations   int64 `json:"totalOperations"`
-	SuccessOperations int64 `json:"successOperations"`
-	ErrorOperations   int64 `json:"errorOperations"`
-
-	// Volume operations by protocol
-	NFSOperations    int64 `json:"nfsOperations"`
-	NVMeOFOperations int64 `json:"nvmeofOperations"`
-	ISCSIOperations  int64 `json:"iscsiOperations"`
-
-	// Volume operations by type
-	CreateOperations int64 `json:"createOperations"`
-	DeleteOperations int64 `json:"deleteOperations"`
-	ExpandOperations int64 `json:"expandOperations"`
-
-	// Messages
-	MessagesSent     int64 `json:"messagesSent"`
-	MessagesReceived int64 `json:"messagesReceived"`
-
-	// Raw metrics text (for raw view)
-	RawMetrics string `json:"rawMetrics,omitempty"`
-
-	// Error if metrics couldn't be fetched
-	Error string `json:"error,omitempty"`
-}
-
 // Controller pod discovery constants.
 const (
 	controllerLabelSelector = "app.kubernetes.io/component=controller,app.kubernetes.io/name=tns-csi-driver"

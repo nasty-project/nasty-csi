@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
+	"github.com/fenio/tns-csi/pkg/dashboard"
 	"github.com/fenio/tns-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -153,7 +155,8 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 
 	// Determine volume ID
 	if volumeID == "" {
-		volumeID = extractDatasetName(datasetPath)
+		parts := strings.Split(datasetPath, "/")
+		volumeID = parts[len(parts)-1]
 	}
 	result.VolumeID = volumeID
 
@@ -460,7 +463,7 @@ func outputImportResult(result *ImportResult, format string) error {
 			printStepf(colorSuccess, iconOK, "Successfully imported %s", result.Dataset)
 			fmt.Printf("  Volume ID: %s\n", result.VolumeID)
 			fmt.Printf("  Protocol:  %s\n", protocolBadge(result.Protocol))
-			fmt.Printf("  Capacity:  %s\n", formatBytes(result.CapacityBytes))
+			fmt.Printf("  Capacity:  %s\n", dashboard.FormatBytes(result.CapacityBytes))
 			if result.NFSSharePath != "" {
 				fmt.Printf("  NFS Share: %s (ID: %d)\n", result.NFSSharePath, result.NFSShareID)
 			}

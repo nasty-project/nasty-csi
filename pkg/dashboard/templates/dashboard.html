@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TNS-CSI Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-yellow: #eab308;
+            --accent-red: #ef4444;
+            --accent-purple: #a855f7;
+            --border-color: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .logo span {
+            background: var(--accent-blue);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .auto-refresh-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+        }
+
+        .auto-refresh-group label {
+            color: var(--text-secondary);
+        }
+
+        .auto-refresh-group select {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+
+        .last-updated {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .refresh-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: var(--bg-secondary);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .summary-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+            cursor: default;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-1px);
+            border-color: var(--accent-blue);
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+        }
+
+        .summary-card h3 {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .summary-card .value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .summary-card .subtitle {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .summary-card.blue .value { color: var(--accent-blue); }
+        .summary-card.green .value { color: var(--accent-green); }
+        .summary-card.yellow .value { color: var(--accent-yellow); }
+        .summary-card.purple .value { color: var(--accent-purple); }
+        .summary-card.red .value { color: var(--accent-red); }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: var(--bg-secondary);
+            padding: 4px;
+            border-radius: 8px;
+            width: fit-content;
+        }
+
+        .tab {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .search-input {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            width: 220px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        /* Panel loading overlay */
+        .panel-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .htmx-request .panel-loading {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.8rem;
+        }
+
+        th {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            user-select: none;
+        }
+
+        th.sortable {
+            cursor: pointer;
+            position: relative;
+            padding-right: 28px;
+        }
+
+        th.sortable:hover {
+            color: var(--text-primary);
+        }
+
+        th.sortable::after {
+            content: '\25B2\25BC';
+            position: absolute;
+            right: 10px;
+            font-size: 0.55rem;
+            color: var(--border-color);
+            letter-spacing: -2px;
+        }
+
+        th.sortable.sort-asc::after {
+            content: '\25B2';
+            color: var(--accent-blue);
+            font-size: 0.65rem;
+        }
+
+        th.sortable.sort-desc::after {
+            content: '\25BC';
+            color: var(--accent-blue);
+            font-size: 0.65rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        .badge-nfs { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .badge-nvmeof { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+        .badge-iscsi { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .badge-cow { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge-promoted { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge-detached { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .badge-attached { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge-healthy { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge-unhealthy { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge-degraded { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+
+        .mono {
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            font-size: 0.75rem;
+        }
+
+        .text-muted {
+            color: var(--text-secondary);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+
+        .loading {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-red);
+            color: var(--accent-red);
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .hint {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: var(--border-color);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-secondary);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* Clickable table rows */
+        tr.clickable {
+            cursor: pointer;
+        }
+
+        tr.clickable:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Detail panel overlay */
+        .detail-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .detail-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Slide-in detail panel */
+        .detail-panel-container {
+            position: fixed;
+            top: 0;
+            right: -500px;
+            width: 500px;
+            max-width: 90vw;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            z-index: 101;
+            overflow-y: auto;
+            transition: right 0.3s ease-out;
+        }
+
+        .detail-panel-container.active {
+            right: 0;
+        }
+
+        .detail-panel {
+            padding: 20px;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .detail-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .close-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            background: var(--accent-red);
+        }
+
+        .detail-section {
+            margin-bottom: 24px;
+        }
+
+        .detail-section h4 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 8px 16px;
+        }
+
+        .detail-grid dt {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .detail-grid dd {
+            font-size: 0.875rem;
+            word-break: break-word;
+        }
+
+        .properties-grid {
+            grid-template-columns: 180px 1fr;
+        }
+
+        .detail-loading {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        /* Controller Status Bar */
+        .controller-status {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+        }
+
+        .status-loading {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+        }
+
+        .status-item .label {
+            color: var(--text-secondary);
+        }
+
+        .status-item .value {
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-red);
+        }
+
+        .status-indicator.connected {
+            background: var(--accent-green);
+        }
+
+        .status-error {
+            color: var(--accent-red);
+            font-size: 0.875rem;
+        }
+
+        .status-divider {
+            width: 1px;
+            height: 20px;
+            background: var(--border-color);
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 200;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 8px;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent-red);
+            color: var(--text-primary);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease-out;
+            max-width: 400px;
+        }
+
+        .toast.toast-error {
+            border-color: var(--accent-red);
+        }
+
+        .toast .toast-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--accent-red);
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        .toast.removing {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>TNS-CSI Dashboard</h1>
+                <span>{{.Version}}</span>
+            </div>
+            <div class="header-controls">
+                <span id="last-updated" class="last-updated"></span>
+                <div class="auto-refresh-group">
+                    <label for="auto-refresh">Auto-refresh:</label>
+                    <select id="auto-refresh" onchange="setAutoRefresh(this.value)">
+                        <option value="0" selected>Off</option>
+                        <option value="10">10s</option>
+                        <option value="30">30s</option>
+                        <option value="60">60s</option>
+                    </select>
+                </div>
+                <button id="refresh-btn" class="refresh-btn" onclick="refreshAll()">
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        {{if .Error}}
+        <div class="error-message">
+            {{.Error}}
+        </div>
+        {{end}}
+
+        <div id="summary-cards">
+            {{template "summary_cards.html" .Summary}}
+        </div>
+
+        <!-- Controller Status Bar -->
+        <div id="controller-status" class="controller-status"
+             hx-get="/dashboard/partials/metrics"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="status-loading">
+                <span class="spinner"></span> Loading controller status...
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showPanel('volumes', this)">
+                Volumes ({{len .Volumes}})
+            </button>
+            <button class="tab" onclick="showPanel('snapshots', this)">
+                Snapshots ({{len .Snapshots}})
+            </button>
+            <button class="tab" onclick="showPanel('clones', this)">
+                Clones ({{len .Clones}})
+            </button>
+            <button class="tab" onclick="showPanel('unmanaged', this)">
+                Unmanaged ({{len .Unmanaged}})
+            </button>
+        </div>
+
+        <div id="panel-volumes" class="panel">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <span class="panel-title">Managed Volumes</span>
+                    <input type="text" class="search-input" placeholder="Search volumes..." oninput="filterTable('volumes-table', this.value)">
+                </div>
+            </div>
+            <div id="volumes-table">
+                {{template "volumes_table.html" .Volumes}}
+            </div>
+            <div class="panel-loading"><span class="spinner"></span></div>
+        </div>
+
+        <div id="panel-snapshots" class="panel hidden">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <span class="panel-title">Snapshots</span>
+                    <input type="text" class="search-input" placeholder="Search snapshots..." oninput="filterTable('snapshots-table', this.value)">
+                </div>
+            </div>
+            <div id="snapshots-table">
+                {{template "snapshots_table.html" .Snapshots}}
+            </div>
+            <div class="panel-loading"><span class="spinner"></span></div>
+        </div>
+
+        <div id="panel-clones" class="panel hidden">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <span class="panel-title">Cloned Volumes</span>
+                    <input type="text" class="search-input" placeholder="Search clones..." oninput="filterTable('clones-table', this.value)">
+                </div>
+            </div>
+            <div id="clones-table">
+                {{template "clones_table.html" .Clones}}
+            </div>
+            <div class="panel-loading"><span class="spinner"></span></div>
+        </div>
+
+        <div id="panel-unmanaged" class="panel hidden">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <span class="panel-title">Unmanaged Volumes</span>
+                    <input type="text" class="search-input" placeholder="Search unmanaged..." oninput="filterTable('unmanaged-table', this.value)">
+                </div>
+            </div>
+            <div id="unmanaged-table">
+                {{template "unmanaged_table.html" .Unmanaged}}
+            </div>
+            <div class="panel-loading"><span class="spinner"></span></div>
+        </div>
+
+    </div>
+
+    <!-- Detail panel overlay -->
+    <div class="detail-overlay" id="detail-overlay" onclick="closeDetailPanel()"></div>
+
+    <!-- Slide-in detail panel -->
+    <div class="detail-panel-container" id="detail-panel-container">
+        <div id="detail-content">
+            <div class="detail-loading">
+                <span class="spinner"></span>
+                <p>Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // --- Panel switching ---
+        function showPanel(name, btn) {
+            document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById('panel-' + name).classList.remove('hidden');
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        // --- Volume detail ---
+        function showVolumeDetail(volumeId) {
+            document.getElementById('detail-overlay').classList.add('active');
+            document.getElementById('detail-panel-container').classList.add('active');
+            document.getElementById('detail-content').innerHTML = '<div class="detail-loading"><span class="spinner"></span><p>Loading...</p></div>';
+            htmx.ajax('GET', '/dashboard/partials/volume-detail/' + encodeURIComponent(volumeId), {
+                target: '#detail-content',
+                swap: 'innerHTML'
+            });
+        }
+
+        function closeDetailPanel() {
+            document.getElementById('detail-overlay').classList.remove('active');
+            document.getElementById('detail-panel-container').classList.remove('active');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeDetailPanel();
+        });
+
+        // --- Search/Filter ---
+        function filterTable(containerId, query) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const tbody = container.querySelector('tbody');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            const q = query.toLowerCase();
+            rows.forEach(function(row) {
+                var text = row.textContent.toLowerCase();
+                row.style.display = text.includes(q) ? '' : 'none';
+            });
+        }
+
+        // --- Column sorting ---
+        function sortTable(th) {
+            var table = th.closest('table');
+            var tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            var colIdx = Array.from(th.parentNode.children).indexOf(th);
+
+            // Determine direction
+            var isAsc = th.classList.contains('sort-asc');
+            // Clear all sort classes
+            th.parentNode.querySelectorAll('th').forEach(function(h) {
+                h.classList.remove('sort-asc', 'sort-desc');
+            });
+            var dir = isAsc ? 'desc' : 'asc';
+            th.classList.add('sort-' + dir);
+
+            rows.sort(function(a, b) {
+                var aText = (a.children[colIdx] || {}).textContent || '';
+                var bText = (b.children[colIdx] || {}).textContent || '';
+                aText = aText.trim().toLowerCase();
+                bText = bText.trim().toLowerCase();
+                // Try numeric sort
+                var aNum = parseFloat(aText);
+                var bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return dir === 'asc' ? aNum - bNum : bNum - aNum;
+                }
+                if (dir === 'asc') {
+                    return aText.localeCompare(bText);
+                }
+                return bText.localeCompare(aText);
+            });
+
+            rows.forEach(function(row) { tbody.appendChild(row); });
+        }
+
+        // --- Auto-refresh ---
+        var autoRefreshTimer = null;
+
+        function setAutoRefresh(seconds) {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+            var sec = parseInt(seconds, 10);
+            if (sec > 0) {
+                autoRefreshTimer = setInterval(refreshAll, sec * 1000);
+            }
+        }
+
+        var refreshing = false;
+        function refreshAll() {
+            if (refreshing) return;
+            refreshing = true;
+            var btn = document.getElementById('refresh-btn');
+            if (btn) btn.disabled = true;
+
+            // Determine active panel's partial URL
+            var panelUrl = '/dashboard/partials/volumes';
+            var panelTarget = '#volumes-table';
+            var activePanel = document.querySelector('.panel:not(.hidden)');
+            if (activePanel) {
+                var tableEl = activePanel.querySelector('[id$="-table"]');
+                if (tableEl) {
+                    var name = tableEl.id.replace('-table', '');
+                    panelUrl = '/dashboard/partials/' + name;
+                    panelTarget = '#' + tableEl.id;
+                }
+            }
+
+            // Chain requests sequentially to avoid overwhelming TrueNAS
+            htmx.ajax('GET', panelUrl, { target: panelTarget, swap: 'innerHTML' })
+                .then(function() {
+                    return htmx.ajax('GET', '/dashboard/partials/summary', { target: '#summary-cards', swap: 'innerHTML' });
+                })
+                .then(function() {
+                    return htmx.ajax('GET', '/dashboard/partials/metrics', { target: '#controller-status', swap: 'innerHTML' });
+                })
+                .then(function() {
+                    updateTimestamp();
+                })
+                .catch(function() {})
+                .then(function() {
+                    refreshing = false;
+                    if (btn) btn.disabled = false;
+                });
+        }
+
+        function updateTimestamp() {
+            var now = new Date();
+            var ts = now.toLocaleTimeString();
+            var el = document.getElementById('last-updated');
+            if (el) el.textContent = 'Last updated: ' + ts;
+        }
+
+        // Auto-refresh off by default
+        setAutoRefresh(0);
+        updateTimestamp();
+
+        // --- Toast notifications ---
+        function showToast(title, message) {
+            var container = document.getElementById('toast-container');
+            var toast = document.createElement('div');
+            toast.className = 'toast toast-error';
+            toast.innerHTML = '<div class="toast-title">' + title + '</div><div>' + message + '</div>';
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.classList.add('removing');
+                setTimeout(function() { toast.remove(); }, 300);
+            }, 5000);
+        }
+
+        // Listen for HTMX errors and show toasts
+        document.addEventListener('htmx:responseError', function(evt) {
+            showToast('Request Failed', 'Could not load data from server. Retrying on next refresh.');
+        });
+
+        document.addEventListener('htmx:sendError', function(evt) {
+            showToast('Connection Error', 'Could not reach the dashboard server.');
+        });
+
+        // Update timestamp after each successful HTMX swap
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            updateTimestamp();
+        });
+    </script>
+</body>
+</html>

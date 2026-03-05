@@ -31,6 +31,8 @@ var (
 	debug                     = flag.Bool("debug", false, "Enable debug logging (equivalent to -v=4)")
 	enableNVMeDiscovery       = flag.Bool("enable-nvme-discovery", false, "Run nvme discover before nvme connect (default: false, all connection params are known from volume context)")
 	maxConcurrentNVMeConnects = flag.Int("max-concurrent-nvme-connects", 5, "Maximum number of concurrent NVMe-oF connect operations per node (limits kernel NVMe subsystem lock contention)")
+	dashboardAddr             = flag.String("dashboard-addr", "", "Address for in-cluster web dashboard (e.g., ':9090', empty = disabled)")
+	dashboardPool             = flag.String("dashboard-pool", "", "ZFS pool for unmanaged volume discovery in dashboard")
 )
 
 func main() {
@@ -83,6 +85,8 @@ func main() {
 		SkipTLSVerify:             *skipTLSVerify,
 		EnableNVMeDiscovery:       *enableNVMeDiscovery,
 		MaxConcurrentNVMeConnects: *maxConcurrentNVMeConnects,
+		DashboardAddr:             *dashboardAddr,
+		DashboardPool:             *dashboardPool,
 	})
 	if err != nil {
 		klog.Fatalf("Failed to create driver: %v", err)

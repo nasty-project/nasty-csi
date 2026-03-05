@@ -1,0 +1,63 @@
+{{define "volumes_table.html"}}
+{{if .}}
+<table>
+    <thead>
+        <tr>
+            <th class="sortable" onclick="sortTable(this)">Volume ID</th>
+            <th class="sortable" onclick="sortTable(this)">Dataset</th>
+            <th class="sortable" onclick="sortTable(this)">Protocol</th>
+            <th class="sortable" onclick="sortTable(this)">Capacity</th>
+            <th class="sortable" onclick="sortTable(this)">PVC</th>
+            <th class="sortable" onclick="sortTable(this)">Namespace</th>
+            <th class="sortable" onclick="sortTable(this)">Health</th>
+            <th class="sortable" onclick="sortTable(this)">Adoptable</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .}}
+        <tr class="clickable" onclick="showVolumeDetail('{{.VolumeID}}')" title="Click for details">
+            <td class="mono">{{.VolumeID}}</td>
+            <td class="mono text-muted">{{.Dataset}}</td>
+            <td>
+                {{if eq .Protocol "nfs"}}
+                <span class="badge badge-nfs">NFS</span>
+                {{else if eq .Protocol "nvmeof"}}
+                <span class="badge badge-nvmeof">NVMe-oF</span>
+                {{else if eq .Protocol "iscsi"}}
+                <span class="badge badge-iscsi">iSCSI</span>
+                {{else}}
+                <span class="badge">{{.Protocol}}</span>
+                {{end}}
+            </td>
+            <td>{{.CapacityHuman}}</td>
+            <td>{{if .K8s}}{{if .K8s.PVCName}}{{.K8s.PVCName}}{{else}}<span class="text-muted">-</span>{{end}}{{else}}<span class="text-muted">-</span>{{end}}</td>
+            <td>{{if .K8s}}{{if .K8s.PVCNamespace}}{{.K8s.PVCNamespace}}{{else}}<span class="text-muted">-</span>{{end}}{{else}}<span class="text-muted">-</span>{{end}}</td>
+            <td>
+                {{if eq .HealthStatus "Healthy"}}
+                <span class="badge badge-healthy">Healthy</span>
+                {{else if eq .HealthStatus "Unhealthy"}}
+                <span class="badge badge-unhealthy" title="{{.HealthIssue}}">Unhealthy</span>
+                {{else if eq .HealthStatus "Degraded"}}
+                <span class="badge badge-degraded" title="{{.HealthIssue}}">Degraded</span>
+                {{else}}
+                <span class="text-muted">-</span>
+                {{end}}
+            </td>
+            <td>
+                {{if .Adoptable}}
+                <span class="badge badge-promoted">Yes</span>
+                {{else}}
+                <span class="text-muted">No</span>
+                {{end}}
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<div class="empty-state">
+    No volumes found
+    <div class="hint">Volumes will appear here when provisioned through tns-csi StorageClasses</div>
+</div>
+{{end}}
+{{end}}
