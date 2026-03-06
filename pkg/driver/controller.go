@@ -421,6 +421,12 @@ func (s *ControllerService) datasetHasCSIManagedSnapshots(_ context.Context, dat
 
 	for _, snap := range snapshots {
 		if val, ok := tnsapi.GetSnapshotPropertyValue(snap, tnsapi.PropertyManagedBy); ok && val == tnsapi.ManagedByValue {
+			// Skip snapshots marked for deferred destruction — DeleteSnapshot already
+			// succeeded (defer=true), ZFS will auto-destroy when all clones are gone.
+			if dv, dok := tnsapi.GetSnapshotPropertyValue(snap, "defer_destroy"); dok && dv == "on" {
+				klog.Infof("Dataset %s: skipping deferred-destroy snapshot %s", datasetID, snap.ID)
+				continue
+			}
 			klog.Infof("Dataset %s has CSI-managed snapshot: %s", datasetID, snap.ID)
 			return true, nil
 		}
