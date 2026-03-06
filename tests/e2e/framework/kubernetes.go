@@ -699,15 +699,37 @@ func (k *KubernetesClient) WaitForSnapshotReady(ctx context.Context, snapshotNam
 	})
 }
 
-// DeleteVolumeSnapshot deletes a VolumeSnapshot using kubectl.
+// DeleteVolumeSnapshot deletes a VolumeSnapshot and waits for it to be fully removed.
+// This ensures the CSI DeleteSnapshot has completed and the ZFS snapshot is gone
+// before returning, preventing race conditions with subsequent PVC deletions.
 func (k *KubernetesClient) DeleteVolumeSnapshot(ctx context.Context, snapshotName string) error {
 	args := []string{
 		"delete", "volumesnapshot", snapshotName,
 		"-n", k.namespace,
 		"--ignore-not-found=true",
+		"--timeout=3m",
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// kubectl delete waits for finalizer removal, but poll to be sure
+	// the resource is truly gone (external-snapshotter finalizer triggers CSI DeleteSnapshot)
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+		checkArgs := []string{
+			"get", "volumesnapshot", snapshotName,
+			"-n", k.namespace,
+			"--ignore-not-found=true",
+			"-o", "name",
+		}
+		checkCmd := exec.CommandContext(ctx, "kubectl", checkArgs...)
+		output, err := checkCmd.Output()
+		if err != nil {
+			return false, nil //nolint:nilerr // Continue polling on transient errors
+		}
+		return strings.TrimSpace(string(output)) == "", nil
+	})
 }
 
 // CreateVolumeSnapshotClass creates a VolumeSnapshotClass using kubectl.
