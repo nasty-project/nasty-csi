@@ -71,11 +71,7 @@ func (m *MockAPIClientForSnapshots) QuerySnapshots(ctx context.Context, filters 
 	return nil, errors.New("QuerySnapshotsFunc not implemented")
 }
 
-func (m *MockAPIClientForSnapshots) QuerySnapshotsWithUserProperties(ctx context.Context, filters []interface{}) ([]tnsapi.SnapshotWithUserProperties, error) {
-	return nil, nil
-}
-
-func (m *MockAPIClientForSnapshots) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}, propertyNames []string) ([]tnsapi.Snapshot, error) {
+func (m *MockAPIClientForSnapshots) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}) ([]tnsapi.Snapshot, error) {
 	return nil, nil
 }
 

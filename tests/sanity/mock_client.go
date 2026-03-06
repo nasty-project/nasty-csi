@@ -1076,17 +1076,10 @@ func (m *MockClient) QuerySnapshots(ctx context.Context, filters []any) ([]tnsap
 	return result, nil
 }
 
-// QuerySnapshotsWithUserProperties mocks pool.snapshot.query with user_properties extra.
+// QuerySnapshotsWithProperties mocks pool.snapshot.query with user_properties extra.
 // Returns empty results — sanity tests don't create CSI-managed snapshots that would block deletion.
-func (m *MockClient) QuerySnapshotsWithUserProperties(ctx context.Context, filters []any) ([]tnsapi.SnapshotWithUserProperties, error) {
-	m.logCall("QuerySnapshotsWithUserProperties", filters)
-	return []tnsapi.SnapshotWithUserProperties{}, nil
-}
-
-// QuerySnapshotsWithProperties mocks pool.snapshot.query with targeted extra.properties.
-// Returns empty results — sanity tests don't create CSI-managed snapshots that would block deletion.
-func (m *MockClient) QuerySnapshotsWithProperties(ctx context.Context, filters []any, propertyNames []string) ([]tnsapi.Snapshot, error) {
-	m.logCall("QuerySnapshotsWithProperties", filters, propertyNames)
+func (m *MockClient) QuerySnapshotsWithProperties(ctx context.Context, filters []any) ([]tnsapi.Snapshot, error) {
+	m.logCall("QuerySnapshotsWithProperties", filters)
 	return []tnsapi.Snapshot{}, nil
 }
 

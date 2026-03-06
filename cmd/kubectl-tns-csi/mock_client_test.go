@@ -548,11 +548,7 @@ func (m *mockClient) QuerySnapshots(ctx context.Context, filters []interface{}) 
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) QuerySnapshotsWithUserProperties(ctx context.Context, filters []interface{}) ([]tnsapi.SnapshotWithUserProperties, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}, propertyNames []string) ([]tnsapi.Snapshot, error) {
+func (m *mockClient) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}) ([]tnsapi.Snapshot, error) {
 	return nil, errNotImplemented
 }
 

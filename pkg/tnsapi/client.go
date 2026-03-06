@@ -1914,45 +1914,20 @@ func (c *Client) QuerySnapshots(ctx context.Context, filters []interface{}) ([]S
 	return result, nil
 }
 
-// SnapshotWithUserProperties extends Snapshot with ZFS user properties.
-// Used by QuerySnapshotsWithUserProperties to return snapshot metadata
-// needed for CSI-managed snapshot detection.
-type SnapshotWithUserProperties struct {
-	Snapshot
-	UserProperties map[string]UserProperty `json:"user_properties,omitempty"`
-}
-
-// QuerySnapshotsWithUserProperties queries ZFS snapshots and includes user properties in the response.
-// This is used to check for CSI-managed snapshots (those with tns-csi:managed_by property)
-// before deleting a dataset, preventing VolSync deadlocks.
-func (c *Client) QuerySnapshotsWithUserProperties(ctx context.Context, filters []interface{}) ([]SnapshotWithUserProperties, error) {
-	klog.V(4).Infof("Querying snapshots with user properties, filters: %+v", filters)
+// QuerySnapshotsWithProperties queries ZFS snapshots with all properties included.
+// This uses extra.user_properties=true which, for pool.snapshot.query, returns all
+// properties (built-in and user-defined) in the "properties" field. Each property
+// is a map with "value", "rawvalue", "source", and "parsed" keys.
+//
+// Note: Despite the name "user_properties", TrueNAS's pool.snapshot.query returns
+// ALL properties in the "properties" field (not "user_properties"). The extra.properties
+// list option is silently ignored for snapshots — only user_properties=true works.
+func (c *Client) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}) ([]Snapshot, error) {
+	klog.V(4).Infof("Querying snapshots with properties, filters: %+v", filters)
 
 	queryOpts := map[string]interface{}{
 		"extra": map[string]interface{}{
 			"user_properties": true,
-		},
-	}
-	var result []SnapshotWithUserProperties
-	err := c.Call(ctx, "pool.snapshot.query", []interface{}{filters, queryOpts}, &result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query snapshots with user properties: %w", err)
-	}
-
-	klog.V(4).Infof("Found %d snapshots with user properties", len(result))
-	return result, nil
-}
-
-// QuerySnapshotsWithProperties queries snapshots and returns only the specified ZFS properties.
-// This uses extra.properties (a targeted property list) instead of extra.user_properties (all properties),
-// which is significantly faster on systems with many snapshots.
-// The response uses the standard "properties" field where each property has a "value" sub-field.
-func (c *Client) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}, propertyNames []string) ([]Snapshot, error) {
-	klog.V(4).Infof("Querying snapshots with specific properties %v, filters: %+v", propertyNames, filters)
-
-	queryOpts := map[string]interface{}{
-		"extra": map[string]interface{}{
-			"properties": propertyNames,
 		},
 	}
 	var result []Snapshot
@@ -1961,8 +1936,27 @@ func (c *Client) QuerySnapshotsWithProperties(ctx context.Context, filters []int
 		return nil, fmt.Errorf("failed to query snapshots with properties: %w", err)
 	}
 
-	klog.V(4).Infof("Found %d snapshots", len(result))
+	klog.V(4).Infof("Found %d snapshots with properties", len(result))
 	return result, nil
+}
+
+// GetSnapshotPropertyValue extracts a string value from a snapshot's Properties map.
+// TrueNAS returns each property as {"value": "...", "rawvalue": "...", "source": "...", "parsed": ...}.
+// Returns the value and true if found, or ("", false) if the property doesn't exist.
+func GetSnapshotPropertyValue(snap Snapshot, propertyName string) (string, bool) {
+	if snap.Properties == nil {
+		return "", false
+	}
+	propVal, ok := snap.Properties[propertyName]
+	if !ok {
+		return "", false
+	}
+	propMap, ok := propVal.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	val, ok := propMap["value"].(string)
+	return val, ok
 }
 
 // QuerySnapshotIDs is a lightweight version of QuerySnapshots that only returns snapshot IDs.
