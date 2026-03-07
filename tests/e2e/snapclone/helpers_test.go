@@ -51,6 +51,14 @@ var protocols = []protocolConfig{
 		pvcTimeout:   3 * time.Minute,
 		podTimeout:   3 * time.Minute,
 	},
+	{
+		name:         "smb",
+		storageClass: "tns-csi-smb",
+		accessMode:   corev1.ReadWriteMany,
+		isBlock:      false,
+		pvcTimeout:   2 * time.Minute,
+		podTimeout:   2 * time.Minute,
+	},
 }
 
 // createSnapshotClass creates a VolumeSnapshotClass and registers cleanup.

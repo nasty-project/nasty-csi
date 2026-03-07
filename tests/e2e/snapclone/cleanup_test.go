@@ -178,6 +178,11 @@ var _ = Describe("Complex Cleanup", func() {
 							Fail("Leaked iSCSI extent after cleanup: " + extent)
 						}
 					}
+					for share := range afterSnap.SMBShares {
+						if _, existed := beforeSnap.SMBShares[share]; !existed {
+							Fail("Leaked SMB share after cleanup: " + share)
+						}
+					}
 				}
 			})
 		})
