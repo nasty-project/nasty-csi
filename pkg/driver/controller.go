@@ -478,6 +478,13 @@ func (s *ControllerService) deleteDatasetSnapshots(_ context.Context, datasetID 
 			klog.Infof("Skipping CSI-managed snapshot %s (will be deleted via DeleteSnapshot)", snap.ID)
 			continue
 		}
+		// Skip snapshots with dependent clones — deleting them (even with defer=true)
+		// would trigger the promote cascade and allow the source to be deleted when it
+		// should be blocked. Let DeleteDataset handle these via FailedPrecondition.
+		if cloneVal, cok := tnsapi.GetSnapshotPropertyValue(snap, "clones"); cok && cloneVal != "" {
+			klog.Infof("Skipping snapshot %s with dependent clones: %s", snap.ID, cloneVal)
+			continue
+		}
 		klog.V(4).Infof("Deleting non-CSI snapshot %s (defer=true to handle dependent clones)", snap.ID)
 		if err := s.apiClient.DeleteSnapshot(snapCtx, snap.ID); err != nil { //nolint:contextcheck // intentional: background context needed for reliable cleanup
 			klog.Warningf("Failed to delete snapshot %s: %v (continuing)", snap.ID, err)

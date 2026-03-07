@@ -403,8 +403,14 @@ func (s *ControllerService) createRegularSnapshot(ctx context.Context, timer *me
 		tnsapi.PropertyDeleteStrategy:   "delete",
 	}
 	if err := s.apiClient.SetSnapshotProperties(ctx, snapshot.ID, props, nil); err != nil {
-		klog.Warningf("Failed to set CSI properties on snapshot: %v", err)
-		// Non-fatal - the snapshot is still usable
+		// Fatal: without snapshot_id the deletion guard cannot identify this as a CSI snapshot,
+		// which could allow the source volume to be deleted while this snapshot exists.
+		// Clean up the orphaned snapshot and fail.
+		klog.Errorf("Failed to set CSI properties on snapshot %s: %v — deleting orphaned snapshot", snapshot.ID, err)
+		if delErr := s.apiClient.DeleteSnapshot(ctx, snapshot.ID); delErr != nil {
+			klog.Warningf("Failed to clean up orphaned snapshot %s: %v", snapshot.ID, delErr)
+		}
+		return nil, status.Errorf(codes.Internal, "Failed to set tracking properties on snapshot: %v", err)
 	}
 
 	// Create snapshot metadata
