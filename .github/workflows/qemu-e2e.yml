@@ -132,14 +132,17 @@ jobs:
                 nfsv4
 
           runcmd:
-            - apt-get install -y linux-modules-extra-$(uname -r) || true
-            - modprobe nvme-tcp || true
-            - modprobe nvme-fabrics || true
-            - modprobe iscsi_tcp
-            - modprobe nfs
-            - modprobe nfsv4
-            - systemctl enable --now iscsid
+            - echo "=== Installing linux-modules-extra ==="
+            - apt-get install -y linux-modules-extra-$(uname -r) 2>&1 | tail -5
+            - echo "=== Loading kernel modules ==="
+            - modprobe nvme-tcp && echo "nvme-tcp loaded" || echo "FAILED to load nvme-tcp"
+            - modprobe nvme-fabrics && echo "nvme-fabrics loaded" || echo "FAILED to load nvme-fabrics"
+            - modprobe iscsi_tcp && echo "iscsi_tcp loaded" || echo "FAILED to load iscsi_tcp"
+            - modprobe nfs && echo "nfs loaded" || echo "FAILED to load nfs"
+            - modprobe nfsv4 && echo "nfsv4 loaded" || echo "FAILED to load nfsv4"
+            - echo "=== Loaded modules ==="
             - lsmod | grep -E 'nvme|iscsi|nfs' || true
+            - systemctl enable --now iscsid
             - curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage" sh -
             - until kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready'; do sleep 2; done
             - echo "K3S_READY" > /tmp/k3s-ready
@@ -204,6 +207,10 @@ jobs:
           echo "Loaded kernel modules:"
           ssh $SSH_OPTS ci@localhost "lsmod | grep -E 'nvme_tcp|iscsi_tcp|nfs|cifs' || echo 'WARNING: some modules not loaded'"
 
+          echo ""
+          echo "Cloud-init runcmd output (module loading):"
+          ssh $SSH_OPTS ci@localhost "sudo grep -A50 'runcmd' /var/log/cloud-init-output.log 2>/dev/null | head -40 || true"
+
       # ── Phase 4: Verify TrueNAS connectivity from VM ─────────────
       - name: Verify TrueNAS reachable from VM
         timeout-minutes: 1
@@ -213,9 +220,20 @@ jobs:
           echo "Checking connectivity to TrueNAS ($TRUENAS_HOST) from VM..."
           ssh $SSH_OPTS ci@localhost "
             curl -sk --connect-timeout 10 --max-time 15 https://$TRUENAS_HOST >/dev/null 2>&1 \
-              && echo 'TrueNAS is reachable from VM' \
+              && echo 'TrueNAS API (443) is reachable from VM' \
               || { echo '::error::TrueNAS is NOT reachable from VM. It must be accessible from GitHub-hosted runners.'; exit 1; }
           "
+
+          echo "Checking storage protocol ports..."
+          for port_desc in '2049:NFS' '3260:iSCSI' '4420:NVMe-oF' '445:SMB'; do
+            port="${port_desc%%:*}"
+            desc="${port_desc##*:}"
+            ssh $SSH_OPTS ci@localhost "
+              timeout 5 bash -c 'echo >/dev/tcp/$TRUENAS_HOST/$port' 2>/dev/null \
+                && echo \"  $desc (port $port): reachable\" \
+                || echo \"  WARNING: $desc (port $port): NOT reachable\"
+            "
+          done
 
       # ── Phase 5: Build and deploy CSI driver ─────────────────────
       - name: Build CSI image
