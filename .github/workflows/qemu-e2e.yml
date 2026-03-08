@@ -1,0 +1,352 @@
+name: "QEMU E2E Smoke Tests"
+
+# Proof-of-concept: Run E2E tests on GitHub-hosted runners using a QEMU VM.
+#
+# Architecture:
+#   - GitHub-hosted runner: builds Docker image, runs helm/kubectl
+#   - QEMU VM (Ubuntu): runs k3s with full kernel module support (nvme-tcp, iscsi_tcp, etc.)
+#   - Existing TrueNAS server: same as self-hosted runner setup, accessed via secrets
+#
+# The VM is needed because GH runner hosts may not allow loading kernel modules
+# like nvme-tcp directly. A full VM with a stock kernel gives us full control.
+#
+# Prerequisites:
+#   - TrueNAS must be reachable from GitHub-hosted runners (public IP or tunnel)
+#   - Repository secrets: TRUENAS_HOST, TRUENAS_API_KEY, TRUENAS_POOL
+#   - Optional secrets: SMB_USERNAME, SMB_PASSWORD (for SMB protocol tests)
+
+on:
+  workflow_dispatch:
+    inputs:
+      vm_memory:
+        description: 'VM memory in MB'
+        required: false
+        default: '4096'
+        type: string
+      vm_cpus:
+        description: 'VM CPU cores'
+        required: false
+        default: '4'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qemu-e2e
+  cancel-in-progress: true
+
+env:
+  VM_SSH_PORT: "2222"
+  VM_K3S_PORT: "6443"
+  SSH_OPTS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
+  CLOUD_IMAGE_URL: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+
+jobs:
+  smoke-test:
+    name: "QEMU Smoke Test (all protocols)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      # ── Phase 1: Host setup ──────────────────────────────────────
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | \
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 \
+            qemu-utils \
+            genisoimage
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # ── Phase 2: Prepare VM image ───────────────────────────────
+      - name: Cache Ubuntu cloud image
+        id: cache-image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ubuntu-cloud.img
+          key: ubuntu-noble-cloudimg-amd64-v1
+
+      - name: Download Ubuntu cloud image
+        if: steps.cache-image.outputs.cache-hit != 'true'
+        run: |
+          curl -fSL -o /tmp/ubuntu-cloud.img "$CLOUD_IMAGE_URL"
+          ls -lh /tmp/ubuntu-cloud.img
+
+      - name: Prepare VM disk
+        run: |
+          # Create a working copy and resize to 20GB for k3s + images
+          cp /tmp/ubuntu-cloud.img /tmp/vm-disk.qcow2
+          qemu-img resize /tmp/vm-disk.qcow2 20G
+
+      - name: Create cloud-init ISO
+        run: |
+          # Generate ephemeral SSH keypair
+          ssh-keygen -t ed25519 -f /tmp/vm-key -N "" -q
+          VM_SSH_PUB=$(cat /tmp/vm-key.pub)
+
+          mkdir -p /tmp/cloud-init
+
+          cat > /tmp/cloud-init/meta-data <<EOF
+          instance-id: qemu-e2e-test
+          local-hostname: qemu-k3s
+          EOF
+
+          cat > /tmp/cloud-init/user-data <<EOF
+          #cloud-config
+          users:
+            - name: ci
+              ssh_authorized_keys:
+                - $VM_SSH_PUB
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              shell: /bin/bash
+
+          package_update: true
+          packages:
+            - open-iscsi
+            - nfs-common
+            - cifs-utils
+            - nvme-cli
+
+          write_files:
+            - path: /etc/modules-load.d/csi.conf
+              content: |
+                nvme-tcp
+                iscsi_tcp
+
+          runcmd:
+            - modprobe nvme-tcp
+            - modprobe iscsi_tcp
+            - systemctl enable --now iscsid
+            - curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage" sh -
+            - until kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready'; do sleep 2; done
+            - echo "K3S_READY" > /tmp/k3s-ready
+          EOF
+
+          genisoimage -output /tmp/cloud-init.iso \
+            -volid cidata -joliet -rock \
+            /tmp/cloud-init/user-data /tmp/cloud-init/meta-data
+
+      # ── Phase 3: Boot VM ─────────────────────────────────────────
+      - name: Boot QEMU VM
+        run: |
+          qemu-system-x86_64 \
+            -enable-kvm \
+            -m ${{ inputs.vm_memory || '4096' }} \
+            -smp ${{ inputs.vm_cpus || '4' }} \
+            -cpu host \
+            -drive file=/tmp/vm-disk.qcow2,format=qcow2,if=virtio \
+            -cdrom /tmp/cloud-init.iso \
+            -nic user,model=virtio-net-pci,hostfwd=tcp::${VM_SSH_PORT}-:22,hostfwd=tcp::${VM_K3S_PORT}-:6443 \
+            -display none \
+            -serial file:/tmp/vm-console.log \
+            -daemonize \
+            -pidfile /tmp/vm.pid
+
+          echo "VM started (PID: $(cat /tmp/vm.pid))"
+
+      - name: Wait for SSH
+        timeout-minutes: 5
+        run: |
+          echo "Waiting for VM SSH..."
+          for i in $(seq 1 60); do
+            if ssh $SSH_OPTS ci@localhost true 2>/dev/null; then
+              echo "SSH ready (attempt $i)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::SSH did not become available"
+          cat /tmp/vm-console.log || true
+          exit 1
+
+      - name: Wait for cloud-init and k3s
+        timeout-minutes: 10
+        run: |
+          echo "Waiting for cloud-init to finish..."
+          ssh $SSH_OPTS ci@localhost "sudo cloud-init status --wait"
+
+          echo "Waiting for k3s to be ready..."
+          for i in $(seq 1 60); do
+            if ssh $SSH_OPTS ci@localhost "test -f /tmp/k3s-ready" 2>/dev/null; then
+              echo "k3s is ready"
+              break
+            fi
+            sleep 5
+          done
+
+          echo "VM node status:"
+          ssh $SSH_OPTS ci@localhost "sudo kubectl get nodes -o wide"
+
+          echo ""
+          echo "Loaded kernel modules:"
+          ssh $SSH_OPTS ci@localhost "lsmod | grep -E 'nvme_tcp|iscsi_tcp|nfs|cifs' || echo 'WARNING: some modules not loaded'"
+
+      # ── Phase 4: Verify TrueNAS connectivity from VM ─────────────
+      - name: Verify TrueNAS reachable from VM
+        timeout-minutes: 1
+        env:
+          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
+        run: |
+          echo "Checking connectivity to TrueNAS ($TRUENAS_HOST) from VM..."
+          ssh $SSH_OPTS ci@localhost "
+            curl -sk --connect-timeout 10 --max-time 15 https://$TRUENAS_HOST >/dev/null 2>&1 \
+              && echo 'TrueNAS is reachable from VM' \
+              || { echo '::error::TrueNAS is NOT reachable from VM. It must be accessible from GitHub-hosted runners.'; exit 1; }
+          "
+
+      # ── Phase 5: Build and deploy CSI driver ─────────────────────
+      - name: Build CSI image
+        run: |
+          docker build -t ghcr.io/fenio/tns-csi:qemu-test .
+          docker save ghcr.io/fenio/tns-csi:qemu-test -o /tmp/csi-image.tar
+
+      - name: Import CSI image into k3s
+        run: |
+          scp $SSH_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+          ssh $SSH_OPTS ci@localhost "sudo k3s crictl images | grep tns-csi"
+
+      - name: Fetch kubeconfig from VM
+        run: |
+          scp $SSH_OPTS ci@localhost:/etc/rancher/k3s/k3s.yaml /tmp/kubeconfig
+          # k3s writes server as 127.0.0.1:6443 which maps to our port-forward
+          echo "Kubeconfig fetched, testing kubectl from host..."
+          KUBECONFIG=/tmp/kubeconfig kubectl get nodes
+
+      - name: Install snapshot CRDs
+        env:
+          KUBECONFIG: /tmp/kubeconfig
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-8.4/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-8.4/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-8.4/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-8.4/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/release-8.4/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml
+          kubectl wait --for=condition=available --timeout=60s deployment/snapshot-controller -n kube-system || true
+
+      - name: Deploy CSI driver
+        env:
+          KUBECONFIG: /tmp/kubeconfig
+          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
+          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
+          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
+          SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
+        run: |
+          # Create SMB credentials secret if credentials are available
+          if [ -n "$SMB_USERNAME" ] && [ -n "$SMB_PASSWORD" ]; then
+            kubectl create secret generic tns-csi-smb-creds \
+              --namespace kube-system \
+              --from-literal=username="$SMB_USERNAME" \
+              --from-literal=password="$SMB_PASSWORD"
+          fi
+
+          HELM_ARGS=(
+            upgrade --install tns-csi-driver ./charts/tns-csi-driver
+            --namespace kube-system
+            --wait --timeout 8m
+            --set "truenas.url=wss://${TRUENAS_HOST}/api/current"
+            --set "truenas.apiKey=${TRUENAS_API_KEY}"
+            --set "truenas.pool=${TRUENAS_POOL}"
+            --set "truenas.skipTLSVerify=true"
+            --set "image.repository=ghcr.io/fenio/tns-csi"
+            --set "image.tag=qemu-test"
+            --set "image.pullPolicy=Never"
+            --set "snapshots.enabled=true"
+            --set "storageClasses[0].name=tns-csi-nfs"
+            --set "storageClasses[0].enabled=true"
+            --set "storageClasses[0].protocol=nfs"
+            --set "storageClasses[0].pool=${TRUENAS_POOL}"
+            --set "storageClasses[0].server=${TRUENAS_HOST}"
+            --set "storageClasses[1].name=tns-csi-nvmeof"
+            --set "storageClasses[1].enabled=true"
+            --set "storageClasses[1].protocol=nvmeof"
+            --set "storageClasses[1].pool=${TRUENAS_POOL}"
+            --set "storageClasses[1].server=${TRUENAS_HOST}"
+            --set "storageClasses[1].transport=tcp"
+            --set "storageClasses[1].port=4420"
+            --set "storageClasses[2].name=tns-csi-iscsi"
+            --set "storageClasses[2].enabled=true"
+            --set "storageClasses[2].protocol=iscsi"
+            --set "storageClasses[2].pool=${TRUENAS_POOL}"
+            --set "storageClasses[2].server=${TRUENAS_HOST}"
+            --set "storageClasses[2].port=3260"
+          )
+
+          # Add SMB storage class if credentials are available
+          if [ -n "$SMB_USERNAME" ] && [ -n "$SMB_PASSWORD" ]; then
+            HELM_ARGS+=(
+              --set "storageClasses[3].name=tns-csi-smb"
+              --set "storageClasses[3].enabled=true"
+              --set "storageClasses[3].protocol=smb"
+              --set "storageClasses[3].pool=${TRUENAS_POOL}"
+              --set "storageClasses[3].server=${TRUENAS_HOST}"
+              --set "storageClasses[3].smbCredentialsSecret.name=tns-csi-smb-creds"
+              --set "storageClasses[3].smbCredentialsSecret.namespace=kube-system"
+            )
+          fi
+
+          helm "${HELM_ARGS[@]}"
+
+      # ── Phase 6: Smoke tests ─────────────────────────────────────
+      - name: Run smoke tests
+        env:
+          KUBECONFIG: /tmp/kubeconfig
+          SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
+        run: |
+          chmod +x scripts/ci/qemu/smoke-test.sh
+          scripts/ci/qemu/smoke-test.sh
+
+      # ── Diagnostics on failure ───────────────────────────────────
+      - name: Collect diagnostics
+        if: failure()
+        env:
+          KUBECONFIG: /tmp/kubeconfig
+        run: |
+          echo "=== Storage Classes ==="
+          kubectl get sc 2>/dev/null || true
+          echo ""
+          echo "=== PVC Status ==="
+          kubectl get pvc -A 2>/dev/null || true
+          echo ""
+          echo "=== Pod Status ==="
+          kubectl get pods -A 2>/dev/null || true
+          echo ""
+          echo "=== CSI Controller Logs ==="
+          kubectl logs -n kube-system deploy/tns-csi-driver-controller --all-containers --tail=200 2>/dev/null || true
+          echo ""
+          echo "=== CSI Node Logs ==="
+          kubectl logs -n kube-system ds/tns-csi-driver-node --all-containers --tail=200 2>/dev/null || true
+          echo ""
+          echo "=== Events (last 50) ==="
+          kubectl get events -A --sort-by='.lastTimestamp' 2>/dev/null | tail -50 || true
+          echo ""
+          echo "=== VM Console Log (last 100 lines) ==="
+          tail -100 /tmp/vm-console.log 2>/dev/null || true
+          echo ""
+          echo "=== VM Kernel Modules ==="
+          ssh $SSH_OPTS ci@localhost "lsmod" 2>/dev/null || true
+          echo ""
+          echo "=== VM dmesg (last 50) ==="
+          ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -50" 2>/dev/null || true
+
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
