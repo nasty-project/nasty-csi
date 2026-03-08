@@ -67,7 +67,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		"--set", "truenas.pool=" + h.config.TrueNASPool,
 		"--set", "image.repository=" + h.config.CSIImageRepo,
 		"--set", "image.tag=" + h.config.CSIImageTag,
-		"--set", "image.pullPolicy=Always",
+		"--set", "image.pullPolicy=" + h.config.CSIImagePullPolicy,
 		"--set", "truenas.skipTLSVerify=true",
 	}
 

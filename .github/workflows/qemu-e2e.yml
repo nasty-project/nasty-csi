@@ -1,6 +1,6 @@
-name: "QEMU E2E Smoke Tests"
+name: "QEMU E2E Tests"
 
-# Proof-of-concept: Run E2E tests on GitHub-hosted runners using a QEMU VM.
+# Run Ginkgo E2E tests on GitHub-hosted runners using a QEMU VM.
 #
 # Architecture:
 #   - GitHub-hosted runner: builds Docker image, runs helm/kubectl
@@ -45,9 +45,9 @@ env:
 
 jobs:
   smoke-test:
-    name: "QEMU Smoke Test (all protocols)"
+    name: "QEMU NFS E2E"
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
 
@@ -351,14 +351,21 @@ jobs:
 
           helm "${HELM_ARGS[@]}"
 
-      # ── Phase 6: Smoke tests ─────────────────────────────────────
-      - name: Run smoke tests
+      # ── Phase 6: Ginkgo E2E tests ───────────────────────────────
+      - name: Install Ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+
+      - name: Run NFS E2E tests
         env:
           KUBECONFIG: /tmp/kubeconfig
-          SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
+          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
+          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
+          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          CSI_IMAGE_REPO: ghcr.io/fenio/tns-csi
+          CSI_IMAGE_TAG: qemu-test
+          CSI_IMAGE_PULL_POLICY: Never
         run: |
-          chmod +x scripts/ci/qemu/smoke-test.sh
-          scripts/ci/qemu/smoke-test.sh
+          ginkgo -v --timeout=90m --flake-attempts=2 ./tests/e2e/nfs/...
 
       # ── Diagnostics on failure ───────────────────────────────────
       - name: Collect diagnostics
@@ -392,6 +399,20 @@ jobs:
           echo ""
           echo "=== VM dmesg (last 50) ==="
           ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -50" 2>/dev/null || true
+
+      - name: Restore NFS allow_nonroot
+        if: always()
+        env:
+          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
+          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
+        run: |
+          echo "Restoring NFS allow_nonroot=false..."
+          ssh $SSH_OPTS ci@localhost "
+            curl -sk -X PUT 'https://$TRUENAS_HOST/api/v2.0/nfs' \
+              -H 'Authorization: Bearer $TRUENAS_API_KEY' \
+              -H 'Content-Type: application/json' \
+              -d '{\"allow_nonroot\": false}'
+          " 2>/dev/null || echo "WARNING: Failed to restore allow_nonroot"
 
       - name: Cleanup VM
         if: always()
