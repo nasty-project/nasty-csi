@@ -40,6 +40,7 @@ env:
   VM_SSH_PORT: "2222"
   VM_K3S_PORT: "6443"
   SSH_OPTS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
+  SCP_OPTS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -P 2222"
   CLOUD_IMAGE_URL: "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
 
 jobs:
@@ -216,13 +217,13 @@ jobs:
 
       - name: Import CSI image into k3s
         run: |
-          scp $SSH_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
           ssh $SSH_OPTS ci@localhost "sudo k3s crictl images | grep tns-csi"
 
       - name: Fetch kubeconfig from VM
         run: |
-          scp $SSH_OPTS ci@localhost:/etc/rancher/k3s/k3s.yaml /tmp/kubeconfig
+          scp $SCP_OPTS ci@localhost:/etc/rancher/k3s/k3s.yaml /tmp/kubeconfig
           # k3s writes server as 127.0.0.1:6443 which maps to our port-forward
           echo "Kubeconfig fetched, testing kubectl from host..."
           KUBECONFIG=/tmp/kubeconfig kubectl get nodes
