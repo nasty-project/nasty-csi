@@ -265,6 +265,20 @@ jobs:
           echo "NFS share creation result: $SHARE_RESULT"
 
           echo ""
+          echo "Querying TrueNAS NFS service configuration..."
+          ssh $SSH_OPTS ci@localhost "
+            curl -sk 'https://$TRUENAS_HOST/api/v2.0/nfs' \
+              -H 'Authorization: Bearer $TRUENAS_API_KEY' 2>/dev/null
+          " || true
+
+          echo ""
+          echo "Querying TrueNAS NFS share details..."
+          ssh $SSH_OPTS ci@localhost "
+            curl -sk 'https://$TRUENAS_HOST/api/v2.0/sharing/nfs?limit=5' \
+              -H 'Authorization: Bearer $TRUENAS_API_KEY' 2>/dev/null | python3 -m json.tool 2>/dev/null | head -40
+          " || true
+
+          echo ""
           echo "Testing NFS mount from VM (outside container)..."
           ssh $SSH_OPTS ci@localhost "
             sudo mkdir -p /tmp/nfstest
