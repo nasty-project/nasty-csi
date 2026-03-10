@@ -402,6 +402,9 @@ func (s *ControllerService) createRegularSnapshot(ctx context.Context, timer *me
 		tnsapi.PropertyProtocol:         protocol,
 		tnsapi.PropertyDeleteStrategy:   "delete",
 	}
+	if s.clusterID != "" {
+		props[tnsapi.PropertyClusterID] = s.clusterID
+	}
 	if err := s.apiClient.SetSnapshotProperties(ctx, snapshot.ID, props, nil); err != nil {
 		// Fatal: without snapshot_id the deletion guard cannot identify this as a CSI snapshot,
 		// which could allow the source volume to be deleted while this snapshot exists.

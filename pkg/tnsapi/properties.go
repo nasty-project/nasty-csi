@@ -115,6 +115,15 @@ const (
 	PropertyISCSIExtentID = "tns-csi:iscsi_extent_id"
 )
 
+// Multi-cluster isolation properties.
+const (
+	// PropertyClusterID stores the cluster identifier for multi-cluster TrueNAS sharing.
+	// When multiple K8s clusters share a TrueNAS box, this property distinguishes
+	// which cluster owns each volume/snapshot.
+	// Value: user-defined cluster identifier, e.g., "prod-east", "staging".
+	PropertyClusterID = "tns-csi:cluster_id"
+)
+
 // SMB-specific properties.
 const (
 	// PropertySMBShareID stores the TrueNAS SMB share ID (mutable on re-share).
@@ -267,6 +276,8 @@ func PropertyNames() []string {
 		PropertyContentSourceID,
 		PropertyCloneMode,
 		PropertyOriginSnapshot,
+		// Multi-cluster
+		PropertyClusterID,
 		// Legacy
 		PropertyProvisionedAt,
 	}
@@ -281,6 +292,7 @@ type NFSVolumeParams struct {
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
+	ClusterID      string
 	CapacityBytes  int64
 	ShareID        int
 	Adoptable      bool // Mark volume as adoptable for cross-cluster adoption
@@ -314,6 +326,9 @@ func NFSVolumePropertiesV1(params NFSVolumeParams) map[string]string {
 	if params.Adoptable {
 		props[PropertyAdoptable] = PropertyValueTrue
 	}
+	if params.ClusterID != "" {
+		props[PropertyClusterID] = params.ClusterID
+	}
 	return props
 }
 
@@ -341,6 +356,7 @@ type NVMeOFVolumeParams struct {
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
+	ClusterID      string
 	CapacityBytes  int64
 	SubsystemID    int
 	NamespaceID    int
@@ -376,6 +392,9 @@ func NVMeOFVolumePropertiesV1(params NVMeOFVolumeParams) map[string]string {
 	if params.Adoptable {
 		props[PropertyAdoptable] = PropertyValueTrue
 	}
+	if params.ClusterID != "" {
+		props[PropertyClusterID] = params.ClusterID
+	}
 	return props
 }
 
@@ -405,6 +424,7 @@ type ISCSIVolumeParams struct {
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
+	ClusterID      string
 	CapacityBytes  int64
 	TargetID       int
 	ExtentID       int
@@ -440,6 +460,9 @@ func ISCSIVolumePropertiesV1(params ISCSIVolumeParams) map[string]string {
 	if params.Adoptable {
 		props[PropertyAdoptable] = PropertyValueTrue
 	}
+	if params.ClusterID != "" {
+		props[PropertyClusterID] = params.ClusterID
+	}
 	return props
 }
 
@@ -452,6 +475,7 @@ type SMBVolumeParams struct {
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
+	ClusterID      string
 	CapacityBytes  int64
 	ShareID        int
 	Adoptable      bool // Mark volume as adoptable for cross-cluster adoption
@@ -485,6 +509,9 @@ func SMBVolumePropertiesV1(params SMBVolumeParams) map[string]string {
 	if params.Adoptable {
 		props[PropertyAdoptable] = PropertyValueTrue
 	}
+	if params.ClusterID != "" {
+		props[PropertyClusterID] = params.ClusterID
+	}
 	return props
 }
 
@@ -494,6 +521,7 @@ type SnapshotParams struct {
 	SourceVolumeID string
 	Protocol       string
 	SourceDataset  string
+	ClusterID      string
 	Detached       bool
 }
 
@@ -514,6 +542,9 @@ func SnapshotPropertiesV1(params SnapshotParams) map[string]string {
 	}
 	if params.SourceDataset != "" {
 		props[PropertySourceDataset] = params.SourceDataset
+	}
+	if params.ClusterID != "" {
+		props[PropertyClusterID] = params.ClusterID
 	}
 	return props
 }

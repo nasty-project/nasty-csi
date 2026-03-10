@@ -208,14 +208,16 @@ type ControllerService struct {
 	// Key format: "volumeID:nodeID", value: readonly state.
 	// Used to detect incompatible re-publish attempts per CSI spec.
 	publishedVolumes   map[string]bool
+	clusterID          string
 	publishedVolumesMu sync.RWMutex
 }
 
 // NewControllerService creates a new controller service.
-func NewControllerService(apiClient tnsapi.ClientInterface, nodeRegistry *NodeRegistry) *ControllerService {
+func NewControllerService(apiClient tnsapi.ClientInterface, nodeRegistry *NodeRegistry, clusterID string) *ControllerService {
 	return &ControllerService{
 		apiClient:        apiClient,
 		nodeRegistry:     nodeRegistry,
+		clusterID:        clusterID,
 		publishedVolumes: make(map[string]bool),
 	}
 }

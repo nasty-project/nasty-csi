@@ -21,16 +21,20 @@ var (
 )
 
 // FindManagedVolumes finds all datasets managed by tns-csi.
-func FindManagedVolumes(ctx context.Context, client tnsapi.ClientInterface) ([]VolumeInfo, error) {
+// If clusterID is non-empty, only returns volumes that either match the clusterID
+// or have no cluster_id property (legacy volumes).
+func FindManagedVolumes(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]VolumeInfo, error) {
 	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
 	if err != nil {
 		return nil, err
 	}
-	return extractVolumes(datasets), nil
+	volumes := extractVolumes(datasets)
+	return filterByClusterID(volumes, clusterID), nil
 }
 
 // FindManagedSnapshots finds all snapshots managed by tns-csi.
-func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface) ([]SnapshotInfo, error) {
+// clusterID filtering is applied at the volume level (snapshots inherit from their source volume).
+func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
 	var snapshots []SnapshotInfo
 
 	attached, err := findAttachedSnapshots(ctx, client)
@@ -110,16 +114,21 @@ func findDetachedSnapshots(ctx context.Context, client tnsapi.ClientInterface) (
 }
 
 // FindClonedVolumes finds all volumes that were cloned from snapshots or other volumes.
-func FindClonedVolumes(ctx context.Context, client tnsapi.ClientInterface) ([]CloneInfo, error) {
+func FindClonedVolumes(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]CloneInfo, error) {
 	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
 	if err != nil {
 		return nil, err
+	}
+	if clusterID != "" {
+		datasets = filterDatasetsByClusterID(datasets, clusterID)
 	}
 	return extractClones(datasets), nil
 }
 
 // FindUnmanagedVolumes finds volumes not managed by tns-csi.
-func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, searchPath string, showAll bool) ([]UnmanagedVolume, error) {
+// If clusterID is non-empty, also excludes datasets that have a different cluster_id
+// (they belong to another cluster's managed set).
+func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, searchPath string, showAll bool, clusterID string) ([]UnmanagedVolume, error) {
 	allDatasets, err := client.QueryAllDatasets(ctx, searchPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query datasets: %w", err)
@@ -479,6 +488,9 @@ func extractVolumes(datasets []tnsapi.DatasetWithProperties) []VolumeInfo {
 		if prop, ok := ds.UserProperties[tnsapi.PropertyAdoptable]; ok {
 			vol.Adoptable = prop.Value == valueTrue
 		}
+		if prop, ok := ds.UserProperties[tnsapi.PropertyClusterID]; ok {
+			vol.ClusterID = prop.Value
+		}
 		if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceType]; ok {
 			vol.ContentSourceType = prop.Value
 		}
@@ -577,6 +589,38 @@ func extractDetachedSnapshots(detachedDatasets []tnsapi.DatasetWithProperties) [
 		snapshots = append(snapshots, snap)
 	}
 	return snapshots
+}
+
+// filterByClusterID filters volumes to only include those matching the cluster ID.
+// If clusterID is empty, all volumes are returned (no filtering).
+// Volumes with no ClusterID (legacy) are always included.
+func filterByClusterID(volumes []VolumeInfo, clusterID string) []VolumeInfo {
+	if clusterID == "" {
+		return volumes
+	}
+	filtered := make([]VolumeInfo, 0, len(volumes))
+	for i := range volumes {
+		if volumes[i].ClusterID == "" || volumes[i].ClusterID == clusterID {
+			filtered = append(filtered, volumes[i])
+		}
+	}
+	return filtered
+}
+
+// filterDatasetsByClusterID filters datasets to only include those matching the cluster ID.
+// Datasets with no cluster_id property (legacy) are always included.
+func filterDatasetsByClusterID(datasets []tnsapi.DatasetWithProperties, clusterID string) []tnsapi.DatasetWithProperties {
+	if clusterID == "" {
+		return datasets
+	}
+	filtered := make([]tnsapi.DatasetWithProperties, 0, len(datasets))
+	for i := range datasets {
+		prop, ok := datasets[i].UserProperties[tnsapi.PropertyClusterID]
+		if !ok || prop.Value == "" || prop.Value == clusterID {
+			filtered = append(filtered, datasets[i])
+		}
+	}
+	return filtered
 }
 
 // FormatBytes converts bytes to human-readable format.

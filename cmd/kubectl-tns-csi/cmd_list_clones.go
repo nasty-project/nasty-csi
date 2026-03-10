@@ -55,7 +55,7 @@ func runListClones(ctx context.Context, url, apiKey, secretRef, outputFormat *st
 	defer client.Close()
 
 	// Find all cloned volumes
-	clones, err := dashboard.FindClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
 	if err != nil {
 		return fmt.Errorf("failed to query cloned volumes: %w", err)
 	}

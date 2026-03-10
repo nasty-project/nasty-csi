@@ -236,7 +236,7 @@ func TestCreateNFSVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.createNFSVolume(ctx, tt.req)
 
 			if tt.wantErr {
@@ -366,7 +366,7 @@ func TestDeleteNFSVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			_, err := controller.deleteNFSVolume(ctx, tt.meta)
 
 			if tt.wantErr && err == nil {
@@ -464,7 +464,7 @@ func TestExpandNFSVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.expandNFSVolume(ctx, tt.meta, tt.requiredBytes)
 
 			if tt.wantErr {
@@ -587,7 +587,7 @@ func TestSetupNFSVolumeFromClone(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			testCloneInfo := &cloneInfo{
 				Mode:       "cow",
 				SnapshotID: "snapshot-id",
@@ -620,12 +620,11 @@ func TestSetupNFSVolumeFromClone(t *testing.T) {
 }
 
 func TestParseEncryptionConfig(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct layout prioritizes readability
 	tests := []struct {
-		name     string
 		params   map[string]string
 		secrets  map[string]string
 		expected *encryptionConfig
+		name     string
 	}{
 		{
 			name: "encryption disabled (default)",

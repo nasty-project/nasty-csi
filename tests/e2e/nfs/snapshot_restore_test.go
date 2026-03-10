@@ -160,6 +160,15 @@ var _ = Describe("Snapshot Restore", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to read version from restore 1")
 		Expect(restore1Data).To(ContainSubstring("Version 1 data"), "Snapshot 1 should have version 1 data")
 
+		By("Verifying cluster_id is set on the restored volume")
+		restore1PVName, err := f.K8s.GetPVName(ctx, restore1PVC)
+		Expect(err).NotTo(HaveOccurred())
+		restore1DatasetPath, err := f.K8s.GetVolumeHandle(ctx, restore1PVName)
+		Expect(err).NotTo(HaveOccurred())
+		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, restore1DatasetPath, "tns-csi:cluster_id")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Restored volume should have tns-csi:cluster_id set")
+
 		By("Verifying v2 directory does NOT exist in snapshot 1 restore")
 		_, err = f.K8s.ExecInPod(ctx, restore1Pod.Name, []string{"ls", "/data/v2/"})
 		Expect(err).To(HaveOccurred(), "v2 directory should NOT exist in snapshot 1")

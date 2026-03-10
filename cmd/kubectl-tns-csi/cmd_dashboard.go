@@ -233,7 +233,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	data := DashboardData{}
 
 	// Fetch volumes
-	volumes, err := dashboard.FindManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
 	if err != nil {
 		klog.Warningf("Failed to fetch volumes: %v", err)
 	} else {
@@ -241,7 +241,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	}
 
 	// Fetch snapshots
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
 	if err != nil {
 		klog.Warningf("Failed to fetch snapshots: %v", err)
 	} else {
@@ -249,7 +249,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	}
 
 	// Fetch clones
-	clones, err := dashboard.FindClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
 	if err != nil {
 		klog.Warningf("Failed to fetch clones: %v", err)
 	} else {
@@ -258,7 +258,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 
 	// Fetch unmanaged volumes if pool is configured
 	if s.pool != "" {
-		unmanaged, unmanagedErr := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false)
+		unmanaged, unmanagedErr := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, "")
 		if unmanagedErr != nil {
 			klog.Warningf("Failed to fetch unmanaged volumes: %v", unmanagedErr)
 		} else {
@@ -294,7 +294,7 @@ func (s *dashboardServer) handleAPIVolumes(w http.ResponseWriter, r *http.Reques
 	}
 	defer client.Close()
 
-	volumes, err := dashboard.FindManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -312,7 +312,7 @@ func (s *dashboardServer) handleAPISnapshots(w http.ResponseWriter, r *http.Requ
 	}
 	defer client.Close()
 
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -330,7 +330,7 @@ func (s *dashboardServer) handleAPIClones(w http.ResponseWriter, r *http.Request
 	}
 	defer client.Close()
 
-	clones, err := dashboard.FindClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -363,7 +363,7 @@ func (s *dashboardServer) handlePartialVolumes(w http.ResponseWriter, r *http.Re
 	}
 	defer client.Close()
 
-	volumes, err := dashboard.FindManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -402,7 +402,7 @@ func (s *dashboardServer) handlePartialSnapshots(w http.ResponseWriter, r *http.
 	}
 	defer client.Close()
 
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -428,7 +428,7 @@ func (s *dashboardServer) handlePartialClones(w http.ResponseWriter, r *http.Req
 	}
 	defer client.Close()
 
-	clones, err := dashboard.FindClonedVolumes(ctx, client)
+	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -478,7 +478,7 @@ func (s *dashboardServer) handlePartialUnmanaged(w http.ResponseWriter, r *http.
 	}
 	defer client.Close()
 
-	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false)
+	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -508,7 +508,7 @@ func (s *dashboardServer) handleAPIUnmanaged(w http.ResponseWriter, r *http.Requ
 	}
 	defer client.Close()
 
-	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false)
+	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, "")
 	if err != nil {
 		writeJSONError(w, err)
 		return

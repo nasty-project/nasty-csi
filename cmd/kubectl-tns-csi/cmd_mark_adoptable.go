@@ -97,7 +97,7 @@ func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef
 	// Get volumes to mark
 	var volumes []VolumeInfo
 	if all {
-		volumes, err = dashboard.FindManagedVolumes(ctx, client)
+		volumes, err = dashboard.FindManagedVolumes(ctx, client, "")
 		if err != nil {
 			return fmt.Errorf("failed to query volumes: %w", err)
 		}

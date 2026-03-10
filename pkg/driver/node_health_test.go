@@ -150,11 +150,10 @@ func TestNVMeControllerNameExtraction(t *testing.T) {
 	// Test the controller name extraction logic from getNVMeControllerState
 	// The function extracts "nvme0" from device names like "nvme0n1" or "nvme0n1p1"
 
-	//nolint:govet // fieldalignment: test struct optimizes for readability
 	tests := []struct {
+		errType    error
 		devicePath string
 		wantErr    bool
-		errType    error
 	}{
 		{
 			devicePath: "/dev/sda",

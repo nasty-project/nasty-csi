@@ -227,7 +227,7 @@ func TestFindManagedVolumes(t *testing.T) {
 			mc := &mockClient{}
 			tt.setupMock(mc)
 
-			volumes, err := dashboard.FindManagedVolumes(ctx, mc)
+			volumes, err := dashboard.FindManagedVolumes(ctx, mc, "")
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error but got nil")

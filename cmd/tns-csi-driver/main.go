@@ -33,6 +33,7 @@ var (
 	maxConcurrentNVMeConnects = flag.Int("max-concurrent-nvme-connects", 5, "Maximum number of concurrent NVMe-oF connect operations per node (limits kernel NVMe subsystem lock contention)")
 	dashboardAddr             = flag.String("dashboard-addr", "", "Address for in-cluster web dashboard (e.g., ':2137', empty = disabled)")
 	dashboardPool             = flag.String("dashboard-pool", "", "ZFS pool for unmanaged volume discovery in dashboard")
+	clusterID                 = flag.String("cluster-id", "", "Unique identifier for this cluster (for multi-cluster TrueNAS sharing)")
 )
 
 func main() {
@@ -87,6 +88,7 @@ func main() {
 		MaxConcurrentNVMeConnects: *maxConcurrentNVMeConnects,
 		DashboardAddr:             *dashboardAddr,
 		DashboardPool:             *dashboardPool,
+		ClusterID:                 *clusterID,
 	})
 	if err != nil {
 		klog.Fatalf("Failed to create driver: %v", err)

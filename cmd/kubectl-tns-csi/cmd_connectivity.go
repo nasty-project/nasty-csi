@@ -98,7 +98,7 @@ func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTL
 	volumeCtx, volumeCancel := context.WithTimeout(ctx, 5*time.Second) //nolint:mnd
 	defer volumeCancel()
 
-	volumes, err := dashboard.FindManagedVolumes(volumeCtx, client)
+	volumes, err := dashboard.FindManagedVolumes(volumeCtx, client, "")
 	if err != nil {
 		printStepf(colorWarning, iconWarning, "Volume count: skipped (query timed out)")
 	} else {

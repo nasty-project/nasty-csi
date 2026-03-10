@@ -12,13 +12,12 @@ import (
 )
 
 func TestValidateISCSIParams(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct optimizes for readability
 	tests := []struct {
-		name     string
 		req      *csi.CreateVolumeRequest
-		wantErr  bool
-		wantCode codes.Code
 		check    func(*testing.T, *iscsiVolumeParams)
+		name     string
+		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "valid request with all parameters",
@@ -202,12 +201,11 @@ func TestGenerateIQN(t *testing.T) {
 func TestCreateISCSIVolume(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // fieldalignment: test struct optimizes for readability
 	tests := []struct {
-		name          string
 		req           *csi.CreateVolumeRequest
 		mockSetup     func(*MockAPIClientForSnapshots)
 		checkResponse func(*testing.T, *csi.CreateVolumeResponse)
+		name          string
 		wantCode      codes.Code
 		wantErr       bool
 	}{
@@ -434,11 +432,10 @@ func TestCreateISCSIVolume(t *testing.T) {
 func TestDeleteISCSIVolume(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // fieldalignment: test struct optimizes for readability
 	tests := []struct {
-		name      string
 		meta      *VolumeMetadata
 		mockSetup func(*MockAPIClientForSnapshots)
+		name      string
 		wantCode  codes.Code
 		wantErr   bool
 	}{
@@ -543,12 +540,11 @@ func TestDeleteISCSIVolume(t *testing.T) {
 func TestExpandISCSIVolume(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // fieldalignment: test struct optimizes for readability
 	tests := []struct {
-		name          string
 		meta          *VolumeMetadata
-		requiredBytes int64
 		mockSetup     func(*MockAPIClientForSnapshots)
+		name          string
+		requiredBytes int64
 		wantCode      codes.Code
 		wantErr       bool
 	}{
@@ -652,14 +648,13 @@ func TestExpandISCSIVolume(t *testing.T) {
 func TestGetISCSIVolumeInfo(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // fieldalignment: test struct optimizes for readability
 	tests := []struct {
-		name      string
 		meta      *VolumeMetadata
 		mockSetup func(*MockAPIClientForSnapshots)
+		check     func(*testing.T, *csi.ControllerGetVolumeResponse)
+		name      string
 		wantCode  codes.Code
 		wantErr   bool
-		check     func(*testing.T, *csi.ControllerGetVolumeResponse)
 	}{
 		{
 			name: "volume exists and healthy",

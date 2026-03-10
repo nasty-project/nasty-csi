@@ -121,12 +121,11 @@ func TestNodeStageVolume_Validation(t *testing.T) {
 	service := NewNodeService("test-node", nil, true, nil, false, 5)
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.NodeStageVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "missing volume ID",
@@ -213,12 +212,11 @@ func TestNodeUnstageVolume_Validation(t *testing.T) {
 	service := NewNodeService("test-node", nil, true, nil, false, 5)
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.NodeUnstageVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "missing volume ID",
@@ -268,12 +266,11 @@ func TestNodePublishVolume_Validation(t *testing.T) {
 	service := NewNodeService("test-node", nil, true, nil, false, 5)
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.NodePublishVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "missing volume ID",
@@ -361,12 +358,11 @@ func TestNodeUnpublishVolume_Validation(t *testing.T) {
 	service := NewNodeService("test-node", nil, true, nil, false, 5)
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.NodeUnpublishVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "missing volume ID",
@@ -450,12 +446,11 @@ func TestNodeGetVolumeStats_Validation(t *testing.T) {
 	service := NewNodeService("test-node", nil, true, nil, false, 5)
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.NodeGetVolumeStatsRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "missing volume ID",
@@ -564,12 +559,11 @@ func TestNodeExpandVolume_Validation(t *testing.T) {
 	service := NewNodeService("test-node", nil, true, nil, false, 5)
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.NodeExpandVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "missing volume ID",
@@ -755,12 +749,11 @@ func TestGetProtocolFromVolumeContext(t *testing.T) {
 }
 
 func TestGetNFSMountOptions(t *testing.T) {
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
 		name        string
 		userOptions []string
-		wantLen     int
 		wantContain []string
+		wantLen     int
 	}{
 		{
 			name:        "no user options returns defaults",
@@ -865,12 +858,11 @@ func TestExtractOptionKey(t *testing.T) {
 }
 
 func TestGetNVMeOFMountOptions(t *testing.T) {
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
 		name        string
 		userOptions []string
-		wantLen     int
 		wantContain []string
+		wantLen     int
 	}{
 		{
 			name:        "no user options returns defaults",

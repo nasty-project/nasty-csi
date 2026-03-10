@@ -58,6 +58,9 @@ spec:
             - "--dashboard-pool={{ .pool }}"
             {{- end }}
             {{- end }}
+            {{- if .Values.clusterID }}
+            - "--cluster-id={{ .Values.clusterID }}"
+            {{- end }}
           env:
             - name: NODE_ID
               valueFrom:

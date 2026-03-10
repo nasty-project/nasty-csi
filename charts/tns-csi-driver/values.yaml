@@ -36,6 +36,12 @@ image:
 
 imagePullSecrets: []
 
+# Unique identifier for this cluster (for multi-cluster TrueNAS sharing).
+# When multiple K8s clusters share a TrueNAS box, set this to a unique value
+# per cluster so the dashboard only shows volumes belonging to this cluster.
+# Leave empty to see all volumes (backward compatible).
+clusterID: ""
+
 # CSI Driver name
 csiDriverName: tns.csi.io
 

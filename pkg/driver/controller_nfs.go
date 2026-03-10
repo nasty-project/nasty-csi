@@ -18,48 +18,31 @@ import (
 )
 
 // encryptionConfig holds encryption settings parsed from StorageClass and secrets.
-//
-//nolint:govet // fieldalignment: struct layout prioritizes readability over memory optimization
 type encryptionConfig struct {
-	// Enabled indicates whether encryption should be enabled for the volume.
-	Enabled bool
-	// Algorithm specifies the encryption algorithm (e.g., AES-256-GCM).
-	Algorithm string
-	// GenerateKey indicates whether to auto-generate an encryption key.
+	Algorithm   string
+	Passphrase  string
+	Key         string
+	Enabled     bool
 	GenerateKey bool
-	// Passphrase for encryption (from secret).
-	Passphrase string
-	// Key is a hex-encoded encryption key (from secret).
-	Key string
 }
 
 // nfsVolumeParams holds validated parameters for NFS volume creation.
-//
-//nolint:govet // fieldalignment: struct layout prioritizes readability over memory optimization
 type nfsVolumeParams struct {
-	requestedCapacity int64
-	pool              string
-	server            string
+	zfsProps          *zfsDatasetProperties
+	encryption        *encryptionConfig
 	parentDataset     string
 	volumeName        string
 	datasetName       string
-	// deleteStrategy controls what happens on volume deletion: "delete" (default) or "retain"
-	deleteStrategy string
-	// markAdoptable marks volumes as adoptable for cross-cluster adoption (StorageClass parameter)
-	markAdoptable bool
-	// ZFS properties parsed from StorageClass parameters
-	zfsProps *zfsDatasetProperties
-	// Encryption settings parsed from StorageClass and secrets
-	encryption *encryptionConfig
-	// comment is the resolved dataset comment from commentTemplate (free-form text for TrueNAS UI)
-	comment string
-	// shareType is passed to TrueNAS pool.dataset.create as share_type.
-	// "SMB" configures NFSv4 ACLs automatically; empty or "GENERIC" uses POSIX ACLs.
-	shareType string
-	// Adoption metadata from CSI parameters
-	pvcName      string
-	pvcNamespace string
-	storageClass string
+	deleteStrategy    string
+	server            string
+	pool              string
+	comment           string
+	shareType         string
+	pvcName           string
+	pvcNamespace      string
+	storageClass      string
+	requestedCapacity int64
+	markAdoptable     bool
 }
 
 // zfsDatasetProperties holds ZFS properties for dataset creation.
@@ -395,6 +378,7 @@ func (s *ControllerService) ensureNFSProperties(ctx context.Context, datasetID s
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if err := s.apiClient.SetDatasetProperties(ctx, datasetID, props); err != nil {
 		klog.Warningf("Failed to recover ZFS properties on dataset %s: %v (volume will still work)", datasetID, err)
@@ -521,6 +505,7 @@ func (s *ControllerService) createNFSShareForDataset(ctx context.Context, datase
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	klog.V(4).Infof("Storing ZFS properties on dataset %s: deleteStrategy=%q, props=%v", dataset.ID, params.deleteStrategy, props)
 	if err := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); err != nil {
@@ -808,6 +793,7 @@ func (s *ControllerService) setupNFSVolumeFromClone(ctx context.Context, req *cs
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
+		ClusterID:      s.clusterID,
 	})
 	// Add clone-specific properties (including clone mode for dependency tracking)
 	cloneProps := tnsapi.ClonedVolumePropertiesV2(tnsapi.ContentSourceSnapshot, info.SnapshotID, info.Mode, info.OriginSnapshot)
@@ -941,6 +927,7 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
 		Adoptable:      markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if propErr := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); propErr != nil {
 		klog.Warningf("Failed to update ZFS properties on adopted volume %s: %v", dataset.ID, propErr)

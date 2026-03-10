@@ -48,6 +48,7 @@ type VolumeInfo struct {
 	ContentSourceID   string            `json:"contentSourceId"   yaml:"contentSourceId"`
 	HealthStatus      string            `json:"healthStatus"      yaml:"healthStatus"`
 	HealthIssue       string            `json:"healthIssue"       yaml:"healthIssue"`
+	ClusterID         string            `json:"clusterId"         yaml:"clusterId"`
 	K8s               *K8sVolumeBinding `json:"k8s,omitempty"     yaml:"k8s,omitempty"`
 	CapacityBytes     int64             `json:"capacityBytes"     yaml:"capacityBytes"`
 	Adoptable         bool              `json:"adoptable"         yaml:"adoptable"`

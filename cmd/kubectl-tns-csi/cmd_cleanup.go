@@ -118,7 +118,7 @@ func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 	}
 
 	// Query all managed volumes from TrueNAS
-	volumes, err := dashboard.FindManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
 	}

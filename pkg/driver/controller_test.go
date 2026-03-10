@@ -13,7 +13,7 @@ import (
 )
 
 func TestControllerGetCapabilities(t *testing.T) {
-	service := NewControllerService(nil, NewNodeRegistry())
+	service := NewControllerService(nil, NewNodeRegistry(), "")
 
 	resp, err := service.ControllerGetCapabilities(context.Background(), nil)
 	if err != nil {
@@ -410,12 +410,11 @@ func (m *mockAPIClient) Close() {
 }
 
 func TestValidateCreateVolumeRequest(t *testing.T) {
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.CreateVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "valid request",
@@ -649,13 +648,12 @@ func TestControllerPublishVolume(t *testing.T) {
 	// Use plain volume ID (CSI spec compliant - under 128 bytes)
 	volumeID := "test-volume"
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.ControllerPublishVolumeRequest
 		nodeReg  *NodeRegistry
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "successful publish",
@@ -743,7 +741,7 @@ func TestControllerPublishVolume(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mockAPIClient{}
-			service := NewControllerService(mockClient, tt.nodeReg)
+			service := NewControllerService(mockClient, tt.nodeReg, "")
 
 			_, err := service.ControllerPublishVolume(ctx, tt.req)
 
@@ -770,12 +768,11 @@ func TestControllerPublishVolume(t *testing.T) {
 func TestControllerUnpublishVolume(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name     string
 		req      *csi.ControllerUnpublishVolumeRequest
-		wantErr  bool
+		name     string
 		wantCode codes.Code
+		wantErr  bool
 	}{
 		{
 			name: "successful unpublish",
@@ -797,7 +794,7 @@ func TestControllerUnpublishVolume(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mockAPIClient{}
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 
 			_, err := service.ControllerUnpublishVolume(ctx, tt.req)
 
@@ -827,13 +824,12 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	// Use plain volume ID (CSI spec compliant - under 128 bytes)
 	volumeID := "test-volume"
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name      string
 		req       *csi.ValidateVolumeCapabilitiesRequest
 		mockSetup func(m *MockAPIClientForSnapshots)
-		wantErr   bool
+		name      string
 		wantCode  codes.Code
+		wantErr   bool
 	}{
 		{
 			name: "valid capabilities - volume exists",
@@ -933,7 +929,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 
 			resp, err := service.ValidateVolumeCapabilities(ctx, tt.req)
 
@@ -969,14 +965,13 @@ func TestControllerExpandVolume(t *testing.T) {
 	nfsVolumeID := "test-nfs-volume"
 	nvmeofVolumeID := "test-nvmeof-volume"
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name          string
 		req           *csi.ControllerExpandVolumeRequest
 		mockSetup     func(*MockAPIClientForSnapshots)
 		checkResponse func(*testing.T, *csi.ControllerExpandVolumeResponse)
-		wantErr       bool
+		name          string
 		wantCode      codes.Code
+		wantErr       bool
 	}{
 		{
 			name: "missing volume ID",
@@ -1131,7 +1126,7 @@ func TestControllerExpandVolume(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 
 			resp, err := service.ControllerExpandVolume(ctx, tt.req)
 
@@ -1161,14 +1156,13 @@ func TestControllerExpandVolume(t *testing.T) {
 }
 
 func TestGetCapacity(t *testing.T) {
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name              string
 		params            map[string]string
 		mockQueryPool     func(ctx context.Context, poolName string) (*tnsapi.Pool, error)
-		wantErr           bool
-		wantErrCode       codes.Code
+		name              string
 		wantCapacity      int64
+		wantErrCode       codes.Code
+		wantErr           bool
 		wantEmptyResponse bool
 	}{
 		{
@@ -1242,7 +1236,7 @@ func TestGetCapacity(t *testing.T) {
 			}
 
 			// Create controller service
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 
 			// Create request
 			req := &csi.GetCapacityRequest{
@@ -1385,14 +1379,13 @@ func TestNodeRegistryUnregisterAndCount(t *testing.T) {
 func TestCreateVolumeRPC(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name          string
 		req           *csi.CreateVolumeRequest
 		mockSetup     func(*MockAPIClientForSnapshots)
 		checkResponse func(*testing.T, *csi.CreateVolumeResponse)
-		wantErr       bool
+		name          string
 		wantCode      codes.Code
+		wantErr       bool
 	}{
 		{
 			name: "successful NFS volume creation via RPC",
@@ -1556,7 +1549,7 @@ func TestCreateVolumeRPC(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := service.CreateVolume(ctx, tt.req)
 
 			if tt.wantErr {
@@ -1591,13 +1584,12 @@ func TestDeleteVolumeRPC(t *testing.T) {
 	nfsVolumeID := "test-delete-volume"
 	nvmeofVolumeID := "test-delete-nvmeof"
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name      string
 		req       *csi.DeleteVolumeRequest
 		mockSetup func(*MockAPIClientForSnapshots)
-		wantErr   bool
+		name      string
 		wantCode  codes.Code
+		wantErr   bool
 	}{
 		{
 			name: "successful NFS volume deletion",
@@ -1675,7 +1667,7 @@ func TestDeleteVolumeRPC(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 			_, err := service.DeleteVolume(ctx, tt.req)
 
 			if tt.wantErr {
@@ -1701,14 +1693,13 @@ func TestDeleteVolumeRPC(t *testing.T) {
 func TestListVolumes(t *testing.T) {
 	ctx := context.Background()
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name          string
 		req           *csi.ListVolumesRequest
 		mockSetup     func(*MockAPIClientForSnapshots)
 		checkResponse func(*testing.T, *csi.ListVolumesResponse)
-		wantErr       bool
+		name          string
 		wantCode      codes.Code
+		wantErr       bool
 	}{
 		{
 			name: "list volumes - empty",
@@ -1758,7 +1749,7 @@ func TestListVolumes(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := service.ListVolumes(ctx, tt.req)
 
 			if tt.wantErr {
@@ -1793,14 +1784,13 @@ func TestControllerGetVolume(t *testing.T) {
 	nfsVolumeID := "test-nfs-volume"
 	nvmeofVolumeID := "test-nvmeof-volume"
 
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
-		name          string
 		req           *csi.ControllerGetVolumeRequest
 		mockSetup     func(*MockAPIClientForSnapshots)
 		checkResponse func(*testing.T, *csi.ControllerGetVolumeResponse)
-		wantErr       bool
+		name          string
 		wantCode      codes.Code
+		wantErr       bool
 	}{
 		{
 			name: "missing volume ID",
@@ -2275,7 +2265,7 @@ func TestControllerGetVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			service := NewControllerService(mockClient, NewNodeRegistry())
+			service := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := service.ControllerGetVolume(ctx, tt.req)
 
 			if tt.wantErr {
@@ -2305,10 +2295,9 @@ func TestControllerGetVolume(t *testing.T) {
 
 // TestIsVolumeAdoptable tests the IsVolumeAdoptable function.
 func TestIsVolumeAdoptable(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct optimization not critical
 	tests := []struct {
-		name  string
 		props map[string]tnsapi.UserProperty
+		name  string
 		want  bool
 	}{
 		{
@@ -2524,7 +2513,7 @@ func TestCheckAndAdoptVolume_AdoptableVolumeFound(t *testing.T) {
 		},
 	}
 
-	service := NewControllerService(mockClient, NewNodeRegistry())
+	service := NewControllerService(mockClient, NewNodeRegistry(), "")
 	req := &csi.CreateVolumeRequest{
 		Name: "pvc-adoptable",
 		Parameters: map[string]string{
@@ -2585,7 +2574,7 @@ func TestCheckAndAdoptVolume_NotAdoptable(t *testing.T) {
 		},
 	}
 
-	service := NewControllerService(mockClient, NewNodeRegistry())
+	service := NewControllerService(mockClient, NewNodeRegistry(), "")
 	req := &csi.CreateVolumeRequest{
 		Name: "pvc-not-adoptable",
 		Parameters: map[string]string{
@@ -2649,7 +2638,7 @@ func TestCheckAndAdoptVolume_AdoptExisting(t *testing.T) {
 		},
 	}
 
-	service := NewControllerService(mockClient, NewNodeRegistry())
+	service := NewControllerService(mockClient, NewNodeRegistry(), "")
 	req := &csi.CreateVolumeRequest{
 		Name: "pvc-adopt-existing",
 		Parameters: map[string]string{
@@ -2706,7 +2695,7 @@ func TestCheckAndAdoptVolume_ProtocolMismatch(t *testing.T) {
 		},
 	}
 
-	service := NewControllerService(mockClient, NewNodeRegistry())
+	service := NewControllerService(mockClient, NewNodeRegistry(), "")
 	req := &csi.CreateVolumeRequest{
 		Name: "pvc-protocol-mismatch",
 		Parameters: map[string]string{
@@ -2744,7 +2733,7 @@ func TestCheckAndAdoptVolume_NoVolumeFound(t *testing.T) {
 		},
 	}
 
-	service := NewControllerService(mockClient, NewNodeRegistry())
+	service := NewControllerService(mockClient, NewNodeRegistry(), "")
 	req := &csi.CreateVolumeRequest{
 		Name: "pvc-new",
 		Parameters: map[string]string{
@@ -2932,7 +2921,7 @@ func TestValidateVolumeCapabilities_ProtocolAware(t *testing.T) {
 				},
 			}
 
-			service := NewControllerService(mock, NewNodeRegistry())
+			service := NewControllerService(mock, NewNodeRegistry(), "")
 			resp, err := service.ValidateVolumeCapabilities(context.Background(), &csi.ValidateVolumeCapabilitiesRequest{
 				VolumeId:           tt.volumeID,
 				VolumeCapabilities: []*csi.VolumeCapability{tt.cap},

@@ -17,23 +17,21 @@ import (
 )
 
 // smbVolumeParams holds validated parameters for SMB volume creation.
-//
-//nolint:govet // fieldalignment: struct layout prioritizes readability over memory optimization
 type smbVolumeParams struct {
-	requestedCapacity int64
-	pool              string
-	server            string
+	zfsProps          *zfsDatasetProperties
+	encryption        *encryptionConfig
 	parentDataset     string
 	volumeName        string
 	datasetName       string
 	deleteStrategy    string
-	markAdoptable     bool
-	zfsProps          *zfsDatasetProperties
-	encryption        *encryptionConfig
+	server            string
+	pool              string
 	comment           string
 	pvcName           string
 	pvcNamespace      string
 	storageClass      string
+	requestedCapacity int64
+	markAdoptable     bool
 }
 
 // validateSMBParams validates and extracts SMB volume parameters from the request.
@@ -187,6 +185,7 @@ func (s *ControllerService) ensureSMBProperties(ctx context.Context, datasetID s
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if err := s.apiClient.SetDatasetProperties(ctx, datasetID, props); err != nil {
 		klog.Warningf("Failed to recover ZFS properties on dataset %s: %v (volume will still work)", datasetID, err)
@@ -232,6 +231,7 @@ func (s *ControllerService) createSMBShareForDataset(ctx context.Context, datase
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if err := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); err != nil {
 		klog.Warningf("Failed to set ZFS user properties on dataset %s: %v (volume will still work)", dataset.ID, err)
@@ -556,6 +556,7 @@ func (s *ControllerService) setupSMBVolumeFromClone(ctx context.Context, req *cs
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
+		ClusterID:      s.clusterID,
 	})
 	cloneProps := tnsapi.ClonedVolumePropertiesV2(tnsapi.ContentSourceSnapshot, info.SnapshotID, info.Mode, info.OriginSnapshot)
 	for k, v := range cloneProps {
@@ -667,6 +668,7 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
 		Adoptable:      markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if propErr := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); propErr != nil {
 		klog.Warningf("Failed to update ZFS properties on adopted volume %s: %v", dataset.ID, propErr)

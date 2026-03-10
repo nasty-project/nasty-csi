@@ -87,7 +87,7 @@ func runListUnmanaged(ctx context.Context, url, apiKey, secretRef, outputFormat 
 	}
 
 	// Find unmanaged volumes
-	volumes, err := dashboard.FindUnmanagedVolumes(ctx, client, searchPath, showAll)
+	volumes, err := dashboard.FindUnmanagedVolumes(ctx, client, searchPath, showAll, "")
 	if err != nil {
 		return fmt.Errorf("failed to find unmanaged volumes: %w", err)
 	}

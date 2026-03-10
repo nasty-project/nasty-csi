@@ -52,7 +52,7 @@ func runListSnapshots(ctx context.Context, url, apiKey, secretRef, outputFormat 
 	defer client.Close()
 
 	// Find all snapshots
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client)
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
 	if err != nil {
 		return fmt.Errorf("failed to query snapshots: %w", err)
 	}

@@ -34,6 +34,9 @@ type Config struct {
 	SMBUsername string
 	SMBPassword string
 
+	// Multi-cluster isolation
+	ClusterID string // Cluster ID for multi-cluster testing (E2E_CLUSTER_ID, default: "e2e-test-cluster")
+
 	// Test settings
 	Timeout time.Duration
 	Verbose bool // Enable verbose test output (E2E_VERBOSE=true)
@@ -51,6 +54,7 @@ func NewConfig() (*Config, error) {
 		Kubeconfig:         getEnvOrDefault("KUBECONFIG", defaultKubeconfig()),
 		SMBUsername:        os.Getenv("SMB_USERNAME"),
 		SMBPassword:        os.Getenv("SMB_PASSWORD"),
+		ClusterID:          getEnvOrDefault("E2E_CLUSTER_ID", "e2e-test-cluster"),
 		Timeout:            parseDurationOrDefault(os.Getenv("TEST_TIMEOUT"), 5*time.Minute),
 		Verbose:            os.Getenv("E2E_VERBOSE") == "true",
 	}

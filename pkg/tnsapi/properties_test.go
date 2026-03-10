@@ -48,6 +48,8 @@ func TestPropertyNames(t *testing.T) {
 		PropertyContentSourceID,
 		PropertyCloneMode,
 		PropertyOriginSnapshot,
+		// Multi-cluster
+		PropertyClusterID,
 		// Legacy
 		PropertyProvisionedAt,
 	}
@@ -463,6 +465,8 @@ func TestPropertyConstants(t *testing.T) {
 		PropertyContentSourceID,
 		PropertyCloneMode,
 		PropertyOriginSnapshot,
+		// Multi-cluster
+		PropertyClusterID,
 		// Legacy
 		PropertyProvisionedAt,
 	}
@@ -594,6 +598,105 @@ func TestNFSVolumePropertiesV1_OptionalAdoption(t *testing.T) {
 	if _, ok := props[PropertyStorageClass]; ok {
 		t.Error("PropertyStorageClass should not be set when empty")
 	}
+	if _, ok := props[PropertyClusterID]; ok {
+		t.Error("PropertyClusterID should not be set when empty")
+	}
+}
+
+func TestClusterIDProperty(t *testing.T) {
+	t.Run("NFS with ClusterID", func(t *testing.T) {
+		params := NFSVolumeParams{
+			VolumeID:       "pvc-test",
+			CreatedAt:      "2024-01-15T10:30:00Z",
+			DeleteStrategy: DeleteStrategyDelete,
+			SharePath:      "/mnt/tank/csi/pvc-test",
+			CapacityBytes:  1073741824,
+			ShareID:        1,
+			ClusterID:      "prod-east",
+		}
+		props := NFSVolumePropertiesV1(params)
+		if props[PropertyClusterID] != "prod-east" {
+			t.Errorf("PropertyClusterID = %q, want %q", props[PropertyClusterID], "prod-east")
+		}
+	})
+
+	t.Run("NVMeOF with ClusterID", func(t *testing.T) {
+		params := NVMeOFVolumeParams{
+			VolumeID:       "pvc-test",
+			CreatedAt:      "2024-01-15T10:30:00Z",
+			DeleteStrategy: DeleteStrategyDelete,
+			SubsystemNQN:   "nqn.test",
+			CapacityBytes:  1073741824,
+			SubsystemID:    1,
+			NamespaceID:    1,
+			ClusterID:      "staging",
+		}
+		props := NVMeOFVolumePropertiesV1(params)
+		if props[PropertyClusterID] != "staging" {
+			t.Errorf("PropertyClusterID = %q, want %q", props[PropertyClusterID], "staging")
+		}
+	})
+
+	t.Run("iSCSI with ClusterID", func(t *testing.T) {
+		params := ISCSIVolumeParams{
+			VolumeID:       "pvc-test",
+			CreatedAt:      "2024-01-15T10:30:00Z",
+			DeleteStrategy: DeleteStrategyDelete,
+			TargetIQN:      "iqn.test",
+			CapacityBytes:  1073741824,
+			TargetID:       1,
+			ExtentID:       1,
+			ClusterID:      "dev",
+		}
+		props := ISCSIVolumePropertiesV1(params)
+		if props[PropertyClusterID] != "dev" {
+			t.Errorf("PropertyClusterID = %q, want %q", props[PropertyClusterID], "dev")
+		}
+	})
+
+	t.Run("SMB with ClusterID", func(t *testing.T) {
+		params := SMBVolumeParams{
+			VolumeID:       "pvc-test",
+			CreatedAt:      "2024-01-15T10:30:00Z",
+			DeleteStrategy: DeleteStrategyDelete,
+			ShareName:      "pvc-test",
+			CapacityBytes:  1073741824,
+			ShareID:        1,
+			ClusterID:      "prod-west",
+		}
+		props := SMBVolumePropertiesV1(params)
+		if props[PropertyClusterID] != "prod-west" {
+			t.Errorf("PropertyClusterID = %q, want %q", props[PropertyClusterID], "prod-west")
+		}
+	})
+
+	t.Run("Snapshot with ClusterID", func(t *testing.T) {
+		params := SnapshotParams{
+			SnapshotID:     "snap-test",
+			SourceVolumeID: "pvc-test",
+			Protocol:       ProtocolNFS,
+			ClusterID:      "prod-east",
+		}
+		props := SnapshotPropertiesV1(params)
+		if props[PropertyClusterID] != "prod-east" {
+			t.Errorf("PropertyClusterID = %q, want %q", props[PropertyClusterID], "prod-east")
+		}
+	})
+
+	t.Run("empty ClusterID not set", func(t *testing.T) {
+		params := NFSVolumeParams{
+			VolumeID:       "pvc-test",
+			CreatedAt:      "2024-01-15T10:30:00Z",
+			DeleteStrategy: DeleteStrategyDelete,
+			SharePath:      "/mnt/tank/csi/pvc-test",
+			CapacityBytes:  1073741824,
+			ShareID:        1,
+		}
+		props := NFSVolumePropertiesV1(params)
+		if _, ok := props[PropertyClusterID]; ok {
+			t.Error("PropertyClusterID should not be set when empty")
+		}
+	})
 }
 
 func TestNVMeOFVolumePropertiesV1(t *testing.T) {

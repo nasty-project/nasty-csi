@@ -79,7 +79,7 @@ func CalculateSummary(volumes []VolumeInfo, snapshots []SnapshotInfo, clones []C
 
 func (s *Server) handleAPIVolumes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	volumes, err := FindManagedVolumes(ctx, s.client)
+	volumes, err := FindManagedVolumes(ctx, s.client, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -89,7 +89,7 @@ func (s *Server) handleAPIVolumes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAPISnapshots(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	snapshots, err := FindManagedSnapshots(ctx, s.client)
+	snapshots, err := FindManagedSnapshots(ctx, s.client, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -99,7 +99,7 @@ func (s *Server) handleAPISnapshots(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAPIClones(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	clones, err := FindClonedVolumes(ctx, s.client)
+	clones, err := FindClonedVolumes(ctx, s.client, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -117,21 +117,21 @@ func (s *Server) handleAPISummary(w http.ResponseWriter, r *http.Request) {
 	var clones []CloneInfo
 
 	g.Go(func() error {
-		v, err := FindManagedVolumes(gctx, s.client)
+		v, err := FindManagedVolumes(gctx, s.client, s.clusterID)
 		if err == nil {
 			volumes = v
 		}
 		return err
 	})
 	g.Go(func() error {
-		snaps, err := FindManagedSnapshots(gctx, s.client)
+		snaps, err := FindManagedSnapshots(gctx, s.client, s.clusterID)
 		if err == nil {
 			snapshots = snaps
 		}
 		return err
 	})
 	g.Go(func() error {
-		cl, err := FindClonedVolumes(gctx, s.client)
+		cl, err := FindClonedVolumes(gctx, s.client, s.clusterID)
 		if err == nil {
 			clones = cl
 		}
@@ -150,7 +150,7 @@ func (s *Server) handlePartialVolumes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	params := ParsePaginationParams(r)
 
-	volumes, err := FindManagedVolumes(ctx, s.client)
+	volumes, err := FindManagedVolumes(ctx, s.client, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -180,7 +180,7 @@ func (s *Server) handlePartialSnapshots(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	params := ParsePaginationParams(r)
 
-	snapshots, err := FindManagedSnapshots(ctx, s.client)
+	snapshots, err := FindManagedSnapshots(ctx, s.client, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -199,7 +199,7 @@ func (s *Server) handlePartialClones(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	params := ParsePaginationParams(r)
 
-	clones, err := FindClonedVolumes(ctx, s.client)
+	clones, err := FindClonedVolumes(ctx, s.client, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -224,21 +224,21 @@ func (s *Server) handlePartialSummary(w http.ResponseWriter, r *http.Request) {
 	var clones []CloneInfo
 
 	g.Go(func() error {
-		v, err := FindManagedVolumes(gctx, s.client)
+		v, err := FindManagedVolumes(gctx, s.client, s.clusterID)
 		if err == nil {
 			volumes = v
 		}
 		return err
 	})
 	g.Go(func() error {
-		snaps, err := FindManagedSnapshots(gctx, s.client)
+		snaps, err := FindManagedSnapshots(gctx, s.client, s.clusterID)
 		if err == nil {
 			snapshots = snaps
 		}
 		return err
 	})
 	g.Go(func() error {
-		cl, err := FindClonedVolumes(gctx, s.client)
+		cl, err := FindClonedVolumes(gctx, s.client, s.clusterID)
 		if err == nil {
 			clones = cl
 		}
@@ -268,7 +268,7 @@ func (s *Server) handlePartialUnmanaged(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.pool, false)
+	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.pool, false, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -290,7 +290,7 @@ func (s *Server) handleAPIUnmanaged(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.pool, false)
+	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.pool, false, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return

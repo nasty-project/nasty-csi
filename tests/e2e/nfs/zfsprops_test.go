@@ -105,5 +105,10 @@ var _ = Describe("NFS ZFS Properties", func() {
 		recordsize, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "recordsize")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(recordsize).To(Equal("128K"), "recordsize should be 128K")
+
+		By("Verifying cluster_id user property is set")
+		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, datasetPath, "tns-csi:cluster_id")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have tns-csi:cluster_id matching configured cluster ID")
 	})
 })

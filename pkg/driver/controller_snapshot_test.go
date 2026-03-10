@@ -492,11 +492,10 @@ func (m *MockAPIClientForSnapshots) Close() {
 }
 
 func TestEncodeDecodeSnapshotID(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct optimization not critical
 	tests := []struct {
-		meta             SnapshotMetadata
 		name             string
-		wantSnapshotName string // Expected snapshot name after decode (just the name part)
+		wantSnapshotName string
+		meta             SnapshotMetadata
 		wantErr          bool
 	}{
 		{
@@ -770,7 +769,7 @@ func TestCreateSnapshot(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.CreateSnapshot(ctx, tt.req)
 
 			if tt.wantErr {
@@ -898,7 +897,7 @@ func TestDeleteSnapshot(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			_, err := controller.DeleteSnapshot(ctx, tt.req)
 
 			if tt.wantErr {
@@ -1106,7 +1105,7 @@ func TestListSnapshots(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.ListSnapshots(ctx, tt.req)
 
 			if tt.wantErr {
@@ -1177,11 +1176,10 @@ func TestIsNotFoundError(t *testing.T) {
 }
 
 func TestEncodeSnapshotToken(t *testing.T) {
-	//nolint:govet // Field alignment not critical for test structs
 	tests := []struct {
 		name   string
-		offset int
 		want   string
+		offset int
 	}{
 		{
 			name:   "zero offset",

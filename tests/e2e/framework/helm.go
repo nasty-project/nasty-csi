@@ -76,6 +76,13 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		"--set", "snapshots.enabled=true",
 	)
 
+	// Set cluster ID for multi-cluster isolation testing
+	if h.config.ClusterID != "" {
+		args = append(args,
+			"--set", "clusterID="+h.config.ClusterID,
+		)
+	}
+
 	// Configure storage classes (list-based format)
 	// Each protocol gets its own list entry with explicit protocol field
 	switch protocol {

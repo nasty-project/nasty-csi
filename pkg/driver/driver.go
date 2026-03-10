@@ -30,6 +30,7 @@ type Config struct {
 	MetricsAddr               string // Address to expose Prometheus metrics (e.g., ":8080")
 	DashboardAddr             string // Address for in-cluster dashboard (e.g., ":9090", empty = disabled)
 	DashboardPool             string // ZFS pool for unmanaged volume discovery in dashboard
+	ClusterID                 string // Unique identifier for this cluster (for multi-cluster TrueNAS sharing)
 	TestMode                  bool   // Enable test mode for sanity tests (skips actual mounts)
 	SkipTLSVerify             bool   // Skip TLS certificate verification (for self-signed certs)
 	EnableNVMeDiscovery       bool   // Run nvme discover before nvme connect (default: false)
@@ -79,7 +80,7 @@ func NewDriverWithClient(cfg Config, client tnsapi.ClientInterface) (*Driver, er
 
 	// Initialize CSI services
 	d.identity = NewIdentityService(cfg.DriverName, cfg.Version)
-	d.controller = NewControllerService(client, nodeRegistry)
+	d.controller = NewControllerService(client, nodeRegistry, cfg.ClusterID)
 	d.node = NewNodeService(cfg.NodeID, client, cfg.TestMode, nodeRegistry, cfg.EnableNVMeDiscovery, cfg.MaxConcurrentNVMeConnects)
 
 	return d, nil
@@ -122,7 +123,7 @@ func (d *Driver) Run() error {
 
 	// Start dashboard server if configured
 	if d.config.DashboardAddr != "" {
-		dashSrv, dashErr := dashboard.NewServer(d.apiClient, d.config.DashboardPool, d.config.Version)
+		dashSrv, dashErr := dashboard.NewServer(d.apiClient, d.config.DashboardPool, d.config.Version, d.config.ClusterID)
 		if dashErr != nil {
 			klog.Errorf("Failed to create dashboard server: %v", dashErr)
 		} else {

@@ -481,7 +481,7 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.createNVMeOFVolume(ctx, tt.req)
 
 			if tt.wantErr {
@@ -688,7 +688,7 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			_, err := controller.deleteNVMeOFVolume(ctx, tt.meta)
 
 			if tt.wantErr && err == nil {
@@ -790,7 +790,7 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.expandNVMeOFVolume(ctx, tt.meta, tt.requiredBytes)
 
 			if tt.wantErr {
@@ -1056,7 +1056,7 @@ func TestSetupNVMeOFVolumeFromClone(t *testing.T) {
 			mockClient := &MockAPIClientForSnapshots{}
 			tt.mockSetup(mockClient)
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			// Note: subsystemNQN parameter is ignored in the new architecture - NQN is generated from volume name
 			testCloneInfo := &cloneInfo{
 				Mode:       "cow",
@@ -1271,7 +1271,7 @@ func TestCreateNVMeOFVolumeQueueParams(t *testing.T) {
 				CapacityRange: &csi.CapacityRange{RequiredBytes: 5 * 1024 * 1024 * 1024},
 			}
 
-			controller := NewControllerService(mockClient, NewNodeRegistry())
+			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
 			resp, err := controller.createNVMeOFVolume(ctx, req)
 			if err != nil {
 				t.Fatalf("createNVMeOFVolume() unexpected error: %v", err)

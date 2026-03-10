@@ -31,36 +31,25 @@ const (
 var errSubsystemDeletionSkipped = errors.New("subsystem deletion skipped: namespace still exists")
 
 // nvmeofVolumeParams holds validated parameters for NVMe-oF volume creation.
-//
-//nolint:govet // fieldalignment: struct layout prioritizes readability over memory optimization
 type nvmeofVolumeParams struct {
-	requestedCapacity int64
-	pool              string
-	server            string
-	parentDataset     string
+	zfsProps          *zfsZvolProperties
+	encryption        *encryptionConfig
+	deleteStrategy    string
+	comment           string
 	volumeName        string
 	zvolName          string
-	// Generated NQN for this volume's dedicated subsystem
-	subsystemNQN string
-	// Optional: port ID to bind the subsystem to (from StorageClass)
-	portID int
-	// deleteStrategy controls what happens on volume deletion: "delete" (default) or "retain"
-	deleteStrategy string
-	// markAdoptable marks volumes as adoptable for cross-cluster adoption (StorageClass parameter)
-	markAdoptable bool
-	// ZFS properties parsed from StorageClass parameters
-	zfsProps *zfsZvolProperties
-	// Encryption settings parsed from StorageClass and secrets
-	encryption *encryptionConfig
-	// comment is the resolved dataset comment from commentTemplate (free-form text for TrueNAS UI)
-	comment string
-	// Adoption metadata from CSI parameters
-	pvcName      string
-	pvcNamespace string
-	storageClass string
-	// Queue tuning parameters for nvme connect (passed through to node via volumeContext)
-	nrIOQueues string // nvmeof.nr-io-queues StorageClass parameter
-	queueSize  string // nvmeof.queue-size StorageClass parameter
+	subsystemNQN      string
+	queueSize         string
+	nrIOQueues        string
+	storageClass      string
+	server            string
+	pool              string
+	parentDataset     string
+	pvcName           string
+	pvcNamespace      string
+	requestedCapacity int64
+	portID            int
+	markAdoptable     bool
 }
 
 // zfsZvolProperties holds ZFS properties for ZVOL creation.
@@ -412,6 +401,7 @@ func (s *ControllerService) ensureNVMeOFProperties(ctx context.Context, zvolID s
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if err := s.apiClient.SetDatasetProperties(ctx, zvolID, props); err != nil {
 		klog.Warningf("Failed to recover ZFS properties on ZVOL %s: %v (volume will still work)", zvolID, err)
@@ -555,6 +545,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if err := s.apiClient.SetDatasetProperties(ctx, zvol.ID, props); err != nil {
 		// Non-fatal: volume works without properties, but deletion safety is reduced
@@ -1219,6 +1210,7 @@ func (s *ControllerService) setupNVMeOFVolumeFromClone(ctx context.Context, req 
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
+		ClusterID:      s.clusterID,
 	})
 	// Add clone source properties (including clone mode for dependency tracking)
 	for k, v := range tnsapi.ClonedVolumePropertiesV2(tnsapi.ContentSourceSnapshot, info.SnapshotID, info.Mode, info.OriginSnapshot) {
@@ -1407,6 +1399,7 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
 		Adoptable:      markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if propErr := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); propErr != nil {
 		klog.Warningf("Failed to update ZFS properties on adopted volume %s: %v", dataset.ID, propErr)

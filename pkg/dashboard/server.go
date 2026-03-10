@@ -22,10 +22,11 @@ type Server struct {
 	httpSrv   *http.Server
 	pool      string
 	version   string
+	clusterID string
 }
 
 // NewServer creates a new dashboard server.
-func NewServer(client tnsapi.ClientInterface, pool, version string) (*Server, error) {
+func NewServer(client tnsapi.ClientInterface, pool, version, clusterID string) (*Server, error) {
 	funcMap := template.FuncMap{
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },
@@ -41,6 +42,7 @@ func NewServer(client tnsapi.ClientInterface, pool, version string) (*Server, er
 		templates: tmpl,
 		pool:      pool,
 		version:   version,
+		clusterID: clusterID,
 	}, nil
 }
 

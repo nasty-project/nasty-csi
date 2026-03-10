@@ -69,7 +69,7 @@ func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, 
 	defer client.Close()
 
 	// Query all datasets with user properties
-	volumes, err := dashboard.FindManagedVolumes(ctx, client)
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
 	spin.stop()
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)

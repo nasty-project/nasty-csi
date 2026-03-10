@@ -180,6 +180,9 @@ func (s *ControllerService) createDetachedSnapshot(ctx context.Context, timer *m
 		tnsapi.PropertyProtocol:         protocol,
 		tnsapi.PropertyDeleteStrategy:   "delete",
 	}
+	if s.clusterID != "" {
+		props[tnsapi.PropertyClusterID] = s.clusterID
+	}
 	if err := s.apiClient.SetDatasetProperties(ctx, targetDataset, props); err != nil {
 		// Property setting is critical - without PropertySnapshotID, the snapshot can't be found
 		// during restore operations. We must clean up and fail.
