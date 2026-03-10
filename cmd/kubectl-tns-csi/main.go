@@ -39,6 +39,7 @@ func newRootCmd() *cobra.Command {
 		secretRef     string
 		outputFormat  string
 		skipTLSVerify bool
+		clusterID     string
 	)
 
 	rootCmd := &cobra.Command{
@@ -62,24 +63,25 @@ Connection to TrueNAS can be configured via:
 	rootCmd.PersistentFlags().StringVar(&secretRef, "secret", "", "Kubernetes secret with TrueNAS credentials (namespace/name)")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "Output format: table, yaml, json")
 	rootCmd.PersistentFlags().BoolVar(&skipTLSVerify, "insecure-skip-tls-verify", true, "Skip TLS certificate verification")
+	rootCmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "Filter by cluster ID (for multi-cluster TrueNAS sharing)")
 
 	// Add subcommands
-	rootCmd.AddCommand(newListCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newListSnapshotsCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newListClonesCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newListOrphanedCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newListCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListSnapshotsCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListClonesCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListOrphanedCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
 	rootCmd.AddCommand(newDescribeCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
 	rootCmd.AddCommand(newHealthCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
 	rootCmd.AddCommand(newTroubleshootCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
 	rootCmd.AddCommand(newSummaryCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newCleanupCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newMarkAdoptableCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newCleanupCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newMarkAdoptableCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
 	rootCmd.AddCommand(newAdoptCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
 	rootCmd.AddCommand(newStatusCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newConnectivityCmd(&truenasURL, &truenasAPIKey, &secretRef, &skipTLSVerify))
-	rootCmd.AddCommand(newListUnmanagedCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newConnectivityCmd(&truenasURL, &truenasAPIKey, &secretRef, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListUnmanagedCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
 	rootCmd.AddCommand(newImportCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newDashboardCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newDashboardCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
 
 	return rootCmd
 }

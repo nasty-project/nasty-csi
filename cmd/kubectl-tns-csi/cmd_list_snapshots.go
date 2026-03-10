@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func newListSnapshotsCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newListSnapshotsCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-snapshots",
 		Short: "List all tns-csi managed snapshots on TrueNAS",
@@ -31,13 +31,13 @@ Examples:
   # List snapshots using specific TrueNAS connection
   kubectl tns-csi list-snapshots --url wss://truenas:443/api/current --api-key <key>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runListSnapshots(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify)
+			return runListSnapshots(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID)
 		},
 	}
 	return cmd
 }
 
-func runListSnapshots(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) error {
+func runListSnapshots(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) error {
 	// Get connection config
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
@@ -52,7 +52,7 @@ func runListSnapshots(ctx context.Context, url, apiKey, secretRef, outputFormat 
 	defer client.Close()
 
 	// Find all snapshots
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to query snapshots: %w", err)
 	}

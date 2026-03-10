@@ -31,7 +31,7 @@ type MarkAdoptableVolumeInfo struct {
 	Error    string `json:"error,omitempty" yaml:"error,omitempty"`
 }
 
-func newMarkAdoptableCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newMarkAdoptableCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	var (
 		unmark bool
 		all    bool
@@ -65,7 +65,7 @@ Examples:
   # Remove adoptable flag from all volumes
   kubectl tns-csi mark-adoptable --unmark --all`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runMarkAdoptable(cmd.Context(), args, url, apiKey, secretRef, outputFormat, skipTLSVerify, unmark, all)
+			return runMarkAdoptable(cmd.Context(), args, url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID, unmark, all)
 		},
 	}
 
@@ -75,7 +75,7 @@ Examples:
 	return cmd
 }
 
-func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, unmark, all bool) error {
+func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string, unmark, all bool) error {
 	// Validate args
 	if !all && len(args) == 0 {
 		return errNoVolumesSpecified
@@ -97,7 +97,7 @@ func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef
 	// Get volumes to mark
 	var volumes []VolumeInfo
 	if all {
-		volumes, err = dashboard.FindManagedVolumes(ctx, client, "")
+		volumes, err = dashboard.FindManagedVolumes(ctx, client, *clusterID)
 		if err != nil {
 			return fmt.Errorf("failed to query volumes: %w", err)
 		}

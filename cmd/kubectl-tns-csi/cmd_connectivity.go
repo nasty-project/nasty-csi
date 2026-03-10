@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newConnectivityCmd(url, apiKey, secretRef *string, skipTLSVerify *bool) *cobra.Command {
+func newConnectivityCmd(url, apiKey, secretRef *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	var timeout time.Duration
 
 	cmd := &cobra.Command{
@@ -32,7 +32,7 @@ Examples:
   # Test with custom timeout
   kubectl tns-csi connectivity --timeout 30s`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConnectivity(cmd.Context(), url, apiKey, secretRef, skipTLSVerify, timeout)
+			return runConnectivity(cmd.Context(), url, apiKey, secretRef, skipTLSVerify, clusterID, timeout)
 		},
 	}
 
@@ -41,7 +41,7 @@ Examples:
 	return cmd
 }
 
-func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTLSVerify *bool, timeout time.Duration) error {
+func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTLSVerify *bool, clusterID *string, timeout time.Duration) error {
 	colorHeader.Println("Testing TrueNAS connectivity...") //nolint:errcheck,gosec
 	fmt.Println()
 
@@ -98,7 +98,7 @@ func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTL
 	volumeCtx, volumeCancel := context.WithTimeout(ctx, 5*time.Second) //nolint:mnd
 	defer volumeCancel()
 
-	volumes, err := dashboard.FindManagedVolumes(volumeCtx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(volumeCtx, client, *clusterID)
 	if err != nil {
 		printStepf(colorWarning, iconWarning, "Volume count: skipped (query timed out)")
 	} else {

@@ -42,7 +42,7 @@ type CleanupVolumeInfo struct {
 	Error    string `json:"error,omitempty" yaml:"error,omitempty"`
 }
 
-func newCleanupCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newCleanupCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	var (
 		dryRun        bool
 		execute       bool
@@ -83,7 +83,7 @@ Examples:
 			if execute {
 				dryRun = false
 			}
-			return runCleanup(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, dryRun, yes, force, allNamespaces)
+			return runCleanup(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID, dryRun, yes, force, allNamespaces)
 		},
 	}
 
@@ -97,7 +97,7 @@ Examples:
 	return cmd
 }
 
-func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, dryRun, yes, force, allNamespaces bool) error {
+func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string, dryRun, yes, force, allNamespaces bool) error {
 	// Get connection config
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
@@ -118,7 +118,7 @@ func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 	}
 
 	// Query all managed volumes from TrueNAS
-	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
 	}

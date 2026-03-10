@@ -35,9 +35,10 @@ type dashboardServer struct {
 	cfg       *connectionConfig
 	templates *template.Template
 	pool      string // ZFS pool for unmanaged volume search
+	clusterID string // Cluster ID for multi-cluster filtering
 }
 
-func newDashboardCmd(url, apiKey, secretRef, _ *string, skipTLSVerify *bool) *cobra.Command {
+func newDashboardCmd(url, apiKey, secretRef, _ *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	var (
 		port        int
 		pool        string
@@ -73,7 +74,7 @@ Examples:
   # With explicit credentials
   kubectl tns-csi dashboard --url wss://truenas:443/api/current --api-key KEY`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDashboard(cmd.Context(), url, apiKey, secretRef, skipTLSVerify, port, pool, openBrowser)
+			return runDashboard(cmd.Context(), url, apiKey, secretRef, skipTLSVerify, clusterID, port, pool, openBrowser)
 		},
 	}
 
@@ -84,7 +85,7 @@ Examples:
 	return cmd
 }
 
-func runDashboard(ctx context.Context, url, apiKey, secretRef *string, skipTLSVerify *bool, port int, pool string, openBrowser bool) error {
+func runDashboard(ctx context.Context, url, apiKey, secretRef *string, skipTLSVerify *bool, clusterID *string, port int, pool string, openBrowser bool) error {
 	// Get connection config
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
@@ -105,6 +106,7 @@ func runDashboard(ctx context.Context, url, apiKey, secretRef *string, skipTLSVe
 		cfg:       cfg,
 		templates: tmpl,
 		pool:      pool,
+		clusterID: *clusterID,
 	}
 
 	// Setup routes
@@ -233,7 +235,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	data := DashboardData{}
 
 	// Fetch volumes
-	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, s.clusterID)
 	if err != nil {
 		klog.Warningf("Failed to fetch volumes: %v", err)
 	} else {
@@ -241,7 +243,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	}
 
 	// Fetch snapshots
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, s.clusterID)
 	if err != nil {
 		klog.Warningf("Failed to fetch snapshots: %v", err)
 	} else {
@@ -249,7 +251,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 	}
 
 	// Fetch clones
-	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
+	clones, err := dashboard.FindClonedVolumes(ctx, client, s.clusterID)
 	if err != nil {
 		klog.Warningf("Failed to fetch clones: %v", err)
 	} else {
@@ -258,7 +260,7 @@ func (s *dashboardServer) fetchAllData(ctx context.Context, client tnsapi.Client
 
 	// Fetch unmanaged volumes if pool is configured
 	if s.pool != "" {
-		unmanaged, unmanagedErr := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, "")
+		unmanaged, unmanagedErr := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, s.clusterID)
 		if unmanagedErr != nil {
 			klog.Warningf("Failed to fetch unmanaged volumes: %v", unmanagedErr)
 		} else {
@@ -294,7 +296,7 @@ func (s *dashboardServer) handleAPIVolumes(w http.ResponseWriter, r *http.Reques
 	}
 	defer client.Close()
 
-	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -312,7 +314,7 @@ func (s *dashboardServer) handleAPISnapshots(w http.ResponseWriter, r *http.Requ
 	}
 	defer client.Close()
 
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -330,7 +332,7 @@ func (s *dashboardServer) handleAPIClones(w http.ResponseWriter, r *http.Request
 	}
 	defer client.Close()
 
-	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
+	clones, err := dashboard.FindClonedVolumes(ctx, client, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return
@@ -363,7 +365,7 @@ func (s *dashboardServer) handlePartialVolumes(w http.ResponseWriter, r *http.Re
 	}
 	defer client.Close()
 
-	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -402,7 +404,7 @@ func (s *dashboardServer) handlePartialSnapshots(w http.ResponseWriter, r *http.
 	}
 	defer client.Close()
 
-	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, "")
+	snapshots, err := dashboard.FindManagedSnapshots(ctx, client, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -428,7 +430,7 @@ func (s *dashboardServer) handlePartialClones(w http.ResponseWriter, r *http.Req
 	}
 	defer client.Close()
 
-	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
+	clones, err := dashboard.FindClonedVolumes(ctx, client, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -478,7 +480,7 @@ func (s *dashboardServer) handlePartialUnmanaged(w http.ResponseWriter, r *http.
 	}
 	defer client.Close()
 
-	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, "")
+	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -508,7 +510,7 @@ func (s *dashboardServer) handleAPIUnmanaged(w http.ResponseWriter, r *http.Requ
 	}
 	defer client.Close()
 
-	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, "")
+	unmanaged, err := dashboard.FindUnmanagedVolumes(ctx, client, s.pool, false, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return

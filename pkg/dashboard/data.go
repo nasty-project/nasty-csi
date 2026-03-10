@@ -37,13 +37,13 @@ func FindManagedVolumes(ctx context.Context, client tnsapi.ClientInterface, clus
 func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
 	var snapshots []SnapshotInfo
 
-	attached, err := findAttachedSnapshots(ctx, client)
+	attached, err := findAttachedSnapshots(ctx, client, clusterID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find attached snapshots: %w", err)
 	}
 	snapshots = append(snapshots, attached...)
 
-	detached, err := findDetachedSnapshots(ctx, client)
+	detached, err := findDetachedSnapshots(ctx, client, clusterID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find detached snapshots: %w", err)
 	}
@@ -52,10 +52,13 @@ func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, cl
 	return snapshots, nil
 }
 
-func findAttachedSnapshots(ctx context.Context, client tnsapi.ClientInterface) ([]SnapshotInfo, error) {
+func findAttachedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
 	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
 	if err != nil {
 		return nil, err
+	}
+	if clusterID != "" {
+		datasets = filterDatasetsByClusterID(datasets, clusterID)
 	}
 
 	managedDatasets := make(map[string]struct {
@@ -82,33 +85,37 @@ func findAttachedSnapshots(ctx context.Context, client tnsapi.ClientInterface) (
 		}
 	}
 
-	var snapshots []SnapshotInfo
-	for datasetID, meta := range managedDatasets {
-		datasetSnaps, queryErr := client.QuerySnapshots(ctx, []interface{}{
-			[]interface{}{"dataset", "=", datasetID},
-		})
-		if queryErr != nil {
-			return nil, fmt.Errorf("failed to query snapshots for dataset %s: %w", datasetID, queryErr)
-		}
+	// Query all snapshots in a single API call instead of per-dataset
+	allSnaps, err := client.QuerySnapshots(ctx, []interface{}{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to query snapshots: %w", err)
+	}
 
-		for _, snap := range datasetSnaps {
-			snapshots = append(snapshots, SnapshotInfo{
-				Name:          snap.Name,
-				SourceVolume:  meta.volumeID,
-				SourceDataset: snap.Dataset,
-				Protocol:      meta.protocol,
-				Type:          "attached",
-			})
+	var snapshots []SnapshotInfo
+	for _, snap := range allSnaps {
+		meta, ok := managedDatasets[snap.Dataset]
+		if !ok {
+			continue
 		}
+		snapshots = append(snapshots, SnapshotInfo{
+			Name:          snap.Name,
+			SourceVolume:  meta.volumeID,
+			SourceDataset: snap.Dataset,
+			Protocol:      meta.protocol,
+			Type:          "attached",
+		})
 	}
 
 	return snapshots, nil
 }
 
-func findDetachedSnapshots(ctx context.Context, client tnsapi.ClientInterface) ([]SnapshotInfo, error) {
+func findDetachedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
 	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyDetachedSnapshot, valueTrue)
 	if err != nil {
 		return nil, err
+	}
+	if clusterID != "" {
+		datasets = filterDatasetsByClusterID(datasets, clusterID)
 	}
 	return extractDetachedSnapshots(datasets), nil
 }

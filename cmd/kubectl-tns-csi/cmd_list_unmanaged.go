@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func newListUnmanagedCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newListUnmanagedCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	var (
 		pool       string
 		parentPath string
@@ -48,7 +48,7 @@ Examples:
   # Output as JSON for scripting
   kubectl tns-csi list-unmanaged --pool storage -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runListUnmanaged(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify,
+			return runListUnmanaged(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID,
 				pool, parentPath, showAll)
 		},
 	}
@@ -60,7 +60,7 @@ Examples:
 	return cmd
 }
 
-func runListUnmanaged(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool,
+func runListUnmanaged(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string,
 	pool, parentPath string, showAll bool) error {
 
 	if pool == "" && parentPath == "" {
@@ -87,7 +87,7 @@ func runListUnmanaged(ctx context.Context, url, apiKey, secretRef, outputFormat 
 	}
 
 	// Find unmanaged volumes
-	volumes, err := dashboard.FindUnmanagedVolumes(ctx, client, searchPath, showAll, "")
+	volumes, err := dashboard.FindUnmanagedVolumes(ctx, client, searchPath, showAll, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to find unmanaged volumes: %w", err)
 	}

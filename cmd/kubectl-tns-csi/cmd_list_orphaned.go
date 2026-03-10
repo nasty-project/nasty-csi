@@ -28,7 +28,7 @@ type OrphanedVolumeInfo struct {
 	VolumeInfo `json:",inline"             yaml:",inline"`
 }
 
-func newListOrphanedCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newListOrphanedCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	var allNamespaces bool
 
 	cmd := &cobra.Command{
@@ -49,7 +49,7 @@ Examples:
   # Output in YAML for scripting
   kubectl tns-csi list-orphaned -o yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runListOrphaned(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, allNamespaces)
+			return runListOrphaned(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID, allNamespaces)
 		},
 	}
 
@@ -58,7 +58,7 @@ Examples:
 	return cmd
 }
 
-func runListOrphaned(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, allNamespaces bool) error {
+func runListOrphaned(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string, allNamespaces bool) error {
 	// Get connection config
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
@@ -79,7 +79,7 @@ func runListOrphaned(ctx context.Context, url, apiKey, secretRef, outputFormat *
 	}
 
 	// Query all managed volumes from TrueNAS
-	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
 	}

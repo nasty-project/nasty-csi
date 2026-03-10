@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func newListClonesCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newListClonesCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-clones",
 		Short: "List all tns-csi cloned volumes with dependency info",
@@ -34,13 +34,13 @@ Examples:
   # List all clones in YAML format
   kubectl tns-csi list-clones -o yaml`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runListClones(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify)
+			return runListClones(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID)
 		},
 	}
 	return cmd
 }
 
-func runListClones(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) error {
+func runListClones(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) error {
 	// Get connection config
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
@@ -55,7 +55,7 @@ func runListClones(ctx context.Context, url, apiKey, secretRef, outputFormat *st
 	defer client.Close()
 
 	// Find all cloned volumes
-	clones, err := dashboard.FindClonedVolumes(ctx, client, "")
+	clones, err := dashboard.FindClonedVolumes(ctx, client, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to query cloned volumes: %w", err)
 	}

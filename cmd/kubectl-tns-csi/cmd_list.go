@@ -27,7 +27,7 @@ const (
 	datasetTypeVolume = "VOLUME"
 )
 
-func newListCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
+func newListCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all tns-csi managed volumes on TrueNAS",
@@ -46,13 +46,13 @@ Examples:
   # List volumes using specific TrueNAS connection
   kubectl tns-csi list --url wss://truenas:443/api/current --api-key <key>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runList(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify)
+			return runList(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID)
 		},
 	}
 	return cmd
 }
 
-func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) error {
+func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) error {
 	// Get connection config
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
@@ -69,7 +69,7 @@ func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, 
 	defer client.Close()
 
 	// Query all datasets with user properties
-	volumes, err := dashboard.FindManagedVolumes(ctx, client, "")
+	volumes, err := dashboard.FindManagedVolumes(ctx, client, *clusterID)
 	spin.stop()
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
