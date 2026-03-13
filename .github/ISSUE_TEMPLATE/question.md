@@ -14,7 +14,7 @@ Describe what you're trying to accomplish or the problem you're facing.
 
 **Environment (if relevant):**
 - Kubernetes distribution and version:
-- TrueNAS version:
+- NASty version:
 - CSI driver version:
 - Protocol (NFS/NVMe-oF):
 

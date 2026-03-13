@@ -24,7 +24,7 @@
 
 **Test environment:**
 - Kubernetes version:
-- TrueNAS version:
+- NASty version:
 - Protocol tested: [ ] NFS [ ] NVMe-oF [ ] Both
 
 **Tests run:**

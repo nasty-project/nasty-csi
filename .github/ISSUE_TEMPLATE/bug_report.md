@@ -14,8 +14,8 @@ A clear and concise description of what the bug is.
 - Distribution: [e.g., k3s, K8s, OpenShift]
 - Version: [e.g., 1.28.0]
 
-**TrueNAS:**
-- Version: [e.g., TrueNAS SCALE 24.04]
+**NASty:**
+- Version: [e.g., NASty SCALE 24.04]
 - Storage pool type: [e.g., mirror, raidz2]
 
 **CSI Driver:**

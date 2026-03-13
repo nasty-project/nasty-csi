@@ -237,9 +237,9 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NFS E2E Tests
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
         run: |
@@ -289,9 +289,9 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NVMe-oF E2E Tests
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
         run: |
@@ -341,9 +341,9 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run iSCSI E2E Tests
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
         run: |
@@ -395,9 +395,9 @@ jobs:
           sudo apt-get install -y smbclient 2>/dev/null || true
       - name: Run SMB E2E Tests
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
@@ -409,8 +409,8 @@ jobs:
       - name: Collect diagnostic logs
         if: failure()
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
@@ -428,7 +428,7 @@ jobs:
 
           # SMB-specific diagnostics (note: runs after test cleanup, so shares may be gone)
           echo "=== SMB Share Listing (smbclient -L) ===" > /tmp/test-logs/smb-diag.log
-          smbclient -L "//${TRUENAS_HOST}" -U "${SMB_USERNAME}%${SMB_PASSWORD}" --option="client min protocol=SMB3" 2>&1 >> /tmp/test-logs/smb-diag.log || true
+          smbclient -L "//${NASTY_HOST}" -U "${SMB_USERNAME}%${SMB_PASSWORD}" --option="client min protocol=SMB3" 2>&1 >> /tmp/test-logs/smb-diag.log || true
           echo "" >> /tmp/test-logs/smb-diag.log
           echo "=== NOTE: Real-time share diagnostics are in controller.log [SMB clone diag] lines ===" >> /tmp/test-logs/smb-diag.log
       - name: Upload diagnostic logs
@@ -473,9 +473,9 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run Shared E2E Tests
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}

@@ -113,9 +113,9 @@ jobs:
           spec:
             version: v${VERSION}
             homepage: https://github.com/${{ github.repository }}
-            shortDescription: Manage TrueNAS CSI volumes
+            shortDescription: Manage NASty CSI volumes
             description: |
-              kubectl plugin for managing TrueNAS CSI driver volumes.
+              kubectl plugin for managing NASty CSI driver volumes.
 
               Commands:
               - list: List all managed volumes with clone relationships
@@ -128,8 +128,8 @@ jobs:
               - cleanup: Delete orphaned volumes safely
               - mark-adoptable: Mark volumes for DR/adoption
               - adopt: Generate PV manifest for adoption
-              - status: Show volume status from TrueNAS
-              - connectivity: Test TrueNAS connection
+              - status: Show volume status from NASty
+              - connectivity: Test NASty connection
             platforms:
             - selector:
                 matchLabels:
@@ -218,7 +218,7 @@ jobs:
           kubectl tns-csi health               # Check all volumes health
           kubectl tns-csi troubleshoot <pvc>   # Diagnose PVC issues
           kubectl tns-csi cleanup --execute    # Delete orphaned volumes
-          kubectl tns-csi connectivity         # Test TrueNAS connection
+          kubectl tns-csi connectivity         # Test NASty connection
           \`\`\`
           EOF
 

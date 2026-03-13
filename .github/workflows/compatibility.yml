@@ -18,7 +18,7 @@ on:
 permissions:
   contents: read
 
-# Share concurrency group with integration tests to avoid TrueNAS conflicts
+# Share concurrency group with integration tests to avoid NASty conflicts
 concurrency:
   group: integration-tests
   cancel-in-progress: false
@@ -75,9 +75,9 @@ jobs:
 
       - name: Run upgrade compatibility test
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ steps.versions.outputs.to_tag }}
           PREV_CHART_VERSION: ${{ steps.versions.outputs.from_chart }}
           PREV_VERSION: ${{ steps.versions.outputs.from_tag }}

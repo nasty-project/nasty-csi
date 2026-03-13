@@ -5,14 +5,14 @@ name: "QEMU E2E Tests"
 # Architecture:
 #   - GitHub-hosted runner: builds Docker image, runs helm/kubectl
 #   - QEMU VM (Ubuntu): runs k3s with full kernel module support (nvme-tcp, iscsi_tcp, etc.)
-#   - Existing TrueNAS server: same as self-hosted runner setup, accessed via secrets
+#   - Existing NASty server: same as self-hosted runner setup, accessed via secrets
 #
 # The VM is needed because GH runner hosts may not allow loading kernel modules
 # like nvme-tcp directly. A full VM with a stock kernel gives us full control.
 #
 # Prerequisites:
-#   - TrueNAS must be reachable from GitHub-hosted runners (public IP or tunnel)
-#   - Repository secrets: TRUENAS_HOST, TRUENAS_API_KEY, TRUENAS_POOL
+#   - NASty must be reachable from GitHub-hosted runners (public IP or tunnel)
+#   - Repository secrets: NASTY_HOST, NASTY_API_KEY, NASTY_POOL
 #   - Optional secrets: SMB_USERNAME, SMB_PASSWORD (for SMB protocol tests)
 
 on:
@@ -214,17 +214,17 @@ jobs:
           echo "Cloud-init runcmd output (module loading):"
           ssh $SSH_OPTS ci@localhost "sudo grep -A50 'runcmd' /var/log/cloud-init-output.log 2>/dev/null | head -40 || true"
 
-      # ── Phase 4: Verify TrueNAS connectivity from VM ─────────────
-      - name: Verify TrueNAS reachable from VM
+      # ── Phase 4: Verify NASty connectivity from VM ─────────────
+      - name: Verify NASty reachable from VM
         timeout-minutes: 1
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
         run: |
-          echo "Checking connectivity to TrueNAS ($TRUENAS_HOST) from VM..."
+          echo "Checking connectivity to NASty ($NASTY_HOST) from VM..."
           ssh $SSH_OPTS ci@localhost "
-            curl -sk --connect-timeout 10 --max-time 15 https://$TRUENAS_HOST >/dev/null 2>&1 \
-              && echo 'TrueNAS API (443) is reachable from VM' \
-              || { echo '::error::TrueNAS is NOT reachable from VM. It must be accessible from GitHub-hosted runners.'; exit 1; }
+            curl -sk --connect-timeout 10 --max-time 15 https://$NASTY_HOST >/dev/null 2>&1 \
+              && echo 'NASty API (443) is reachable from VM' \
+              || { echo '::error::NASty is NOT reachable from VM. It must be accessible from GitHub-hosted runners.'; exit 1; }
           "
 
           echo "Checking storage protocol ports..."
@@ -232,7 +232,7 @@ jobs:
             port="${port_desc%%:*}"
             desc="${port_desc##*:}"
             ssh $SSH_OPTS ci@localhost "
-              timeout 5 bash -c 'echo >/dev/tcp/$TRUENAS_HOST/$port' 2>/dev/null \
+              timeout 5 bash -c 'echo >/dev/tcp/$NASTY_HOST/$port' 2>/dev/null \
                 && echo \"  $desc (port $port): reachable\" \
                 || echo \"  WARNING: $desc (port $port): NOT reachable\"
             "
@@ -241,16 +241,16 @@ jobs:
       - name: Enable NFS allow_nonroot for SLIRP networking
         timeout-minutes: 1
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
         run: |
           # QEMU SLIRP user-mode networking remaps source ports through NAT,
           # so NFS clients appear to use non-privileged ports (>1024).
-          # TrueNAS defaults to allow_nonroot=false which rejects these.
+          # NASty defaults to allow_nonroot=false which rejects these.
           echo "Enabling NFS allow_nonroot for SLIRP compatibility..."
           ssh $SSH_OPTS ci@localhost "
-            curl -sk -X PUT 'https://$TRUENAS_HOST/api/v2.0/nfs' \
-              -H 'Authorization: Bearer $TRUENAS_API_KEY' \
+            curl -sk -X PUT 'https://$NASTY_HOST/api/v2.0/nfs' \
+              -H 'Authorization: Bearer $NASTY_API_KEY' \
               -H 'Content-Type: application/json' \
               -d '{\"allow_nonroot\": true}'
           " 2>/dev/null
@@ -289,9 +289,9 @@ jobs:
       - name: Deploy CSI driver
         env:
           KUBECONFIG: /tmp/kubeconfig
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
@@ -307,9 +307,9 @@ jobs:
             upgrade --install nasty-csi-driver ./charts/nasty-csi-driver
             --namespace kube-system
             --wait --timeout 8m
-            --set "truenas.url=wss://${TRUENAS_HOST}/api/current"
-            --set "truenas.apiKey=${TRUENAS_API_KEY}"
-            --set "truenas.pool=${TRUENAS_POOL}"
+            --set "truenas.url=wss://${NASTY_HOST}/api/current"
+            --set "truenas.apiKey=${NASTY_API_KEY}"
+            --set "truenas.pool=${NASTY_POOL}"
             --set "truenas.skipTLSVerify=true"
             --set "image.repository=ghcr.io/fenio/tns-csi"
             --set "image.tag=qemu-test"
@@ -318,21 +318,21 @@ jobs:
             --set "storageClasses[0].name=tns-csi-nfs"
             --set "storageClasses[0].enabled=true"
             --set "storageClasses[0].protocol=nfs"
-            --set "storageClasses[0].pool=${TRUENAS_POOL}"
-            --set "storageClasses[0].server=${TRUENAS_HOST}"
+            --set "storageClasses[0].pool=${NASTY_POOL}"
+            --set "storageClasses[0].server=${NASTY_HOST}"
 
             --set "storageClasses[1].name=tns-csi-nvmeof"
             --set "storageClasses[1].enabled=true"
             --set "storageClasses[1].protocol=nvmeof"
-            --set "storageClasses[1].pool=${TRUENAS_POOL}"
-            --set "storageClasses[1].server=${TRUENAS_HOST}"
+            --set "storageClasses[1].pool=${NASTY_POOL}"
+            --set "storageClasses[1].server=${NASTY_HOST}"
             --set "storageClasses[1].transport=tcp"
             --set "storageClasses[1].port=4420"
             --set "storageClasses[2].name=tns-csi-iscsi"
             --set "storageClasses[2].enabled=true"
             --set "storageClasses[2].protocol=iscsi"
-            --set "storageClasses[2].pool=${TRUENAS_POOL}"
-            --set "storageClasses[2].server=${TRUENAS_HOST}"
+            --set "storageClasses[2].pool=${NASTY_POOL}"
+            --set "storageClasses[2].server=${NASTY_HOST}"
             --set "storageClasses[2].port=3260"
           )
 
@@ -342,8 +342,8 @@ jobs:
               --set "storageClasses[3].name=tns-csi-smb"
               --set "storageClasses[3].enabled=true"
               --set "storageClasses[3].protocol=smb"
-              --set "storageClasses[3].pool=${TRUENAS_POOL}"
-              --set "storageClasses[3].server=${TRUENAS_HOST}"
+              --set "storageClasses[3].pool=${NASTY_POOL}"
+              --set "storageClasses[3].server=${NASTY_HOST}"
               --set "storageClasses[3].smbCredentialsSecret.name=nasty-csi-smb-creds"
               --set "storageClasses[3].smbCredentialsSecret.namespace=kube-system"
             )
@@ -358,9 +358,9 @@ jobs:
       - name: Run NFS E2E tests
         env:
           KUBECONFIG: /tmp/kubeconfig
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-          TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_REPO: ghcr.io/fenio/tns-csi
           CSI_IMAGE_TAG: qemu-test
           CSI_IMAGE_PULL_POLICY: Never
@@ -403,13 +403,13 @@ jobs:
       - name: Restore NFS allow_nonroot
         if: always()
         env:
-          TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-          TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
         run: |
           echo "Restoring NFS allow_nonroot=false..."
           ssh $SSH_OPTS ci@localhost "
-            curl -sk -X PUT 'https://$TRUENAS_HOST/api/v2.0/nfs' \
-              -H 'Authorization: Bearer $TRUENAS_API_KEY' \
+            curl -sk -X PUT 'https://$NASTY_HOST/api/v2.0/nfs' \
+              -H 'Authorization: Bearer $NASTY_API_KEY' \
               -H 'Content-Type: application/json' \
               -d '{\"allow_nonroot\": false}'
           " 2>/dev/null || echo "WARNING: Failed to restore allow_nonroot"
