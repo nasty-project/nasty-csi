@@ -8,8 +8,8 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: "nfs"
-  pool: "${TRUENAS_POOL}"
-  server: "${TRUENAS_HOST}"
+  pool: "${NASTY_POOL}"
+  server: "${NASTY_HOST}"
   # ZFS properties with zfs. prefix (values are normalized to uppercase by driver)
   zfs.compression: "lz4"
   zfs.atime: "off"

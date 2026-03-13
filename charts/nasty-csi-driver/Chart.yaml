@@ -1,6 +1,6 @@
 apiVersion: v2
 name: nasty-csi-driver
-description: A Helm chart for TrueNAS Scale CSI Driver - providing NFS, NVMe-oF, and iSCSI storage for Kubernetes (requires TrueNAS Scale 25.10+)
+description: A Helm chart for NASty CSI Driver - providing NFS, NVMe-oF, and iSCSI storage for Kubernetes
 
 # A chart can be either an 'application' or a 'library' chart.
 type: application
@@ -17,7 +17,7 @@ appVersion: "v0.17.3"
 keywords:
   - storage
   - csi
-  - truenas
+  - nasty
   - nfs
   - nvmeof
   - iscsi
@@ -31,4 +31,4 @@ maintainers:
     email: fenio@debian.org
     url: https://github.com/fenio
 
-icon: https://www.truenas.com/wp-content/uploads/2023/01/TrueNAS_Open_Storage.png
+icon: https://github.com/nasty-project/nasty-csi/raw/main/docs/nasty-logo.png

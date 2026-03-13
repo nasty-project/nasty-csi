@@ -8,8 +8,8 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: "nfs"
-  pool: "${TRUENAS_POOL}"
-  server: "${TRUENAS_HOST}"
+  pool: "${NASTY_POOL}"
+  server: "${NASTY_HOST}"
   # Enable detached snapshots - clones will be promoted to be independent
   detached: "true"
 allowVolumeExpansion: true

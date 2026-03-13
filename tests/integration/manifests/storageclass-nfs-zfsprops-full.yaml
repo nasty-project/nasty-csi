@@ -7,8 +7,8 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  server: "${TRUENAS_HOST}"
-  pool: "${TRUENAS_POOL}"
+  server: "${NASTY_HOST}"
+  pool: "${NASTY_POOL}"
   # Compression settings
   zfs.compression: "lz4"
   # Access time settings

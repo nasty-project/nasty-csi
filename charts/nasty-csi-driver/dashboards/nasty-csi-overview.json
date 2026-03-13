@@ -96,7 +96,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Current WebSocket connection status to TrueNAS",
+      "description": "Current WebSocket connection status to NASty",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1084,7 +1084,7 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["nasty-csi", "kubernetes", "csi", "truenas", "storage"],
+  "tags": ["nasty-csi", "kubernetes", "csi", "nasty", "storage"],
   "templating": {
     "list": []
   },

@@ -1,6 +1,6 @@
-# TrueNAS CSI Test Results Dashboard
+# NASty CSI Test Results Dashboard
 
-This directory contains the test results dashboard for the TrueNAS CSI driver integration tests.
+This directory contains the test results dashboard for the NASty CSI driver integration tests.
 
 ## Overview
 

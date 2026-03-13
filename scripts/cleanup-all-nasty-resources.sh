@@ -1,11 +1,11 @@
 #!/bin/bash
-# Universal cleanup script for TrueNAS Scale
+# Universal cleanup script for NASty
 # Removes datasets and shares from a specified pool
 # 
 # Usage:
-#   ./cleanup-all-truenas-resources.sh              # Safe mode: Only CSI test artifacts
-#   ./cleanup-all-truenas-resources.sh --all        # Remove ALL datasets in pool (DANGEROUS!)
-#   ./cleanup-all-truenas-resources.sh --dry-run    # Show what would be deleted
+#   ./cleanup-all-nasty-resources.sh              # Safe mode: Only CSI test artifacts
+#   ./cleanup-all-nasty-resources.sh --all        # Remove ALL datasets in pool (DANGEROUS!)
+#   ./cleanup-all-nasty-resources.sh --dry-run    # Show what would be deleted
 
 set -e
 
@@ -39,9 +39,9 @@ for arg in "$@"; do
             echo "Default mode (safe): Only removes CSI test artifacts (pvc-*, test-csi*)"
             echo ""
             echo "Required environment variables:"
-            echo "  TRUENAS_HOST      - TrueNAS hostname/IP"
-            echo "  TRUENAS_API_KEY   - API key for authentication"
-            echo "  TRUENAS_POOL      - Pool name to clean"
+            echo "  NASTY_HOST      - NASty hostname/IP"
+            echo "  NASTY_API_KEY   - API key for authentication"
+            echo "  NASTY_POOL      - Pool name to clean"
             exit 0
             ;;
         *)
@@ -53,27 +53,27 @@ for arg in "$@"; do
 done
 
 # Check required environment variables
-if [[ -z "${TRUENAS_HOST}" ]]; then
-    echo -e "${RED}Error: TRUENAS_HOST environment variable not set${NC}"
+if [[ -z "${NASTY_HOST}" ]]; then
+    echo -e "${RED}Error: NASTY_HOST environment variable not set${NC}"
     exit 1
 fi
 
-if [[ -z "${TRUENAS_API_KEY}" ]]; then
-    echo -e "${RED}Error: TRUENAS_API_KEY environment variable not set${NC}"
+if [[ -z "${NASTY_API_KEY}" ]]; then
+    echo -e "${RED}Error: NASTY_API_KEY environment variable not set${NC}"
     exit 1
 fi
 
-if [[ -z "${TRUENAS_POOL}" ]]; then
-    echo -e "${RED}Error: TRUENAS_POOL environment variable not set${NC}"
+if [[ -z "${NASTY_POOL}" ]]; then
+    echo -e "${RED}Error: NASTY_POOL environment variable not set${NC}"
     exit 1
 fi
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}TrueNAS Cleanup Script${NC}"
+echo -e "${BLUE}NASty Cleanup Script${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
-echo -e "${YELLOW}Host:${NC} ${TRUENAS_HOST}"
-echo -e "${YELLOW}Pool:${NC} ${TRUENAS_POOL}"
+echo -e "${YELLOW}Host:${NC} ${NASTY_HOST}"
+echo -e "${YELLOW}Pool:${NC} ${NASTY_POOL}"
 echo -e "${YELLOW}Mode:${NC} ${MODE}"
 if [ "$DRY_RUN" = true ]; then
     echo -e "${YELLOW}Dry Run:${NC} Enabled (no changes will be made)"
@@ -81,7 +81,7 @@ fi
 echo ""
 
 if [ "$MODE" = "all" ]; then
-    echo -e "${RED}⚠️  WARNING: You are about to delete ALL datasets and shares in pool '${TRUENAS_POOL}'${NC}"
+    echo -e "${RED}⚠️  WARNING: You are about to delete ALL datasets and shares in pool '${NASTY_POOL}'${NC}"
     echo -e "${RED}⚠️  This operation cannot be undone!${NC}"
     echo ""
     read -p "Type 'DELETE ALL' to confirm: " CONFIRM
@@ -91,8 +91,8 @@ if [ "$MODE" = "all" ]; then
     fi
 fi
 
-# Create a Go script to interact with TrueNAS API
-cat > /tmp/truenas-cleanup-all.go <<'EOFGO'
+# Create a Go script to interact with NASty API
+cat > /tmp/nasty-cleanup-all.go <<'EOFGO'
 package main
 
 import (
@@ -106,9 +106,9 @@ import (
 )
 
 func main() {
-	host := os.Getenv("TRUENAS_HOST")
-	apiKey := os.Getenv("TRUENAS_API_KEY")
-	pool := os.Getenv("TRUENAS_POOL")
+	host := os.Getenv("NASTY_HOST")
+	apiKey := os.Getenv("NASTY_API_KEY")
+	pool := os.Getenv("NASTY_POOL")
 	mode := os.Getenv("CLEANUP_MODE")
 	dryRun := os.Getenv("DRY_RUN") == "true"
 
@@ -120,7 +120,7 @@ func main() {
 	// Construct WebSocket URL
 	url := fmt.Sprintf("wss://%s/api/current", host)
 	
-	fmt.Printf("Connecting to TrueNAS at %s...\n", url)
+	fmt.Printf("Connecting to NASty at %s...\n", url)
 	
 	client, err := nastyapi.NewClient(url, apiKey, true)
 	if err != nil {
@@ -354,7 +354,7 @@ func main() {
 		for _, ss := range subsystems {
 			shouldInclude := false
 			if mode == "all" {
-				// In "all" mode, delete CSI-managed subsystems (nqn.2014-08.org.truenas:csi-*)
+				// In "all" mode, delete CSI-managed subsystems (nqn.2026-02.io.nasty.csi:*)
 				if strings.Contains(ss.NQN, "csi-") || strings.Contains(ss.Name, "pvc-") || strings.Contains(ss.Name, "test-") {
 					shouldInclude = true
 				}
@@ -890,7 +890,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CLEANUP_DIR=$(mktemp -d)
 
 # Copy the Go script to a temporary directory
-cp /tmp/truenas-cleanup-all.go "$CLEANUP_DIR/"
+cp /tmp/nasty-cleanup-all.go "$CLEANUP_DIR/"
 cd "$CLEANUP_DIR"
 
 # Initialize Go module with proper replace directive
@@ -904,12 +904,12 @@ echo ""
 export CLEANUP_MODE="$MODE"
 export DRY_RUN="$DRY_RUN"
 
-go run truenas-cleanup-all.go
+go run nasty-cleanup-all.go
 
 # Cleanup
 cd "$SCRIPT_DIR"
 rm -rf "$CLEANUP_DIR"
-rm -f /tmp/truenas-cleanup-all.go
+rm -f /tmp/nasty-cleanup-all.go
 
 echo ""
 echo -e "${GREEN}========================================${NC}"

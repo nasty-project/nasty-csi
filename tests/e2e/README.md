@@ -1,22 +1,22 @@
-# E2E Tests for TrueNAS CSI Driver
+# E2E Tests for NASty CSI Driver
 
-This directory contains end-to-end tests for the TrueNAS CSI driver using [Ginkgo](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/).
+This directory contains end-to-end tests for the NASty CSI driver using [Ginkgo](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/).
 
 ## Prerequisites
 
 - Go 1.21+
 - `kubectl` configured with cluster access
 - `helm` CLI installed
-- Access to a TrueNAS server with API key
+- Access to a NASty server with API key
 - A Kubernetes cluster (k3s, k0s, minikube, etc.)
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TRUENAS_HOST` | Yes | - | TrueNAS server hostname (e.g., `truenas.local`) |
-| `TRUENAS_API_KEY` | Yes | - | TrueNAS API key for authentication |
-| `TRUENAS_POOL` | No | `csi` | ZFS pool to use for test volumes |
+| `NASTY_HOST` | Yes | - | NASty server hostname (e.g., `nasty.local`) |
+| `NASTY_API_KEY` | Yes | - | NASty API key for authentication |
+| `NASTY_POOL` | No | `csi` | ZFS pool to use for test volumes |
 | `CSI_IMAGE_REPO` | No | `ghcr.io/fenio/nasty-csi` | Docker image repository |
 | `CSI_IMAGE_TAG` | No | `latest` | Docker image tag |
 | `KUBECONFIG` | No | `~/.kube/config` | Path to kubeconfig file |
@@ -80,7 +80,7 @@ tests/e2e/
 │   ├── framework.go        # Main framework struct
 │   ├── helm.go             # Helm CLI wrapper
 │   ├── kubernetes.go       # Kubernetes client helpers
-│   └── truenas.go          # TrueNAS verification
+│   └── nasty.go          # NASty verification
 ├── nfs/
 │   ├── nfs_suite_test.go   # NFS suite bootstrap
 │   └── basic_test.go       # Basic NFS tests
@@ -159,7 +159,7 @@ var _ = Describe("My Feature", func() {
 | `f.K8s.WaitForPodReady(ctx, name, timeout)` | Wait for Pod to be ready |
 | `f.K8s.ExecInPod(ctx, name, cmd)` | Execute command in pod |
 | `f.K8s.ExpandPVC(ctx, name, size)` | Expand PVC capacity |
-| `f.VerifyTrueNASCleanup(ctx, dataset, timeout)` | Verify backend cleanup |
+| `f.VerifyNAStyCleanup(ctx, dataset, timeout)` | Verify backend cleanup |
 
 ### Using Eventually for Async Operations
 
@@ -203,8 +203,8 @@ To run manually:
 
 1. Check environment variables are set:
    ```bash
-   echo $TRUENAS_HOST
-   echo $TRUENAS_API_KEY
+   echo $NASTY_HOST
+   echo $NASTY_API_KEY
    ```
 
 2. Verify kubectl access:

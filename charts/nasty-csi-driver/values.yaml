@@ -2,24 +2,24 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# TrueNAS connection settings
-truenas:
-  # TrueNAS API URL (WebSocket endpoint)
-  # Format: wss://YOUR-TRUENAS-IP:PORT/api/current
-  # Example: wss://truenas.example.com:443/api/current
+# NASty connection settings
+nasty:
+  # NASty API URL (WebSocket endpoint)
+  # Format: wss://YOUR-NASTY-IP:PORT/api/current
+  # Example: wss://nasty.example.com:443/api/current
   url: ""
   
-  # TrueNAS API key
-  # You can generate this in TrueNAS UI: System > API Keys
+  # NASty API key
+  # Generate in NASty settings
   apiKey: ""
   
-  # Name of existing secret containing TrueNAS credentials
+  # Name of existing secret containing NASty credentials
   # If set, url and apiKey above will be ignored
   # Secret should contain keys: 'url' and 'api-key'
   existingSecret: ""
   
   # Skip TLS certificate verification
-  # Set to true if TrueNAS uses self-signed certificates
+  # Set to true if NASty uses self-signed certificates
   # WARNING: Only enable this in trusted networks
   skipTLSVerify: false
 
@@ -36,8 +36,8 @@ image:
 
 imagePullSecrets: []
 
-# Unique identifier for this cluster (for multi-cluster TrueNAS sharing).
-# When multiple K8s clusters share a TrueNAS box, set this to a unique value
+# Unique identifier for this cluster (for multi-cluster NASty sharing).
+# When multiple K8s clusters share a NASty box, set this to a unique value
 # per cluster so the dashboard only shows volumes belonging to this cluster.
 # Leave empty to see all volumes (backward compatible).
 clusterID: ""
@@ -285,10 +285,10 @@ storageClasses:
     protocol: nfs
     # Set as default storage class
     isDefault: false
-    # Storage pool name on TrueNAS
+    # Storage pool name on NASty
     pool: "storage"
-    # TrueNAS server IP/hostname for NFS mounts
-    # Replace with your TrueNAS server IP
+    # NASty server IP/hostname for NFS mounts
+    # Replace with your NASty server IP
     server: ""
     # Optional: Parent dataset (defaults to pool name if not specified)
     parentDataset: ""
@@ -305,7 +305,7 @@ storageClasses:
     mountOptions: []
     # Delete strategy: "delete" or "retain"
     #   - "delete" (default): Volume is deleted when PVC is deleted
-    #   - "retain": Volume is kept on TrueNAS when PVC is deleted (useful for data protection)
+    #   - "retain": Volume is kept on NASty when PVC is deleted (useful for data protection)
     deleteStrategy: ""
     # Volume Name Templating:
     #   Go template for volume names (e.g., "{{ .PVCNamespace }}-{{ .PVCName }}")
@@ -318,9 +318,9 @@ storageClasses:
     #   Note: nameTemplate takes precedence over namePrefix/nameSuffix if both are specified
     nameSuffix: ""
     # Dataset Comment Templating:
-    #   Go template for dataset comments visible in TrueNAS UI
+    #   Go template for dataset comments visible in NASty
     #   Uses the same variables as nameTemplate: .PVCName, .PVCNamespace, .PVName
-    #   Example: "{{ .PVCNamespace }}/{{ .PVCName }}" shows "production/myapp-data" in TrueNAS
+    #   Example: "{{ .PVCNamespace }}/{{ .PVCName }}" shows "production/myapp-data" in NASty
     #   Comments are free-form text (no sanitization or length limits)
     commentTemplate: ""
     # Volume Adoption (for cluster migration):
@@ -336,7 +336,7 @@ storageClasses:
     #   Algorithm to use (default: "AES-256-GCM")
     #   Options: AES-256-GCM, AES-128-CCM, AES-192-CCM, AES-256-CCM, AES-128-GCM, AES-192-GCM
     encryptionAlgorithm: ""
-    #   Set to "true" to auto-generate encryption key (TrueNAS generates and manages the key)
+    #   Set to "true" to auto-generate encryption key (NASty generates and manages the key)
     encryptionGenerateKey: ""
     #   To use passphrase or hex key, create a Secret and reference it with:
     #     csi.storage.k8s.io/provisioner-secret-name: <secret-name>
@@ -355,15 +355,15 @@ storageClasses:
 
   # NVMe-oF storage class (requires Linux with nvme-tcp kernel module)
   # IMPORTANT: Before enabling, ensure you have configured an NVMe-oF port
-  # in TrueNAS (Shares > NVMe-oF Targets > Ports). The CSI driver automatically
+  # in NASty. The CSI driver automatically
   # creates a dedicated subsystem for each volume - no pre-configured subsystem needed.
   - name: nasty-csi-nvmeof
     enabled: false
     protocol: nvmeof
     isDefault: false
-    # Storage pool name on TrueNAS
+    # Storage pool name on NASty
     pool: "storage"
-    # TrueNAS server IP/hostname for NVMe-oF target
+    # NASty server IP/hostname for NVMe-oF target
     server: ""
     # Optional: Parent dataset
     parentDataset: ""
@@ -386,7 +386,7 @@ storageClasses:
     mountOptions: []
     # Delete strategy: "delete" or "retain"
     #   - "delete" (default): Volume is deleted when PVC is deleted
-    #   - "retain": Volume is kept on TrueNAS when PVC is deleted (useful for data protection)
+    #   - "retain": Volume is kept on NASty when PVC is deleted (useful for data protection)
     deleteStrategy: ""
     # Volume Name Templating:
     #   Go template for volume names (e.g., "{{ .PVCNamespace }}-{{ .PVCName }}")
@@ -398,7 +398,7 @@ storageClasses:
     #   Note: nameTemplate takes precedence over namePrefix/nameSuffix if both are specified
     nameSuffix: ""
     # Dataset Comment Templating:
-    #   Go template for dataset comments visible in TrueNAS UI
+    #   Go template for dataset comments visible in NASty
     #   Uses the same variables as nameTemplate
     commentTemplate: ""
     # Volume Adoption (for cluster migration):
@@ -425,7 +425,7 @@ storageClasses:
     #   zfs.dedup: ZFS deduplication (e.g., "on", "off", "verify")
     #   zfs.sync: Sync writes (e.g., "standard", "always", "disabled")
     #   zfs.volblocksize: ZVOL block size (e.g., "16K", "64K")
-    #   portID: TrueNAS NVMe-oF port ID (auto-detected if not specified)
+    #   portID: NASty NVMe-oF port ID (auto-detected if not specified)
     # Parameters can be specified flat or nested:
     #   Flat:   { "zfs.sparse": "true", "zfs.compression": "lz4" }
     #   Nested: { zfs: { sparse: "true", compression: "lz4" } }
@@ -433,15 +433,15 @@ storageClasses:
 
   # iSCSI storage class (requires open-iscsi on nodes)
   # IMPORTANT: Before enabling, ensure you have configured an iSCSI portal
-  # in TrueNAS (Shares > iSCSI). The CSI driver automatically creates a
+  # in NASty. The CSI driver automatically creates a
   # dedicated target for each volume - no pre-configured target needed.
   - name: nasty-csi-iscsi
     enabled: false
     protocol: iscsi
     isDefault: false
-    # Storage pool name on TrueNAS
+    # Storage pool name on NASty
     pool: "storage"
-    # TrueNAS server IP/hostname for iSCSI target
+    # NASty server IP/hostname for iSCSI target
     server: ""
     # Optional: Parent dataset
     parentDataset: ""
@@ -462,7 +462,7 @@ storageClasses:
     mountOptions: []
     # Delete strategy: "delete" or "retain"
     #   - "delete" (default): Volume is deleted when PVC is deleted
-    #   - "retain": Volume is kept on TrueNAS when PVC is deleted (useful for data protection)
+    #   - "retain": Volume is kept on NASty when PVC is deleted (useful for data protection)
     deleteStrategy: ""
     # Volume Name Templating:
     #   Go template for volume names (e.g., "{{ .PVCNamespace }}-{{ .PVCName }}")
@@ -474,7 +474,7 @@ storageClasses:
     #   Note: nameTemplate takes precedence over namePrefix/nameSuffix if both are specified
     nameSuffix: ""
     # Dataset Comment Templating:
-    #   Go template for dataset comments visible in TrueNAS UI
+    #   Go template for dataset comments visible in NASty
     #   Uses the same variables as nameTemplate
     commentTemplate: ""
     # Volume Adoption (for cluster migration):
@@ -513,9 +513,9 @@ storageClasses:
     enabled: false
     protocol: smb
     isDefault: false
-    # Storage pool name on TrueNAS
+    # Storage pool name on NASty
     pool: "storage"
-    # TrueNAS server IP/hostname for SMB shares
+    # NASty server IP/hostname for SMB shares
     server: ""
     # Optional: Parent dataset
     parentDataset: ""

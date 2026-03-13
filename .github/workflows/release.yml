@@ -111,7 +111,7 @@ jobs:
           helm template nasty-csi charts/nasty-csi-driver \
             --namespace kube-system \
             --set nasty.url="wss://NASTY_IP/api/current" \
-            --set truenas.apiKey="REPLACE_WITH_API_KEY" \
+            --set nasty.apiKey="REPLACE_WITH_API_KEY" \
             --set storageClasses[0].name=nasty-csi-nfs \
             --set storageClasses[0].enabled=true \
             --set storageClasses[0].protocol=nfs \

@@ -87,8 +87,8 @@ Create the name of the node service account to use
 Create the name of the secret
 */}}
 {{- define "nasty-csi-driver.secretName" -}}
-{{- if .Values.truenas.existingSecret }}
-{{- .Values.truenas.existingSecret }}
+{{- if .Values.nasty.existingSecret }}
+{{- .Values.nasty.existingSecret }}
 {{- else }}
 {{- printf "%s-secret" (include "nasty-csi-driver.fullname" .) }}
 {{- end }}
@@ -124,15 +124,15 @@ Create the CSI driver name
 {{- end }}
 
 {{/*
-Validate required TrueNAS configuration
+Validate required NASty configuration
 */}}
 {{- define "nasty-csi-driver.validateConfig" -}}
-{{- if not .Values.truenas.existingSecret }}
-  {{- if not .Values.truenas.url }}
-    {{- fail "\n\nCONFIGURATION ERROR: truenas.url is required.\nExample: --set truenas.url=\"wss://YOUR-TRUENAS-IP:443/api/current\"" }}
+{{- if not .Values.nasty.existingSecret }}
+  {{- if not .Values.nasty.url }}
+    {{- fail "\n\nCONFIGURATION ERROR: nasty.url is required.\nExample: --set nasty.url=\"wss://YOUR-NASTY-IP:443/api/current\"" }}
   {{- end }}
-  {{- if not .Values.truenas.apiKey }}
-    {{- fail "\n\nCONFIGURATION ERROR: truenas.apiKey is required.\nCreate an API key in TrueNAS UI: Settings > API Keys\nExample: --set truenas.apiKey=\"1-xxxxxxxxxx\"" }}
+  {{- if not .Values.nasty.apiKey }}
+    {{- fail "\n\nCONFIGURATION ERROR: nasty.apiKey is required.\nCreate an API key in NASty settings\nExample: --set nasty.apiKey=\"1-xxxxxxxxxx\"" }}
   {{- end }}
 {{- end }}
 {{- range .Values.storageClasses }}
@@ -144,16 +144,16 @@ Validate required TrueNAS configuration
   {{- fail (printf "\n\nCONFIGURATION ERROR: storageClasses entry %q: pool is required.\nExample: --set 'storageClasses[0].pool=tank'" .name) }}
 {{- end }}
 {{- if and (eq .protocol "nfs") (not .server) }}
-  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for NFS storage class %q.\nExample: --set 'storageClasses[0].server=YOUR-TRUENAS-IP'" .name) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for NFS storage class %q.\nExample: --set 'storageClasses[0].server=YOUR-NASTY-IP'" .name) }}
 {{- end }}
 {{- if and (eq .protocol "nvmeof") (not .server) }}
-  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for NVMe-oF storage class %q.\nExample: --set 'storageClasses[1].server=YOUR-TRUENAS-IP'" .name) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for NVMe-oF storage class %q.\nExample: --set 'storageClasses[1].server=YOUR-NASTY-IP'" .name) }}
 {{- end }}
 {{- if and (eq .protocol "iscsi") (not .server) }}
   {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for iSCSI storage class %q." .name) }}
 {{- end }}
 {{- if and (eq .protocol "smb") (not .server) }}
-  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for SMB storage class %q.\nExample: --set 'storageClasses[0].server=YOUR-TRUENAS-IP'" .name) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for SMB storage class %q.\nExample: --set 'storageClasses[0].server=YOUR-NASTY-IP'" .name) }}
 {{- end }}
 {{- end }}
 {{- end }}

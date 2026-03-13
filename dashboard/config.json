@@ -7,8 +7,8 @@
     "integration": "integration.yml"
   },
   "dashboard": {
-    "title": "TrueNAS CSI - Test Results Dashboard",
-    "description": "Real-time test results and metrics for the TrueNAS CSI driver",
+    "title": "NASty CSI - Test Results Dashboard",
+    "description": "Real-time test results and metrics for the NASty CSI driver",
     "refreshInterval": 3600000,
     "dataRetentionDays": 30,
     "maxWorkflowRuns": 50

@@ -307,10 +307,10 @@ jobs:
             upgrade --install nasty-csi-driver ./charts/nasty-csi-driver
             --namespace kube-system
             --wait --timeout 8m
-            --set "truenas.url=wss://${NASTY_HOST}/api/current"
-            --set "truenas.apiKey=${NASTY_API_KEY}"
-            --set "truenas.pool=${NASTY_POOL}"
-            --set "truenas.skipTLSVerify=true"
+            --set "nasty.url=wss://${NASTY_HOST}/api/current"
+            --set "nasty.apiKey=${NASTY_API_KEY}"
+            --set "nasty.pool=${NASTY_POOL}"
+            --set "nasty.skipTLSVerify=true"
             --set "image.repository=ghcr.io/fenio/nasty-csi"
             --set "image.tag=qemu-test"
             --set "image.pullPolicy=Never"

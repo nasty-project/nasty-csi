@@ -12,7 +12,7 @@ CSI sanity tests validate that the driver correctly implements the CSI specifica
 
 ### Phase 1: Foundation (Current)
 - ✅ Added `csi-test/v5` dependency
-- ✅ Created mock TrueNAS client for testing
+- ✅ Created mock NASty client for testing
 - ✅ Set up test directory structure
 - 🔄 **In Progress**: Refactoring driver for dependency injection
 
@@ -29,7 +29,7 @@ CSI sanity tests validate that the driver correctly implements the CSI specifica
 ## Architecture
 
 ### Mock Client (`mock_client.go`)
-A lightweight mock implementation of the TrueNAS API client that:
+A lightweight mock implementation of the NASty API client that:
 - Simulates dataset creation/deletion
 - Mocks NFS share management
 - Simulates NVMe-oF target operations
@@ -126,7 +126,7 @@ Tests use these default parameters:
 
 Sanity tests **complement** but don't **replace** other test types:
 
-| Test Type | Purpose | Real TrueNAS | Real Kubernetes |
+| Test Type | Purpose | Real NASty | Real Kubernetes |
 |-----------|---------|--------------|-----------------|
 | **Unit Tests** | Component logic | ❌ | ❌ |
 | **Sanity Tests** | CSI spec compliance | ❌ | ❌ |

@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/package.json",
   "name": "nasty-csi-dashboard",
   "version": "1.0.0",
-  "description": "Test Results Dashboard for TrueNAS CSI Driver",
+  "description": "Test Results Dashboard for NASty CSI Driver",
   "main": "generate-dashboard.js",
   "scripts": {
     "build": "node generate-dashboard.js",
@@ -27,11 +27,11 @@
   },
   "keywords": [
     "csi",
-    "truenas",
+    "nasty",
     "testing",
     "dashboard",
     "kubernetes"
   ],
-  "author": "TrueNAS CSI Team",
+  "author": "NASty CSI Team",
   "license": "MIT"
 }

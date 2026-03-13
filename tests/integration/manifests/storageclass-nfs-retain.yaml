@@ -1,5 +1,5 @@
 # StorageClass with deleteStrategy=retain for testing
-# When a PV is deleted, the underlying TrueNAS resources are retained
+# When a PV is deleted, the underlying NASty resources are retained
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -7,8 +7,8 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  server: "${TRUENAS_HOST}"
-  pool: "${TRUENAS_POOL}"
+  server: "${NASTY_HOST}"
+  pool: "${NASTY_POOL}"
   deleteStrategy: retain
 reclaimPolicy: Delete
 allowVolumeExpansion: true

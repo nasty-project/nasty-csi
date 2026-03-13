@@ -104,7 +104,7 @@ test-coverage:
 test-all: test-unit test-sanity
 	@echo "All tests completed"
 
-# E2E tests (requires Ginkgo CLI and TrueNAS connection)
+# E2E tests (requires Ginkgo CLI and NASty connection)
 test-e2e:
 	@echo "Running all E2E tests..."
 	ginkgo -v --timeout=60m ./tests/e2e/...

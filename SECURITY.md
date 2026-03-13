@@ -25,7 +25,7 @@ We will acknowledge your report within 48 hours and provide a timeline for a fix
 ### Credential Management
 
 **API Keys and Secrets:**
-- TrueNAS API keys are stored in Kubernetes Secrets
+- NASty API keys are stored in Kubernetes Secrets
 - Secrets should use RBAC to restrict access
 - Never commit credentials to git
 - Use `.local.yaml` files for local development (automatically ignored by git)
@@ -33,18 +33,18 @@ We will acknowledge your report within 48 hours and provide a timeline for a fix
 **Best Practices:**
 - Use dedicated API keys with minimal required permissions
 - Rotate API keys regularly
-- Enable TrueNAS API audit logging
+- Enable NASty API audit logging
 - Monitor API key usage
 
 ### Network Security
 
 **TLS/SSL:**
-- Always use `wss://` (WebSocket Secure) for TrueNAS API connections
+- Always use `wss://` (WebSocket Secure) for NASty API connections
 - Verify TLS certificates in production
 - For self-signed certificates, understand the security implications
 
 **Network Isolation:**
-- Restrict network access to TrueNAS management interface
+- Restrict network access to NASty management interface
 - Use firewalls to limit access to storage ports:
   - NFS: TCP 2049
   - NVMe-oF: TCP 4420
@@ -53,7 +53,7 @@ We will acknowledge your report within 48 hours and provide a timeline for a fix
 **Self-Hosted Runners:**
 - Use private GitHub repositories to prevent malicious PR execution
 - Isolate runners on dedicated network segments
-- Use Wireguard VPN for secure communication with TrueNAS
+- Use Wireguard VPN for secure communication with NASty
 - Regularly update runner systems and dependencies
 
 ### Kubernetes Security
@@ -71,24 +71,24 @@ We will acknowledge your report within 48 hours and provide a timeline for a fix
 **Secrets:**
 ```bash
 # Create secret with proper permissions
-kubectl create secret generic truenas-csi-secret \
+kubectl create secret generic nasty-csi-secret \
   --from-literal=api-key=YOUR_API_KEY \
-  --from-literal=api-url=wss://YOUR-TRUENAS-IP:443/api/current \
+  --from-literal=api-url=wss://YOUR-NASTY-IP:443/api/current \
   --namespace kube-system
 
 # Restrict access
 kubectl create role secret-reader \
   --verb=get \
   --resource=secrets \
-  --resource-name=truenas-csi-secret \
+  --resource-name=nasty-csi-secret \
   --namespace kube-system
 ```
 
 ### Data Security
 
 **Volume Data:**
-- Data in volumes is subject to TrueNAS permissions and encryption
-- Use TrueNAS dataset encryption for sensitive data
+- Data in volumes is subject to NASty permissions and encryption
+- Use NASty dataset encryption for sensitive data
 - Implement backup strategies
 - Consider volume encryption at application level for additional security
 
@@ -120,8 +120,8 @@ kubectl create role secret-reader \
   kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
   ```
 
-**TrueNAS Audit:**
-- Enable TrueNAS API audit logging
+**NASty Audit:**
+- Enable NASty API audit logging
 - Review logs for unauthorized access attempts
 - Monitor dataset access patterns
 
@@ -169,4 +169,4 @@ This driver does not currently undergo formal security audits or compliance cert
 
 - [Kubernetes Secrets Management](https://kubernetes.io/docs/concepts/configuration/secret/)
 - [CSI Driver Security Considerations](https://kubernetes-csi.github.io/docs/)
-- [TrueNAS Security Best Practices](https://www.truenas.com/docs/)
+- 

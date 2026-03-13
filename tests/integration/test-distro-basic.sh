@@ -57,7 +57,7 @@ if [[ "${DISTRO_NAME}" == "Unknown" ]]; then
 fi
 
 echo "========================================"
-echo "TrueNAS CSI - Distro Compatibility Test"
+echo "NASty CSI - Distro Compatibility Test"
 echo "Distribution: ${DISTRO_NAME}"
 echo "Protocol: ${PROTOCOL_UPPER}"
 echo "========================================"

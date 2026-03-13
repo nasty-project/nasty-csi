@@ -702,7 +702,7 @@
         </div>
         {{end}}
 
-        <!-- Summary cards: rendered from K8s data initially, refreshed with TrueNAS data -->
+        <!-- Summary cards: rendered from K8s data initially, refreshed with NASty data -->
         <div id="summary-cards"
              hx-get="/dashboard/partials/summary"
              hx-trigger="load delay:500ms"
@@ -747,7 +747,7 @@
                            hx-swap="innerHTML">
                 </div>
             </div>
-            <!-- K8s-fast volumes rendered inline, then replaced with TrueNAS-enriched data -->
+            <!-- K8s-fast volumes rendered inline, then replaced with NASty-enriched data -->
             <div id="volumes-table"
                  hx-get="/dashboard/partials/volumes"
                  hx-trigger="load delay:500ms"

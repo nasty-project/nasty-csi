@@ -248,7 +248,7 @@ function generateHTML(results, runs) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TrueNAS CSI - Test Results Dashboard</title>
+    <title>NASty CSI - Test Results Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -406,7 +406,7 @@ function generateHTML(results, runs) {
 <body>
     <div class="container">
         <div class="header">
-            <h1>TrueNAS CSI Driver</h1>
+            <h1>NASty CSI Driver</h1>
             <p>Test Results Dashboard</p>
         </div>
 

@@ -11,13 +11,13 @@ Helm is the recommended way to install nasty-csi. The raw Kubernetes manifests t
 helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 Or using GitHub Container Registry:
@@ -26,13 +26,13 @@ Or using GitHub Container Registry:
 helm install nasty-csi oci://ghcr.io/fenio/charts/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 ### Version Pinning
@@ -58,19 +58,19 @@ Common configuration:
 helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
-  --set truenas.skipTLSVerify=true \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
+  --set nasty.skipTLSVerify=true \
   --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="tank" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[1].name=nasty-csi-nvmeof \
   --set storageClasses[1].enabled=true \
   --set storageClasses[1].protocol=nvmeof \
   --set storageClasses[1].pool="tank" \
-  --set storageClasses[1].server="YOUR-TRUENAS-IP"
+  --set storageClasses[1].server="YOUR-NASTY-IP"
 ```
 
 ### Upgrading

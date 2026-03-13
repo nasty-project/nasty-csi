@@ -1,4 +1,4 @@
-# TNS CSI Driver
+# NASty CSI Driver
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.26.0-00ADD8?logo=go)](https://go.dev/)
@@ -12,7 +12,7 @@
 [![Driver](https://img.shields.io/github/v/release/fenio/nasty-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
 [![Plugin](https://img.shields.io/github/v/release/fenio/nasty-csi?filter=plugin-*&label=plugin&logo=github)](https://github.com/nasty-project/nasty-csi/releases)
 
-A Kubernetes CSI (Container Storage Interface) driver for TrueNAS Scale 25.10+.
+A Kubernetes CSI (Container Storage Interface) driver for [NASty](https://github.com/nasty-project/nasty) — a custom NAS built on NixOS with a bcachefs backend and a Rust JSON-RPC 2.0 API over WebSocket.
 
 ## Important Disclaimer
 
@@ -22,7 +22,7 @@ A Kubernetes CSI (Container Storage Interface) driver for TrueNAS Scale 25.10+.
 
 ## Overview
 
-This CSI driver enables Kubernetes to provision and manage persistent volumes on TrueNAS Scale 25.10+. It currently supports:
+This CSI driver enables Kubernetes to provision and manage persistent volumes on NASty. It currently supports:
 
 - **NFS** - Network File System for file-based storage
 - **NVMe-oF** - NVMe over Fabrics for high-performance block storage
@@ -33,32 +33,17 @@ This CSI driver enables Kubernetes to provision and manage persistent volumes on
 
 If you find this driver useful, please consider helping keep it alive.
 
-Every commit is tested against a **real TrueNAS server** and a **real Kubernetes cluster** across 6 distributions and 4 storage protocols. That infrastructure isn't free — GitHub-hosted runners can't do nested virtualization, so reliable testing requires dedicated self-hosted servers.
+Every commit is tested against a **real NASty server** and a **real Kubernetes cluster** across 6 distributions and 4 storage protocols. That infrastructure isn't free — GitHub-hosted runners can't do nested virtualization, so reliable testing requires dedicated self-hosted servers.
 
 **What it takes to run this:**
 - **Self-hosted GitHub Actions runner** with nested virtualization (OVH dedicated server)
-- **Dedicated TrueNAS server** (Akamai/Linode) running real ZFS pools, NFS/SMB shares, NVMe-oF subsystems, and iSCSI targets
+- **Dedicated NASty server** running real bcachefs pools, NFS/SMB shares, NVMe-oF subsystems, and iSCSI targets
 
-These costs are currently paid out of pocket by the maintainer. This is a community project with **no corporate backing** — I reached out to iXsystems (the company behind TrueNAS) asking for any kind of support for a driver that directly benefits their platform and users. They didn't respond.
+These costs are currently paid out of pocket by the maintainer.
 
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/fenio)
 
 Even small contributions help keep the test infrastructure running. Stars, bug reports, and code contributions are equally appreciated.
-
-## Comparison with Other Drivers
-
-| | TNS-CSI | truenas-csi (Official) | Democratic-CSI |
-|---|---------|------------------------|----------------|
-| **Best for** | Modern TrueNAS with NVMe-oF | Scheduled snapshots, CHAP auth | Broad compatibility |
-| **Block protocols** | NVMe-oF, iSCSI | iSCSI | iSCSI (+ NVMe-oF for ZoL) |
-| **File protocols** | NFS, SMB | NFS | NFS, SMB |
-| **Unique strength** | kubectl plugin, metrics, adoption, encryption | Scheduled snapshots | Multi-backend, Windows |
-| **Trade-off** | WebSocket API only | No NVMe-oF, no plugin | SSH complexity |
-| **Maturity** | Early development | Very new (Dec 2025) | Mature, production-ready |
-
-See detailed comparisons:
-- [TNS-CSI vs truenas-csi (Official)](docs/COMPARISON-TRUENAS-CSI.md)
-- [TNS-CSI vs Democratic-CSI](docs/COMPARISON-DEMOCRATIC-CSI.md)
 
 ## Dashboard and Observability
 
@@ -72,14 +57,12 @@ The driver includes two dashboard options and a pre-built Grafana dashboard:
 
 Both web dashboards show volume health, Kubernetes binding, snapshots, clones, and metrics. See [METRICS.md](docs/METRICS.md) for setup details.
 
-### Protocol Selection Guide
-
-This driver supports four storage protocols:
+## Protocol Selection Guide
 
 - **NFS**: Best for shared file storage where multiple pods need concurrent access (ReadWriteMany)
-- **NVMe-oF**: Best for high-performance block storage with lowest latency and highest IOPS - ideal for databases and latency-sensitive workloads
-- **iSCSI**: Traditional block storage with broad compatibility - useful when NVMe-oF is not available or for environments already using iSCSI
-- **SMB/CIFS**: Authenticated file sharing with user-level access control - useful when you need Windows-compatible storage or per-user credentials
+- **NVMe-oF**: Best for high-performance block storage with lowest latency and highest IOPS — ideal for databases and latency-sensitive workloads
+- **iSCSI**: Traditional block storage with broad compatibility — useful when NVMe-oF is not available
+- **SMB/CIFS**: Authenticated file sharing — useful for Windows-compatible storage or per-user credentials
 
 ## Features
 
@@ -92,7 +75,6 @@ This driver supports four storage protocols:
 - **Volume retention** - Optional `deleteStrategy: retain` to keep volumes on PVC deletion
 - **Volume adoption** - Automatically adopt orphaned volumes for GitOps and disaster recovery workflows (see [Adoption Guide](docs/ADOPTION.md))
 - **Configurable mount options** - Customize NFS/NVMe-oF/iSCSI/SMB mount options via StorageClass
-- **Configurable ZFS properties** - Set compression, dedup, recordsize, etc. via StorageClass parameters
 - **Access modes** - ReadWriteOnce (RWO), ReadWriteOncePod (RWOP), and ReadWriteMany (RWX) support
 - **Raw block RWX** - Block volumes with RWX access for KubeVirt live migration (NVMe-oF, iSCSI)
 - **Storage classes** - Flexible configuration via Kubernetes storage classes
@@ -144,27 +126,19 @@ Compatibility tests run weekly and on-demand. See [Distro Compatibility Tests](d
 ## Prerequisites
 
 - Kubernetes 1.27+ (earlier versions may work but are not tested)
-- **TrueNAS Scale 25.10 or later** (required for full feature support including NVMe-oF)
+- A running NASty server with API access
 - For NFS: NFS client utilities on all nodes (`nfs-common` on Debian/Ubuntu, `nfs-utils` on RHEL/CentOS)
 - For NVMe-oF:
-  - TrueNAS Scale 25.10+
-  - **TrueNAS must have a static IP configured** (DHCP not supported for NVMe-oF)
-  - At least one NVMe-oF TCP port configured in TrueNAS (Shares > NVMe-oF Targets > Ports, default: 4420)
   - `nvme-cli` package installed on all Kubernetes nodes
   - Kernel modules: `nvme-tcp`, `nvme-fabrics`
-  - Network connectivity from Kubernetes nodes to TrueNAS on port 4420
+  - Network connectivity from Kubernetes nodes to NASty on port 4420
 - For iSCSI:
-  - TrueNAS Scale 25.10+
-  - iSCSI service enabled in TrueNAS (System > Services > iSCSI)
   - `open-iscsi` package installed on all Kubernetes nodes (`iscsid` service running)
-  - Network connectivity from Kubernetes nodes to TrueNAS on port 3260
+  - Network connectivity from Kubernetes nodes to NASty on port 3260
 - For SMB:
-  - TrueNAS Scale 25.10+
-  - SMB service enabled in TrueNAS (System > Services > SMB)
-  - SMB user account created (Credentials > Local Users)
   - `cifs-utils` package installed on all Kubernetes nodes
   - Kubernetes Secret with SMB credentials (username/password)
-  - Network connectivity from Kubernetes nodes to TrueNAS on port 445
+  - Network connectivity from Kubernetes nodes to NASty on port 445
 
 ## Quick Start
 
@@ -172,93 +146,84 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed installation and configurat
 
 ### Installation via Helm (Recommended)
 
-The TNS CSI Driver is published to both Docker Hub and GitHub Container Registry as OCI artifacts:
+The NASty CSI Driver is published to both Docker Hub and GitHub Container Registry as OCI artifacts:
 
 **Always use a specific version in production.** See [docs/VERSIONING.md](docs/VERSIONING.md) for details.
 
-#### Docker Hub (recommended)
 ```bash
 helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
-**NVMe-oF Example:**
+**NVMe-oF:**
 ```bash
 helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-nvmeof \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nvmeof \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].transport=tcp \
   --set storageClasses[0].port=4420
 ```
 
-**Note:** NVMe-oF requires a TCP port to be pre-configured in TrueNAS (Shares > NVMe-oF Targets > Ports). Subsystems are automatically created per volume.
-
-**iSCSI Example:**
+**iSCSI:**
 ```bash
 helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-iscsi \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=iscsi \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
-**Note:** iSCSI requires the iSCSI service to be enabled in TrueNAS (System > Services). Targets and extents are automatically created per volume.
-
-**SMB Example:**
+**SMB:**
 ```bash
 helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-smb \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=smb \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name=smb-credentials \
   --set storageClasses[0].smbCredentialsSecret.namespace=kube-system
 ```
 
-**Note:** SMB requires a credentials Secret and the SMB service enabled in TrueNAS. See [QUICKSTART-SMB.md](docs/QUICKSTART-SMB.md) for setup instructions.
-
 See the [Helm chart README](charts/nasty-csi-driver/README.md) for detailed configuration options.
 
 ## Configuration
-
-The driver is configured via command-line flags and Kubernetes secrets:
 
 ### Command-Line Flags
 
 - `--endpoint` - CSI endpoint (default: `unix:///var/lib/kubelet/plugins/nasty.csi.io/csi.sock`)
 - `--node-id` - Node identifier (typically the node name)
 - `--driver-name` - CSI driver name (default: `nasty.csi.io`)
-- `--api-url` - TrueNAS API URL (e.g., `ws://YOUR-TRUENAS-IP/api/v2.0/websocket`)
-- `--api-key` - TrueNAS API key
+- `--api-url` - NASty API WebSocket URL (e.g., `wss://YOUR-NASTY-IP/api/current`)
+- `--api-key` - NASty API key
 - `--max-concurrent-nvme-connects` - Maximum concurrent NVMe-oF connect operations per node (default: `5`)
 
 ### Storage Class Parameters
@@ -267,32 +232,28 @@ The driver is configured via command-line flags and Kubernetes secrets:
 ```yaml
 parameters:
   protocol: nfs
-  server: YOUR-TRUENAS-IP
+  server: YOUR-NASTY-IP
   pool: tank
-  path: /mnt/tank/k8s
 ```
 
 **NVMe-oF Volumes:**
 ```yaml
 parameters:
   protocol: nvmeof
-  server: YOUR-TRUENAS-IP
+  server: YOUR-NASTY-IP
   pool: tank
-  path: /mnt/tank/k8s/nvmeof
   fsType: ext4  # or xfs
 ```
-
-**Note:** Subsystems are automatically created per volume. Ensure an NVMe-oF TCP port is configured in TrueNAS (Shares > NVMe-oF Targets > Ports).
 
 ## Testing
 
 **Comprehensive Testing on Real Infrastructure**
 
-This driver is tested extensively using **real hardware and software** - not mocks or simulators:
+This driver is tested using **real hardware and software** — not mocks or simulators:
 
 - **Self-hosted GitHub Actions runner** on dedicated OVH infrastructure
 - **Real Kubernetes cluster** (k3s) provisioned for each test run
-- **Real TrueNAS Scale server** with actual storage pools and network services on dedicated sponsored by Akamai/Linode infrastructure
+- **Real NASty server** with actual bcachefs pools and network services
 - **Full protocol stack testing** - NFS mounts, NVMe-oF connections, actual I/O operations
 
 ### Automated Test Suite
@@ -326,13 +287,13 @@ View test results and history: [![Test Dashboard](https://img.shields.io/badge/T
 This driver is in early development and requires extensive testing before production use. Key considerations:
 
 - **Development Phase**: Active development with ongoing testing and validation
-- **Protocol Support**: Currently supports NFS, NVMe-oF, iSCSI, and SMB.
-- **Volume Expansion**: Implemented and functional for all protocols when `allowVolumeExpansion: true` is set in the StorageClass (Helm chart enables this by default)
+- **Protocol Support**: NFS, NVMe-oF, iSCSI, and SMB
+- **Volume Expansion**: Implemented and functional for all protocols
 - **Snapshots**: Implemented for all protocols, functional and tested
-- **Testing**: Comprehensive automated testing on real infrastructure (see Testing section above)
-- **Stability**: Core features functional but may have undiscovered edge cases or bugs
+- **Testing**: Comprehensive automated testing on real infrastructure
+- **Stability**: Core features functional but may have undiscovered edge cases
 
-**Recommended Use**: Development, testing, and evaluation environments only. Use at your own risk.
+**Recommended Use**: Development, testing, and evaluation environments only.
 
 ## Troubleshooting
 
@@ -342,13 +303,10 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md#troubleshooting) for detailed troubleshoo
 
 1. **Pods stuck in ContainerCreating**:
    - For NFS: Check that NFS client utilities are installed on nodes
-   - For NVMe-oF: Check that nvme-cli is installed and kernel modules are loaded
+   - For NVMe-oF: Check that nvme-cli is installed and kernel modules are loaded (`nvme-tcp`, `nvme-fabrics`)
    - For SMB: Check that cifs-utils is installed and credentials Secret exists
-2. **Failed to create volume**: Verify storage API credentials and network connectivity
-3. **Mount failed**:
-   - For NFS: Ensure NFS service is running on TrueNAS and accessible from nodes
-   - For NVMe-oF: Ensure NVMe-oF service is enabled and firewall allows port 4420
-   - For SMB: Ensure SMB service is running and firewall allows port 445
+2. **Failed to create volume**: Verify NASty API credentials and network connectivity
+3. **Mount failed**: Ensure the corresponding service is running on NASty and the port is reachable
 
 **View Logs:**
 
@@ -377,17 +335,16 @@ kubectl logs -n kube-system deployment/nasty-csi-controller 2>&1 | head -1
 - [Distro Compatibility](docs/DISTRO-COMPATIBILITY.md) - Kubernetes distribution compatibility testing
 - [Metrics Guide](docs/METRICS.md) - Prometheus metrics and monitoring
 - [Kind Setup](docs/KIND.md) - Local development with Kind
-- [Comparison with truenas-csi](docs/COMPARISON-TRUENAS-CSI.md) - vs official TrueNAS CSI driver
 - [Comparison with Democratic-CSI](docs/COMPARISON-DEMOCRATIC-CSI.md) - vs democratic-csi
 
 ## Volume Adoption
 
-The driver supports **cross-cluster volume adoption** - importing existing nasty-csi managed volumes into a new Kubernetes cluster. This is useful for:
+The driver supports **cross-cluster volume adoption** — importing existing nasty-csi managed volumes into a new Kubernetes cluster. This is useful for:
 - Disaster recovery scenarios
 - Cluster migrations
 - Re-importing retained volumes after upgrades
 
-Volumes are adoptable if they have proper `nasty-csi:*` ZFS user properties set. See [Volume Adoption](docs/FEATURES.md#volume-adoption-cross-cluster) in the Features documentation for details.
+Volumes are adoptable if they have proper `nasty-csi:*` xattr properties set. See [Volume Adoption](docs/FEATURES.md#volume-adoption-cross-cluster) in the Features documentation for details.
 
 ## Development
 
@@ -405,7 +362,7 @@ make build
 
 ### Testing
 
-Tests are automated via GitHub Actions CI/CD running on self-hosted infrastructure with real TrueNAS hardware. See `.github/workflows/` for workflow configuration.
+Tests are automated via GitHub Actions CI/CD running on self-hosted infrastructure with real NASty hardware. See `.github/workflows/` for workflow configuration.
 
 **Local Testing:**
 ```bash
@@ -415,10 +372,10 @@ make test
 # Run specific test
 go test -v ./pkg/driver/...
 
-# Run CSI sanity tests (requires TrueNAS connection)
+# Run CSI sanity tests (requires NASty connection)
 cd tests/sanity && ./test-sanity.sh
 
-# Run Ginkgo E2E tests (requires TrueNAS and Kubernetes cluster)
+# Run Ginkgo E2E tests (requires NASty and Kubernetes cluster)
 ginkgo -v --timeout=25m ./tests/e2e/nfs/...
 ginkgo -v --timeout=40m ./tests/e2e/nvmeof/...
 ginkgo -v --timeout=40m ./tests/e2e/iscsi/...
@@ -440,8 +397,3 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 ## License
 
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0) - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [Akamai/Linode](https://www.linode.com/) — for providing infrastructure credits that power the TrueNAS test server
-- This driver is designed to work with [TrueNAS Scale](https://www.truenas.com/truenas-scale/) 25.10+

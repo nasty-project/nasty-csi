@@ -46,7 +46,7 @@ spec:
             - "--api-url=$(TNS_URL)"
             - "--api-key=$(TNS_API_KEY)"
             - "--v={{ .Values.controller.logLevel }}"
-            {{- if .Values.truenas.skipTLSVerify }}
+            {{- if .Values.nasty.skipTLSVerify }}
             - "--skip-tls-verify"
             {{- end }}
             {{- if .Values.controller.metrics.enabled }}

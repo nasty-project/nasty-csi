@@ -161,14 +161,14 @@ wait_for_resource_deleted() {
 }
 
 #######################################
-# Check if NVMe-oF is configured on TrueNAS
+# Check if NVMe-oF is configured on NASty
 #######################################
 check_nvmeof_configured() {
     local pvc_manifest=$1
     local pvc_name=$2
     local protocol_name=${3:-"NVMe-oF"}
     
-    test_info "Checking if NVMe-oF is configured on TrueNAS..."
+    test_info "Checking if NVMe-oF is configured on NASty..."
     
     kubectl apply -f "${pvc_manifest}" -n "${TEST_NAMESPACE}" || true
     
@@ -188,7 +188,7 @@ check_nvmeof_configured() {
         --tail=20 2>/dev/null || true)
     
     if grep -q "No TCP NVMe-oF port" <<< "$logs"; then
-        test_warning "NVMe-oF ports not configured on TrueNAS server"
+        test_warning "NVMe-oF ports not configured on NASty server"
         test_warning "Skipping ${protocol_name} tests"
         kubectl delete pvc "${pvc_name}" -n "${TEST_NAMESPACE}" --ignore-not-found=true
         kubectl delete namespace "${TEST_NAMESPACE}" --ignore-not-found=true --timeout=60s || true
@@ -203,14 +203,14 @@ check_nvmeof_configured() {
 }
 
 #######################################
-# Check if iSCSI is configured on TrueNAS
+# Check if iSCSI is configured on NASty
 #######################################
 check_iscsi_configured() {
     local pvc_manifest=$1
     local pvc_name=$2
     local protocol_name=${3:-"iSCSI"}
 
-    test_info "Checking if iSCSI is configured on TrueNAS..."
+    test_info "Checking if iSCSI is configured on NASty..."
 
     kubectl apply -f "${pvc_manifest}" -n "${TEST_NAMESPACE}" || true
 
@@ -230,7 +230,7 @@ check_iscsi_configured() {
         --tail=20 2>/dev/null || true)
 
     if grep -q "No iSCSI portal configured" <<< "$logs"; then
-        test_warning "iSCSI portal not configured on TrueNAS server"
+        test_warning "iSCSI portal not configured on NASty server"
         test_warning "Skipping ${protocol_name} tests"
         kubectl delete pvc "${pvc_name}" -n "${TEST_NAMESPACE}" --ignore-not-found=true
         kubectl delete namespace "${TEST_NAMESPACE}" --ignore-not-found=true --timeout=60s || true
@@ -239,7 +239,7 @@ check_iscsi_configured() {
     fi
 
     if grep -q "No iSCSI initiator group configured" <<< "$logs"; then
-        test_warning "iSCSI initiator group not configured on TrueNAS server"
+        test_warning "iSCSI initiator group not configured on NASty server"
         test_warning "Skipping ${protocol_name} tests"
         kubectl delete pvc "${pvc_name}" -n "${TEST_NAMESPACE}" --ignore-not-found=true
         kubectl delete namespace "${TEST_NAMESPACE}" --ignore-not-found=true --timeout=60s || true
@@ -368,26 +368,26 @@ deploy_driver() {
     start_test_timer "deploy_driver"
     test_step "Deploying CSI driver for ${protocol}"
     
-    if [[ -z "${TRUENAS_HOST}" ]]; then
+    if [[ -z "${NASTY_HOST}" ]]; then
         stop_test_timer "deploy_driver" "FAILED"
-        test_error "TRUENAS_HOST not set"
+        test_error "NASTY_HOST not set"
         false
     fi
     
-    if [[ -z "${TRUENAS_API_KEY}" ]]; then
+    if [[ -z "${NASTY_API_KEY}" ]]; then
         stop_test_timer "deploy_driver" "FAILED"
-        test_error "TRUENAS_API_KEY not set"
+        test_error "NASTY_API_KEY not set"
         false
     fi
     
-    if [[ -z "${TRUENAS_POOL}" ]]; then
+    if [[ -z "${NASTY_POOL}" ]]; then
         stop_test_timer "deploy_driver" "FAILED"
-        test_error "TRUENAS_POOL not set"
+        test_error "NASTY_POOL not set"
         false
     fi
     
-    local truenas_url="wss://${TRUENAS_HOST}/api/current"
-    test_info "TrueNAS URL: ${truenas_url}"
+    local nasty_url="wss://${NASTY_HOST}/api/current"
+    test_info "NASty URL: ${nasty_url}"
     
     local image_tag="${CSI_IMAGE_TAG:-latest}"
     local image_repo="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
@@ -399,9 +399,9 @@ deploy_driver() {
         --set image.repository="${image_repo}"
         --set image.tag="${image_tag}"
         --set image.pullPolicy=Always
-        --set truenas.url="${truenas_url}"
-        --set truenas.apiKey="${TRUENAS_API_KEY}"
-        --set truenas.skipTLSVerify=true
+        --set nasty.url="${nasty_url}"
+        --set nasty.apiKey="${NASTY_API_KEY}"
+        --set nasty.skipTLSVerify=true
         --set node.kubeletPath="${kubelet_path}"
     )
     
@@ -411,8 +411,8 @@ deploy_driver() {
                 --set storageClasses[0].name=nasty-csi-nfs
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=nfs
-                --set storageClasses[0].pool="${TRUENAS_POOL}"
-                --set storageClasses[0].server="${TRUENAS_HOST}"
+                --set storageClasses[0].pool="${NASTY_POOL}"
+                --set storageClasses[0].server="${NASTY_HOST}"
             )
             ;;
         nvmeof)
@@ -420,8 +420,8 @@ deploy_driver() {
                 --set storageClasses[0].name=nasty-csi-nvmeof
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=nvmeof
-                --set storageClasses[0].pool="${TRUENAS_POOL}"
-                --set storageClasses[0].server="${TRUENAS_HOST}"
+                --set storageClasses[0].pool="${NASTY_POOL}"
+                --set storageClasses[0].server="${NASTY_HOST}"
                 --set storageClasses[0].transport=tcp
                 --set storageClasses[0].port=4420
             )
@@ -431,8 +431,8 @@ deploy_driver() {
                 --set storageClasses[0].name=nasty-csi-iscsi
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=iscsi
-                --set storageClasses[0].pool="${TRUENAS_POOL}"
-                --set storageClasses[0].server="${TRUENAS_HOST}"
+                --set storageClasses[0].pool="${NASTY_POOL}"
+                --set storageClasses[0].server="${NASTY_HOST}"
             )
             ;;
         *)

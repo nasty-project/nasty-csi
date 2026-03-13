@@ -25,7 +25,7 @@ These shell scripts serve specific purposes outside the main E2E test suite:
 | `test-pvc-lifecycle-nfs.sh` | Focused PVC lifecycle testing for NFS | `pvc-lifecycle.yml` workflow |
 | `test-pvc-lifecycle-nvmeof.sh` | Focused PVC lifecycle testing for NVMe-oF | `pvc-lifecycle.yml` workflow |
 | `test-pvc-lifecycle-nested-dataset.sh` | Tests nested dataset path handling | `pvc-lifecycle.yml` workflow |
-| `test-orphaned-resources.sh` | Utility to detect orphaned TrueNAS resources | Manual cleanup operations |
+| `test-orphaned-resources.sh` | Utility to detect orphaned NASty resources | Manual cleanup operations |
 
 ### Directory Structure
 
@@ -50,7 +50,7 @@ tests/integration/
 Use shell scripts in this directory when:
 - Testing Kubernetes distribution compatibility (uses `test-distro-basic.sh`)
 - Running quick PVC lifecycle validation (uses `test-pvc-lifecycle-*.sh`)
-- Detecting orphaned resources on TrueNAS (uses `test-orphaned-resources.sh`)
+- Detecting orphaned resources on NASty (uses `test-orphaned-resources.sh`)
 
 Use Ginkgo E2E tests (`tests/e2e/`) for:
 - Comprehensive feature testing (snapshots, cloning, expansion, etc.)
@@ -87,9 +87,9 @@ The `lib/common.sh` library provides reusable functions:
 ### Prerequisites
 
 ```bash
-export TRUENAS_HOST="your-truenas-host.example.com"
-export TRUENAS_API_KEY="your-api-key-here"
-export TRUENAS_POOL="your-pool-name"
+export NASTY_HOST="your-nasty-host.example.com"
+export NASTY_API_KEY="your-api-key-here"
+export NASTY_POOL="your-pool-name"
 ```
 
 ### Run Distribution Compatibility Test

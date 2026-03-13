@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}TrueNAS CSI Dashboard Development Helper${NC}"
+echo -e "${BLUE}NASty CSI Dashboard Development Helper${NC}"
 echo "========================================"
 
 # Check if Node.js is installed

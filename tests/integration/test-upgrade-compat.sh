@@ -4,9 +4,9 @@
 # to the current build. Tests NFS and iSCSI protocols.
 #
 # Required environment variables:
-#   TRUENAS_HOST       - TrueNAS server hostname/IP
-#   TRUENAS_API_KEY    - TrueNAS API key
-#   TRUENAS_POOL       - ZFS pool name
+#   NASTY_HOST       - NASty server hostname/IP
+#   NASTY_API_KEY    - NASty API key
+#   NASTY_POOL       - ZFS pool name
 #   CSI_IMAGE_TAG      - Image tag for the current build
 #   PREV_CHART_VERSION - Previous Helm chart version (e.g., "0.8.0")
 #
@@ -87,14 +87,14 @@ print_driver_info() {
 # Configuration
 # ─────────────────────────────────────────────────
 NAMESPACE="upgrade-compat-$(date +%s)-${RANDOM}"
-TRUENAS_URL="wss://${TRUENAS_HOST}/api/current"
+NASTY_URL="wss://${NASTY_HOST}/api/current"
 OCI_CHART_REPO="${OCI_CHART_REPO:-oci://registry-1.docker.io/bfenski/nasty-csi-driver}"
 IMAGE_TAG="${CSI_IMAGE_TAG:-latest}"
 IMAGE_REPO="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
 KUBELET_PATH="${KUBELET_PATH:-/var/lib/kubelet}"
 
 # Validate required environment
-for var in TRUENAS_HOST TRUENAS_API_KEY TRUENAS_POOL PREV_CHART_VERSION; do
+for var in NASTY_HOST NASTY_API_KEY NASTY_POOL PREV_CHART_VERSION; do
     if [[ -z "${!var:-}" ]]; then
         fail "Required environment variable ${var} is not set"
         exit 1
@@ -198,7 +198,7 @@ trap on_exit EXIT
 # Header
 # ─────────────────────────────────────────────────
 echo "════════════════════════════════════════════════════"
-echo "  TrueNAS CSI - Upgrade Compatibility Test"
+echo "  NASty CSI - Upgrade Compatibility Test"
 echo "  Previous: ${PREV_VERSION:-v${PREV_CHART_VERSION}}"
 echo "  Current:  ${IMAGE_REPO}:${IMAGE_TAG}"
 echo "════════════════════════════════════════════════════"
@@ -216,20 +216,20 @@ info "Installing previous release from OCI registry..."
 helm install nasty-csi "${OCI_CHART_REPO}" \
     --version "${PREV_CHART_VERSION}" \
     --namespace kube-system \
-    --set truenas.url="${TRUENAS_URL}" \
-    --set truenas.apiKey="${TRUENAS_API_KEY}" \
-    --set truenas.skipTLSVerify=true \
+    --set nasty.url="${NASTY_URL}" \
+    --set nasty.apiKey="${NASTY_API_KEY}" \
+    --set nasty.skipTLSVerify=true \
     --set node.kubeletPath="${KUBELET_PATH}" \
     --set storageClasses[0].name=nasty-csi-nfs \
     --set storageClasses[0].enabled=true \
     --set storageClasses[0].protocol=nfs \
-    --set storageClasses[0].pool="${TRUENAS_POOL}" \
-    --set storageClasses[0].server="${TRUENAS_HOST}" \
+    --set storageClasses[0].pool="${NASTY_POOL}" \
+    --set storageClasses[0].server="${NASTY_HOST}" \
     --set storageClasses[1].name=nasty-csi-iscsi \
     --set storageClasses[1].enabled=true \
     --set storageClasses[1].protocol=iscsi \
-    --set storageClasses[1].pool="${TRUENAS_POOL}" \
-    --set storageClasses[1].server="${TRUENAS_HOST}" \
+    --set storageClasses[1].pool="${NASTY_POOL}" \
+    --set storageClasses[1].server="${NASTY_HOST}" \
     --wait --timeout 5m
 
 info "Waiting for driver pods to be ready..."

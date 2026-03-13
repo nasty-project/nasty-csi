@@ -15,9 +15,9 @@ metadata:
 spec:
   version: v0.0.0  # Updated during release
   homepage: https://github.com/nasty-project/nasty-csi
-  shortDescription: Manage TrueNAS CSI volumes
+  shortDescription: Manage NASty CSI volumes
   description: |
-    kubectl plugin for managing TrueNAS CSI driver volumes.
+    kubectl plugin for managing NASty CSI driver volumes.
 
     Commands:
     - list: List all managed volumes with clone relationships
@@ -30,16 +30,16 @@ spec:
     - cleanup: Delete orphaned volumes safely
     - mark-adoptable: Mark volumes for DR/adoption
     - adopt: Generate PV manifest for adoption
-    - status: Show volume status from TrueNAS
-    - connectivity: Test TrueNAS connection
+    - status: Show volume status from NASty
+    - connectivity: Test NASty connection
 
     Configuration:
-    Connection to TrueNAS can be configured via:
+    Connection to NASty can be configured via:
     - Flags: --url and --api-key
     - Kubernetes secret: --secret <namespace>/<name>
-    - Environment: TRUENAS_URL and TRUENAS_API_KEY
+    - Environment: NASTY_URL and NASTY_API_KEY
   caveats: |
-    This plugin requires access to a TrueNAS Scale server with the nasty-csi
+    This plugin requires access to a NASty server with the nasty-csi
     driver configured. Provide connection details via flags, environment
     variables, or a Kubernetes secret.
   platforms:

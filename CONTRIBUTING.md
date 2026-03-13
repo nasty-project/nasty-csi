@@ -18,7 +18,7 @@ Before creating bug reports, please check existing issues to avoid duplicates. W
 - **Actual behavior** - What actually happened
 - **Environment details**:
   - Kubernetes version
-  - TrueNAS version
+  - NASty version
   - CSI driver version
   - Storage protocol (NFS/NVMe-oF)
 - **Logs** - Include relevant logs from controller and node pods
@@ -95,7 +95,7 @@ nasty-csi/
 │   └── nasty-csi-driver/    # Driver entry point
 ├── pkg/                    # Library code
 │   ├── driver/            # CSI driver implementation
-│   └── nastyapi/            # TrueNAS API client
+│   └── nastyapi/            # NASty API client
 ├── tests/                  # Test files
 │   ├── e2e/               # End-to-end tests
 │   └── integration/       # Integration tests
@@ -144,9 +144,9 @@ Integration tests use [Ginkgo](https://onsi.github.io/ginkgo/) and run automatic
 go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
 # Set required environment variables
-export TRUENAS_HOST="your-truenas-ip"
-export TRUENAS_API_KEY="your-api-key"
-export TRUENAS_POOL="your-pool"
+export NASTY_HOST="your-nasty-ip"
+export NASTY_API_KEY="your-api-key"
+export NASTY_POOL="your-pool"
 
 # Run NFS E2E tests
 ginkgo -v --timeout=25m ./tests/e2e/nfs/...
@@ -203,7 +203,7 @@ feat: Add support for volume expansion in NVMe-oF
 
 fix: Correct NFS mount options for better performance
 
-docs: Update quickstart guide with TrueNAS 24.04 specifics
+docs: Update quickstart guide with NASty specifics
 
 test: Add integration tests for NVMe-oF volume lifecycle
 ```
