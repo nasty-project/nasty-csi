@@ -1,5 +1,5 @@
 apiVersion: v2
-name: tns-csi-driver
+name: nasty-csi-driver
 description: A Helm chart for TrueNAS Scale CSI Driver - providing NFS, NVMe-oF, and iSCSI storage for Kubernetes (requires TrueNAS Scale 25.10+)
 
 # A chart can be either an 'application' or a 'library' chart.
@@ -22,9 +22,9 @@ keywords:
   - nvmeof
   - iscsi
 
-home: https://github.com/fenio/tns-csi
+home: https://github.com/nasty-project/nasty-csi
 sources:
-  - https://github.com/fenio/tns-csi
+  - https://github.com/nasty-project/nasty-csi
 
 maintainers:
   - name: Bartosz Fenski

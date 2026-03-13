@@ -35,7 +35,7 @@ A Container Storage Interface (CSI) driver for TrueNAS Scale 25.10+ that enables
 ### Quick Start - NFS (Using OCI Registry)
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -54,7 +54,7 @@ Replace:
 If you've cloned the repository, you can install from the local chart:
 
 ```bash
-helm install tns-csi ./charts/tns-csi-driver -n kube-system \
+helm install tns-csi ./charts/nasty-csi-driver -n kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -88,7 +88,7 @@ storageClasses:
 
 Install with:
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --values my-values.yaml
@@ -96,7 +96,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 Or from local chart:
 ```bash
-helm install tns-csi ./charts/tns-csi-driver \
+helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --values my-values.yaml
 ```
@@ -106,7 +106,7 @@ helm install tns-csi ./charts/tns-csi-driver \
 #### NFS Only (Recommended for most use cases)
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -118,7 +118,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 #### NVMe-oF (Block storage, requires kernel modules)
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -133,7 +133,7 @@ The driver automatically creates a dedicated NVMe-oF subsystem for each volume. 
 #### iSCSI (Block storage, broad compatibility)
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -147,7 +147,7 @@ The driver automatically creates a dedicated iSCSI target for each volume. Only 
 
 ### Using Kustomize
 
-Each GitHub release includes a pre-rendered manifest (`tns-csi-driver-<version>.yaml`) with all protocols enabled and placeholder values. Download it and use Kustomize patches to replace `TRUENAS_IP` and `REPLACE_WITH_API_KEY`, and remove storage classes you don't need.
+Each GitHub release includes a pre-rendered manifest (`nasty-csi-driver-<version>.yaml`) with all protocols enabled and placeholder values. Download it and use Kustomize patches to replace `TRUENAS_IP` and `REPLACE_WITH_API_KEY`, and remove storage classes you don't need.
 
 ## Configuration
 
@@ -310,7 +310,7 @@ The controller can serve an in-cluster web dashboard showing volume health, Kube
 | `controller.dashboard.ingress.hosts` | Ingress hostnames | `[]` |
 | `controller.dashboard.ingress.tls` | Ingress TLS configuration | `[]` |
 
-Access via port-forward: `kubectl port-forward -n kube-system svc/tns-csi-driver-dashboard 9090:9090`, then open `http://localhost:9090/dashboard/`.
+Access via port-forward: `kubectl port-forward -n kube-system svc/nasty-csi-driver-dashboard 9090:9090`, then open `http://localhost:9090/dashboard/`.
 
 ### Grafana Dashboard Settings
 
@@ -413,7 +413,7 @@ The Secret should contain either `encryptionPassphrase` (min 8 chars) or `encryp
 ## Upgrading
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --reuse-values
 ```
@@ -421,7 +421,7 @@ helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 Or with new values:
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --values my-values.yaml
 ```
@@ -485,7 +485,7 @@ If you use `--set` flags instead of a values file, update them to use array inde
 #### Step 3: Upgrade
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --values my-values.yaml
 ```
@@ -524,10 +524,10 @@ kubectl get storageclass
 
 ```bash
 # Controller logs
-kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
 
 # Node logs
-kubectl logs -n kube-system -l app.kubernetes.io/component=node -c tns-csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-driver
 
 # CSI provisioner logs
 kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c csi-provisioner
@@ -576,7 +576,7 @@ The CSI driver uses log levels to control verbosity:
 | 5 | Debug - request/response bodies, context dumps |
 
 ```bash
-helm upgrade tns-csi ./charts/tns-csi-driver \
+helm upgrade tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --reuse-values \
   --set controller.debug=true \
@@ -585,9 +585,9 @@ helm upgrade tns-csi ./charts/tns-csi-driver \
 
 ## Support
 
-- **Issues**: https://github.com/fenio/tns-csi/issues
-- **Discussions**: https://github.com/fenio/tns-csi/discussions
-- **Documentation**: https://github.com/fenio/tns-csi
+- **Issues**: https://github.com/nasty-project/nasty-csi/issues
+- **Discussions**: https://github.com/nasty-project/nasty-csi/discussions
+- **Documentation**: https://github.com/nasty-project/nasty-csi
 
 ## License
 

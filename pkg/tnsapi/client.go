@@ -1,4 +1,4 @@
-// Package tnsapi provides a WebSocket client for TrueNAS Scale API.
+// Package tnsapi provides a WebSocket client for the NASty storage API.
 package tnsapi
 
 import (
@@ -16,14 +16,13 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/fenio/tns-csi/pkg/metrics"
+	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	"k8s.io/klog/v2"
 )
 
 // Static errors for client operations.
 var (
-	ErrAuthenticationRejected = errors.New("authentication failed: Storage system rejected API key - verify key is correct and not revoked in System Settings -> API Keys")
-	ErrResponseIDMismatch     = errors.New("authentication response ID mismatch")
+	ErrAuthenticationRejected = errors.New("authentication failed: NASty rejected API token - verify the token is correct and not expired")
 	ErrClientClosed           = errors.New("client is closed")
 	ErrConnectionClosed       = errors.New("connection closed while waiting for response")
 	ErrCloneFailed            = errors.New("clone operation returned false (unsuccessful)")
@@ -154,7 +153,7 @@ func isAuthenticationError(err error) bool {
 }
 
 // NewClient creates a new storage API client.
-// skipTLSVerify should be set to true only for self-signed certificates (common in TrueNAS deployments).
+// skipTLSVerify should be set to true only for self-signed certificates.
 func NewClient(url, apiKey string, skipTLSVerify bool) (*Client, error) {
 	klog.V(4).Infof("Creating new storage API client for %s (skipTLSVerify=%v)", url, skipTLSVerify)
 
@@ -180,7 +179,7 @@ func NewClient(url, apiKey string, skipTLSVerify bool) (*Client, error) {
 	var lastConnErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if attempt > 1 {
-			klog.Warningf("Connection attempt %d/%d to TrueNAS failed: %v", attempt-1, maxAttempts, lastConnErr)
+			klog.Warningf("Connection attempt %d/%d to NASty failed: %v", attempt-1, maxAttempts, lastConnErr)
 			delay := retryDelays[attempt-1]
 			klog.Infof("Retrying connection in %v...", delay)
 			time.Sleep(delay)
@@ -197,7 +196,7 @@ func NewClient(url, apiKey string, skipTLSVerify bool) (*Client, error) {
 			}
 		}
 
-		klog.V(4).Infof("Attempting to connect to TrueNAS (attempt %d/%d)", attempt, maxAttempts)
+		klog.V(4).Infof("Attempting to connect to NASty (attempt %d/%d)", attempt, maxAttempts)
 
 		// Connect to WebSocket
 		if err := c.connect(); err != nil {
@@ -234,9 +233,9 @@ func NewClient(url, apiKey string, skipTLSVerify bool) (*Client, error) {
 
 		// Success — only log at info level if retries were needed
 		if attempt > 1 {
-			klog.Infof("Successfully connected to TrueNAS on attempt %d/%d", attempt, maxAttempts)
+			klog.Infof("Successfully connected to NASty on attempt %d/%d", attempt, maxAttempts)
 		} else {
-			klog.V(4).Infof("Successfully connected to TrueNAS")
+			klog.V(4).Infof("Successfully connected to NASty")
 		}
 		return c, nil
 	}
@@ -287,7 +286,7 @@ func (c *Client) connect() error {
 		return fmt.Errorf("failed to dial: %w", err)
 	}
 
-	// Set read limit to 10MB as safety net for large TrueNAS responses.
+	// Set read limit to 10MB as safety net for large NASty responses.
 	// Most queries now use server-side filters, but ListVolumes/ListSnapshots may still
 	// return large payloads on clusters with many volumes.
 	conn.SetReadLimit(10 * 1024 * 1024)
@@ -304,98 +303,58 @@ func (c *Client) connect() error {
 	return nil
 }
 
-// authenticate performs API key authentication using JSON-RPC 2.0.
+// authenticate sends the API token as the first WebSocket message and waits for
+// NASty's confirmation. NASty expects {"token": "..."} before any JSON-RPC traffic.
+// This is also used during reconnection since auth always happens via direct read,
+// not through the readLoop.
 func (c *Client) authenticate() error {
-	klog.V(4).Info("Authenticating with storage system using auth.login_with_api_key")
-
-	// Storage system uses JSON-RPC 2.0 for authentication
-	// Call auth.login_with_api_key with the API key
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	var authResult bool
-	if err := c.Call(ctx, "auth.login_with_api_key", []interface{}{c.apiKey}, &authResult); err != nil {
-		return fmt.Errorf("authentication failed: %w", err)
-	}
-
-	if !authResult {
-		klog.Errorf("Storage system rejected API key (length: %d)", len(c.apiKey))
-		return ErrAuthenticationRejected
-	}
-
-	klog.V(4).Info("Successfully authenticated with storage system")
-	return nil
+	return c.doAuth()
 }
 
-// authenticateDirect performs API key authentication by directly reading from WebSocket
-// This is used during reconnection when readLoop is blocked and can't handle responses.
+// authenticateDirect is an alias for authenticate. NASty's auth handshake is always
+// a direct message exchange (not JSON-RPC), so there is no separate "direct mode".
 func (c *Client) authenticateDirect() error {
-	klog.V(4).Info("Authenticating with storage system using auth.login_with_api_key (direct mode)")
+	return c.doAuth()
+}
+
+// doAuth sends {"token": "..."} and reads NASty's {"authenticated": true, ...} response.
+func (c *Client) doAuth() error {
+	klog.V(4).Info("Authenticating with NASty using API token")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c.mu.Lock()
-
-	// Generate request ID
-	id := strconv.FormatUint(atomic.AddUint64(&c.reqID, 1), 10)
-
-	// Create authentication request
-	req := &Request{
-		ID:      id,
-		JSONRPC: "2.0",
-		Method:  "auth.login_with_api_key",
-		Params:  []interface{}{c.apiKey},
+	// NASty expects the first message to be {"token": "<value>"}
+	authMsg := map[string]string{"token": c.apiKey}
+	if err := wsjson.Write(ctx, c.conn, authMsg); err != nil {
+		return fmt.Errorf("failed to send auth token: %w", err)
 	}
 
-	// Send request (log method only, not params which contain sensitive data)
-	klog.V(5).Infof("Sending authentication request: method=%s, id=%s", req.Method, req.ID)
-	if err := wsjson.Write(ctx, c.conn, req); err != nil {
-		c.mu.Unlock()
-		return fmt.Errorf("failed to send authentication request: %w", err)
-	}
-	c.mu.Unlock()
-
-	// Read response directly (don't use readLoop)
+	// Read NASty's response: {"authenticated": true, "username": "...", "role": "..."}
+	// or {"error": "invalid token"} followed by connection close.
 	_, rawMsg, err := c.conn.Read(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to read authentication response: %w", err)
+		return fmt.Errorf("failed to read auth response: %w", err)
 	}
 
-	klog.V(5).Infof("Received raw response: %s", string(rawMsg))
+	klog.V(5).Infof("Auth response: %s", string(rawMsg))
 
-	// Parse response
-	var resp Response
-	if err := json.Unmarshal(rawMsg, &resp); err != nil {
-		return fmt.Errorf("failed to unmarshal authentication response: %w", err)
+	var result map[string]interface{}
+	if err := json.Unmarshal(rawMsg, &result); err != nil {
+		return fmt.Errorf("failed to parse auth response: %w", err)
 	}
 
-	klog.V(5).Infof("Parsed response: %+v", resp)
-
-	// Check for errors
-	if resp.Error != nil {
-		return fmt.Errorf("authentication error: %w", resp.Error)
-	}
-
-	// Verify response ID matches
-	if resp.ID != id {
-		return fmt.Errorf("%w: expected %s, got %s", ErrResponseIDMismatch, id, resp.ID)
-	}
-
-	// Parse auth result
-	var authResult bool
-	if resp.Result != nil {
-		if err := json.Unmarshal(resp.Result, &authResult); err != nil {
-			return fmt.Errorf("failed to unmarshal authentication result: %w", err)
-		}
-	}
-
-	if !authResult {
-		klog.Errorf("Storage system rejected API key (length: %d)", len(c.apiKey))
+	if errMsg, ok := result["error"].(string); ok {
+		klog.Errorf("NASty rejected API token: %s", errMsg)
 		return ErrAuthenticationRejected
 	}
 
-	klog.V(4).Info("Successfully authenticated with storage system (direct mode)")
+	if auth, _ := result["authenticated"].(bool); !auth {
+		klog.Errorf("NASty auth response missing 'authenticated' field")
+		return ErrAuthenticationRejected
+	}
+
+	klog.V(4).Infof("Authenticated with NASty as '%v' (role: %v)", result["username"], result["role"])
 	return nil
 }
 
@@ -2601,7 +2560,7 @@ func (c *Client) RunOnetimeReplicationAndWait(ctx context.Context, params Replic
 
 // FindDatasetsByProperty searches for datasets that have a specific ZFS user property value.
 // This is useful for:
-// - Finding all volumes managed by tns-csi (property: tns-csi:managed_by, value: tns-csi)
+// - Finding all volumes managed by tns-csi (property: nasty-csi:managed_by, value: tns-csi)
 // - Finding a volume by its CSI volume name
 // - Orphan detection and volume recovery
 //

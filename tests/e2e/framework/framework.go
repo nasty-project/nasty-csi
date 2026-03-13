@@ -53,7 +53,7 @@ func getDriverVersionInfo() string {
 	args := []string{
 		"logs",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		"--tail=50",
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
@@ -85,7 +85,7 @@ func getDriverVersionInfo() string {
 	argsImage := []string{
 		"get", "deployment",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		"-o", "jsonpath={.items[0].spec.template.spec.containers[0].image}",
 	}
 	cmdImage := exec.CommandContext(ctx, "kubectl", argsImage...)
@@ -143,7 +143,7 @@ func SetupSuite(protocol string) error {
 			return fmt.Errorf("failed to create k8s client for SMB secret: %w", k8sErr)
 		}
 		secretCtx, secretCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		secretErr := k8s.CreateSecret(secretCtx, helmNamespace, "tns-csi-smb-creds", map[string]string{
+		secretErr := k8s.CreateSecret(secretCtx, helmNamespace, "nasty-csi-smb-creds", map[string]string{
 			"username": config.SMBUsername,
 			"password": config.SMBPassword,
 		})
@@ -267,7 +267,7 @@ func TeardownSuite() {
 		k8s, k8sErr := NewKubernetesClient(suite.config.Kubeconfig, helmNamespace)
 		if k8sErr == nil {
 			secretCtx, secretCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			if delErr := k8s.DeleteSecret(secretCtx, helmNamespace, "tns-csi-smb-creds"); delErr != nil {
+			if delErr := k8s.DeleteSecret(secretCtx, helmNamespace, "nasty-csi-smb-creds"); delErr != nil {
 				klog.Warningf("Failed to cleanup SMB credentials secret: %v", delErr)
 			} else {
 				klog.Infof("Cleaned up SMB credentials secret")

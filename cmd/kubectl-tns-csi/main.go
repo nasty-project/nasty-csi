@@ -1,8 +1,8 @@
-// Package main implements the kubectl-tns-csi plugin for managing TrueNAS CSI volumes.
+// Package main implements the kubectl-nasty-csi plugin for managing TrueNAS CSI volumes.
 //
 // Installation:
 //
-//	go build -o kubectl-tns_csi ./cmd/kubectl-tns-csi
+//	go build -o kubectl-tns_csi ./cmd/kubectl-nasty-csi
 //	mv kubectl-tns_csi /usr/local/bin/  # or anywhere in PATH
 //
 // Usage:
@@ -43,9 +43,9 @@ func newRootCmd() *cobra.Command {
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "kubectl-tns-csi",
+		Use:   "kubectl-nasty-csi",
 		Short: "Manage TrueNAS CSI volumes",
-		Long: `kubectl-tns-csi is a kubectl plugin for managing TrueNAS CSI driver volumes.
+		Long: `kubectl-nasty-csi is a kubectl plugin for managing TrueNAS CSI driver volumes.
 
 It provides commands for discovering orphaned volumes, adopting volumes across
 clusters, and troubleshooting volume issues.

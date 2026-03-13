@@ -96,19 +96,19 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           # Update Chart.yaml with new versions
-          sed -i "s/^version:.*/version: ${VERSION#v}/" charts/tns-csi-driver/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/tns-csi-driver/Chart.yaml
+          sed -i "s/^version:.*/version: ${VERSION#v}/" charts/nasty-csi-driver/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/nasty-csi-driver/Chart.yaml
           # Update values.yaml with new image tag (only the main image.tag, not sidecars)
           # The main image.tag has empty value "", sidecars have specific versions
-          sed -i 's/^  tag: ""$/  tag: "'"${VERSION}"'"/' charts/tns-csi-driver/values.yaml
+          sed -i 's/^  tag: ""$/  tag: "'"${VERSION}"'"/' charts/nasty-csi-driver/values.yaml
 
       - name: Package Helm chart
         run: |
-          helm package charts/tns-csi-driver -d .helm-releases
+          helm package charts/nasty-csi-driver -d .helm-releases
 
       - name: Render plain manifest for Kustomize users
         run: |
-          helm template tns-csi charts/tns-csi-driver \
+          helm template tns-csi charts/nasty-csi-driver \
             --namespace kube-system \
             --set truenas.url="wss://TRUENAS_IP/api/current" \
             --set truenas.apiKey="REPLACE_WITH_API_KEY" \
@@ -128,21 +128,21 @@ jobs:
             --set storageClasses[2].server="TRUENAS_IP" \
             --set storageClasses[2].pool="tank" \
             --set snapshots.enabled=true \
-            > .helm-releases/tns-csi-driver-${{ steps.version.outputs.version }}.yaml
+            > .helm-releases/nasty-csi-driver-${{ steps.version.outputs.version }}.yaml
 
       - name: Push Helm chart to Docker Hub (OCI)
         run: |
           VERSION=${{ steps.version.outputs.version }}
           CHART_VERSION=${VERSION#v}
           echo ${{ secrets.DOCKERHUB_TOKEN }} | helm registry login registry-1.docker.io -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-          helm push .helm-releases/tns-csi-driver-${CHART_VERSION}.tgz oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}
+          helm push .helm-releases/nasty-csi-driver-${CHART_VERSION}.tgz oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}
 
       - name: Push Helm chart to GHCR (OCI)
         run: |
           VERSION=${{ steps.version.outputs.version }}
           CHART_VERSION=${VERSION#v}
           echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-          helm push .helm-releases/tns-csi-driver-${CHART_VERSION}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          helm push .helm-releases/nasty-csi-driver-${CHART_VERSION}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
 
       - name: Generate changelog with git-cliff
         id: changelog
@@ -169,16 +169,16 @@ jobs:
 
           ### Using Helm (Docker Hub)
           \`\`\`bash
-          helm install tns-csi oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}/tns-csi-driver --version ${VERSION#v}
+          helm install tns-csi oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi-driver --version ${VERSION#v}
           \`\`\`
 
           ### Using Helm (GitHub Container Registry)
           \`\`\`bash
-          helm install tns-csi oci://ghcr.io/${{ github.repository_owner }}/charts/tns-csi-driver --version ${VERSION#v}
+          helm install tns-csi oci://ghcr.io/${{ github.repository_owner }}/charts/nasty-csi-driver --version ${VERSION#v}
           \`\`\`
 
           ### Using Kustomize
-          Download the plain manifest from this release (\`tns-csi-driver-${VERSION}.yaml\`) and use it as a Kustomize base. Replace \`TRUENAS_IP\` and \`REPLACE_WITH_API_KEY\` placeholders with your values, and remove any storage classes you don't need.
+          Download the plain manifest from this release (\`nasty-csi-driver-${VERSION}.yaml\`) and use it as a Kustomize base. Replace \`TRUENAS_IP\` and \`REPLACE_WITH_API_KEY\` placeholders with your values, and remove any storage classes you don't need.
 
           For detailed installation instructions, see the [README](https://github.com/${{ github.repository }}/blob/${VERSION}/README.md).
           EOF

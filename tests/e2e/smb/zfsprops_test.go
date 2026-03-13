@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 var _ = Describe("SMB ZFS Properties", func() {
@@ -47,7 +47,7 @@ var _ = Describe("SMB ZFS Properties", func() {
 			"zfs.compression": "lz4",
 			"zfs.atime":       "off",
 			"zfs.recordsize":  "128K",
-			"csi.storage.k8s.io/node-stage-secret-name":      "tns-csi-smb-creds",
+			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
 		})
 		Expect(err).NotTo(HaveOccurred())

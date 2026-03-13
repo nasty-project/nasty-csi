@@ -1,4 +1,4 @@
-// Package tnsapi provides a WebSocket client for TrueNAS Scale API.
+// Package tnsapi provides a WebSocket client for the NASty storage API.
 package tnsapi
 
 import "strconv"
@@ -7,50 +7,50 @@ import "strconv"
 const (
 	// PropertySchemaVersion stores the metadata schema version.
 	// Value: "1" for Schema v1.
-	PropertySchemaVersion = "tns-csi:schema_version"
+	PropertySchemaVersion = "nasty-csi:schema_version"
 
 	// SchemaVersionV1 is the current schema version.
 	SchemaVersionV1 = "1"
 )
 
-// ZFS User Property Constants - Schema v1
+// Xattr Property Constants - Schema v1
 //
-// These properties are stored as ZFS user properties on datasets to track
-// CSI metadata. This approach (inspired by democratic-csi) provides:
-// - Reliable metadata storage that survives TrueNAS upgrades
+// These properties are stored as POSIX xattrs (user.* namespace) on bcachefs subvolumes
+// to track CSI metadata. This approach provides:
+// - Reliable metadata storage native to the filesystem (no sidecar files)
 // - Ownership verification before deletion (prevents accidental deletion when IDs are reused)
-// - Easy debugging via `zfs get all <dataset>` on TrueNAS
+// - Easy debugging via `getfattr -d <subvolume_path>` on NASty
 // - Cross-cluster volume adoption support
 //
-// All properties use the "tns-csi:" prefix to avoid conflicts with other tools.
+// All properties use the "nasty-csi:" prefix to avoid conflicts with other tools.
 const (
-	// PropertyPrefix is the prefix for all tns-csi ZFS user properties.
-	PropertyPrefix = "tns-csi:"
+	// PropertyPrefix is the prefix for all nasty-csi xattr properties.
+	PropertyPrefix = "nasty-csi:"
 
-	// PropertyManagedBy indicates this resource is managed by tns-csi.
-	// Value: "tns-csi".
-	PropertyManagedBy = "tns-csi:managed_by"
+	// PropertyManagedBy indicates this resource is managed by nasty-csi.
+	// Value: "nasty-csi".
+	PropertyManagedBy = "nasty-csi:managed_by"
 
 	// PropertyCSIVolumeName stores the CSI volume name (PVC name).
 	// Value: e.g., "pvc-12345678-1234-1234-1234-123456789012".
-	PropertyCSIVolumeName = "tns-csi:csi_volume_name"
+	PropertyCSIVolumeName = "nasty-csi:csi_volume_name"
 
 	// PropertyCapacityBytes stores the volume capacity in bytes.
 	// Value: e.g., "10737418240" for 10GiB.
-	PropertyCapacityBytes = "tns-csi:capacity_bytes"
+	PropertyCapacityBytes = "nasty-csi:capacity_bytes"
 
 	// PropertyProtocol stores the storage protocol used.
 	// Value: "nfs", "nvmeof", "iscsi", or "smb".
-	PropertyProtocol = "tns-csi:protocol"
+	PropertyProtocol = "nasty-csi:protocol"
 
 	// PropertyDeleteStrategy stores the deletion strategy for the volume.
 	// Value: "delete" (default) or "retain".
 	// When "retain", the volume will not be deleted when the PVC is deleted.
-	PropertyDeleteStrategy = "tns-csi:delete_strategy"
+	PropertyDeleteStrategy = "nasty-csi:delete_strategy"
 
 	// PropertyCreatedAt stores the timestamp when the volume was created.
 	// Value: RFC3339 timestamp, e.g., "2024-01-15T10:30:00Z".
-	PropertyCreatedAt = "tns-csi:created_at"
+	PropertyCreatedAt = "nasty-csi:created_at"
 )
 
 // Adoption metadata properties - for cross-cluster volume adoption.
@@ -59,60 +59,60 @@ const (
 	// When set to "true", CreateVolume will automatically adopt this volume
 	// if found by CSI volume name, re-creating any missing TrueNAS resources.
 	// Value: "true" or "false".
-	PropertyAdoptable = "tns-csi:adoptable"
+	PropertyAdoptable = "nasty-csi:adoptable"
 
 	// PropertyPVCName stores the original PVC name for adoption.
 	// Value: e.g., "my-data".
-	PropertyPVCName = "tns-csi:pvc_name"
+	PropertyPVCName = "nasty-csi:pvc_name"
 
 	// PropertyPVCNamespace stores the original PVC namespace for adoption.
 	// Value: e.g., "default".
-	PropertyPVCNamespace = "tns-csi:pvc_namespace"
+	PropertyPVCNamespace = "nasty-csi:pvc_namespace"
 
 	// PropertyStorageClass stores the original StorageClass name for adoption.
 	// Value: e.g., "truenas-nfs".
-	PropertyStorageClass = "tns-csi:storage_class"
+	PropertyStorageClass = "nasty-csi:storage_class"
 )
 
 // NFS-specific properties.
 const (
 	// PropertyNFSShareID stores the TrueNAS NFS share ID (mutable on re-share).
 	// Value: e.g., "42" (integer stored as string).
-	PropertyNFSShareID = "tns-csi:nfs_share_id"
+	PropertyNFSShareID = "nasty-csi:nfs_share_id"
 
 	// PropertyNFSSharePath stores the NFS export path (stable identifier).
 	// Value: e.g., "/mnt/tank/csi/pvc-xxx".
-	PropertyNFSSharePath = "tns-csi:nfs_share_path"
+	PropertyNFSSharePath = "nasty-csi:nfs_share_path"
 )
 
 // NVMe-oF-specific properties.
 const (
 	// PropertyNVMeSubsystemID stores the TrueNAS NVMe-oF subsystem ID (mutable).
 	// Value: e.g., "338" (integer stored as string).
-	PropertyNVMeSubsystemID = "tns-csi:nvmeof_subsystem_id"
+	PropertyNVMeSubsystemID = "nasty-csi:nvmeof_subsystem_id"
 
 	// PropertyNVMeNamespaceID stores the TrueNAS NVMe-oF namespace ID (mutable).
 	// Value: e.g., "456" (integer stored as string).
-	PropertyNVMeNamespaceID = "tns-csi:nvmeof_namespace_id"
+	PropertyNVMeNamespaceID = "nasty-csi:nvmeof_namespace_id"
 
 	// PropertyNVMeSubsystemNQN stores the NVMe-oF subsystem NQN (stable identifier).
 	// Value: e.g., "nqn.2024.io.truenas:nvme:pvc-xxx".
-	PropertyNVMeSubsystemNQN = "tns-csi:nvmeof_subsystem_nqn"
+	PropertyNVMeSubsystemNQN = "nasty-csi:nvmeof_subsystem_nqn"
 )
 
 // iSCSI-specific properties (future).
 const (
 	// PropertyISCSIIQN stores the iSCSI target IQN (stable identifier).
 	// Value: e.g., "iqn.2024.io.truenas:target:pvc-xxx".
-	PropertyISCSIIQN = "tns-csi:iscsi_iqn"
+	PropertyISCSIIQN = "nasty-csi:iscsi_iqn"
 
 	// PropertyISCSITargetID stores the TrueNAS iSCSI target ID (mutable).
 	// Value: e.g., "10" (integer stored as string).
-	PropertyISCSITargetID = "tns-csi:iscsi_target_id"
+	PropertyISCSITargetID = "nasty-csi:iscsi_target_id"
 
 	// PropertyISCSIExtentID stores the TrueNAS iSCSI extent ID (mutable).
 	// Value: e.g., "15" (integer stored as string).
-	PropertyISCSIExtentID = "tns-csi:iscsi_extent_id"
+	PropertyISCSIExtentID = "nasty-csi:iscsi_extent_id"
 )
 
 // Multi-cluster isolation properties.
@@ -121,66 +121,66 @@ const (
 	// When multiple K8s clusters share a TrueNAS box, this property distinguishes
 	// which cluster owns each volume/snapshot.
 	// Value: user-defined cluster identifier, e.g., "prod-east", "staging".
-	PropertyClusterID = "tns-csi:cluster_id"
+	PropertyClusterID = "nasty-csi:cluster_id"
 )
 
 // SMB-specific properties.
 const (
 	// PropertySMBShareID stores the TrueNAS SMB share ID (mutable on re-share).
 	// Value: e.g., "42" (integer stored as string).
-	PropertySMBShareID = "tns-csi:smb_share_id"
+	PropertySMBShareID = "nasty-csi:smb_share_id"
 
 	// PropertySMBShareName stores the SMB share name (stable identifier).
 	// Value: e.g., "pvc-xxx".
-	PropertySMBShareName = "tns-csi:smb_share_name"
+	PropertySMBShareName = "nasty-csi:smb_share_name"
 )
 
 // Snapshot-specific properties.
 const (
 	// PropertySnapshotID stores the CSI snapshot ID for detached snapshots.
 	// Value: e.g., "snapshot-12345678-1234-1234-1234-123456789012".
-	PropertySnapshotID = "tns-csi:snapshot_id"
+	PropertySnapshotID = "nasty-csi:snapshot_id"
 
 	// PropertySourceVolumeID stores the source volume ID for snapshots.
 	// Value: e.g., "pvc-12345678-1234-1234-1234-123456789012".
-	PropertySourceVolumeID = "tns-csi:source_volume_id"
+	PropertySourceVolumeID = "nasty-csi:source_volume_id"
 
 	// PropertyDetachedSnapshot indicates this dataset is a detached snapshot.
 	// Value: "true" or "false".
-	PropertyDetachedSnapshot = "tns-csi:detached_snapshot"
+	PropertyDetachedSnapshot = "nasty-csi:detached_snapshot"
 
 	// PropertySourceDataset stores the source dataset path for detached snapshots.
 	// Value: e.g., "pool/datasets/pvc-xxx".
-	PropertySourceDataset = "tns-csi:source_dataset"
+	PropertySourceDataset = "nasty-csi:source_dataset"
 
 	// PropertySnapshotSourceVolume stores the source volume for a snapshot (legacy).
 	// Value: e.g., "pvc-12345678-1234-1234-1234-123456789012".
-	PropertySnapshotSourceVolume = "tns-csi:snapshot_source_volume"
+	PropertySnapshotSourceVolume = "nasty-csi:snapshot_source_volume"
 
 	// PropertySnapshotCSIName stores the CSI snapshot name (legacy).
 	// Value: e.g., "snapshot-12345678-1234-1234-1234-123456789012".
-	PropertySnapshotCSIName = "tns-csi:snapshot_csi_name"
+	PropertySnapshotCSIName = "nasty-csi:snapshot_csi_name"
 )
 
 // Clone/content source properties.
 const (
 	// PropertyContentSourceType stores the content source type for cloned volumes.
 	// Value: "snapshot" or "volume".
-	PropertyContentSourceType = "tns-csi:content_source_type"
+	PropertyContentSourceType = "nasty-csi:content_source_type"
 
 	// PropertyContentSourceID stores the content source ID for cloned volumes.
 	// Value: The snapshot ID or volume ID used as source.
-	PropertyContentSourceID = "tns-csi:content_source_id"
+	PropertyContentSourceID = "nasty-csi:content_source_id"
 
 	// PropertyCloneMode stores how the clone was created.
 	// Value: "cow" (default COW clone), "promoted" (clone+promote), or "detached" (send/receive).
 	// This affects deletion order and dependency relationships.
-	PropertyCloneMode = "tns-csi:clone_mode"
+	PropertyCloneMode = "nasty-csi:clone_mode"
 
 	// PropertyOriginSnapshot stores the ZFS origin snapshot for COW clones.
 	// Value: Full ZFS snapshot path, e.g., "pool/dataset@snapshot".
 	// Only set for COW clones (not promoted or detached).
-	PropertyOriginSnapshot = "tns-csi:origin_snapshot"
+	PropertyOriginSnapshot = "nasty-csi:origin_snapshot"
 )
 
 // Clone mode values.
@@ -198,13 +198,13 @@ const (
 // Legacy property aliases for backward compatibility during migration.
 const (
 	// PropertyProvisionedAt is an alias for PropertyCreatedAt (legacy name).
-	PropertyProvisionedAt = "tns-csi:provisioned_at"
+	PropertyProvisionedAt = "nasty-csi:provisioned_at"
 )
 
 // Property values.
 const (
 	// ManagedByValue is the value stored in PropertyManagedBy.
-	ManagedByValue = "tns-csi"
+	ManagedByValue = "nasty-csi"
 
 	// ProtocolNFS indicates NFS protocol.
 	ProtocolNFS = "nfs"

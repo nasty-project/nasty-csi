@@ -491,7 +491,7 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
   - Unmanaged volume discovery (non-CSI volumes on same pool)
   - Parsed Prometheus metrics summary
   - JSON API endpoints for programmatic access
-- **Access**: `kubectl port-forward svc/tns-csi-driver-dashboard 9090:9090`, or configure Ingress
+- **Access**: `kubectl port-forward svc/nasty-csi-driver-dashboard 9090:9090`, or configure Ingress
 
 ### kubectl Plugin Dashboard
 - **Status**: ✅ Fully implemented
@@ -510,8 +510,8 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 ### Helm Chart
 - **Status**: ✅ Production-ready chart
 - **Registry**:
-  - Docker Hub (recommended): `oci://registry-1.docker.io/bfenski/tns-csi-driver`
-  - GitHub Container Registry: `oci://ghcr.io/fenio/tns-csi-driver`
+  - Docker Hub (recommended): `oci://registry-1.docker.io/bfenski/nasty-csi-driver`
+  - GitHub Container Registry: `oci://ghcr.io/fenio/nasty-csi-driver`
 - **Features**:
   - Configurable resource limits
   - Multiple storage class support (NFS, NVMe-oF, iSCSI, SMB)
@@ -743,8 +743,8 @@ The driver stores metadata as ZFS user properties on each volume's dataset/ZVOL.
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `tns-csi:schema_version` | Schema version for migrations | `"1"` |
-| `tns-csi:managed_by` | Ownership marker | `"tns-csi"` |
+| `nasty-csi:schema_version` | Schema version for migrations | `"1"` |
+| `nasty-csi:managed_by` | Ownership marker | `"nasty-csi"` |
 | `tns-csi:csi_volume_name` | CSI volume identifier | `"pvc-abc123"` |
 | `tns-csi:protocol` | Storage protocol | `"nfs"`, `"nvmeof"`, or `"iscsi"` |
 | `tns-csi:capacity_bytes` | Volume size in bytes | `"10737418240"` |
@@ -864,8 +864,8 @@ allowVolumeExpansion: true
 #### Adoption Requirements
 
 A volume is adoptable if it has:
-1. `tns-csi:managed_by` = `"tns-csi"` (ownership marker)
-2. Valid `tns-csi:schema_version` (currently `"1"`)
+1. `nasty-csi:managed_by` = `"nasty-csi"` (ownership marker)
+2. Valid `nasty-csi:schema_version` (currently `"1"`)
 3. `tns-csi:protocol` set to `"nfs"`, `"nvmeof"`, or `"iscsi"`
 4. Protocol-specific stable identifier:
    - NFS: `tns-csi:nfs_share_path`
@@ -883,7 +883,7 @@ Your actual paths depend on StorageClass configuration:
 1. **Identify adoptable volumes** on TrueNAS:
    ```bash
    # List all tns-csi managed datasets (adjust path to match your pool/parentDataset)
-   zfs list -o name,tns-csi:managed_by,tns-csi:csi_volume_name,tns-csi:protocol -r tank
+   zfs list -o name,nasty-csi:managed_by,tns-csi:csi_volume_name,tns-csi:protocol -r tank
    ```
 
 2. **Extract volume information**:
@@ -1265,8 +1265,8 @@ reclaimPolicy: Delete
 - ✅ CONNECTION_RESILIENCE_TEST.md - Connection testing guide
 
 ### Helm Chart Documentation
-- ✅ charts/tns-csi-driver/README.md - Complete Helm configuration reference
-- ✅ charts/tns-csi-driver/values.yaml - Documented default values
+- ✅ charts/nasty-csi-driver/README.md - Complete Helm configuration reference
+- ✅ charts/nasty-csi-driver/values.yaml - Documented default values
 
 ## Testing Infrastructure
 
@@ -1297,7 +1297,7 @@ All features are tested on **real infrastructure** - not mocks or simulators:
 
 **Test Results:**
 - View live dashboard: [Test Dashboard](https://fenio.github.io/tns-csi/dashboard/)
-- CI status: [![Integration Tests](https://github.com/fenio/tns-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/integration.yml)
+- CI status: [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
 
 See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 
@@ -1312,7 +1312,7 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 
 ### Quick Install (NFS)
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -1327,7 +1327,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 ### Quick Install (NVMe-oF)
 ```bash
 # Pre-requisite: Configure NVMe-oF port in TrueNAS first!
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -1342,7 +1342,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 ### Quick Install (iSCSI)
 ```bash
 # Pre-requisite: Configure iSCSI portal in TrueNAS and install open-iscsi on nodes!
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -1357,7 +1357,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 ## Support and Community
 
 ### Reporting Issues
-- GitHub Issues: https://github.com/fenio/tns-csi/issues
+- GitHub Issues: https://github.com/nasty-project/nasty-csi/issues
 - Include: Kubernetes version, TrueNAS version, logs, reproduction steps
 
 ### Contributing
@@ -1367,7 +1367,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 ### Status Updates
 - Test Dashboard: https://fenio.github.io/tns-csi/dashboard/
-- GitHub Actions: https://github.com/fenio/tns-csi/actions
+- GitHub Actions: https://github.com/nasty-project/nasty-csi/actions
 
 ---
 

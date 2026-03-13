@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fenio/tns-csi/pkg/dashboard"
+	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -33,7 +33,7 @@ func newListCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *boo
 		Short: "List all tns-csi managed volumes on TrueNAS",
 		Long: `List all volumes managed by tns-csi on TrueNAS.
 
-This command queries TrueNAS for all datasets with tns-csi:managed_by property
+This command queries TrueNAS for all datasets with nasty-csi:managed_by property
 and displays their metadata.
 
 Examples:

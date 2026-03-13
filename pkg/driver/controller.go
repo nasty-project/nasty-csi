@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -395,7 +395,7 @@ func (s *ControllerService) lookupSnapshotByCSIName(ctx context.Context, poolDat
 // clean them up once all dependents are destroyed.
 //
 // datasetHasCSIManagedSnapshots checks if a dataset has any CSI-managed snapshots
-// (snapshots with tns-csi:managed_by = "tns-csi"). This is used as a pre-deletion guard
+// (snapshots with nasty-csi:managed_by = "nasty-csi"). This is used as a pre-deletion guard
 // to prevent destroying snapshots that external tools like VolSync depend on.
 //
 // When CSI-managed snapshots exist, DeleteVolume should return FAILED_PRECONDITION
@@ -427,7 +427,7 @@ func (s *ControllerService) datasetHasCSIManagedSnapshots(_ context.Context, dat
 		// Use tns-csi:snapshot_id as the definitive CSI snapshot indicator.
 		// This property is ONLY set on snapshots created by CSI CreateSnapshot
 		// and is never set on parent datasets, so it cannot be inherited.
-		// (tns-csi:managed_by is inherited by ALL child snapshots from the parent
+		// (nasty-csi:managed_by is inherited by ALL child snapshots from the parent
 		// dataset, making it unreliable for distinguishing CSI vs temp snapshots.)
 		if _, hasSnapshotID := tnsapi.GetSnapshotPropertyValue(snap, tnsapi.PropertySnapshotID); hasSnapshotID {
 			// Skip snapshots marked for deferred destruction — DeleteSnapshot already
@@ -449,7 +449,7 @@ func (s *ControllerService) datasetHasCSIManagedSnapshots(_ context.Context, dat
 //   - Without deleting the snapshot first, neither the clone nor the source can be deleted.
 //
 // Uses a 30-second timeout as a safety net — this is best-effort cleanup, not critical path.
-// Skips CSI-managed snapshots (those with tns-csi:managed_by property) to prevent
+// Skips CSI-managed snapshots (those with nasty-csi:managed_by property) to prevent
 // VolSync deadlock — those must be deleted via DeleteSnapshot by their owner.
 func (s *ControllerService) deleteDatasetSnapshots(_ context.Context, datasetID string) {
 	klog.V(4).Infof("Checking for non-CSI snapshots on dataset %s before deletion", datasetID)

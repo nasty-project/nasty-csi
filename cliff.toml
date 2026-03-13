@@ -1,4 +1,4 @@
-# git-cliff configuration for tns-csi-driver
+# git-cliff configuration for nasty-csi-driver
 # See: https://git-cliff.org/docs/configuration
 
 [changelog]
@@ -97,4 +97,4 @@ sort_commits = "oldest"
 
 [remote.github]
 owner = "fenio"
-repo = "tns-csi"
+repo = "nasty-csi"

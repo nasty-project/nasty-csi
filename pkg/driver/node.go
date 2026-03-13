@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/fenio/tns-csi/pkg/metrics"
-	"github.com/fenio/tns-csi/pkg/mount"
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/metrics"
+	"github.com/nasty-project/nasty-csi/pkg/mount"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"

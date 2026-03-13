@@ -92,7 +92,7 @@ See [docs/KIND.md](docs/KIND.md) for instructions on setting up a local developm
 ```
 tns-csi/
 ├── cmd/                    # Main applications
-│   └── tns-csi-driver/    # Driver entry point
+│   └── nasty-csi-driver/    # Driver entry point
 ├── pkg/                    # Library code
 │   ├── driver/            # CSI driver implementation
 │   └── tnsapi/            # TrueNAS API client

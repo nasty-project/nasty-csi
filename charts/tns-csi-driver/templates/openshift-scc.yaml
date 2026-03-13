@@ -3,9 +3,9 @@
 apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-node
+  name: {{ include "nasty-csi-driver.fullname" . }}-node
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 allowPrivilegedContainer: true
 allowHostNetwork: true
 allowHostIPC: true
@@ -32,34 +32,34 @@ supplementalGroups:
 volumes:
   - "*"
 users:
-  - system:serviceaccount:{{ .Values.namespace }}:{{ include "tns-csi-driver.node.serviceAccountName" . }}
+  - system:serviceaccount:{{ .Values.namespace }}:{{ include "nasty-csi-driver.node.serviceAccountName" . }}
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-scc
+  name: {{ include "nasty-csi-driver.fullname" . }}-scc
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 rules:
   - apiGroups: ["security.openshift.io"]
     resources: ["securitycontextconstraints"]
-    resourceNames: ["{{ include "tns-csi-driver.fullname" . }}-node"]
+    resourceNames: ["{{ include "nasty-csi-driver.fullname" . }}-node"]
     verbs: ["use"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-scc
+  name: {{ include "nasty-csi-driver.fullname" . }}-scc
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "tns-csi-driver.fullname" . }}-scc
+  name: {{ include "nasty-csi-driver.fullname" . }}-scc
 subjects:
   - kind: ServiceAccount
-    name: {{ include "tns-csi-driver.node.serviceAccountName" . }}
+    name: {{ include "nasty-csi-driver.node.serviceAccountName" . }}
     namespace: {{ .Values.namespace }}
 {{- end }}

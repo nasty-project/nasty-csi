@@ -21,16 +21,16 @@ kubectl tns-csi --version
 
 ### Manual Installation
 
-Download the appropriate binary from [GitHub Releases](https://github.com/fenio/tns-csi/releases):
+Download the appropriate binary from [GitHub Releases](https://github.com/nasty-project/nasty-csi/releases):
 
 ```bash
 # Linux amd64
-curl -LO https://github.com/fenio/tns-csi/releases/download/plugin-v0.1.0/kubectl-tns_csi-linux-amd64.tar.gz
+curl -LO https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.1.0/kubectl-tns_csi-linux-amd64.tar.gz
 tar -xzf kubectl-tns_csi-linux-amd64.tar.gz
 mv kubectl-tns_csi-linux-amd64/kubectl-tns_csi /usr/local/bin/
 
 # macOS arm64 (Apple Silicon)
-curl -LO https://github.com/fenio/tns-csi/releases/download/plugin-v0.1.0/kubectl-tns_csi-darwin-arm64.tar.gz
+curl -LO https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.1.0/kubectl-tns_csi-darwin-arm64.tar.gz
 tar -xzf kubectl-tns_csi-darwin-arm64.tar.gz
 mv kubectl-tns_csi-darwin-arm64/kubectl-tns_csi /usr/local/bin/
 
@@ -401,11 +401,11 @@ kubectl tns-csi list -o yaml      # YAML
 
 ```bash
 # Clone the repository
-git clone https://github.com/fenio/tns-csi.git
+git clone https://github.com/nasty-project/nasty-csi.git
 cd tns-csi
 
 # Build the plugin
-go build -o kubectl-tns_csi ./cmd/kubectl-tns-csi
+go build -o kubectl-tns_csi ./cmd/kubectl-nasty-csi
 
 # Install
 mv kubectl-tns_csi /usr/local/bin/

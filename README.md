@@ -2,15 +2,15 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.26.0-00ADD8?logo=go)](https://go.dev/)
-[![Go Report Card](https://goreportcard.com/badge/github.com/fenio/tns-csi)](https://goreportcard.com/report/github.com/fenio/tns-csi)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nasty-project/nasty-csi)](https://goreportcard.com/report/github.com/nasty-project/nasty-csi)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fenio_tns-csi&metric=coverage)](https://sonarcloud.io/summary/overall?id=fenio_tns-csi)
-[![CI](https://github.com/fenio/tns-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/ci.yml)
-[![Integration Tests](https://github.com/fenio/tns-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/integration.yml)
-[![Distro Compatibility](https://github.com/fenio/tns-csi/actions/workflows/distro-compatibility.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/distro-compatibility.yml)
+[![CI](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml)
+[![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
+[![Distro Compatibility](https://github.com/nasty-project/nasty-csi/actions/workflows/distro-compatibility.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/distro-compatibility.yml)
 [![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/tns-csi/dashboard/)
 [![Docker Hub](https://img.shields.io/docker/pulls/bfenski/tns-csi?logo=docker)](https://hub.docker.com/r/bfenski/tns-csi)
-[![Driver](https://img.shields.io/github/v/release/fenio/tns-csi?filter=v*&label=driver&logo=github)](https://github.com/fenio/tns-csi/releases/latest)
-[![Plugin](https://img.shields.io/github/v/release/fenio/tns-csi?filter=plugin-*&label=plugin&logo=github)](https://github.com/fenio/tns-csi/releases)
+[![Driver](https://img.shields.io/github/v/release/fenio/tns-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
+[![Plugin](https://img.shields.io/github/v/release/fenio/tns-csi?filter=plugin-*&label=plugin&logo=github)](https://github.com/nasty-project/nasty-csi/releases)
 
 A Kubernetes CSI (Container Storage Interface) driver for TrueNAS Scale 25.10+.
 
@@ -178,7 +178,7 @@ The TNS CSI Driver is published to both Docker Hub and GitHub Container Registry
 
 #### Docker Hub (recommended)
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -193,7 +193,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **NVMe-oF Example:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -212,7 +212,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **iSCSI Example:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -229,7 +229,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **SMB Example:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -246,7 +246,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **Note:** SMB requires a credentials Secret and the SMB service enabled in TrueNAS. See [QUICKSTART-SMB.md](docs/QUICKSTART-SMB.md) for setup instructions.
 
-See the [Helm chart README](charts/tns-csi-driver/README.md) for detailed configuration options.
+See the [Helm chart README](charts/nasty-csi-driver/README.md) for detailed configuration options.
 
 ## Configuration
 
@@ -354,10 +354,10 @@ See [DEPLOYMENT.md](docs/DEPLOYMENT.md#troubleshooting) for detailed troubleshoo
 
 ```bash
 # Controller logs
-kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller
+kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller
 
 # Node logs
-kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node
+kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node
 
 # Check version
 kubectl logs -n kube-system deployment/tns-csi-controller 2>&1 | head -1

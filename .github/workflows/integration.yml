@@ -90,7 +90,7 @@ jobs:
           echo "Changed files: $CHANGED"
 
           # Check if any driver-related files changed (excludes docs/, README, tests/, etc.)
-          if echo "$CHANGED" | grep -qE '^(cmd/tns-csi-driver/|pkg/|Dockerfile|go\.(mod|sum)|charts/)'; then
+          if echo "$CHANGED" | grep -qE '^(cmd/nasty-csi-driver/|pkg/|Dockerfile|go\.(mod|sum)|charts/)'; then
             echo "Driver files changed - will run integration tests"
             echo "should_run=true" >> $GITHUB_OUTPUT
           else
@@ -416,15 +416,15 @@ jobs:
         run: |
           mkdir -p /tmp/test-logs
           echo "=== CSI Controller Logs ===" > /tmp/test-logs/controller.log
-          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-plugin --tail=500 >> /tmp/test-logs/controller.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=500 >> /tmp/test-logs/controller.log 2>&1 || true
           echo "=== CSI Node Logs ===" > /tmp/test-logs/node.log
-          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c tns-csi-plugin --tail=500 >> /tmp/test-logs/node.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=500 >> /tmp/test-logs/node.log 2>&1 || true
           echo "=== Pod Events ===" > /tmp/test-logs/events.log
           kubectl get events --all-namespaces --sort-by='.lastTimestamp' >> /tmp/test-logs/events.log 2>&1 || true
           echo "=== PVCs ===" >> /tmp/test-logs/events.log
           kubectl get pvc --all-namespaces >> /tmp/test-logs/events.log 2>&1 || true
           echo "=== CSI Driver Pods ===" >> /tmp/test-logs/events.log
-          kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver -o wide >> /tmp/test-logs/events.log 2>&1 || true
+          kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver -o wide >> /tmp/test-logs/events.log 2>&1 || true
 
           # SMB-specific diagnostics (note: runs after test cleanup, so shares may be gone)
           echo "=== SMB Share Listing (smbclient -L) ===" > /tmp/test-logs/smb-diag.log

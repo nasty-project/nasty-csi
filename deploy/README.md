@@ -8,7 +8,7 @@ Helm is the recommended way to install tns-csi. The raw Kubernetes manifests tha
 
 ```bash
 # Add the OCI registry (Docker Hub)
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -23,7 +23,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 Or using GitHub Container Registry:
 
 ```bash
-helm install tns-csi oci://ghcr.io/fenio/charts/tns-csi-driver \
+helm install tns-csi oci://ghcr.io/fenio/charts/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -42,20 +42,20 @@ helm install tns-csi oci://ghcr.io/fenio/charts/tns-csi-driver \
 To see available versions:
 ```bash
 # Docker Hub
-helm search repo oci://registry-1.docker.io/bfenski/tns-csi-driver --versions
+helm search repo oci://registry-1.docker.io/bfenski/nasty-csi-driver --versions
 
 # Or check GitHub releases
-# https://github.com/fenio/tns-csi/releases
+# https://github.com/nasty-project/nasty-csi/releases
 ```
 
 ### Configuration
 
-See the [Helm chart documentation](../charts/tns-csi-driver/README.md) for full configuration options.
+See the [Helm chart documentation](../charts/nasty-csi-driver/README.md) for full configuration options.
 
 Common configuration:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
@@ -76,7 +76,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 ### Upgrading
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --reuse-values

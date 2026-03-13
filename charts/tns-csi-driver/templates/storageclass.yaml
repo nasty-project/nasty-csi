@@ -1,5 +1,5 @@
 {{- range .Values.storageClasses }}
 {{- if .enabled }}
-{{- include "tns-csi-driver.storageclass" (dict "protocol" .protocol "sc" . "root" $) }}
+{{- include "nasty-csi-driver.storageclass" (dict "protocol" .protocol "sc" . "root" $) }}
 {{- end }}
 {{- end }}

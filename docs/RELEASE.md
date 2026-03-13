@@ -55,7 +55,7 @@ The release process is fully automated via GitHub Actions.
    ```
 
 4. **Monitor the release**
-   - Go to: https://github.com/fenio/tns-csi/actions
+   - Go to: https://github.com/nasty-project/nasty-csi/actions
    - Watch the "Release" workflow run
    - The workflow will:
      - Run tests and linters
@@ -68,7 +68,7 @@ The release process is fully automated via GitHub Actions.
 
 5. **Verify release artifacts**
    - Docker Hub: https://hub.docker.com/r/bfenski/tns-csi
-   - GitHub Releases: https://github.com/fenio/tns-csi/releases
+   - GitHub Releases: https://github.com/nasty-project/nasty-csi/releases
    - GHCR: https://github.com/fenio?tab=packages
 
 ## What Gets Published
@@ -81,9 +81,9 @@ Each release creates the following artifacts:
 - **Architectures**: linux/amd64, linux/arm64
 
 ### Helm Charts
-- **Docker Hub OCI**: `oci://registry-1.docker.io/bfenski/tns-csi-driver`
-- **GHCR OCI**: `oci://ghcr.io/fenio/charts/tns-csi-driver`
-- **GitHub Release**: `tns-csi-driver-1.0.0.tgz` attached to release
+- **Docker Hub OCI**: `oci://registry-1.docker.io/bfenski/nasty-csi-driver`
+- **GHCR OCI**: `oci://ghcr.io/fenio/charts/nasty-csi-driver`
+- **GitHub Release**: `nasty-csi-driver-1.0.0.tgz` attached to release
 
 ### GitHub Release
 - Automatic changelog from git commits
@@ -131,8 +131,8 @@ These are useful for testing but should **not** be used in production.
 ## Helm Chart Versioning
 
 The release workflow automatically updates:
-- `charts/tns-csi-driver/Chart.yaml` - `version` and `appVersion` fields
-- `charts/tns-csi-driver/values.yaml` - `image.tag` field
+- `charts/nasty-csi-driver/Chart.yaml` - `version` and `appVersion` fields
+- `charts/nasty-csi-driver/values.yaml` - `image.tag` field
 
 These changes are included in the packaged chart but not committed back to the repository.
 
@@ -146,7 +146,7 @@ docker pull bfenski/tns-csi:v1.0.0
 docker run --rm bfenski/tns-csi:v1.0.0 --version
 
 # Test Helm chart
-helm install tns-csi-test oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi-test oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 1.0.0 \
   --namespace test \
   --create-namespace \
@@ -212,16 +212,16 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   --push .
 
 # 3. Update Helm chart versions
-sed -i "s/^version:.*/version: ${VERSION#v}/" charts/tns-csi-driver/Chart.yaml
-sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/tns-csi-driver/Chart.yaml
+sed -i "s/^version:.*/version: ${VERSION#v}/" charts/nasty-csi-driver/Chart.yaml
+sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/nasty-csi-driver/Chart.yaml
 
 # 4. Package and push Helm chart
-helm package charts/tns-csi-driver
+helm package charts/nasty-csi-driver
 echo $DOCKERHUB_TOKEN | helm registry login registry-1.docker.io -u $DOCKERHUB_USERNAME --password-stdin
-helm push tns-csi-driver-${VERSION#v}.tgz oci://registry-1.docker.io/bfenski
+helm push nasty-csi-driver-${VERSION#v}.tgz oci://registry-1.docker.io/bfenski
 
 # 5. Create GitHub release manually via web UI
-# https://github.com/fenio/tns-csi/releases/new
+# https://github.com/nasty-project/nasty-csi/releases/new
 ```
 
 ## References

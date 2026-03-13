@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 var _ = Describe("Snapshot Restore", func() {
@@ -165,9 +165,9 @@ var _ = Describe("Snapshot Restore", func() {
 		Expect(err).NotTo(HaveOccurred())
 		restore1DatasetPath, err := f.K8s.GetVolumeHandle(ctx, restore1PVName)
 		Expect(err).NotTo(HaveOccurred())
-		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, restore1DatasetPath, "tns-csi:cluster_id")
+		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, restore1DatasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(clusterID).To(Equal(f.Config.ClusterID), "Restored volume should have tns-csi:cluster_id set")
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Restored volume should have nasty-csi:cluster_id set")
 
 		By("Verifying v2 directory does NOT exist in snapshot 1 restore")
 		_, err = f.K8s.ExecInPod(ctx, restore1Pod.Name, []string{"ls", "/data/v2/"})

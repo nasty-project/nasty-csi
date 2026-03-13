@@ -77,7 +77,7 @@ The dashboard is available at: `https://fenio.github.io/tns-csi/dashboard/`
 Include this badge in your main README:
 
 ```markdown
-[![Integration Tests](https://github.com/fenio/tns-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/integration.yml)
+[![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
 [![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/tns-csi/dashboard/)
 ```
 

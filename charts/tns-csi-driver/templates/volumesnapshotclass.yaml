@@ -7,7 +7,7 @@ kind: VolumeSnapshotClass
 metadata:
   name: {{ .name }}-snapshot
   labels:
-    {{- include "tns-csi-driver.labels" $ | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" $ | nindent 4 }}
   {{- with $.Values.customAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -21,7 +21,7 @@ kind: VolumeSnapshotClass
 metadata:
   name: {{ .name }}-snapshot-detached
   labels:
-    {{- include "tns-csi-driver.labels" $ | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" $ | nindent 4 }}
   {{- with $.Values.customAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

@@ -105,7 +105,7 @@ import (
     . "github.com/onsi/gomega"
     corev1 "k8s.io/api/core/v1"
 
-    "github.com/fenio/tns-csi/tests/e2e/framework"
+    "github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 var _ = Describe("My Feature", func() {
@@ -221,7 +221,7 @@ To run manually:
 
 Check CSI driver logs:
 ```bash
-kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver -c csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver -c csi-driver
 ```
 
 ### Cleanup not working

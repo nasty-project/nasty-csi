@@ -134,6 +134,6 @@ TNS-CSI supports both NVMe-oF and iSCSI for block storage. Here's when to choose
 
 ## Related Links
 
-- [TNS-CSI GitHub](https://github.com/fenio/tns-csi)
+- [TNS-CSI GitHub](https://github.com/nasty-project/nasty-csi)
 - [Democratic-CSI GitHub](https://github.com/democratic-csi/democratic-csi)
 - [Democratic-CSI Helm Charts](https://github.com/democratic-csi/charts)

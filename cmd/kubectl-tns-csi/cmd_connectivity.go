@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fenio/tns-csi/pkg/dashboard"
+	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 	"github.com/spf13/cobra"
 )
 

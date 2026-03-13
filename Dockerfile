@@ -46,7 +46,7 @@ RUN apk add --no-cache \
     || [ $? -eq 4 ]
 
 # Copy the driver binary
-COPY --from=builder /workspace/bin/tns-csi-driver /usr/local/bin/
+COPY --from=builder /workspace/bin/nasty-csi-driver /usr/local/bin/
 
 # Set the entrypoint
-ENTRYPOINT ["/usr/local/bin/tns-csi-driver"]
+ENTRYPOINT ["/usr/local/bin/nasty-csi-driver"]

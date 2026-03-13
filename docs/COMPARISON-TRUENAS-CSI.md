@@ -151,5 +151,5 @@ Direct migration between the two would require re-importing volumes. TNS-CSI's `
 
 ## Related Links
 
-- [TNS-CSI GitHub](https://github.com/fenio/tns-csi)
+- [TNS-CSI GitHub](https://github.com/nasty-project/nasty-csi)
 - [truenas-csi GitHub](https://github.com/truenas/truenas-csi) (Official)

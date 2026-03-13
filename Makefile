@@ -1,6 +1,6 @@
 .PHONY: all build build-plugin clean test docker-build docker-push lint lint-fix test-coverage test-e2e test-e2e-nfs test-e2e-nvmeof test-e2e-iscsi test-e2e-smb test-e2e-scale test-e2e-snapclone changelog
 
-DRIVER_NAME=tns-csi-driver
+DRIVER_NAME=nasty-csi-driver
 PLUGIN_NAME=kubectl-tns_csi
 IMAGE_NAME=bfenski/tns-csi
 REGISTRY?=docker.io
@@ -31,13 +31,13 @@ all: build
 build:
 	@echo "Building $(DRIVER_NAME)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DRIVER_NAME) ./cmd/tns-csi-driver
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DRIVER_NAME) ./cmd/nasty-csi-driver
 
 build-plugin:
 	@echo "Building $(PLUGIN_NAME)..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -ldflags "-s -w -X main.version=$(VERSION) -X main.commit=$(GIT_COMMIT)" \
-		-o $(BUILD_DIR)/$(PLUGIN_NAME) ./cmd/kubectl-tns-csi
+		-o $(BUILD_DIR)/$(PLUGIN_NAME) ./cmd/kubectl-nasty-csi
 	@echo "Plugin built: $(BUILD_DIR)/$(PLUGIN_NAME)"
 	@echo "Install with: cp $(BUILD_DIR)/$(PLUGIN_NAME) /usr/local/bin/"
 
@@ -83,7 +83,7 @@ docker-push:
 
 install:
 	@echo "Installing $(DRIVER_NAME)..."
-	$(GOBUILD) $(LDFLAGS) -o $(GOPATH)/bin/$(DRIVER_NAME) ./cmd/tns-csi-driver
+	$(GOBUILD) $(LDFLAGS) -o $(GOPATH)/bin/$(DRIVER_NAME) ./cmd/nasty-csi-driver
 
 # Sanity tests
 test-sanity:

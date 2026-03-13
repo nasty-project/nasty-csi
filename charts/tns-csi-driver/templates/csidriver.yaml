@@ -1,9 +1,9 @@
-apiVersion: {{ include "tns-csi-driver.csidriver.apiVersion" . }}
+apiVersion: {{ include "nasty-csi-driver.csidriver.apiVersion" . }}
 kind: CSIDriver
 metadata:
   name: {{ .Values.csiDriverName }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
   {{- with .Values.customAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

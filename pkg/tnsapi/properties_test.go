@@ -480,8 +480,8 @@ func TestPropertyConstants(t *testing.T) {
 
 func TestValueConstants(t *testing.T) {
 	// Verify value constants are what we expect
-	if ManagedByValue != "tns-csi" {
-		t.Errorf("ManagedByValue = %q, want %q", ManagedByValue, "tns-csi")
+	if ManagedByValue != "nasty-csi" {
+		t.Errorf("ManagedByValue = %q, want %q", ManagedByValue, "nasty-csi")
 	}
 
 	if ProtocolNFS != "nfs" {

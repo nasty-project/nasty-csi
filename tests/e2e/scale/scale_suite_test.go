@@ -20,8 +20,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/klog/v2"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 const (

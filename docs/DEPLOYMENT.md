@@ -288,7 +288,7 @@ The easiest way to deploy the CSI driver is using the Helm chart from Docker Hub
 
 **For NFS:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -303,7 +303,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **For NVMe-oF:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -321,7 +321,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **For iSCSI:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -338,7 +338,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 
 **For SMB:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -360,7 +360,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 When deploying on OpenShift, enable SecurityContextConstraints support:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -386,7 +386,7 @@ This single command will:
 - Configure TrueNAS connection
 - Create the storage class
 
-See the [Helm chart README](charts/tns-csi-driver/README.md) for advanced configuration options.
+See the [Helm chart README](charts/nasty-csi-driver/README.md) for advanced configuration options.
 
 **Skip to Step 5 (Verify Installation) if using Helm installation.**
 
@@ -406,10 +406,10 @@ If you want to build your own image instead of using the published one:
 make build
 
 # Build Docker image
-docker build -t your-registry/tns-csi-driver:v0.17.3 .
+docker build -t your-registry/nasty-csi-driver:v0.17.3 .
 
 # Push to your registry (DockerHub, GitHub Container Registry, etc.)
-docker push your-registry/tns-csi-driver:v0.17.3
+docker push your-registry/nasty-csi-driver:v0.17.3
 ```
 
 If using a private registry, ensure your Kubernetes cluster has pull access.
@@ -436,12 +436,12 @@ Edit `deploy/controller.yaml` and `deploy/node.yaml`:
 
 Replace:
 ```yaml
-image: your-registry/tns-csi-driver:latest
+image: your-registry/nasty-csi-driver:latest
 ```
 
 With:
 ```yaml
-image: your-registry/tns-csi-driver:v0.17.3
+image: your-registry/nasty-csi-driver:v0.17.3
 ```
 
 ### 3.3 Update StorageClass
@@ -569,7 +569,7 @@ Whether you used Helm or manual deployment, verify everything is working:
 
 ```bash
 # Check controller pod
-kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver
+kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 
 # Check CSIDriver
 kubectl get csidrivers
@@ -658,12 +658,12 @@ Verify the dataset and NFS share are removed from TrueNAS (if reclaimPolicy is D
 For Helm deployments:
 ```bash
 # Get controller pod logs
-kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller -c tns-csi-plugin
+kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller -c nasty-csi-plugin
 ```
 
 For manual (kubectl) deployments:
 ```bash
-kubectl logs -n kube-system tns-csi-controller-0 -c tns-csi-plugin
+kubectl logs -n kube-system tns-csi-controller-0 -c nasty-csi-plugin
 ```
 
 ### Check Node Plugin Logs
@@ -671,10 +671,10 @@ kubectl logs -n kube-system tns-csi-controller-0 -c tns-csi-plugin
 For Helm deployments:
 ```bash
 # Get node plugin pod name
-kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node
+kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node
 
 # View logs (replace xxxxx with actual pod name)
-kubectl logs -n kube-system tns-csi-node-xxxxx -c tns-csi-plugin
+kubectl logs -n kube-system tns-csi-node-xxxxx -c nasty-csi-plugin
 ```
 
 For manual (kubectl) deployments:
@@ -683,7 +683,7 @@ For manual (kubectl) deployments:
 kubectl get pods -n kube-system -l app=tns-csi-node
 
 # View logs
-kubectl logs -n kube-system tns-csi-node-xxxxx -c tns-csi-plugin
+kubectl logs -n kube-system tns-csi-node-xxxxx -c nasty-csi-plugin
 ```
 
 ### Common Issues
@@ -806,10 +806,10 @@ Then restart the pods:
 For Helm deployments:
 ```bash
 # Restart controller
-kubectl rollout restart statefulset -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller
+kubectl rollout restart statefulset -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller
 
 # Restart node plugin
-kubectl rollout restart daemonset -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node
+kubectl rollout restart daemonset -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node
 ```
 
 For manual (kubectl) deployments:
@@ -859,7 +859,7 @@ For minor version upgrades within the same schema version:
 
 ```bash
 # Helm upgrade
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version <NEW_VERSION> \
   --namespace kube-system \
   --reuse-values
@@ -883,7 +883,7 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 
 2. Upgrade the driver:
    ```bash
-   helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+   helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
      --version 0.17.3 \
      --namespace kube-system \
      --reuse-values
@@ -921,8 +921,8 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 6. **If metadata is missing**, you'll need to manually set properties:
    ```bash
    # On TrueNAS (example for NFS volume at tank/my-volume)
-   zfs set tns-csi:managed_by=tns-csi tank/my-volume
-   zfs set tns-csi:schema_version=1 tank/my-volume
+   zfs set nasty-csi:managed_by=tns-csi tank/my-volume
+   zfs set nasty-csi:schema_version=1 tank/my-volume
    zfs set tns-csi:csi_volume_name=my-volume tank/my-volume
    zfs set tns-csi:protocol=nfs tank/my-volume
    zfs set tns-csi:nfs_share_path=/mnt/tank/my-volume tank/my-volume
@@ -955,7 +955,7 @@ EOF
 # Verify volume was created with new schema
 kubectl get pvc upgrade-test
 # On TrueNAS (path depends on your pool/parentDataset settings):
-# zfs get tns-csi:schema_version tank/upgrade-test
+# zfs get nasty-csi:schema_version tank/upgrade-test
 ```
 
 ## Production Considerations
@@ -1018,7 +1018,7 @@ controller:
 
 Access via port-forward:
 ```bash
-kubectl port-forward -n kube-system svc/tns-csi-driver-dashboard 9090:9090
+kubectl port-forward -n kube-system svc/nasty-csi-driver-dashboard 9090:9090
 # Open http://localhost:9090/dashboard/
 ```
 

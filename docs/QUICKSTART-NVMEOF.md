@@ -171,15 +171,15 @@ No NVMe-oF ports configured. Create a port in TrueNAS (Shares > NVMe-oF Targets 
 make build-image
 
 # Save and transfer to VM
-docker save tns-csi-driver:latest | gzip > tns-csi-driver.tar.gz
-scp tns-csi-driver.tar.gz <user>@<vm-ip>:~
+docker save nasty-csi-driver:latest | gzip > nasty-csi-driver.tar.gz
+scp nasty-csi-driver.tar.gz <user>@<vm-ip>:~
 
 # Load into k3s on VM
-ssh <user>@<vm-ip> 'sudo k3s ctr images import tns-csi-driver.tar.gz'
+ssh <user>@<vm-ip> 'sudo k3s ctr images import nasty-csi-driver.tar.gz'
 
 # Deploy with Helm
 export KUBECONFIG=~/.kube/utm-nvmeof-test
-helm install tns-csi ./charts/tns-csi-driver \
+helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --set truenas.host=YOUR-TRUENAS-IP \
   --set truenas.apiKey=<your-api-key> \
@@ -245,10 +245,10 @@ kind create cluster --name tns-csi-test
 
 # Build and load image
 make build-image
-kind load docker-image tns-csi-driver:latest --name tns-csi-test
+kind load docker-image nasty-csi-driver:latest --name tns-csi-test
 
 # Deploy CSI driver
-helm install tns-csi ./charts/tns-csi-driver \
+helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --set truenas.host=YOUR-TRUENAS-IP \
   --set truenas.apiKey=<your-api-key>
@@ -272,16 +272,16 @@ vim pkg/driver/node.go
 
 # 2. Build and deploy to UTM VM
 make build-image
-docker save tns-csi-driver:latest | gzip > tns-csi-driver.tar.gz
-scp tns-csi-driver.tar.gz <user>@<vm-ip>:~
-ssh <user>@<vm-ip> 'sudo k3s ctr images import tns-csi-driver.tar.gz'
+docker save nasty-csi-driver:latest | gzip > nasty-csi-driver.tar.gz
+scp nasty-csi-driver.tar.gz <user>@<vm-ip>:~
+ssh <user>@<vm-ip> 'sudo k3s ctr images import nasty-csi-driver.tar.gz'
 
 # 3. Restart CSI driver pods
 export KUBECONFIG=~/.kube/utm-nvmeof-test
 kubectl rollout restart -n kube-system daemonset/tns-csi-node
 
 # 4. View logs
-kubectl logs -n kube-system -l app.kubernetes.io/component=node -c tns-csi-plugin -f
+kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin -f
 ```
 
 ### Working on NFS features:
@@ -292,7 +292,7 @@ vim pkg/driver/controller.go
 
 # 2. Build and load to Kind
 make build-image
-kind load docker-image tns-csi-driver:latest --name tns-csi-test
+kind load docker-image nasty-csi-driver:latest --name tns-csi-test
 
 # 3. Restart pods
 kubectl rollout restart -n kube-system deployment/tns-csi-controller
@@ -358,7 +358,7 @@ kubectl apply -f deploy/example-pvc.yaml
 
 ### NVMe-oF Volume Issues
 - Verify port exists: Check TrueNAS UI → Shares → NVMe-oF Targets → Ports
-- Check controller logs: `kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-plugin`
+- Check controller logs: `kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin`
 - Verify connectivity: `nvme discover -t tcp -a YOUR-TRUENAS-IP -s 4420`
 
 ---

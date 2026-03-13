@@ -305,7 +305,7 @@ func (k *KubernetesClient) dumpPVCDiagnostics(ctx context.Context, pvcName strin
 	defer logsCancel()
 	logsCmd := exec.CommandContext(logsCtx, "kubectl", "logs",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		"--tail", "100")
 	logsOutput, logsErr := logsCmd.CombinedOutput()
 	if logsErr != nil {
@@ -319,8 +319,8 @@ func (k *KubernetesClient) dumpPVCDiagnostics(ctx context.Context, pvcName strin
 	defer nodeLogsCancel()
 	nodeLogsCmd := exec.CommandContext(nodeLogsCtx, "kubectl", "logs",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node",
-		"-c", "tns-csi-plugin",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node",
+		"-c", "nasty-csi-plugin",
 		"--tail", "200")
 	nodeLogsOutput, nodeLogsErr := nodeLogsCmd.CombinedOutput()
 	if nodeLogsErr != nil {
@@ -532,8 +532,8 @@ func (k *KubernetesClient) logCSINodeLogs(ctx context.Context) {
 	defer cancel()
 	cmd := exec.CommandContext(nodeLogsCtx, "kubectl", "logs",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node",
-		"-c", "tns-csi-plugin",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node",
+		"-c", "nasty-csi-plugin",
 		"--tail", "200")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1271,7 +1271,7 @@ func (k *KubernetesClient) GetControllerLogs(ctx context.Context, tailLines int)
 	args := []string{
 		"logs",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		fmt.Sprintf("--tail=%d", tailLines),
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
@@ -1292,7 +1292,7 @@ func (k *KubernetesClient) IsControllerReady(ctx context.Context) (bool, error) 
 	args := []string{
 		"get", "deployment",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		"-o", "jsonpath={.items[0].status.readyReplicas}",
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
@@ -1308,7 +1308,7 @@ func (k *KubernetesClient) GetNodeDaemonSetStatus(ctx context.Context) (ready, d
 	args := []string{
 		"get", "daemonset",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node",
 		"-o", "jsonpath={.items[0].status.numberReady},{.items[0].status.desiredNumberScheduled}",
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)
@@ -1432,7 +1432,7 @@ func (k *KubernetesClient) GetMetricsEndpoint(ctx context.Context) (string, erro
 	args := []string{
 		"exec",
 		"-n", "kube-system",
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		"--", "wget", "-q", "-O", "-", "http://localhost:8080/metrics",
 	}
 	cmd := exec.CommandContext(ctx, "kubectl", args...)

@@ -34,7 +34,7 @@ Each build includes:
 ### From the Binary
 
 ```bash
-tns-csi-driver --show-version
+nasty-csi-driver --show-version
 ```
 
 Output:
@@ -126,14 +126,14 @@ The Helm chart resolves the image tag in this order:
 
 ```bash
 # Install specific chart version (uses matching image tag automatically)
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   ...
 ```
 
 Or explicitly set the image tag:
 ```bash
-helm install tns-csi ./charts/tns-csi-driver \
+helm install tns-csi ./charts/nasty-csi-driver \
   --set image.tag=v0.17.3 \
   ...
 ```
@@ -143,7 +143,7 @@ helm install tns-csi ./charts/tns-csi-driver \
 The `latest` tag and `main` branch builds are fine for development and testing:
 
 ```bash
-helm install tns-csi ./charts/tns-csi-driver \
+helm install tns-csi ./charts/nasty-csi-driver \
   --set image.tag=latest \
   --set image.pullPolicy=Always \
   ...
@@ -159,7 +159,7 @@ kubectl logs -n kube-system deployment/tns-csi-controller | head -1
 
 Upgrade to a new version:
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --reuse-values
 ```
@@ -174,7 +174,7 @@ kubectl logs -n kube-system deployment/tns-csi-controller 2>&1 | head -5
 
 # Or from the API
 kubectl exec -n kube-system deployment/tns-csi-controller -- \
-  /usr/local/bin/tns-csi-driver --show-version
+  /usr/local/bin/nasty-csi-driver --show-version
 ```
 
 Include in your issue:

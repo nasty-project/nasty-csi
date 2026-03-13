@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/fenio/tns-csi/pkg/dashboard"
+	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 )
 
 func TestFormatBytes(t *testing.T) {

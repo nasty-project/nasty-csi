@@ -7,8 +7,8 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/fenio/tns-csi/pkg/driver"
-	"github.com/fenio/tns-csi/pkg/metrics"
+	"github.com/nasty-project/nasty-csi/pkg/driver"
+	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	"k8s.io/klog/v2"
 )
 

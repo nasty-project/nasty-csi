@@ -2,10 +2,10 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}
+  name: {{ include "nasty-csi-driver.fullname" . }}
   namespace: {{ default .Values.namespace .Values.controller.metrics.serviceMonitor.namespace }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
     {{- with .Values.controller.metrics.serviceMonitor.labels }}
     {{- toYaml . | nindent 4 }}
@@ -17,7 +17,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "tns-csi-driver.labels" . | nindent 6 }}
+      {{- include "nasty-csi-driver.labels" . | nindent 6 }}
       app.kubernetes.io/component: controller
   namespaceSelector:
     matchNames:

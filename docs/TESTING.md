@@ -148,8 +148,8 @@ Each test run:
 
 ### CI/CD Badges
 
-- [![CI](https://github.com/fenio/tns-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/ci.yml) - Unit tests and sanity tests
-- [![Integration Tests](https://github.com/fenio/tns-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/fenio/tns-csi/actions/workflows/integration.yml) - Full Ginkgo E2E test suite
+- [![CI](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml) - Unit tests and sanity tests
+- [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml) - Full Ginkgo E2E test suite
 
 ### Test Dashboard
 

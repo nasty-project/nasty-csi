@@ -3,10 +3,10 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "tns-csi-driver.controller.serviceAccountName" . }}
+  name: {{ include "nasty-csi-driver.controller.serviceAccountName" . }}
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
   {{- with .Values.serviceAccount.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -16,22 +16,22 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "tns-csi-driver.node.serviceAccountName" . }}
+  name: {{ include "nasty-csi-driver.node.serviceAccountName" . }}
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
   {{- with .Values.serviceAccount.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 
 ---
-apiVersion: {{ include "tns-csi-driver.rbac.apiVersion" . }}
+apiVersion: {{ include "nasty-csi-driver.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-controller-role
+  name: {{ include "nasty-csi-driver.fullname" . }}-controller-role
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -89,12 +89,12 @@ rules:
     verbs: ["get"]
 
 ---
-apiVersion: {{ include "tns-csi-driver.rbac.apiVersion" . }}
+apiVersion: {{ include "nasty-csi-driver.rbac.apiVersion" . }}
 kind: ClusterRole
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-node-role
+  name: {{ include "nasty-csi-driver.fullname" . }}-node-role
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
@@ -104,34 +104,34 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "patch"]
 
 ---
-apiVersion: {{ include "tns-csi-driver.rbac.apiVersion" . }}
+apiVersion: {{ include "nasty-csi-driver.rbac.apiVersion" . }}
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-controller-binding
+  name: {{ include "nasty-csi-driver.fullname" . }}-controller-binding
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "tns-csi-driver.fullname" . }}-controller-role
+  name: {{ include "nasty-csi-driver.fullname" . }}-controller-role
 subjects:
   - kind: ServiceAccount
-    name: {{ include "tns-csi-driver.controller.serviceAccountName" . }}
+    name: {{ include "nasty-csi-driver.controller.serviceAccountName" . }}
     namespace: {{ .Values.namespace }}
 
 ---
-apiVersion: {{ include "tns-csi-driver.rbac.apiVersion" . }}
+apiVersion: {{ include "nasty-csi-driver.rbac.apiVersion" . }}
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-node-binding
+  name: {{ include "nasty-csi-driver.fullname" . }}-node-binding
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "tns-csi-driver.fullname" . }}-node-role
+  name: {{ include "nasty-csi-driver.fullname" . }}-node-role
 subjects:
   - kind: ServiceAccount
-    name: {{ include "tns-csi-driver.node.serviceAccountName" . }}
+    name: {{ include "nasty-csi-driver.node.serviceAccountName" . }}
     namespace: {{ .Values.namespace }}
 {{- end }}

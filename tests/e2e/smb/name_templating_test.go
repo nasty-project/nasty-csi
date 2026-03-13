@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 var _ = Describe("Name Templating", func() {
@@ -42,7 +42,7 @@ var _ = Describe("Name Templating", func() {
 			"pool":         f.Config.TrueNASPool,
 			"server":       f.Config.TrueNASHost,
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
-			"csi.storage.k8s.io/node-stage-secret-name":      "tns-csi-smb-creds",
+			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
@@ -116,7 +116,7 @@ var _ = Describe("Name Templating", func() {
 			"server":     f.Config.TrueNASHost,
 			"namePrefix": "prod-",
 			"nameSuffix": "-data",
-			"csi.storage.k8s.io/node-stage-secret-name":      "tns-csi-smb-creds",
+			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)

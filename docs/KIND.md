@@ -37,7 +37,7 @@ docker exec truenas-csi-test-worker apt-get install -y nfs-common
 
 ```bash
 # Install from OCI registry
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -50,7 +50,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
   --set storageClasses[0].server="YOUR-TRUENAS-IP"
 
 # Verify deployment
-kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver
+kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 ```
 
 ### 4. Test the Driver
@@ -141,7 +141,7 @@ kind load docker-image bfenski/tns-csi:v0.17.3 --name truenas-csi-test
 source .tns-credentials
 
 # Create secret
-kubectl create secret generic tns-csi-secret \
+kubectl create secret generic nasty-csi-secret \
   --namespace=kube-system \
   --from-literal=url="$TRUENAS_URL" \
   --from-literal=api-key="$TRUENAS_API_KEY"
@@ -164,8 +164,8 @@ kubectl apply -f deploy/storageclass.yaml
 kubectl get pods -n kube-system -l 'app in (tns-csi-controller,tns-csi-node)'
 
 # Check logs
-kubectl logs -n kube-system -l app=tns-csi-controller -c tns-csi-plugin
-kubectl logs -n kube-system -l app=tns-csi-node -c tns-csi-plugin
+kubectl logs -n kube-system -l app=tns-csi-controller -c nasty-csi-plugin
+kubectl logs -n kube-system -l app=tns-csi-node -c nasty-csi-plugin
 ```
 
 </details>
@@ -203,12 +203,12 @@ Check node plugin logs:
 
 For Helm deployments:
 ```bash
-kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node -c tns-csi-plugin --tail=100
+kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node -c nasty-csi-plugin --tail=100
 ```
 
 For manual/script deployments:
 ```bash
-kubectl logs -n kube-system -l app=tns-csi-node -c tns-csi-plugin --tail=100
+kubectl logs -n kube-system -l app=tns-csi-node -c nasty-csi-plugin --tail=100
 ```
 
 Common issues:
@@ -222,12 +222,12 @@ Check controller logs:
 
 For Helm deployments:
 ```bash
-kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller -c tns-csi-plugin --tail=100
+kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=100
 ```
 
 For manual/script deployments:
 ```bash
-kubectl logs -n kube-system -l app=tns-csi-controller -c tns-csi-plugin --tail=100
+kubectl logs -n kube-system -l app=tns-csi-controller -c nasty-csi-plugin --tail=100
 ```
 
 Common issues:
@@ -249,8 +249,8 @@ Then restart:
 
 For Helm deployments:
 ```bash
-kubectl rollout restart statefulset -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller
-kubectl rollout restart daemonset -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node
+kubectl rollout restart statefulset -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller
+kubectl rollout restart daemonset -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node
 ```
 
 For manual/script deployments:
@@ -329,7 +329,7 @@ kubectl delete -f deploy/node.yaml
 kubectl delete -f deploy/controller.yaml
 kubectl delete -f deploy/csidriver.yaml
 kubectl delete -f deploy/rbac.yaml
-kubectl delete secret tns-csi-secret -n kube-system
+kubectl delete secret nasty-csi-secret -n kube-system
 ```
 
 ### Delete Kind cluster:

@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-controller
+  name: {{ include "nasty-csi-driver.fullname" . }}-controller
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
     app.kubernetes.io/component: controller
   {{- with .Values.customAnnotations }}
   annotations:
@@ -14,11 +14,11 @@ spec:
   replicas: {{ .Values.controller.replicas }}
   selector:
     matchLabels:
-      {{- include "tns-csi-driver.controller.selectorLabels" . | nindent 6 }}
+      {{- include "nasty-csi-driver.controller.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "tns-csi-driver.controller.selectorLabels" . | nindent 8 }}
+        {{- include "nasty-csi-driver.controller.selectorLabels" . | nindent 8 }}
         {{- with .Values.customLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,7 +27,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "tns-csi-driver.controller.serviceAccountName" . }}
+      serviceAccountName: {{ include "nasty-csi-driver.controller.serviceAccountName" . }}
       {{- if .Values.priorityClassName.controller }}
       priorityClassName: {{ .Values.priorityClassName.controller }}
       {{- end }}
@@ -37,8 +37,8 @@ spec:
       {{- end }}
       containers:
         # TNS CSI Controller
-        - name: tns-csi-plugin
-          image: "{{ .Values.image.repository }}:{{ include "tns-csi-driver.imageTag" . }}"
+        - name: nasty-csi-plugin
+          image: "{{ .Values.image.repository }}:{{ include "nasty-csi-driver.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--endpoint=unix:///var/lib/csi/sockets/pluginproxy/csi.sock"
@@ -69,12 +69,12 @@ spec:
             - name: TNS_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tns-csi-driver.secretName" . }}
+                  name: {{ include "nasty-csi-driver.secretName" . }}
                   key: url
             - name: TNS_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tns-csi-driver.secretName" . }}
+                  name: {{ include "nasty-csi-driver.secretName" . }}
                   key: api-key
             {{- if .Values.controller.debug }}
             - name: DEBUG_CSI

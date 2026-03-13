@@ -35,13 +35,13 @@ jobs:
           echo "Version: ${VERSION}"
 
       - name: Run tests
-        run: go test ./cmd/kubectl-tns-csi/... ./pkg/tnsapi/...
+        run: go test ./cmd/kubectl-nasty-csi/... ./pkg/tnsapi/...
 
       - name: Run linter
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
-          args: --config .golangci.yml ./cmd/kubectl-tns-csi/...
+          args: --config .golangci.yml ./cmd/kubectl-nasty-csi/...
 
       - name: Build binaries for all platforms
         run: |
@@ -75,7 +75,7 @@ jobs:
             # Build binary directly to dist directory (not in subdirectory)
             GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "${LDFLAGS}" \
               -o "dist/${output}" \
-              ./cmd/kubectl-tns-csi
+              ./cmd/kubectl-nasty-csi
 
             # Create tarball with binary and LICENSE at root (krew expects this)
             cd dist
@@ -179,14 +179,14 @@ jobs:
 
           if [ -z "$PREV_TAG" ]; then
             echo "No previous plugin tag found, showing all plugin commits"
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -- cmd/kubectl-tns-csi/)
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -- cmd/kubectl-nasty-csi/)
           else
             echo "Generating changelog from ${PREV_TAG} to ${TAG}"
-            CHANGELOG=$(git log ${PREV_TAG}..${TAG} --pretty=format:"- %s (%h)" --no-merges -- cmd/kubectl-tns-csi/)
+            CHANGELOG=$(git log ${PREV_TAG}..${TAG} --pretty=format:"- %s (%h)" --no-merges -- cmd/kubectl-nasty-csi/)
           fi
 
           cat > CHANGELOG.md << EOF
-          ## kubectl-tns-csi v${VERSION}
+          ## kubectl-nasty-csi v${VERSION}
 
           ### What's Changed
 
@@ -225,7 +225,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: kubectl-tns-csi ${{ steps.version.outputs.tag }}
+          name: kubectl-nasty-csi ${{ steps.version.outputs.tag }}
           body_path: CHANGELOG.md
           draft: false
           prerelease: false

@@ -23,7 +23,7 @@ var (
 
 // Controller pod discovery constants.
 const (
-	controllerLabelSelector = "app.kubernetes.io/component=controller,app.kubernetes.io/name=tns-csi-driver"
+	controllerLabelSelector = "app.kubernetes.io/component=controller,app.kubernetes.io/name=nasty-csi-driver"
 	metricsPort             = "8080"
 	metricsPath             = "/metrics"
 )

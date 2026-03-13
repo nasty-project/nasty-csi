@@ -355,7 +355,7 @@ kubectl logs -n kube-system -l app=snapshot-controller
 
 **Check CSI controller logs:**
 ```bash
-kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
 ```
 
 **Common causes:**

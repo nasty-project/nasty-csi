@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fenio/tns-csi/pkg/dashboard"
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/dashboard"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 func TestEncryption(t *testing.T) {

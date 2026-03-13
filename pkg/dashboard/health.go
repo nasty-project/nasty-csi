@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"k8s.io/klog/v2"
 )
 

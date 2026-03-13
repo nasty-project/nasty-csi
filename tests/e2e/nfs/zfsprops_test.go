@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 var _ = Describe("NFS ZFS Properties", func() {
@@ -107,8 +107,8 @@ var _ = Describe("NFS ZFS Properties", func() {
 		Expect(recordsize).To(Equal("128K"), "recordsize should be 128K")
 
 		By("Verifying cluster_id user property is set")
-		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, datasetPath, "tns-csi:cluster_id")
+		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, datasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have tns-csi:cluster_id matching configured cluster ID")
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have nasty-csi:cluster_id matching configured cluster ID")
 	})
 })

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -676,7 +676,7 @@ func getControllerLogs(ctx context.Context, volumeID string) []string {
 	driverNamespace := discoverDriverNamespace(ctx)
 	cmd := exec.CommandContext(ctx, "kubectl", "logs",
 		"-n", driverNamespace,
-		"-l", "app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
 		"--tail=200")
 	output, err := cmd.Output()
 	if err != nil {

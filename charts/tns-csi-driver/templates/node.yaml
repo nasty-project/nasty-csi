@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-node
+  name: {{ include "nasty-csi-driver.fullname" . }}-node
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
     app.kubernetes.io/component: node
   {{- with .Values.customAnnotations }}
   annotations:
@@ -13,7 +13,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "tns-csi-driver.node.selectorLabels" . | nindent 6 }}
+      {{- include "nasty-csi-driver.node.selectorLabels" . | nindent 6 }}
   {{- with .Values.node.updateStrategy }}
   updateStrategy:
     {{- toYaml . | nindent 4 }}
@@ -21,7 +21,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "tns-csi-driver.node.selectorLabels" . | nindent 8 }}
+        {{- include "nasty-csi-driver.node.selectorLabels" . | nindent 8 }}
         {{- with .Values.customLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -30,7 +30,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "tns-csi-driver.node.serviceAccountName" . }}
+      serviceAccountName: {{ include "nasty-csi-driver.node.serviceAccountName" . }}
       {{- if .Values.priorityClassName.node }}
       priorityClassName: {{ .Values.priorityClassName.node }}
       {{- end }}
@@ -43,8 +43,8 @@ spec:
       hostIPC: true   # Required for iSCSI to communicate with host's iscsid daemon
       containers:
         # TNS CSI Node Plugin
-        - name: tns-csi-plugin
-          image: "{{ .Values.image.repository }}:{{ include "tns-csi-driver.imageTag" . }}"
+        - name: nasty-csi-plugin
+          image: "{{ .Values.image.repository }}:{{ include "nasty-csi-driver.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--endpoint=unix:///csi/csi.sock"
@@ -67,12 +67,12 @@ spec:
             - name: TNS_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tns-csi-driver.secretName" . }}
+                  name: {{ include "nasty-csi-driver.secretName" . }}
                   key: url
             - name: TNS_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tns-csi-driver.secretName" . }}
+                  name: {{ include "nasty-csi-driver.secretName" . }}
                   key: api-key
             {{- if .Values.node.debug }}
             - name: DEBUG_CSI

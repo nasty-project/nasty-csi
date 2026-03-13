@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/fenio/tns-csi/pkg/dashboard"
-	"github.com/fenio/tns-csi/pkg/metrics"
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/dashboard"
+	"github.com/nasty-project/nasty-csi/pkg/metrics"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"

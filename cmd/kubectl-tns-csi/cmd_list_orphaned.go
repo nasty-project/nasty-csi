@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fenio/tns-csi/pkg/dashboard"
+	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"

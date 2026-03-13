@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "tns-csi-driver.fullname" . }}-dashboard
+  name: {{ include "nasty-csi-driver.fullname" . }}-dashboard
   namespace: {{ .Values.namespace }}
   labels:
-    {{- include "tns-csi-driver.labels" . | nindent 4 }}
+    {{- include "nasty-csi-driver.labels" . | nindent 4 }}
   {{- with .Values.controller.dashboard.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -34,7 +34,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "tns-csi-driver.fullname" $ }}-dashboard
+                name: {{ include "nasty-csi-driver.fullname" $ }}-dashboard
                 port:
                   name: dashboard
           {{- end }}

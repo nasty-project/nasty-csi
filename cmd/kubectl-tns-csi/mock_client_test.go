@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 )
 
 // Compile-time verification that mockClient implements tnsapi.ClientInterface.

@@ -4,7 +4,7 @@ package main
 // This allows the kubectl plugin to use the same types as the in-cluster dashboard
 // without duplicating definitions. Go type aliases are transparent — no conversion needed.
 
-import "github.com/fenio/tns-csi/pkg/dashboard"
+import "github.com/nasty-project/nasty-csi/pkg/dashboard"
 
 // Data types used across multiple kubectl commands.
 type (

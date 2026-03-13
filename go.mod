@@ -1,4 +1,4 @@
-module github.com/fenio/tns-csi
+module github.com/nasty-project/nasty-csi
 
 go 1.26.0
 

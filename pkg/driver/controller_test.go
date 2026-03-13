@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -2912,7 +2912,7 @@ func TestValidateVolumeCapabilities_ProtocolAware(t *testing.T) {
 						return &tnsapi.DatasetWithProperties{
 							Dataset: tnsapi.Dataset{ID: tt.volumeID, Name: tt.volumeID},
 							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy: {Value: "tns-csi"},
+								tnsapi.PropertyManagedBy: {Value: "nasty-csi"},
 								tnsapi.PropertyProtocol:  {Value: tt.protocol},
 							},
 						}, nil

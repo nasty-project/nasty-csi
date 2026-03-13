@@ -182,7 +182,7 @@ kubectl tns-csi import storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 
 ```
 
 This sets ZFS properties on the dataset:
-- `tns-csi:managed_by` = "tns-csi"
+- `nasty-csi:managed_by` = "nasty-csi"
 - `tns-csi:protocol` = "iscsi"
 - `tns-csi:adoptable` = "true"
 - And other metadata properties
@@ -422,7 +422,7 @@ The dataset already has tns-csi properties. Either:
 - Use `kubectl tns-csi adopt` directly (skip import)
 - Or remove existing properties on TrueNAS:
   ```bash
-  zfs inherit -r tns-csi:managed_by <dataset>
+  zfs inherit -r nasty-csi:managed_by <dataset>
   ```
 
 ### StatefulSet PVC Name Mismatch

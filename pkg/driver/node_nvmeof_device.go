@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fenio/tns-csi/pkg/retry"
+	"github.com/nasty-project/nasty-csi/pkg/retry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"

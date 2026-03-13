@@ -10,8 +10,8 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 
-	"github.com/fenio/tns-csi/pkg/retry"
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/retry"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"k8s.io/klog/v2"
 )
 
@@ -540,7 +540,7 @@ func (v *TrueNASVerifier) SnapshotResources(ctx context.Context, poolPrefix stri
 		}
 	}
 
-	// NVMe-oF subsystems — filter to CSI-created ones (NQN contains "tns-csi" or "pvc-")
+	// NVMe-oF subsystems — filter to CSI-created ones (NQN contains "nasty-csi" or "pvc-")
 	subsystems, err := v.client.ListAllNVMeOFSubsystems(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query NVMe-oF subsystems: %v", err)
@@ -585,7 +585,7 @@ func (v *TrueNASVerifier) SnapshotResources(ctx context.Context, poolPrefix stri
 
 // isCSIResource returns true if the resource name looks like it was created by the CSI driver.
 func isCSIResource(name string) bool {
-	return strings.Contains(name, "pvc-") || strings.Contains(name, "csi-") || strings.Contains(name, "tns-csi")
+	return strings.Contains(name, "pvc-") || strings.Contains(name, "csi-") || strings.Contains(name, "nasty-csi")
 }
 
 // LogResourceDiff compares two snapshots and logs any resources present in "after" but not in "before" (leaks).

@@ -129,7 +129,7 @@ If you're using Prometheus without the Operator, add a scrape config:
 
 ```yaml
 scrape_configs:
-  - job_name: 'tns-csi-driver'
+  - job_name: 'nasty-csi-driver'
     kubernetes_sd_configs:
       - role: service
         namespaces:
@@ -138,7 +138,7 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
         action: keep
-        regex: tns-csi-driver
+        regex: nasty-csi-driver
       - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
         action: keep
         regex: controller
@@ -222,7 +222,7 @@ grafana:
     annotations: {}
 ```
 
-This creates a ConfigMap (`tns-csi-driver-grafana-dashboard`) with the `grafana_dashboard: "1"` label. If your Grafana deployment uses a sidecar (standard with kube-prometheus-stack), the dashboard is auto-discovered and loaded.
+This creates a ConfigMap (`nasty-csi-driver-grafana-dashboard`) with the `grafana_dashboard: "1"` label. If your Grafana deployment uses a sidecar (standard with kube-prometheus-stack), the dashboard is auto-discovered and loaded.
 
 ### Dashboard Panels
 
@@ -238,7 +238,7 @@ The dashboard includes:
 
 If you don't use Grafana sidecar discovery, import the dashboard JSON manually:
 
-1. Copy `charts/tns-csi-driver/dashboards/tns-csi-overview.json`
+1. Copy `charts/nasty-csi-driver/dashboards/tns-csi-overview.json`
 2. In Grafana: **Dashboards** > **Import** > paste the JSON
 3. Select your Prometheus data source
 
@@ -265,7 +265,7 @@ controller:
 
 ```bash
 # Port-forward to the dashboard service
-kubectl port-forward -n kube-system svc/tns-csi-driver-dashboard 9090:9090
+kubectl port-forward -n kube-system svc/nasty-csi-driver-dashboard 9090:9090
 
 # Open http://localhost:9090/dashboard/
 ```
@@ -319,17 +319,17 @@ The plugin auto-discovers TrueNAS credentials from the installed driver's Secret
 
 1. Check if metrics are enabled:
    ```bash
-   kubectl get svc -n kube-system | grep tns-csi-driver-metrics
+   kubectl get svc -n kube-system | grep nasty-csi-driver-metrics
    ```
 
 2. Check controller pod logs:
    ```bash
-   kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-plugin
+   kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin
    ```
 
 3. Port-forward to test locally:
    ```bash
-   kubectl port-forward -n kube-system svc/tns-csi-driver-metrics 8080:8080
+   kubectl port-forward -n kube-system svc/nasty-csi-driver-metrics 8080:8080
    curl http://localhost:8080/metrics
    ```
 
@@ -337,7 +337,7 @@ The plugin auto-discovers TrueNAS credentials from the installed driver's Secret
 
 1. Verify ServiceMonitor labels match Prometheus selector:
    ```bash
-   kubectl get servicemonitor -n kube-system tns-csi-driver -o yaml
+   kubectl get servicemonitor -n kube-system nasty-csi-driver -o yaml
    ```
 
 2. Check Prometheus serviceMonitorSelector:

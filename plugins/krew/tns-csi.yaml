@@ -1,4 +1,4 @@
-# Krew plugin manifest for kubectl-tns-csi
+# Krew plugin manifest for kubectl-nasty-csi
 #
 # This file is auto-generated during release and attached to GitHub releases.
 # To submit to krew-index, copy the generated manifest from the release assets.
@@ -14,7 +14,7 @@ metadata:
   name: tns-csi
 spec:
   version: v0.0.0  # Updated during release
-  homepage: https://github.com/fenio/tns-csi
+  homepage: https://github.com/nasty-project/nasty-csi
   shortDescription: Manage TrueNAS CSI volumes
   description: |
     kubectl plugin for managing TrueNAS CSI driver volumes.
@@ -47,34 +47,34 @@ spec:
       matchLabels:
         os: linux
         arch: amd64
-    uri: https://github.com/fenio/tns-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-linux-amd64.tar.gz
+    uri: https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-linux-amd64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: kubectl-tns_csi
   - selector:
       matchLabels:
         os: linux
         arch: arm64
-    uri: https://github.com/fenio/tns-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-linux-arm64.tar.gz
+    uri: https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-linux-arm64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: kubectl-tns_csi
   - selector:
       matchLabels:
         os: darwin
         arch: amd64
-    uri: https://github.com/fenio/tns-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-darwin-amd64.tar.gz
+    uri: https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-darwin-amd64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: kubectl-tns_csi
   - selector:
       matchLabels:
         os: darwin
         arch: arm64
-    uri: https://github.com/fenio/tns-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-darwin-arm64.tar.gz
+    uri: https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-darwin-arm64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: kubectl-tns_csi
   - selector:
       matchLabels:
         os: windows
         arch: amd64
-    uri: https://github.com/fenio/tns-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-windows-amd64.zip
+    uri: https://github.com/nasty-project/nasty-csi/releases/download/plugin-v0.0.0/kubectl-tns_csi-windows-amd64.zip
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: kubectl-tns_csi.exe

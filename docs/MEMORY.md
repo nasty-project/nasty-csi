@@ -30,7 +30,7 @@ When comparing just the driver containers (excluding standard CSI sidecars like 
 | democratic-csi (iSCSI) | csi-driver + csi-proxy | 69 Mi |
 | democratic-csi (NFS) | csi-driver + csi-proxy | 68 Mi |
 | **democratic-csi total** | | **137 Mi** |
-| **tns-csi** | tns-csi-plugin | **4 Mi** |
+| **tns-csi** | nasty-csi-plugin | **4 Mi** |
 
 **Controller driver reduction: 34x**
 
@@ -41,7 +41,7 @@ When comparing just the driver containers (excluding standard CSI sidecars like 
 | democratic-csi (iSCSI) | csi-driver + csi-proxy | ~72 Mi |
 | democratic-csi (NFS) | csi-driver + csi-proxy | ~126 Mi |
 | **democratic-csi total** | | **~198 Mi** |
-| **tns-csi** | tns-csi-plugin | **~25 Mi** |
+| **tns-csi** | nasty-csi-plugin | **~25 Mi** |
 
 **Node driver reduction: 8x**
 

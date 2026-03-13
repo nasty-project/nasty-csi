@@ -117,7 +117,7 @@ kubectl create role secret-reader \
 - Enable detailed logging in development/staging
 - Monitor CSI driver logs for unusual activity:
   ```bash
-  kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver
+  kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
   ```
 
 **TrueNAS Audit:**

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fenio/tns-csi/pkg/driver"
+	"github.com/nasty-project/nasty-csi/pkg/driver"
 	sanity "github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
 )
 

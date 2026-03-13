@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 )
 
 var (

@@ -21,7 +21,7 @@ This driver is in early development phase. Use only for testing and evaluation e
 The fastest way to get started is using Helm from the OCI registry:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -45,13 +45,13 @@ That's it! The driver is now installed and ready to use.
 
 ```bash
 # Check pods are running
-kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver
+kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 
 # Check storage class created
 kubectl get storageclass tns-csi-nfs
 
 # View controller logs
-kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
 ```
 
 ### Alternative: Install from Local Chart
@@ -59,7 +59,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi
 If you've cloned the repository:
 
 ```bash
-helm install tns-csi ./charts/tns-csi-driver \
+helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
@@ -70,7 +70,7 @@ helm install tns-csi ./charts/tns-csi-driver \
   --set storageClasses[0].server="YOUR-TRUENAS-IP"
 ```
 
-For more Helm configuration options, see the [Helm Chart README](../charts/tns-csi-driver/README.md).
+For more Helm configuration options, see the [Helm Chart README](../charts/nasty-csi-driver/README.md).
 
 ## Usage
 
@@ -168,10 +168,10 @@ kubectl get pods -n kube-system | grep tns-csi-controller
 kubectl get pods -n kube-system | grep tns-csi-node
 
 # View controller logs
-kubectl logs -n kube-system tns-csi-controller-0 -c tns-csi-plugin
+kubectl logs -n kube-system tns-csi-controller-0 -c nasty-csi-plugin
 
 # View node logs
-kubectl logs -n kube-system <node-pod-name> -c tns-csi-plugin
+kubectl logs -n kube-system <node-pod-name> -c nasty-csi-plugin
 ```
 
 ### Check Volumes
@@ -208,13 +208,13 @@ kubectl exec <pod-name> -- cat /data/test.txt
 ### Check Driver Status
 ```bash
 # Check all pods are running
-kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver
+kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 
 # View controller logs
-kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
 
 # View node logs
-kubectl logs -n kube-system -l app.kubernetes.io/component=node -c tns-csi-driver
+kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-driver
 
 # Check storage classes
 kubectl get storageclass
@@ -235,7 +235,7 @@ kubectl get storageclass
 kubectl get storageclass
 
 # Check controller logs for errors
-kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c tns-csi-driver --tail=50
+kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver --tail=50
 
 # Describe PVC for events
 kubectl describe pvc <pvc-name>
@@ -247,7 +247,7 @@ kubectl describe pvc <pvc-name>
 - Verify `nfs-common` package is installed on nodes: `dpkg -l | grep nfs-common`
 - Check node driver logs:
   ```bash
-  kubectl logs -n kube-system -l app.kubernetes.io/component=node -c tns-csi-driver
+  kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-driver
   ```
 
 #### "zpool (parentDataset) does not exist" Error
@@ -257,7 +257,7 @@ kubectl describe pvc <pvc-name>
 
 ### Enable Debug Logging
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --reuse-values \
@@ -315,7 +315,7 @@ storageClasses:
 
 Install with values file:
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -327,7 +327,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
 To keep volumes on TrueNAS even when PVCs are deleted (useful for data protection):
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -357,7 +357,7 @@ The driver will automatically resize the dataset on TrueNAS.
 To use NVMe-oF instead of NFS:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -385,7 +385,7 @@ See [QUICKSTART-NVMEOF.md](QUICKSTART-NVMEOF.md) for detailed NVMe-oF setup inst
 To use SMB instead of NFS (requires credentials Secret):
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -441,7 +441,7 @@ See [QUICKSTART-SMB.md](QUICKSTART-SMB.md) for detailed SMB setup instructions.
 kubectl get csidrivers
 
 # Check pod health
-kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver
+kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 ```
 
 ### Metrics
@@ -455,7 +455,7 @@ The driver exposes standard CSI metrics that can be scraped by Prometheus:
 To upgrade to a newer version:
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/tns-csi-driver \
+helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --reuse-values
@@ -516,7 +516,7 @@ For complete snapshot documentation including prerequisites, advanced features, 
 
 ## Next Steps
 
-- Review the [Helm Chart README](charts/tns-csi-driver/README.md) for detailed configuration options
+- Review the [Helm Chart README](charts/nasty-csi-driver/README.md) for detailed configuration options
 - Check [SNAPSHOTS.md](SNAPSHOTS.md) for snapshot and cloning features
 - Check [TESTING.md](TESTING.md) for comprehensive testing procedures
 - See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment best practices
@@ -534,7 +534,7 @@ For issues or questions:
 
 ## References
 
-- [Helm Chart README](charts/tns-csi-driver/README.md) - Complete Helm configuration reference
+- [Helm Chart README](charts/nasty-csi-driver/README.md) - Complete Helm configuration reference
 - [CSI Specification](https://github.com/container-storage-interface/spec)
 - [TrueNAS API Documentation](https://www.truenas.com/docs/api/)
 - [Kubernetes Storage Documentation](https://kubernetes.io/docs/concepts/storage/)

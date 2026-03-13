@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	helmReleaseName = "tns-csi-driver"
+	helmReleaseName = "nasty-csi-driver"
 	helmNamespace   = "kube-system"
 	protocolSMB     = "smb"
 	protocolAll     = "all"
@@ -44,7 +44,7 @@ func getChartPath() (string, error) {
 		return "", fmt.Errorf("failed to get repo root: %w", err)
 	}
 	repoRoot := strings.TrimSpace(string(output))
-	return filepath.Join(repoRoot, "charts", "tns-csi-driver"), nil
+	return filepath.Join(repoRoot, "charts", "nasty-csi-driver"), nil
 }
 
 // Deploy installs or upgrades the CSI driver using Helm.
@@ -123,7 +123,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		)
 		if h.config.SMBUsername != "" {
 			args = append(args,
-				"--set", "storageClasses[0].smbCredentialsSecret.name=tns-csi-smb-creds",
+				"--set", "storageClasses[0].smbCredentialsSecret.name=nasty-csi-smb-creds",
 				"--set", "storageClasses[0].smbCredentialsSecret.namespace="+helmNamespace,
 			)
 		}
@@ -155,7 +155,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 				"--set", "storageClasses[3].protocol=smb",
 				"--set", "storageClasses[3].pool="+h.config.TrueNASPool,
 				"--set", "storageClasses[3].server="+h.config.TrueNASHost,
-				"--set", "storageClasses[3].smbCredentialsSecret.name=tns-csi-smb-creds",
+				"--set", "storageClasses[3].smbCredentialsSecret.name=nasty-csi-smb-creds",
 				"--set", "storageClasses[3].smbCredentialsSecret.namespace="+helmNamespace,
 			)
 		}
@@ -205,14 +205,14 @@ func (h *HelmDeployer) IsDeployed() bool {
 // This is handled by --wait in Deploy, but can be called separately if needed.
 func (h *HelmDeployer) WaitForReady(timeout time.Duration) error {
 	// Wait for controller deployment
-	// Deployment name is: <release-name>-controller = tns-csi-driver-controller
-	if err := h.waitForDeployment("tns-csi-driver-controller", timeout); err != nil {
+	// Deployment name is: <release-name>-controller = nasty-csi-driver-controller
+	if err := h.waitForDeployment("nasty-csi-driver-controller", timeout); err != nil {
 		return fmt.Errorf("controller not ready: %w", err)
 	}
 
 	// Wait for node daemonset
-	// DaemonSet name is: <release-name>-node = tns-csi-driver-node
-	if err := h.waitForDaemonSet("tns-csi-driver-node", timeout); err != nil {
+	// DaemonSet name is: <release-name>-node = nasty-csi-driver-node
+	if err := h.waitForDaemonSet("nasty-csi-driver-node", timeout); err != nil {
 		return fmt.Errorf("node daemonset not ready: %w", err)
 	}
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -341,11 +341,11 @@ func generatePV(info *adoptionVolumeInfo, server string) map[string]interface{} 
 		"metadata": map[string]interface{}{
 			"name": pvName,
 			"labels": map[string]string{
-				"app.kubernetes.io/managed-by": "kubectl-tns-csi",
-				"tns-csi.io/adopted":           "true",
+				"app.kubernetes.io/managed-by": "kubectl-nasty-csi",
+				"nasty-csi.io/adopted":           "true",
 			},
 			"annotations": map[string]string{
-				"tns-csi.io/dataset": info.dataset,
+				"nasty-csi.io/dataset": info.dataset,
 			},
 		},
 		"spec": spec,
@@ -376,11 +376,11 @@ func generatePVC(info *adoptionVolumeInfo) map[string]interface{} {
 			"name":      info.pvcName,
 			"namespace": info.namespace,
 			"labels": map[string]string{
-				"app.kubernetes.io/managed-by": "kubectl-tns-csi",
-				"tns-csi.io/adopted":           "true",
+				"app.kubernetes.io/managed-by": "kubectl-nasty-csi",
+				"nasty-csi.io/adopted":           "true",
 			},
 			"annotations": map[string]string{
-				"tns-csi.io/dataset": info.dataset,
+				"nasty-csi.io/dataset": info.dataset,
 			},
 		},
 		"spec": spec,

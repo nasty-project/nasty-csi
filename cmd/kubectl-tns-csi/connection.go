@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -23,7 +23,7 @@ var (
 // Constants for auto-discovery.
 const (
 	defaultDriverNamespace = "kube-system"
-	driverLabelSelector    = "app.kubernetes.io/name=tns-csi-driver"
+	driverLabelSelector    = "app.kubernetes.io/name=nasty-csi-driver"
 )
 
 // connectionConfig holds TrueNAS connection parameters.
@@ -197,7 +197,7 @@ func autoDiscoverDriverSecret(ctx context.Context) *connectionConfig {
 	}
 	namespacesToSearch := buildNamespaceSearchOrder(contextNamespace)
 
-	// Search for secrets with tns-csi-driver labels in each namespace
+	// Search for secrets with nasty-csi-driver labels in each namespace
 	for _, ns := range namespacesToSearch {
 		secrets, listErr := clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{
 			LabelSelector: driverLabelSelector,
@@ -241,8 +241,8 @@ func buildNamespaceSearchOrder(contextNamespace string) []string {
 // across the given namespaces.
 func tryCommonSecretNames(ctx context.Context, clientset *kubernetes.Clientset, namespaces []string) *connectionConfig {
 	commonNames := []string{
-		"tns-csi-driver-secret",
-		"tns-csi-secret",
+		"nasty-csi-driver-secret",
+		"nasty-csi-secret",
 		"truenas-csi-secret",
 	}
 

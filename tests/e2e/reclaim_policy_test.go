@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
-	"github.com/fenio/tns-csi/tests/e2e/framework"
+	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
 // These tests verify that reclaim policies (Delete/Retain) work correctly.
@@ -93,7 +93,7 @@ var _ = Describe("Reclaim Policy", func() {
 				params["fsType"] = "ext4"
 			}
 			if proto.id == "smb" {
-				params["csi.storage.k8s.io/node-stage-secret-name"] = "tns-csi-smb-creds"
+				params["csi.storage.k8s.io/node-stage-secret-name"] = "nasty-csi-smb-creds"
 				params["csi.storage.k8s.io/node-stage-secret-namespace"] = "kube-system"
 			}
 			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "tns.csi.io", params, corev1.PersistentVolumeReclaimDelete)
@@ -173,7 +173,7 @@ var _ = Describe("Reclaim Policy", func() {
 				params["fsType"] = "ext4"
 			}
 			if proto.id == "smb" {
-				params["csi.storage.k8s.io/node-stage-secret-name"] = "tns-csi-smb-creds"
+				params["csi.storage.k8s.io/node-stage-secret-name"] = "nasty-csi-smb-creds"
 				params["csi.storage.k8s.io/node-stage-secret-namespace"] = "kube-system"
 			}
 			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "tns.csi.io", params, corev1.PersistentVolumeReclaimRetain)

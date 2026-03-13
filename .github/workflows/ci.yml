@@ -26,14 +26,14 @@ jobs:
         with:
           filters: |
             driver:
-              - 'cmd/tns-csi-driver/**'
+              - 'cmd/nasty-csi-driver/**'
               - 'pkg/**'
               - 'Dockerfile'
               - 'go.mod'
               - 'go.sum'
               - 'charts/**'
             plugin:
-              - 'cmd/kubectl-tns-csi/**'
+              - 'cmd/kubectl-nasty-csi/**'
 
   lint:
     name: Lint
@@ -197,7 +197,7 @@ jobs:
       - name: Test plugin builds for multiple platforms
         run: |
           # Quick sanity check that cross-compilation works
-          GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/kubectl-tns-csi
-          GOOS=darwin GOARCH=amd64 go build -o /dev/null ./cmd/kubectl-tns-csi
-          GOOS=darwin GOARCH=arm64 go build -o /dev/null ./cmd/kubectl-tns-csi
-          GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/kubectl-tns-csi
+          GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/kubectl-nasty-csi
+          GOOS=darwin GOARCH=amd64 go build -o /dev/null ./cmd/kubectl-nasty-csi
+          GOOS=darwin GOARCH=arm64 go build -o /dev/null ./cmd/kubectl-nasty-csi
+          GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/kubectl-nasty-csi
