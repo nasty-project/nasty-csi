@@ -114,6 +114,18 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("Storage API error %d: %s", e.Code, e.Message)
 }
 
+// isPermanentConnectionError checks if a connection error is permanent (e.g. invalid URL/port).
+// Permanent errors should not be retried.
+func isPermanentConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "invalid port") ||
+		strings.Contains(errMsg, "no such host") ||
+		strings.Contains(errMsg, "invalid URL")
+}
+
 // isAuthenticationError checks if an error is a permanent authentication failure.
 func isAuthenticationError(err error) bool {
 	if err == nil {
@@ -173,14 +185,14 @@ func NewClient(url, apiKey string, skipTLSVerify bool) (*Client, error) {
 
 		if err := c.connect(); err != nil {
 			lastConnErr = err
+			if isPermanentConnectionError(err) {
+				return nil, fmt.Errorf("failed to connect: %w", err)
+			}
 			if attempt == maxAttempts {
 				return nil, fmt.Errorf("failed to connect after %d attempts: %w", maxAttempts, err)
 			}
 			continue
 		}
-
-		go c.readLoop()
-		go c.pingLoop()
 
 		if err := c.authenticate(); err != nil {
 			c.Close()
@@ -196,6 +208,9 @@ func NewClient(url, apiKey string, skipTLSVerify bool) (*Client, error) {
 			}
 			continue
 		}
+
+		go c.readLoop()
+		go c.pingLoop()
 
 		if attempt > 1 {
 			klog.Infof("Successfully connected to NASty on attempt %d/%d", attempt, maxAttempts)

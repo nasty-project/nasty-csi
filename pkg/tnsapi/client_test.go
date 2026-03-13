@@ -75,8 +75,6 @@ func (m *mockWSServer) defaultHandler(ctx context.Context, conn *websocket.Conn)
 		}
 
 		// Handle authentication (NASty protocol: first message is {"token":"..."}, respond with {"authenticated":true,...})
-		// Send auth response twice to handle race between doAuth and readLoop: if readLoop reads the
-		// first response and discards it, doAuth will get the second one.
 		var tokenMsg map[string]string
 		if jsonErr := json.Unmarshal(message, &tokenMsg); jsonErr == nil {
 			if token, ok := tokenMsg["token"]; ok {
@@ -94,8 +92,6 @@ func (m *mockWSServer) defaultHandler(ctx context.Context, conn *websocket.Conn)
 				}
 				respBytes, errMarshal := json.Marshal(authResp)
 				if errMarshal == nil {
-					conn.Write(ctx, websocket.MessageText, respBytes)
-					// Send a second copy so doAuth gets one even if readLoop consumed the first
 					conn.Write(ctx, websocket.MessageText, respBytes)
 				}
 				continue
@@ -148,6 +144,23 @@ func (m *mockWSServer) URL() string {
 
 func (m *mockWSServer) Close() {
 	m.server.Close()
+}
+
+// handleMockAuth reads the auth token message and sends the NASty auth success response.
+// Used in custom handlers that need to authenticate before handling test RPC calls.
+func handleMockAuth(ctx context.Context, conn *websocket.Conn) {
+	_, message, _ := conn.Read(ctx)
+	var tokenMsg map[string]string
+	if json.Unmarshal(message, &tokenMsg) == nil {
+		if _, ok := tokenMsg["token"]; ok {
+			authResp, _ := json.Marshal(map[string]interface{}{
+				"authenticated": true,
+				"username":      "testuser",
+				"role":          "FULL_ADMIN",
+			})
+			conn.Write(ctx, websocket.MessageText, authResp)
+		}
+	}
 }
 
 // cleanupClient ensures a client is fully closed and background goroutines have stopped.
@@ -290,26 +303,26 @@ func TestClientCall(t *testing.T) {
 			setupServer: func(m *mockWSServer) {
 				m.handler = func(conn *websocket.Conn) {
 					ctx := context.Background()
-					// Handle auth first
+					// Handle auth first (NASty protocol: {"token":"..."} → {"authenticated":true,...})
 					_, message, _ := conn.Read(ctx)
-					var req Request
-					json.Unmarshal(message, &req)
-					if req.Method == "auth.login_with_api_key" {
-						resp := Response{
-							ID:     req.ID,
-							Result: json.RawMessage(`true`),
-						}
-						respBytes, err := json.Marshal(resp)
-						if err == nil {
-							conn.Write(ctx, websocket.MessageText, respBytes)
+					var tokenMsg map[string]string
+					if json.Unmarshal(message, &tokenMsg) == nil {
+						if _, ok := tokenMsg["token"]; ok {
+							authResp, _ := json.Marshal(map[string]interface{}{
+								"authenticated": true,
+								"username":      "testuser",
+								"role":          "FULL_ADMIN",
+							})
+							conn.Write(ctx, websocket.MessageText, authResp)
 						}
 					}
 
 					// Handle actual call with error
 					_, message, _ = conn.Read(ctx)
-					json.Unmarshal(message, &req)
+					var callReq Request
+					json.Unmarshal(message, &callReq)
 					resp := Response{
-						ID: req.ID,
+						ID: callReq.ID,
 						Error: &Error{
 							Code:    404,
 							Message: "not found",
@@ -363,20 +376,7 @@ func TestClientCallTimeout(t *testing.T) {
 	server := newMockWSServer()
 	server.handler = func(conn *websocket.Conn) {
 		ctx := context.Background()
-		// Handle auth
-		_, message, _ := conn.Read(ctx)
-		var req Request
-		json.Unmarshal(message, &req)
-		if req.Method == "auth.login_with_api_key" {
-			resp := Response{
-				ID:     req.ID,
-				Result: json.RawMessage(`true`),
-			}
-			respBytes, err := json.Marshal(resp)
-			if err == nil {
-				conn.Write(ctx, websocket.MessageText, respBytes)
-			}
-		}
+		handleMockAuth(ctx, conn)
 
 		// Don't respond to next request - simulate timeout
 		conn.Read(ctx)
@@ -442,21 +442,7 @@ func TestClientPingPong(t *testing.T) {
 	server := newMockWSServer()
 	server.handler = func(conn *websocket.Conn) {
 		ctx := context.Background()
-
-		// Handle auth
-		_, message, _ := conn.Read(ctx)
-		var req Request
-		json.Unmarshal(message, &req)
-		if req.Method == "auth.login_with_api_key" {
-			resp := Response{
-				ID:     req.ID,
-				Result: json.RawMessage(`true`),
-			}
-			respBytes, err := json.Marshal(resp)
-			if err == nil {
-				conn.Write(ctx, websocket.MessageText, respBytes)
-			}
-		}
+		handleMockAuth(ctx, conn)
 
 		// Keep connection alive and respond to requests
 		for {
@@ -646,20 +632,7 @@ func TestResponseIDMismatch(t *testing.T) {
 	server := newMockWSServer()
 	server.handler = func(conn *websocket.Conn) {
 		ctx := context.Background()
-		// Handle auth
-		_, message, _ := conn.Read(ctx)
-		var req Request
-		json.Unmarshal(message, &req)
-		if req.Method == "auth.login_with_api_key" {
-			resp := Response{
-				ID:     req.ID,
-				Result: json.RawMessage(`true`),
-			}
-			respBytes, err := json.Marshal(resp)
-			if err == nil {
-				conn.Write(ctx, websocket.MessageText, respBytes)
-			}
-		}
+		handleMockAuth(ctx, conn)
 
 		// Send response with mismatched ID
 		conn.Read(ctx)
