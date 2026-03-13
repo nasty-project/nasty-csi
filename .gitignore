@@ -4,7 +4,7 @@ CLAUDE.md
 .beads/
 
 # Credentials and secrets
-.tns-credentials
+.nasty-credentials
 *.local.yaml
 *.local.yml
 secret.local.*

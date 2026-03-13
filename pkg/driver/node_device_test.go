@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -227,7 +228,7 @@ func TestFormatDeviceUnsupportedFSType(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error for unsupported fsType")
 			}
-			if !contains(err.Error(), ErrUnsupportedFSType.Error()) {
+			if !strings.Contains(err.Error(), ErrUnsupportedFSType.Error()) {
 				t.Errorf("expected ErrUnsupportedFSType, got: %v", err)
 			}
 		})

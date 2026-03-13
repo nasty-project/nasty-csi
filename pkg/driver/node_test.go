@@ -968,7 +968,7 @@ func TestValidateNVMeOFParamsQueueParams(t *testing.T) {
 		{
 			name: "queue params parsed from volumeContext",
 			volumeContext: map[string]string{
-				"nqn":                 "nqn.2137.csi.tns:test-vol",
+				"nqn":                 "nqn.2137.io.nasty.csi:test-vol",
 				"server":              "192.168.1.100",
 				"nvmeof.nr-io-queues": "16",
 				"nvmeof.queue-size":   "1024",
@@ -979,7 +979,7 @@ func TestValidateNVMeOFParamsQueueParams(t *testing.T) {
 		{
 			name: "only nr-io-queues specified",
 			volumeContext: map[string]string{
-				"nqn":                 "nqn.2137.csi.tns:test-vol",
+				"nqn":                 "nqn.2137.io.nasty.csi:test-vol",
 				"server":              "192.168.1.100",
 				"nvmeof.nr-io-queues": "8",
 			},
@@ -989,7 +989,7 @@ func TestValidateNVMeOFParamsQueueParams(t *testing.T) {
 		{
 			name: "only queue-size specified",
 			volumeContext: map[string]string{
-				"nqn":               "nqn.2137.csi.tns:test-vol",
+				"nqn":               "nqn.2137.io.nasty.csi:test-vol",
 				"server":            "192.168.1.100",
 				"nvmeof.queue-size": "512",
 			},
@@ -999,7 +999,7 @@ func TestValidateNVMeOFParamsQueueParams(t *testing.T) {
 		{
 			name: "no queue params - defaults apply",
 			volumeContext: map[string]string{
-				"nqn":    "nqn.2137.csi.tns:test-vol",
+				"nqn":    "nqn.2137.io.nasty.csi:test-vol",
 				"server": "192.168.1.100",
 			},
 			wantNrIOQueues: "",

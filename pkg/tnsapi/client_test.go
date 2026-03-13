@@ -74,7 +74,34 @@ func (m *mockWSServer) defaultHandler(ctx context.Context, conn *websocket.Conn)
 			continue
 		}
 
-		// Handle authentication
+		// Handle authentication (NASty protocol: first message is {"token":"..."}, respond with {"authenticated":true,...})
+		// Send auth response twice to handle race between doAuth and readLoop: if readLoop reads the
+		// first response and discards it, doAuth will get the second one.
+		var tokenMsg map[string]string
+		if jsonErr := json.Unmarshal(message, &tokenMsg); jsonErr == nil {
+			if token, ok := tokenMsg["token"]; ok {
+				var authResp map[string]interface{}
+				if m.authError != nil {
+					authResp = map[string]interface{}{"error": m.authError.Message}
+				} else if m.expectAuthKey != "" && token != m.expectAuthKey {
+					authResp = map[string]interface{}{"error": "invalid API key"}
+				} else {
+					authResp = map[string]interface{}{
+						"authenticated": m.authResult,
+						"username":      "testuser",
+						"role":          "FULL_ADMIN",
+					}
+				}
+				respBytes, errMarshal := json.Marshal(authResp)
+				if errMarshal == nil {
+					conn.Write(ctx, websocket.MessageText, respBytes)
+					// Send a second copy so doAuth gets one even if readLoop consumed the first
+					conn.Write(ctx, websocket.MessageText, respBytes)
+				}
+				continue
+			}
+		}
+
 		if req.Method == "auth.login_with_api_key" {
 			var resp Response
 			resp.ID = req.ID
@@ -710,8 +737,8 @@ func TestQueryPool(t *testing.T) {
 		setupServer  func(*mockWSServer)
 		wantErr      bool
 		wantPoolName string
-		wantSize     int64
-		wantFree     int64
+		wantSize     uint64
+		wantFree     uint64
 	}{
 		{
 			name:     "successful pool query",
@@ -719,57 +746,33 @@ func TestQueryPool(t *testing.T) {
 			setupServer: func(m *mockWSServer) {
 				m.handler = func(conn *websocket.Conn) {
 					ctx := context.Background()
-					// Handle auth
+					// Handle auth (NASty protocol: {"token":"..."} -> {"authenticated":true,...})
 					_, message, _ := conn.Read(ctx)
-					var req Request
-					_ = json.Unmarshal(message, &req)
-					if req.Method == "auth.login_with_api_key" {
-						resp := Response{
-							ID:     req.ID,
-							Result: json.RawMessage(`true`),
+					authMsg := map[string]string{}
+					if jsonErr := json.Unmarshal(message, &authMsg); jsonErr == nil {
+						if _, hasToken := authMsg["token"]; hasToken {
+							authResp := map[string]interface{}{
+								"authenticated": true,
+								"username":      "testuser",
+								"role":          "FULL_ADMIN",
+							}
+							respBytes, _ := json.Marshal(authResp)
+							_ = conn.Write(ctx, websocket.MessageText, respBytes)
 						}
-						respBytes, err := json.Marshal(resp)
-						if err != nil {
-							return
-						}
-						_ = conn.Write(ctx, websocket.MessageText, respBytes)
 					}
 
-					// Handle pool.query
+
+					// Handle pool.get
+					var req Request
 					_, message, _ = conn.Read(ctx)
 					_ = json.Unmarshal(message, &req)
-					if req.Method == "pool.query" {
-						poolData := []Pool{{
-							ID:   1,
-							Name: "tank",
-							Properties: struct {
-								Size struct {
-									Parsed int64 `json:"parsed"`
-								} `json:"size"`
-								Allocated struct {
-									Parsed int64 `json:"parsed"`
-								} `json:"allocated"`
-								Free struct {
-									Parsed int64 `json:"parsed"`
-								} `json:"free"`
-								Capacity struct {
-									Parsed int64 `json:"parsed"`
-								} `json:"capacity"`
-							}{
-								Size: struct {
-									Parsed int64 `json:"parsed"`
-								}{Parsed: 1000000000000}, // 1TB
-								Allocated: struct {
-									Parsed int64 `json:"parsed"`
-								}{Parsed: 400000000000}, // 400GB
-								Free: struct {
-									Parsed int64 `json:"parsed"`
-								}{Parsed: 600000000000}, // 600GB
-								Capacity: struct {
-									Parsed int64 `json:"parsed"`
-								}{Parsed: 40}, // 40%
-							},
-						}}
+					if req.Method == "pool.get" {
+						poolData := Pool{
+							Name:           "tank",
+							TotalBytes:     1000000000000, // 1TB
+							UsedBytes:      400000000000,  // 400GB
+							AvailableBytes: 600000000000,  // 600GB
+						}
 						result, err := json.Marshal(poolData)
 						if err != nil {
 							return
@@ -797,30 +800,30 @@ func TestQueryPool(t *testing.T) {
 			setupServer: func(m *mockWSServer) {
 				m.handler = func(conn *websocket.Conn) {
 					ctx := context.Background()
-					// Handle auth
+					// Handle auth (NASty protocol: {"token":"..."} -> {"authenticated":true,...})
 					_, message, _ := conn.Read(ctx)
-					var req Request
-					json.Unmarshal(message, &req)
-					if req.Method == "auth.login_with_api_key" {
-						resp := Response{
-							ID:     req.ID,
-							Result: json.RawMessage(`true`),
+					authMsg := map[string]string{}
+					if jsonErr := json.Unmarshal(message, &authMsg); jsonErr == nil {
+						if _, hasToken := authMsg["token"]; hasToken {
+							authResp := map[string]interface{}{
+								"authenticated": true,
+								"username":      "testuser",
+								"role":          "FULL_ADMIN",
+							}
+							respBytes, _ := json.Marshal(authResp)
+							conn.Write(ctx, websocket.MessageText, respBytes)
 						}
-						respBytes, err := json.Marshal(resp)
-						if err != nil {
-							t.Errorf("failed to marshal response: %v", err)
-							return
-						}
-						conn.Write(ctx, websocket.MessageText, respBytes)
 					}
 
-					// Handle pool.query - return empty array
+
+					// Handle pool.get - return error (pool not found)
+					var req Request
 					_, message, _ = conn.Read(ctx)
 					json.Unmarshal(message, &req)
-					if req.Method == "pool.query" {
+					if req.Method == "pool.get" {
 						resp := Response{
-							ID:     req.ID,
-							Result: json.RawMessage(`[]`),
+							ID:    req.ID,
+							Error: &Error{Reason: "Pool not found"},
 						}
 						respBytes, err := json.Marshal(resp)
 						if err != nil {
@@ -870,12 +873,12 @@ func TestQueryPool(t *testing.T) {
 				t.Errorf("Pool name = %s, want %s", pool.Name, tt.wantPoolName)
 			}
 
-			if pool.Properties.Size.Parsed != tt.wantSize {
-				t.Errorf("Pool size = %d, want %d", pool.Properties.Size.Parsed, tt.wantSize)
+			if pool.TotalBytes != tt.wantSize {
+				t.Errorf("Pool size = %d, want %d", pool.TotalBytes, tt.wantSize)
 			}
 
-			if pool.Properties.Free.Parsed != tt.wantFree {
-				t.Errorf("Pool free = %d, want %d", pool.Properties.Free.Parsed, tt.wantFree)
+			if pool.AvailableBytes != tt.wantFree {
+				t.Errorf("Pool free = %d, want %d", pool.AvailableBytes, tt.wantFree)
 			}
 		})
 	}

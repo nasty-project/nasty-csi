@@ -4,7 +4,6 @@ package driver
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,27 +16,17 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// encryptionConfig holds encryption settings parsed from StorageClass and secrets.
-type encryptionConfig struct {
-	Algorithm   string
-	Passphrase  string
-	Key         string
-	Enabled     bool
-	GenerateKey bool
-}
-
 // nfsVolumeParams holds validated parameters for NFS volume creation.
 type nfsVolumeParams struct {
-	zfsProps          *zfsDatasetProperties
-	encryption        *encryptionConfig
-	parentDataset     string
+	nfsClients        []tnsapi.NFSClient
+	pool              string
 	volumeName        string
-	datasetName       string
+	subvolumeName     string // short name within pool (e.g., "pvc-xxx")
+	subvolumeID       string // full identifier: "pool/subvolumeName"
 	deleteStrategy    string
 	server            string
-	pool              string
 	comment           string
-	shareType         string
+	compression       string
 	pvcName           string
 	pvcNamespace      string
 	storageClass      string
@@ -45,133 +34,28 @@ type nfsVolumeParams struct {
 	markAdoptable     bool
 }
 
-// zfsDatasetProperties holds ZFS properties for dataset creation.
-// These are parsed from StorageClass parameters with the "zfs." prefix.
-type zfsDatasetProperties struct {
-	Compression     string
-	Dedup           string
-	Atime           string
-	Sync            string
-	Recordsize      string
-	Copies          *int
-	Snapdir         string
-	Readonly        string
-	Exec            string
-	Aclmode         string
-	Acltype         string
-	Casesensitivity string
-}
-
-// parseZFSDatasetProperties extracts ZFS properties from StorageClass parameters.
-// Parameters with the "zfs." prefix are extracted and the prefix is removed.
-// Values are normalized to uppercase as required by TrueNAS API.
-// Example: "zfs.compression" -> "compression" = "LZ4".
-func parseZFSDatasetProperties(params map[string]string) *zfsDatasetProperties {
-	props := &zfsDatasetProperties{}
-	hasProps := false
-
-	for key, value := range params {
-		if !strings.HasPrefix(key, "zfs.") {
-			continue
-		}
-		propName := strings.TrimPrefix(key, "zfs.")
-		hasProps = true
-
-		switch propName {
-		case "compression":
-			// TrueNAS API requires uppercase: ON, OFF, LZ4, GZIP, ZSTD, etc.
-			props.Compression = strings.ToUpper(value)
-		case "dedup":
-			// TrueNAS API requires uppercase: ON, OFF, VERIFY
-			props.Dedup = strings.ToUpper(value)
-		case "atime":
-			// TrueNAS API requires uppercase: ON, OFF, INHERIT
-			props.Atime = strings.ToUpper(value)
-		case "sync":
-			// TrueNAS API requires uppercase: STANDARD, ALWAYS, DISABLED
-			props.Sync = strings.ToUpper(value)
-		case "recordsize":
-			// Recordsize can be like "128K" - normalize to uppercase
-			props.Recordsize = strings.ToUpper(value)
-		case "copies":
-			if copies, err := strconv.Atoi(value); err == nil {
-				props.Copies = &copies
-			} else {
-				klog.Warningf("Invalid zfs.copies value '%s': %v", value, err)
-			}
-		case "snapdir":
-			// TrueNAS API requires uppercase: VISIBLE, HIDDEN
-			props.Snapdir = strings.ToUpper(value)
-		case "readonly":
-			// TrueNAS API requires uppercase: ON, OFF
-			props.Readonly = strings.ToUpper(value)
-		case "exec":
-			// TrueNAS API requires uppercase: ON, OFF
-			props.Exec = strings.ToUpper(value)
-		case "aclmode":
-			// TrueNAS API requires uppercase: PASSTHROUGH, RESTRICTED, etc.
-			props.Aclmode = strings.ToUpper(value)
-		case "acltype":
-			// TrueNAS API requires uppercase: OFF, NFSV4, POSIX
-			props.Acltype = strings.ToUpper(value)
-		case "casesensitivity":
-			// TrueNAS API requires uppercase: SENSITIVE, INSENSITIVE, MIXED
-			props.Casesensitivity = strings.ToUpper(value)
-		default:
-			klog.V(4).Infof("Unknown ZFS property: %s=%s (ignoring)", propName, value)
+// parseNFSClients parses the nfsClients StorageClass parameter into NFSClient slice.
+// Format: "host1:options1,host2:options2" or "*:rw,no_root_squash" for wildcard.
+// If empty, defaults to a wildcard client with rw,no_root_squash.
+func parseNFSClients(clientsParam string) []tnsapi.NFSClient {
+	if clientsParam == "" {
+		return []tnsapi.NFSClient{
+			{Host: "*", Options: "rw,no_root_squash"},
 		}
 	}
 
-	if !hasProps {
-		return nil
+	var clients []tnsapi.NFSClient
+	for _, entry := range strings.Split(clientsParam, ",") {
+		parts := strings.SplitN(strings.TrimSpace(entry), ":", 2)
+		client := tnsapi.NFSClient{Host: parts[0]}
+		if len(parts) == 2 {
+			client.Options = parts[1]
+		} else {
+			client.Options = "rw,no_root_squash"
+		}
+		clients = append(clients, client)
 	}
-
-	klog.V(4).Infof("Parsed ZFS dataset properties: compression=%s, dedup=%s, atime=%s, sync=%s, recordsize=%s",
-		props.Compression, props.Dedup, props.Atime, props.Sync, props.Recordsize)
-	return props
-}
-
-// parseEncryptionConfig extracts encryption settings from StorageClass parameters and secrets.
-// StorageClass parameters:
-//   - encryption: "true" or "false" (default: false)
-//   - encryptionAlgorithm: AES-256-GCM (default), AES-128-CCM, AES-192-CCM, AES-256-CCM, AES-128-GCM, AES-192-GCM
-//   - encryptionGenerateKey: "true" to auto-generate key (default: false)
-//
-// Secrets (from csi.storage.k8s.io/provisioner-secret-name):
-//   - encryptionPassphrase: passphrase for encryption (min 8 chars)
-//   - encryptionKey: hex-encoded 256-bit key (64 chars)
-func parseEncryptionConfig(params, secrets map[string]string) *encryptionConfig {
-	if !strings.EqualFold(params["encryption"], "true") {
-		return nil
-	}
-
-	config := &encryptionConfig{
-		Enabled:     true,
-		Algorithm:   params["encryptionAlgorithm"],
-		GenerateKey: strings.EqualFold(params["encryptionGenerateKey"], "true"),
-	}
-
-	// Default algorithm if not specified
-	if config.Algorithm == "" {
-		config.Algorithm = "AES-256-GCM"
-	}
-
-	// Get sensitive values from secrets
-	if secrets != nil {
-		config.Passphrase = secrets["encryptionPassphrase"]
-		config.Key = secrets["encryptionKey"]
-	}
-
-	// Validate: must have either generateKey, passphrase, or key
-	if !config.GenerateKey && config.Passphrase == "" && config.Key == "" {
-		klog.Warningf("Encryption enabled but no key source specified. Set encryptionGenerateKey=true, " +
-			"or provide encryptionPassphrase/encryptionKey in provisioner secret.")
-	}
-
-	klog.V(4).Infof("Parsed encryption config: enabled=%v, algorithm=%s, generateKey=%v, hasPassphrase=%v, hasKey=%v",
-		config.Enabled, config.Algorithm, config.GenerateKey, config.Passphrase != "", config.Key != "")
-
-	return config
+	return clients
 }
 
 // validateNFSParams validates and extracts NFS volume parameters from the request.
@@ -190,11 +74,6 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 		klog.V(4).Infof("No server parameter provided, using default: %s", defaultServerAddress)
 	}
 
-	parentDataset := params["parentDataset"]
-	if parentDataset == "" {
-		parentDataset = pool
-	}
-
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
 	if requestedCapacity == 0 {
 		requestedCapacity = 1 * 1024 * 1024 * 1024 // Default 1GB
@@ -205,7 +84,6 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve volume name: %v", err)
 	}
-	datasetName := fmt.Sprintf("%s/%s", parentDataset, volumeName)
 
 	// Resolve dataset comment from commentTemplate (if configured in StorageClass)
 	comment, err := ResolveComment(params, req.GetName())
@@ -213,11 +91,8 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve comment template: %v", err)
 	}
 
-	// Parse ZFS properties from StorageClass parameters
-	zfsProps := parseZFSDatasetProperties(params)
-
-	// Parse encryption config from StorageClass parameters and secrets
-	encryption := parseEncryptionConfig(params, req.GetSecrets())
+	// Parse NFS clients from StorageClass parameters
+	nfsClients := parseNFSClients(params["nfsClients"])
 
 	// Parse deleteStrategy from StorageClass parameters (default: "delete")
 	deleteStrategy := params["deleteStrategy"]
@@ -233,18 +108,21 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	pvcNamespace := params["csi.storage.k8s.io/pvc/namespace"]
 	storageClass := params["csi.storage.k8s.io/sc/name"]
 
+	// Compression can be set at top level
+	compression := params["compression"]
+
 	return &nfsVolumeParams{
 		pool:              pool,
 		server:            server,
-		parentDataset:     parentDataset,
-		requestedCapacity: requestedCapacity,
 		volumeName:        volumeName,
-		datasetName:       datasetName,
+		subvolumeName:     volumeName,
+		subvolumeID:       pool + "/" + volumeName,
+		requestedCapacity: requestedCapacity,
 		deleteStrategy:    deleteStrategy,
 		markAdoptable:     markAdoptable,
-		zfsProps:          zfsProps,
-		encryption:        encryption,
+		nfsClients:        nfsClients,
 		comment:           comment,
+		compression:       compression,
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
@@ -265,25 +143,21 @@ func parseCapacityFromComment(comment string) int64 {
 	return parsedCapacity
 }
 
-// buildNFSVolumeResponse builds the CreateVolumeResponse for an NFS volume.
-//
-//nolint:dupl // Similar to buildSMBVolumeResponse but uses NFS-specific types
-func buildNFSVolumeResponse(volumeName, server string, dataset *tnsapi.Dataset, nfsShare *tnsapi.NFSShare, capacity int64) *csi.CreateVolumeResponse {
+// buildNFSVolumeResponseFromSubvolume builds the CreateVolumeResponse for an NFS volume.
+func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *tnsapi.Subvolume, nfsShare *tnsapi.NFSShare, capacity int64) *csi.CreateVolumeResponse {
+	volumeID := subvol.Pool + "/" + subvol.Name
+
 	meta := VolumeMetadata{
-		Name:        volumeName,
-		Protocol:    ProtocolNFS,
-		DatasetID:   dataset.ID,
-		DatasetName: dataset.Name,
-		Server:      server,
-		NFSShareID:  nfsShare.ID,
+		Name:         volumeName,
+		Protocol:     ProtocolNFS,
+		DatasetID:    volumeID,
+		DatasetName:  subvol.Name,
+		Server:       server,
+		NFSShareUUID: nfsShare.ID,
 	}
 
-	// Volume ID is the full dataset path for O(1) lookups (e.g., "pool/parent/pvc-xxx")
-	volumeID := dataset.ID
-
-	// Build volume context with all necessary metadata
 	volumeContext := buildVolumeContext(meta)
-	volumeContext[VolumeContextKeyShare] = dataset.Mountpoint
+	volumeContext[VolumeContextKeyShare] = subvol.Path
 
 	// Record volume capacity metric
 	metrics.SetVolumeCapacity(volumeID, metrics.ProtocolNFS, capacity)
@@ -297,33 +171,53 @@ func buildNFSVolumeResponse(volumeName, server string, dataset *tnsapi.Dataset, 
 	}
 }
 
-// handleExistingNFSVolume handles the case when a dataset already exists (idempotency).
-func (s *ControllerService) handleExistingNFSVolume(ctx context.Context, params *nfsVolumeParams, existingDataset *tnsapi.Dataset, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
-	klog.V(4).Infof("Dataset %s already exists (ID: %s), checking idempotency", params.datasetName, existingDataset.ID)
+// nfsPropertiesV1 builds xattr property map for an NFS subvolume.
+func nfsPropertiesV1(params *nfsVolumeParams, shareID, sharePath string, clusterID string) map[string]string {
+	return tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
+		VolumeID:       params.volumeName,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		ShareIDStr:     shareID,
+		SharePath:      sharePath,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+		ClusterID:      clusterID,
+	})
+}
 
-	// Check if an NFS share exists for this dataset
-	existingShares, err := s.apiClient.QueryAllNFSShares(ctx, existingDataset.Mountpoint)
+// handleExistingNFSSubvolume handles idempotency when a subvolume already exists.
+func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, params *nfsVolumeParams, existingSubvol *tnsapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+	klog.V(4).Infof("Subvolume %s already exists, checking idempotency", existingSubvol.Name)
+
+	// Check existing NFS shares to find one for this subvolume path
+	shares, err := s.apiClient.ListNFSShares(ctx)
 	if err != nil {
 		timer.ObserveError()
-		return nil, false, status.Errorf(codes.Internal, "Failed to query existing NFS shares: %v", err)
+		return nil, false, status.Errorf(codes.Internal, "Failed to list NFS shares: %v", err)
 	}
 
-	// Find the share matching this dataset's mountpoint
 	var existingShare *tnsapi.NFSShare
-	for i := range existingShares {
-		if existingShares[i].Path == existingDataset.Mountpoint {
-			existingShare = &existingShares[i]
+	for i := range shares {
+		if shares[i].Path == existingSubvol.Path {
+			existingShare = &shares[i]
 			break
 		}
 	}
 
 	if existingShare == nil {
-		// Dataset exists but no NFS share for this mountpoint - continue with share creation
+		// Subvolume exists but no NFS share - continue with share creation
 		return nil, false, nil
 	}
-	klog.V(4).Infof("NFS volume already exists (share ID: %d), checking capacity compatibility", existingShare.ID)
 
-	existingCapacity := parseCapacityFromComment(existingShare.Comment)
+	klog.V(4).Infof("NFS volume already exists (share ID: %s), checking capacity compatibility", existingShare.ID)
+
+	var existingCapacity int64
+	if existingShare.Comment != nil {
+		existingCapacity = parseCapacityFromComment(*existingShare.Comment)
+	}
 
 	// CSI spec: return AlreadyExists if volume exists with incompatible capacity
 	if existingCapacity > 0 && existingCapacity != params.requestedCapacity {
@@ -338,191 +232,83 @@ func (s *ControllerService) handleExistingNFSVolume(ctx context.Context, params 
 	klog.V(4).Infof("Capacity is compatible, returning existing volume")
 
 	// Ensure properties are set (handles retry after context expired during property-setting)
-	s.ensureNFSProperties(ctx, existingDataset.ID, params, existingShare)
+	s.ensureNFSSubvolumeProperties(ctx, params, existingSubvol, existingShare)
 
-	// Use existingCapacity if available, otherwise use requestedCapacity (for backward compatibility)
 	capacityToReturn := params.requestedCapacity
 	if existingCapacity > 0 {
 		capacityToReturn = existingCapacity
 	}
 
-	resp := buildNFSVolumeResponse(params.volumeName, params.server, existingDataset, existingShare, capacityToReturn)
-
+	resp := buildNFSVolumeResponseFromSubvolume(params.volumeName, params.server, existingSubvol, existingShare, capacityToReturn)
 	timer.ObserveSuccess()
 	return resp, true, nil
 }
 
-// ensureNFSProperties checks if ZFS properties are set on the dataset and sets them if missing.
-// This handles the case where a dataset was created but context expired before properties were set.
-//
-//nolint:dupl // Intentionally similar property-recovery pattern as SMB
-func (s *ControllerService) ensureNFSProperties(ctx context.Context, datasetID string, params *nfsVolumeParams, share *tnsapi.NFSShare) {
-	existing, err := s.apiClient.GetDatasetProperties(ctx, datasetID, []string{tnsapi.PropertyManagedBy})
+// ensureNFSSubvolumeProperties checks if xattr properties are set and sets them if missing.
+func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *tnsapi.Subvolume, share *tnsapi.NFSShare) {
+	// Read current properties from subvolume
+	existing, err := s.apiClient.GetSubvolume(ctx, subvol.Pool, subvol.Name)
 	if err != nil {
-		klog.Warningf("Failed to check properties on dataset %s: %v (skipping property recovery)", datasetID, err)
+		klog.Warningf("Failed to check properties on subvolume %s/%s: %v (skipping property recovery)", subvol.Pool, subvol.Name, err)
 		return
 	}
-	if existing[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
-		return // Properties already set
+	if existing.Properties != nil {
+		if existing.Properties[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
+			return // Properties already set
+		}
 	}
 
-	klog.Infof("Recovering missing ZFS properties on dataset %s (orphaned from interrupted creation)", datasetID)
-	props := tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
-		VolumeID:       params.volumeName,
-		CapacityBytes:  params.requestedCapacity,
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy: params.deleteStrategy,
-		ShareID:        share.ID,
-		SharePath:      share.Path,
-		PVCName:        params.pvcName,
-		PVCNamespace:   params.pvcNamespace,
-		StorageClass:   params.storageClass,
-		Adoptable:      params.markAdoptable,
-		ClusterID:      s.clusterID,
-	})
-	if err := s.apiClient.SetDatasetProperties(ctx, datasetID, props); err != nil {
-		klog.Warningf("Failed to recover ZFS properties on dataset %s: %v (volume will still work)", datasetID, err)
+	klog.Infof("Recovering missing xattr properties on subvolume %s/%s (orphaned from interrupted creation)", subvol.Pool, subvol.Name)
+	props := nfsPropertiesV1(params, share.ID, share.Path, s.clusterID)
+	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
+		klog.Warningf("Failed to recover xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
 	} else {
-		klog.Infof("Successfully recovered ZFS properties on dataset %s", datasetID)
+		klog.Infof("Successfully recovered xattr properties on subvolume %s/%s", subvol.Pool, subvol.Name)
 	}
 }
 
-// getOrCreateDataset gets an existing dataset or creates a new one.
-// Returns (dataset, isNewlyCreated, error). isNewlyCreated is true only when the dataset was created
-// by this call — callers use this to guard cleanup (never delete pre-existing volumes on failure).
-func (s *ControllerService) getOrCreateDataset(ctx context.Context, params *nfsVolumeParams, existingDatasets []tnsapi.Dataset, timer *metrics.OperationTimer) (*tnsapi.Dataset, bool, error) {
-	if len(existingDatasets) > 0 {
-		dataset := &existingDatasets[0]
-		klog.V(4).Infof("Using existing dataset: %s with mountpoint: %s", dataset.Name, dataset.Mountpoint)
-		return dataset, false, nil
-	}
-
-	// Build dataset creation parameters with ZFS properties
-	createParams := tnsapi.DatasetCreateParams{
-		Name:      params.datasetName,
-		Type:      "FILESYSTEM",
-		ShareType: params.shareType,          // "SMB" for SMB volumes, empty for NFS/others
-		RefQuota:  &params.requestedCapacity, // Set quota at creation for consistency with expansion
-		Comments:  params.comment,
-	}
-
-	// Apply ZFS properties if specified in StorageClass
-	if params.zfsProps != nil {
-		createParams.Compression = params.zfsProps.Compression
-		createParams.Dedup = params.zfsProps.Dedup
-		createParams.Atime = params.zfsProps.Atime
-		createParams.Sync = params.zfsProps.Sync
-		createParams.Recordsize = params.zfsProps.Recordsize
-		createParams.Copies = params.zfsProps.Copies
-		createParams.Snapdir = params.zfsProps.Snapdir
-		createParams.Readonly = params.zfsProps.Readonly
-		createParams.Exec = params.zfsProps.Exec
-		createParams.Aclmode = params.zfsProps.Aclmode
-		createParams.Acltype = params.zfsProps.Acltype
-		createParams.Casesensitivity = params.zfsProps.Casesensitivity
-
-		klog.V(4).Infof("Creating dataset with ZFS properties: compression=%s, dedup=%s, atime=%s",
-			createParams.Compression, createParams.Dedup, createParams.Atime)
-	}
-
-	// Apply encryption settings if specified in StorageClass
-	if params.encryption != nil && params.encryption.Enabled { //nolint:dupl // Intentionally duplicated in NVMe-oF
-		createParams.Encryption = true
-		// Must disable inherit_encryption when enabling encryption
-		inheritEncryption := false
-		createParams.InheritEncryption = &inheritEncryption
-
-		// Build encryption options
-		encOpts := &tnsapi.EncryptionOptions{
-			Algorithm: params.encryption.Algorithm,
-		}
-
-		// Determine key source (priority: passphrase > key > generateKey)
-		switch {
-		case params.encryption.Passphrase != "":
-			encOpts.Passphrase = params.encryption.Passphrase
-		case params.encryption.Key != "":
-			encOpts.Key = params.encryption.Key
-		case params.encryption.GenerateKey:
-			encOpts.GenerateKey = true
-		}
-
-		createParams.EncryptionOptions = encOpts
-
-		klog.V(4).Infof("Creating encrypted dataset with algorithm=%s, generateKey=%v, hasPassphrase=%v, hasKey=%v",
-			params.encryption.Algorithm, params.encryption.GenerateKey,
-			params.encryption.Passphrase != "", params.encryption.Key != "")
-	}
-
-	// Create new dataset
-	dataset, err := s.apiClient.CreateDataset(ctx, createParams)
-	if err != nil {
-		timer.ObserveError()
-		return nil, false, createVolumeError(fmt.Sprintf("Failed to create dataset %s (%d bytes)", params.datasetName, params.requestedCapacity), err)
-	}
-
-	klog.V(4).Infof("Created dataset: %s with mountpoint: %s", dataset.Name, dataset.Mountpoint)
-	return dataset, true, nil
-}
-
-// createNFSShareForDataset creates an NFS share for a dataset and stores ZFS properties for tracking.
-// datasetIsNew indicates whether the dataset was just created by this operation — if false, the dataset
-// is pre-existing and must NOT be deleted on failure (prevents data loss).
-func (s *ControllerService) createNFSShareForDataset(ctx context.Context, dataset *tnsapi.Dataset, params *nfsVolumeParams, datasetIsNew bool, timer *metrics.OperationTimer) (*tnsapi.NFSShare, error) {
+// createNFSShareForSubvolume creates an NFS share for a subvolume and stores xattr metadata for tracking.
+// subvolumeIsNew indicates whether the subvolume was just created — if false, do NOT delete on failure.
+func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subvol *tnsapi.Subvolume, params *nfsVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*tnsapi.NFSShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
+	enabled := true
 	nfsShare, err := s.apiClient.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
-		Path:         dataset.Mountpoint,
-		Comment:      comment,
-		MaprootUser:  "root",
-		MaprootGroup: "wheel",
-		Enabled:      true,
+		Path:    subvol.Path,
+		Comment: comment,
+		Clients: params.nfsClients,
+		Enabled: &enabled,
 	})
 	if err != nil {
-		klog.Errorf("Failed to create NFS share for dataset %s (mountpoint: %s): %v", dataset.ID, dataset.Mountpoint, err)
-		if datasetIsNew {
-			if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
-				klog.Errorf("Failed to cleanup dataset after NFS share creation failure: %v", delErr)
+		klog.Errorf("Failed to create NFS share for subvolume %s/%s (path: %s): %v", subvol.Pool, subvol.Name, subvol.Path, err)
+		if subvolumeIsNew {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Pool, subvol.Name); delErr != nil {
+				klog.Errorf("Failed to cleanup subvolume after NFS share creation failure: %v", delErr)
 			}
 		} else {
-			klog.Warningf("Skipping dataset cleanup — dataset was pre-existing")
+			klog.Warningf("Skipping subvolume cleanup — subvolume was pre-existing")
 		}
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for dataset %s (mountpoint: %s): %v", dataset.ID, dataset.Mountpoint, err)
+		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for subvolume %s/%s: %v", subvol.Pool, subvol.Name, err)
 	}
 
-	klog.V(4).Infof("Created NFS share with ID: %d for path: %s", nfsShare.ID, nfsShare.Path)
+	klog.V(4).Infof("Created NFS share with ID: %s for path: %s", nfsShare.ID, nfsShare.Path)
 
-	// Store ZFS user properties for CSI metadata tracking (Schema v1)
-	// This enables safe deletion (verify ownership before delete), debugging, and cross-cluster adoption
-	props := tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
-		VolumeID:       params.volumeName,
-		CapacityBytes:  params.requestedCapacity,
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy: params.deleteStrategy,
-		ShareID:        nfsShare.ID,
-		SharePath:      nfsShare.Path,
-		PVCName:        params.pvcName,
-		PVCNamespace:   params.pvcNamespace,
-		StorageClass:   params.storageClass,
-		Adoptable:      params.markAdoptable,
-		ClusterID:      s.clusterID,
-	})
-	klog.V(4).Infof("Storing ZFS properties on dataset %s: deleteStrategy=%q, props=%v", dataset.ID, params.deleteStrategy, props)
-	if err := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); err != nil {
-		// Log warning but don't fail - properties are not critical for basic operation
-		// Volume will still work, just without the safety features
-		klog.Warningf("Failed to set ZFS user properties on dataset %s: %v (volume will still work)", dataset.ID, err)
+	// Store xattr properties for CSI metadata tracking (Schema v1)
+	props := nfsPropertiesV1(params, nfsShare.ID, nfsShare.Path, s.clusterID)
+	klog.V(4).Infof("Storing xattr properties on subvolume %s/%s: deleteStrategy=%q", subvol.Pool, subvol.Name, params.deleteStrategy)
+	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
+		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
 	} else {
-		klog.V(4).Infof("Successfully stored ZFS user properties on dataset %s (deleteStrategy=%q)", dataset.ID, params.deleteStrategy)
+		klog.V(4).Infof("Successfully stored xattr properties on subvolume %s/%s", subvol.Pool, subvol.Name)
 	}
 
 	return nfsShare, nil
 }
 
-// createNFSVolume creates an NFS volume with a ZFS dataset and NFS share.
+// createNFSVolume creates an NFS volume with a NASty subvolume and NFS share.
 func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "create")
-	klog.V(4).Info("Creating NFS volume")
+	klog.V(4).Info("Creating NFS volume (NASty API)")
 
 	// Validate and extract parameters
 	params, err := validateNFSParams(req)
@@ -531,335 +317,205 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		return nil, err
 	}
 
-	klog.V(4).Infof("Creating dataset: %s with capacity: %d bytes", params.datasetName, params.requestedCapacity)
+	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.pool, params.subvolumeName, params.requestedCapacity)
 
-	// Check if dataset already exists (idempotency)
-	existingDatasets, err := s.apiClient.QueryAllDatasets(ctx, params.datasetName)
-	if err != nil {
+	// Check if subvolume already exists (idempotency)
+	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.pool, params.subvolumeName)
+	if err != nil && !isNotFoundError(err) {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to query existing datasets: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to query existing subvolume: %v", err)
 	}
 
-	// Handle existing dataset (idempotency check)
-	if len(existingDatasets) > 0 {
-		resp, done, handleErr := s.handleExistingNFSVolume(ctx, params, &existingDatasets[0], timer)
+	if existingSubvol != nil {
+		resp, done, handleErr := s.handleExistingNFSSubvolume(ctx, params, existingSubvol, timer)
 		if handleErr != nil {
 			return nil, handleErr
 		}
 		if done {
 			return resp, nil
 		}
-		// If not done, dataset exists but no NFS share - continue with share creation
+		// Subvolume exists but no NFS share - continue with share creation below
+	} else {
+		// Create new subvolume
+		createParams := tnsapi.SubvolumeCreateParams{
+			Pool:          params.pool,
+			Name:          params.subvolumeName,
+			SubvolumeType: "filesystem",
+			Comments:      params.comment,
+		}
+		if params.compression != "" {
+			createParams.Compression = params.compression
+		}
+		if params.requestedCapacity > 0 {
+			volsize := uint64(params.requestedCapacity)
+			createParams.VolsizeBytes = &volsize
+		}
+
+		newSubvol, createErr := s.apiClient.CreateSubvolume(ctx, createParams)
+		if createErr != nil {
+			timer.ObserveError()
+			return nil, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", params.pool, params.subvolumeName, params.requestedCapacity), createErr)
+		}
+		existingSubvol = newSubvol
+		klog.V(4).Infof("Created subvolume: %s/%s with path: %s", existingSubvol.Pool, existingSubvol.Name, existingSubvol.Path)
 	}
 
-	// Create or use existing dataset
-	dataset, datasetIsNew, err := s.getOrCreateDataset(ctx, params, existingDatasets, timer)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create NFS share for the dataset
-	nfsShare, err := s.createNFSShareForDataset(ctx, dataset, params, datasetIsNew, timer)
+	// Create NFS share for the subvolume
+	isNew := existingSubvol != nil
+	nfsShare, err := s.createNFSShareForSubvolume(ctx, existingSubvol, params, isNew, timer)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build and return response
-	resp := buildNFSVolumeResponse(params.volumeName, params.server, dataset, nfsShare, params.requestedCapacity)
-
-	klog.Infof("Created NFS volume: %s", params.volumeName)
+	resp := buildNFSVolumeResponseFromSubvolume(params.volumeName, params.server, existingSubvol, nfsShare, params.requestedCapacity)
+	klog.Infof("Created NFS volume: %s (subvolume: %s/%s)", params.volumeName, params.pool, params.subvolumeName)
 	timer.ObserveSuccess()
 	return resp, nil
 }
 
 // deleteNFSVolume deletes an NFS volume with ownership verification.
-// Dataset deletion is retried for busy resource errors.
-// If deleteStrategy is "retain", the volume is kept but CSI returns success.
 //
-//nolint:dupl,gocyclo,gocognit // Intentionally similar dataset deletion pattern as iSCSI; complexity from ownership checks + CSI snapshot guard + dependent clones guard
+//nolint:gocyclo,gocognit // Complexity from ownership checks + CSI snapshot guard + idempotency
 func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
-	klog.V(4).Infof("Deleting NFS volume: %s (dataset: %s, share ID: %d)", meta.Name, meta.DatasetName, meta.NFSShareID)
+	klog.V(4).Infof("Deleting NFS volume: %s (subvolumeID: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
-	// Step 0: Verify ownership using ZFS properties (safe deletion)
-	// This prevents accidental deletion if share IDs were reused after TrueNAS restart
-	// Also check deleteStrategy to determine if we should actually delete
-	deleteStrategy := tnsapi.DeleteStrategyDelete // Default to delete
-	klog.V(4).Infof("deleteNFSVolume called for volume %s, datasetID=%q", meta.Name, meta.DatasetID)
-	if meta.DatasetID != "" {
-		props, err := s.apiClient.GetDatasetProperties(ctx, meta.DatasetID, []string{
-			tnsapi.PropertyManagedBy,
-			tnsapi.PropertyCSIVolumeName,
-			tnsapi.PropertyNFSShareID,
-			tnsapi.PropertyDeleteStrategy,
-		})
-		if err != nil {
-			// If we can't read properties, the dataset might not exist
-			if isNotFoundError(err) {
-				klog.V(4).Infof("Dataset %s not found, assuming already deleted (idempotency)", meta.DatasetID)
+	// Parse pool and subvolume name from DatasetID ("pool/name")
+	pool, subvolName, err := splitSubvolumeID(meta.DatasetID)
+	if err != nil {
+		// Fallback for legacy volumes: try by name
+		pool = ""
+		subvolName = meta.Name
+		klog.V(4).Infof("Cannot parse subvolumeID %q, falling back to name %q", meta.DatasetID, meta.Name)
+	}
+
+	// Step 0: Verify ownership and read metadata from xattr properties
+	deleteStrategy := tnsapi.DeleteStrategyDelete // Default
+	shareUUID := meta.NFSShareUUID
+
+	if pool != "" && subvolName != "" {
+		subvol, getErr := s.apiClient.GetSubvolume(ctx, pool, subvolName)
+		if getErr != nil {
+			if isNotFoundError(getErr) {
+				klog.V(4).Infof("Subvolume %s/%s not found, assuming already deleted (idempotency)", pool, subvolName)
 				timer.ObserveSuccess()
 				return &csi.DeleteVolumeResponse{}, nil
 			}
-			// For other errors, log warning but continue (backward compatibility)
-			klog.Warningf("Failed to verify dataset ownership via ZFS properties: %v (continuing with deletion)", err)
-		} else {
-			klog.V(4).Infof("Retrieved ZFS properties for dataset %s: %v", meta.DatasetID, props)
+			klog.Warningf("Failed to verify subvolume ownership via xattr properties: %v (continuing with deletion)", getErr)
+		} else if subvol.Properties != nil {
+			props := subvol.Properties
 
 			// Verify ownership if properties exist
 			if managedBy, ok := props[tnsapi.PropertyManagedBy]; ok && managedBy != tnsapi.ManagedByValue {
-				klog.Errorf("Dataset %s is not managed by tns-csi (managed_by=%s), refusing to delete", meta.DatasetID, managedBy)
+				klog.Errorf("Subvolume %s/%s is not managed by tns-csi (managed_by=%s), refusing to delete", pool, subvolName, managedBy)
 				timer.ObserveError()
 				return nil, status.Errorf(codes.FailedPrecondition,
-					"Dataset %s is not managed by tns-csi (managed_by=%s)", meta.DatasetID, managedBy)
+					"Subvolume %s/%s is not managed by tns-csi (managed_by=%s)", pool, subvolName, managedBy)
 			}
 
 			// Verify volume name matches
-			// For dataset-path volume IDs (e.g., "tank/pvc-xxx"), the stored property is just the PVC name ("pvc-xxx")
 			if volumeName, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
-				nameMatches := volumeName == meta.Name || (isDatasetPathVolumeID(meta.Name) && strings.HasSuffix(meta.Name, "/"+volumeName))
-				if !nameMatches {
-					klog.Errorf("Dataset %s volume name mismatch: property=%s, requested=%s", meta.DatasetID, volumeName, meta.Name)
+				if volumeName != meta.Name {
+					klog.Errorf("Subvolume %s/%s volume name mismatch: property=%s, requested=%s", pool, subvolName, volumeName, meta.Name)
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
-						"Dataset %s volume name mismatch (stored=%s, requested=%s)", meta.DatasetID, volumeName, meta.Name)
+						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.Name)
 				}
 			}
 
-			// Verify share ID matches (if stored)
-			if shareIDStr, ok := props[tnsapi.PropertyNFSShareID]; ok {
-				storedShareID := tnsapi.StringToInt(shareIDStr)
-				if storedShareID > 0 && meta.NFSShareID > 0 && storedShareID != meta.NFSShareID {
-					klog.Warningf("NFS share ID mismatch: stored=%d, metadata=%d (using stored ID)", storedShareID, meta.NFSShareID)
-					// Use the stored share ID for deletion as it's more reliable
-					meta.NFSShareID = storedShareID
+			// Read stored share UUID (may differ from metadata if share was re-created)
+			if storedShareID, ok := props[tnsapi.PropertyNFSShareID]; ok && storedShareID != "" {
+				if shareUUID == "" {
+					shareUUID = storedShareID
+				} else if storedShareID != shareUUID {
+					klog.Warningf("NFS share UUID mismatch: stored=%s, metadata=%s (using stored)", storedShareID, shareUUID)
+					shareUUID = storedShareID
 				}
 			}
 
 			// Check deleteStrategy
 			if strategy, ok := props[tnsapi.PropertyDeleteStrategy]; ok && strategy != "" {
-				klog.V(4).Infof("Found deleteStrategy property: %q", strategy)
 				deleteStrategy = strategy
-			} else {
-				klog.V(4).Infof("No deleteStrategy property found in props, using default: %q", deleteStrategy)
 			}
 
-			klog.V(4).Infof("Ownership verified for dataset %s via ZFS properties", meta.DatasetID)
+			klog.V(4).Infof("Ownership verified for subvolume %s/%s via xattr properties", pool, subvolName)
 		}
-	} else {
-		klog.V(4).Infof("meta.DatasetID is empty, skipping property retrieval")
 	}
 
 	// Check if we should retain the volume instead of deleting
-	klog.V(4).Infof("Checking deleteStrategy: got %q, comparing with DeleteStrategyRetain=%q, equal=%v",
-		deleteStrategy, tnsapi.DeleteStrategyRetain, deleteStrategy == tnsapi.DeleteStrategyRetain)
 	if deleteStrategy == tnsapi.DeleteStrategyRetain {
-		klog.Infof("Volume %s has deleteStrategy=retain, skipping actual deletion (dataset: %s, share ID: %d will be kept)",
-			meta.Name, meta.DatasetID, meta.NFSShareID)
-		// Return success per CSI spec - the PV is "deleted" from Kubernetes perspective
-		// but the underlying storage is retained
+		klog.Infof("Volume %s has deleteStrategy=retain, skipping actual deletion (subvolume: %s, shareUUID: %s will be kept)",
+			meta.Name, meta.DatasetID, shareUUID)
 		timer.ObserveSuccess()
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	// Step 1: Delete NFS share first (required - TrueNAS does NOT auto-delete shares when dataset is deleted)
-	if meta.NFSShareID > 0 {
-		klog.V(4).Infof("Deleting NFS share: ID=%d", meta.NFSShareID)
-		err := s.apiClient.DeleteNFSShare(ctx, meta.NFSShareID)
+	// Step 1: Delete NFS share first
+	if shareUUID != "" {
+		klog.V(4).Infof("Deleting NFS share: UUID=%s", shareUUID)
+		err := s.apiClient.DeleteNFSShare(ctx, shareUUID)
 		switch {
 		case err == nil:
-			klog.V(4).Infof("Successfully deleted NFS share %d", meta.NFSShareID)
+			klog.V(4).Infof("Successfully deleted NFS share %s", shareUUID)
 		case isNotFoundError(err):
-			klog.V(4).Infof("NFS share %d not found, assuming already deleted (idempotency)", meta.NFSShareID)
+			klog.V(4).Infof("NFS share %s not found, assuming already deleted (idempotency)", shareUUID)
 		default:
-			// For non-idempotent errors, log warning but continue to try dataset deletion
-			// This prevents orphaned datasets if share deletion fails
-			klog.Warningf("Failed to delete NFS share %d: %v (continuing with dataset deletion)", meta.NFSShareID, err)
+			klog.Warningf("Failed to delete NFS share %s: %v (continuing with subvolume deletion)", shareUUID, err)
 		}
 	}
 
-	// Step 2: Delete dataset (try direct first, snapshot cleanup on failure)
-	if meta.DatasetID == "" {
-		klog.V(4).Infof("No dataset ID provided, skipping dataset deletion")
+	// Step 2: Delete subvolume
+	if pool == "" || subvolName == "" {
+		klog.V(4).Infof("No subvolume pool/name available, skipping subvolume deletion")
 	} else {
-		// Guard: block deletion if CSI-managed snapshots exist (prevents VolSync deadlock)
-		hasCSISnaps, err := s.datasetHasCSIManagedSnapshots(ctx, meta.DatasetID)
-		if err != nil {
-			// Hard-fail with Unavailable (triggers exponential backoff in CSI sidecars,
-			// unlike FailedPrecondition which retries aggressively and floods the WebSocket)
-			timer.ObserveError()
-			return nil, status.Errorf(codes.Unavailable,
-				"cannot verify snapshot state for %s: %v; will retry with backoff", meta.DatasetID, err)
-		} else if hasCSISnaps {
-			timer.ObserveError()
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"dataset %s has CSI-managed snapshots; volume will be deleted after snapshots are removed", meta.DatasetID)
-		}
+		klog.V(4).Infof("Deleting subvolume: %s/%s", pool, subvolName)
 
-		klog.V(4).Infof("Deleting dataset: %s", meta.DatasetID)
-
-		firstErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
+		firstErr := s.apiClient.DeleteSubvolume(ctx, pool, subvolName)
 		if firstErr != nil && !isNotFoundError(firstErr) {
-			resolved := false
-			if isDependentClonesError(firstErr) {
-				if err := s.tryPromoteAndDeleteDataset(ctx, meta.DatasetID); err == nil {
-					resolved = true
-				} else {
-					klog.Warningf("Dataset %s has dependent clones — cannot delete", meta.DatasetID)
-					timer.ObserveError()
-					return nil, status.Errorf(codes.FailedPrecondition,
-						"cannot delete volume %s: dataset %s has dependent clones; delete the cloned volumes first",
-						meta.Name, meta.DatasetID)
+			retryConfig := retry.DeletionConfig("delete-nfs-subvolume")
+			retryErr := retry.WithRetryNoResult(ctx, retryConfig, func() error {
+				deleteErr := s.apiClient.DeleteSubvolume(ctx, pool, subvolName)
+				if deleteErr != nil && isNotFoundError(deleteErr) {
+					return nil
 				}
-			}
+				return deleteErr
+			})
 
-			if !resolved {
-				klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
-					meta.DatasetID, firstErr)
-				s.deleteDatasetSnapshots(ctx, meta.DatasetID)
-
-				retryConfig := retry.DeletionConfig("delete-nfs-dataset")
-				err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-					deleteErr := s.apiClient.DeleteDataset(ctx, meta.DatasetID)
-					if deleteErr != nil && isNotFoundError(deleteErr) {
-						return nil
-					}
-					return deleteErr
-				})
-
-				if err != nil {
-					timer.ObserveError()
-					return nil, status.Errorf(codes.Internal, "Failed to delete dataset %s: %v", meta.DatasetID, err)
-				}
+			if retryErr != nil {
+				timer.ObserveError()
+				return nil, status.Errorf(codes.Internal, "Failed to delete subvolume %s/%s: %v", pool, subvolName, retryErr)
 			}
 		}
-		klog.V(4).Infof("Successfully deleted dataset %s", meta.DatasetID)
+		klog.V(4).Infof("Successfully deleted subvolume %s/%s", pool, subvolName)
 	}
 
 	klog.Infof("Deleted NFS volume: %s", meta.Name)
-
-	// Remove volume capacity metric using plain volume name
 	metrics.DeleteVolumeCapacity(meta.Name, metrics.ProtocolNFS)
-
 	timer.ObserveSuccess()
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-// setupNFSVolumeFromClone sets up an NFS share for a cloned dataset.
-func (s *ControllerService) setupNFSVolumeFromClone(ctx context.Context, req *csi.CreateVolumeRequest, dataset *tnsapi.Dataset, server string, info *cloneInfo) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).Infof("Setting up NFS share for cloned dataset: %s (cloneMode: %s)", dataset.Name, info.Mode)
-
-	volumeName := req.GetName()
-
-	// Create NFS share for the cloned dataset
-	nfsShare, err := s.apiClient.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
-		Path:         dataset.Mountpoint,
-		Comment:      "CSI Volume (from snapshot): " + volumeName,
-		MaprootUser:  "root",
-		MaprootGroup: "wheel",
-		Enabled:      true,
-	})
-	if err != nil {
-		// Cleanup: delete the cloned dataset if NFS share creation fails
-		klog.Errorf("Failed to create NFS share for cloned dataset, cleaning up: %v", err)
-		if delErr := s.apiClient.DeleteDataset(ctx, dataset.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup cloned dataset after NFS share creation failure: %v", delErr)
-		}
-		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for cloned volume: %v", err)
+// splitSubvolumeID splits "pool/name" into (pool, name).
+func splitSubvolumeID(subvolumeID string) (string, string, error) {
+	idx := strings.Index(subvolumeID, "/")
+	if idx < 0 || idx == len(subvolumeID)-1 {
+		return "", "", fmt.Errorf("invalid subvolume ID %q: expected pool/name format", subvolumeID)
 	}
+	return subvolumeID[:idx], subvolumeID[idx+1:], nil
+}
 
-	klog.V(4).Infof("Created NFS share with ID: %d for cloned dataset path: %s", nfsShare.ID, nfsShare.Path)
-
-	// Get requested capacity (needed before creating metadata)
-	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
-	if requestedCapacity == 0 {
-		requestedCapacity = 1 * 1024 * 1024 * 1024 // Default 1GB
-	}
-
-	// Get deleteStrategy and adoption metadata from StorageClass parameters
-	params := req.GetParameters()
-	deleteStrategy := params["deleteStrategy"]
-	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
-	}
-
-	// Store ZFS user properties for CSI metadata tracking (Schema v1, including clone source info)
-	props := tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
-		VolumeID:       volumeName,
-		CapacityBytes:  requestedCapacity,
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy: deleteStrategy,
-		ShareID:        nfsShare.ID,
-		SharePath:      nfsShare.Path,
-		PVCName:        params["csi.storage.k8s.io/pvc/name"],
-		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
-		StorageClass:   params["csi.storage.k8s.io/sc/name"],
-		ClusterID:      s.clusterID,
-	})
-	// Add clone-specific properties (including clone mode for dependency tracking)
-	cloneProps := tnsapi.ClonedVolumePropertiesV2(tnsapi.ContentSourceSnapshot, info.SnapshotID, info.Mode, info.OriginSnapshot)
-	for k, v := range cloneProps {
-		props[k] = v
-	}
-	if err := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); err != nil {
-		klog.Warningf("Failed to set ZFS user properties on cloned dataset %s: %v (volume will still work)", dataset.ID, err)
-	} else {
-		klog.V(4).Infof("Stored ZFS user properties on cloned dataset %s: %v", dataset.ID, props)
-	}
-
-	// Set dataset comment from commentTemplate (if configured) — CloneSnapshot doesn't support setting comments
-	if comment, commentErr := ResolveComment(req.GetParameters(), req.GetName()); commentErr == nil && comment != "" {
-		if _, err := s.apiClient.UpdateDataset(ctx, dataset.ID, tnsapi.DatasetUpdateParams{Comments: comment}); err != nil {
-			klog.Warningf("Failed to set comment on cloned dataset %s: %v (non-fatal)", dataset.ID, err)
-		}
-	}
-
-	// Build volume metadata
-	meta := VolumeMetadata{
-		Name:        volumeName,
-		Protocol:    ProtocolNFS,
-		DatasetID:   dataset.ID,
-		DatasetName: dataset.Name,
-		Server:      server,
-		NFSShareID:  nfsShare.ID,
-	}
-
-	// Volume ID is the full dataset path for O(1) lookups
-	volumeID := dataset.ID
-
-	// Construct volume context with metadata for node plugin
-	// CRITICAL: Add clonedFromSnapshot flag to prevent reformatting of cloned volumes
-	// ZFS clones inherit filesystems from snapshots, but detection may fail due to caching
-	volumeContext := buildVolumeContext(meta)
-	volumeContext[VolumeContextKeyShare] = dataset.Mountpoint
-	volumeContext[VolumeContextKeyClonedFromSnap] = VolumeContextValueTrue
-
-	klog.Infof("Created NFS volume from snapshot: %s", volumeName)
-
-	// Record volume capacity metric
-	metrics.SetVolumeCapacity(volumeID, metrics.ProtocolNFS, requestedCapacity)
-
-	return &csi.CreateVolumeResponse{
-		Volume: &csi.Volume{
-			VolumeId:      volumeID,
-			CapacityBytes: requestedCapacity,
-			VolumeContext: volumeContext,
-			ContentSource: &csi.VolumeContentSource{
-				Type: &csi.VolumeContentSource_Snapshot{
-					Snapshot: &csi.VolumeContentSource_SnapshotSource{
-						SnapshotId: info.SnapshotID,
-					},
-				},
-			},
-		},
-	}, nil
+// setupNFSVolumeFromClone sets up an NFS share for a cloned subvolume.
+// TODO: Clone-from-snapshot operations are not yet supported by the NASty API.
+func (s *ControllerService) setupNFSVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *tnsapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "TODO: clone-from-snapshot not yet supported by NASty API")
 }
 
 // adoptNFSVolume adopts an orphaned NFS volume by re-creating its NFS share.
-// This is called when a volume is found by CSI name but needs to be adopted into a new cluster.
-func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, dataset *tnsapi.DatasetWithProperties, params map[string]string) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *tnsapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "adopt")
 	volumeName := req.GetName()
-	klog.Infof("Adopting NFS volume: %s (dataset=%s)", volumeName, dataset.ID)
+	klog.Infof("Adopting NFS volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
 
 	// Get server parameter
 	server := params["server"]
@@ -867,49 +523,53 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		server = defaultServerAddress
 	}
 
-	// Get requested capacity (use existing if not expanded)
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
 	if requestedCapacity == 0 {
 		requestedCapacity = 1 * 1024 * 1024 * 1024 // 1 GiB default
 	}
 
-	// Check if dataset has a mountpoint
-	if dataset.Mountpoint == "" {
+	if subvol.Path == "" {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Dataset %s has no mountpoint", dataset.ID)
+		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Pool, subvol.Name)
 	}
 
-	// Check if an NFS share already exists for this mountpoint
-	existingShares, err := s.apiClient.QueryNFSShare(ctx, dataset.Mountpoint)
+	// Check if an NFS share already exists for this path
+	existingShares, err := s.apiClient.ListNFSShares(ctx)
 	if err != nil {
-		klog.Warningf("Failed to query NFS shares for %s: %v", dataset.Mountpoint, err)
+		klog.Warningf("Failed to list NFS shares for %s: %v", subvol.Path, err)
 	}
 
 	var nfsShare *tnsapi.NFSShare
-	if len(existingShares) > 0 {
-		// NFS share already exists - use it
-		nfsShare = &existingShares[0]
-		klog.Infof("Found existing NFS share for adopted volume: ID=%d, path=%s", nfsShare.ID, nfsShare.Path)
-	} else {
+	for i := range existingShares {
+		if existingShares[i].Path == subvol.Path {
+			nfsShare = &existingShares[i]
+			klog.Infof("Found existing NFS share for adopted volume: ID=%s, path=%s", nfsShare.ID, nfsShare.Path)
+			break
+		}
+	}
+
+	if nfsShare == nil {
 		// Create new NFS share
-		klog.Infof("Creating NFS share for adopted volume: %s", dataset.Mountpoint)
+		klog.Infof("Creating NFS share for adopted volume: %s", subvol.Path)
 		comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", volumeName, requestedCapacity)
+		enabled := true
 		newShare, createErr := s.apiClient.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
-			Path:         dataset.Mountpoint,
-			Comment:      comment,
-			MaprootUser:  "root",
-			MaprootGroup: "wheel",
-			Enabled:      true,
+			Path:    subvol.Path,
+			Comment: comment,
+			Clients: []tnsapi.NFSClient{
+				{Host: "*", Options: "rw,no_root_squash"},
+			},
+			Enabled: &enabled,
 		})
 		if createErr != nil {
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Internal, "Failed to create NFS share for adopted volume: %v", createErr)
 		}
 		nfsShare = newShare
-		klog.Infof("Created NFS share for adopted volume: ID=%d, path=%s", nfsShare.ID, nfsShare.Path)
+		klog.Infof("Created NFS share for adopted volume: ID=%s, path=%s", nfsShare.ID, nfsShare.Path)
 	}
 
-	// Update ZFS properties with new share ID
+	// Update xattr properties with new share ID
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
 		deleteStrategy = tnsapi.DeleteStrategyDelete
@@ -921,7 +581,7 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,
-		ShareID:        nfsShare.ID,
+		ShareIDStr:     nfsShare.ID,
 		SharePath:      nfsShare.Path,
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
@@ -929,74 +589,67 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		Adoptable:      markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if propErr := s.apiClient.SetDatasetProperties(ctx, dataset.ID, props); propErr != nil {
-		klog.Warningf("Failed to update ZFS properties on adopted volume %s: %v", dataset.ID, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); propErr != nil {
+		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Pool, subvol.Name, propErr)
 	}
 
 	// Build response
 	meta := VolumeMetadata{
-		Name:        volumeName,
-		Protocol:    ProtocolNFS,
-		DatasetID:   dataset.ID,
-		DatasetName: dataset.Name,
-		Server:      server,
-		NFSShareID:  nfsShare.ID,
+		Name:         volumeName,
+		Protocol:     ProtocolNFS,
+		DatasetID:    subvol.Pool + "/" + subvol.Name,
+		DatasetName:  subvol.Name,
+		Server:       server,
+		NFSShareUUID: nfsShare.ID,
 	}
 
 	volumeContext := buildVolumeContext(meta)
-	volumeContext[VolumeContextKeyShare] = dataset.Mountpoint
+	volumeContext[VolumeContextKeyShare] = subvol.Path
 
-	// Record volume capacity metric
 	metrics.SetVolumeCapacity(volumeName, metrics.ProtocolNFS, requestedCapacity)
 
-	klog.Infof("Successfully adopted NFS volume: %s (shareID=%d)", volumeName, nfsShare.ID)
+	klog.Infof("Successfully adopted NFS volume: %s (shareID=%s)", volumeName, nfsShare.ID)
 	timer.ObserveSuccess()
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      dataset.ID,
+			VolumeId:      subvol.Pool + "/" + subvol.Name,
 			CapacityBytes: requestedCapacity,
 			VolumeContext: volumeContext,
 		},
 	}, nil
 }
 
-// expandNFSVolume expands an NFS volume by updating the dataset quota.
+// expandNFSVolume expands an NFS volume by updating the subvolume capacity.
 //
-//nolint:dupl // Similar to expandNVMeOFVolume but with different parameters (Quota vs Volsize, NodeExpansionRequired)
+//nolint:dupl // Similar to expandNVMeOFVolume but with different protocol
 func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMetadata, requiredBytes int64) (*csi.ControllerExpandVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "expand")
-	klog.V(4).Infof("Expanding NFS volume: %s (dataset: %s) to %d bytes", meta.Name, meta.DatasetName, requiredBytes)
+	klog.V(4).Infof("Expanding NFS volume: %s (subvolumeID: %s) to %d bytes", meta.Name, meta.DatasetID, requiredBytes)
 
 	if meta.DatasetID == "" {
 		timer.ObserveError()
-		return nil, status.Error(codes.InvalidArgument, "dataset ID not found in volume metadata")
+		return nil, status.Error(codes.InvalidArgument, "subvolume ID not found in volume metadata")
 	}
 
-	// For NFS volumes, we update the refquota on the dataset
-	// Note: ZFS datasets don't have a strict "size", but we can set a refquota
-	// to limit the maximum space usage (refquota excludes snapshots)
-	klog.V(4).Infof("Expanding NFS dataset - DatasetID: %s, DatasetName: %s, New RefQuota: %d bytes",
-		meta.DatasetID, meta.DatasetName, requiredBytes)
-
-	updateParams := tnsapi.DatasetUpdateParams{
-		RefQuota: &requiredBytes,
-	}
-
-	_, err := s.apiClient.UpdateDataset(ctx, meta.DatasetID, updateParams)
+	pool, subvolName, err := splitSubvolumeID(meta.DatasetID)
 	if err != nil {
-		// Provide detailed error information to help diagnose dataset issues
-		klog.Errorf("Failed to update dataset refquota for %s (Name: %s): %v", meta.DatasetID, meta.DatasetName, err)
+		klog.Warningf("Cannot parse subvolumeID %q for expansion: %v", meta.DatasetID, err)
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal,
-			"Failed to update dataset refquota for '%s' (Name: '%s'). "+
-				"The dataset may not exist on TrueNAS - verify it exists at Storage > Pools. "+
-				"Error: %v", meta.DatasetID, meta.DatasetName, err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid subvolume ID %q: %v", meta.DatasetID, err)
+	}
+
+	klog.V(4).Infof("Expanding NFS subvolume %s/%s to %d bytes", pool, subvolName, requiredBytes)
+
+	// Update capacity via xattr property (NASty handles quota enforcement via xattr)
+	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
+		tnsapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+	})
+	if err != nil {
+		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)
 	}
 
 	klog.Infof("Expanded NFS volume: %s to %d bytes", meta.Name, requiredBytes)
-
-	// Update volume capacity metric using plain volume name
 	metrics.SetVolumeCapacity(meta.Name, metrics.ProtocolNFS, requiredBytes)
 
 	timer.ObserveSuccess()
@@ -1004,4 +657,43 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 		CapacityBytes:         requiredBytes,
 		NodeExpansionRequired: false, // NFS volumes don't require node-side expansion
 	}, nil
+}
+
+// getOrCreateSubvolume gets an existing subvolume or creates a new one.
+// Returns (subvolume, isNewlyCreated, error).
+func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, pool, name, subvolumeType, comment, compression string, requestedCapacity int64, timer *metrics.OperationTimer) (*tnsapi.Subvolume, bool, error) {
+	// Try to get existing subvolume
+	existing, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	if err == nil && existing != nil {
+		klog.V(4).Infof("Using existing subvolume: %s/%s with path: %s", pool, name, existing.Path)
+		return existing, false, nil
+	}
+	if err != nil && !isNotFoundError(err) {
+		timer.ObserveError()
+		return nil, false, status.Errorf(codes.Internal, "Failed to query subvolume %s/%s: %v", pool, name, err)
+	}
+
+	// Build creation parameters
+	createParams := tnsapi.SubvolumeCreateParams{
+		Pool:          pool,
+		Name:          name,
+		SubvolumeType: subvolumeType,
+		Comments:      comment,
+	}
+	if compression != "" {
+		createParams.Compression = compression
+	}
+	if requestedCapacity > 0 {
+		volsize := uint64(requestedCapacity)
+		createParams.VolsizeBytes = &volsize
+	}
+
+	subvol, err := s.apiClient.CreateSubvolume(ctx, createParams)
+	if err != nil {
+		timer.ObserveError()
+		return nil, false, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", pool, name, requestedCapacity), err)
+	}
+
+	klog.V(4).Infof("Created subvolume: %s/%s with path: %s", pool, name, subvol.Path)
+	return subvol, true, nil
 }

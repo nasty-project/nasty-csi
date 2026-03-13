@@ -16,7 +16,7 @@ import (
 )
 
 // connectNVMeOFTarget discovers and connects to an NVMe-oF target with retry logic.
-// This handles transient failures when TrueNAS has just created a new subsystem
+// This handles transient failures when NASty has just created a new subsystem
 // (e.g., for snapshot-restored volumes) but it's not yet fully ready for connections.
 func (s *NodeService) connectNVMeOFTarget(ctx context.Context, params *nvmeOFConnectionParams) error {
 	if s.enableDiscovery {
@@ -34,7 +34,7 @@ func (s *NodeService) connectNVMeOFTarget(ctx context.Context, params *nvmeOFCon
 
 	// Connect to the NVMe-oF target with retry logic
 	// This is necessary because newly created subsystems (e.g., from snapshot restore)
-	// may not be immediately ready for connections on TrueNAS
+	// may not be immediately ready for connections on NASty
 	klog.V(4).Infof("Connecting to NVMe-oF target: %s", params.nqn)
 
 	config := retry.Config{
@@ -115,7 +115,7 @@ func (s *NodeService) attemptNVMeConnect(ctx context.Context, params *nvmeOFConn
 
 // isRetryableNVMeConnectError determines if an NVMe connect error is transient
 // and should be retried. This includes errors from newly created subsystems
-// that aren't fully initialized on TrueNAS yet.
+// that aren't fully initialized on NASty yet.
 func isRetryableNVMeConnectError(err error) bool {
 	if err == nil {
 		return false
@@ -389,7 +389,7 @@ func (s *NodeService) logDeviceInfo(ctx context.Context, devicePath string) {
 	}
 }
 
-// verifyDeviceSize compares the actual device size with expected capacity from volume context or TrueNAS API.
+// verifyDeviceSize compares the actual device size with expected capacity from volume context or NASty API.
 func (s *NodeService) verifyDeviceSize(ctx context.Context, devicePath string, volumeContext map[string]string) error {
 	datasetName := volumeContext["datasetName"]
 
@@ -404,7 +404,7 @@ func (s *NodeService) verifyDeviceSize(ctx context.Context, devicePath string, v
 	}
 	klog.V(4).Infof("Device %s (dataset: %s) actual size: %d bytes (%d GiB)", devicePath, datasetName, actualSize, actualSize/(1024*1024*1024))
 
-	// Get expected capacity from volume context or TrueNAS API
+	// Get expected capacity from volume context or NASty API
 	expectedCapacity := s.getExpectedCapacity(ctx, devicePath, datasetName, volumeContext)
 
 	// If no expected capacity available, skip verification
@@ -434,7 +434,7 @@ func getBlockDeviceSize(ctx context.Context, devicePath string) (int64, error) {
 	return actualSize, nil
 }
 
-// getExpectedCapacity retrieves the expected capacity from volumeContext or TrueNAS API.
+// getExpectedCapacity retrieves the expected capacity from volumeContext or NASty API.
 func (s *NodeService) getExpectedCapacity(ctx context.Context, devicePath, datasetName string, volumeContext map[string]string) int64 {
 	// Try volume context first
 	if expectedCapacityStr := volumeContext["expectedCapacity"]; expectedCapacityStr != "" {
@@ -444,18 +444,26 @@ func (s *NodeService) getExpectedCapacity(ctx context.Context, devicePath, datas
 		klog.Warningf("Failed to parse expectedCapacity '%s' for %s", expectedCapacityStr, devicePath)
 	}
 
-	// Query TrueNAS API if not in volumeContext
+	// Query NASty API if not in volumeContext
 	if datasetName != "" && s.apiClient != nil {
-		klog.V(4).Infof("Querying TrueNAS API for ZVOL size of %s", datasetName)
-		dataset, err := s.apiClient.Dataset(ctx, datasetName)
-		if err != nil {
-			klog.Warningf("Failed to query ZVOL size from TrueNAS API for %s: %v", datasetName, err)
-			return 0
-		}
-		if dataset != nil && dataset.Volsize != nil {
-			if parsedSize, ok := dataset.Volsize["parsed"].(float64); ok {
-				klog.V(4).Infof("Got expected capacity %d bytes from TrueNAS API for %s", int64(parsedSize), devicePath)
-				return int64(parsedSize)
+		// datasetName is "pool/name" format
+		pool, name, splitErr := func(s string) (string, string, error) {
+			idx := strings.Index(s, "/")
+			if idx < 0 || idx == len(s)-1 {
+				return "", "", fmt.Errorf("invalid subvolume ID %q", s)
+			}
+			return s[:idx], s[idx+1:], nil
+		}(datasetName)
+		if splitErr == nil {
+			klog.V(4).Infof("Querying NASty API for block device size of %s", datasetName)
+			subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+			if err != nil {
+				klog.Warningf("Failed to query block device size from NASty API for %s: %v", datasetName, err)
+				return 0
+			}
+			if subvol != nil && subvol.VolsizeBytes != nil {
+				klog.V(4).Infof("Got expected capacity %d bytes from NASty API for %s", *subvol.VolsizeBytes, devicePath)
+				return int64(*subvol.VolsizeBytes)
 			}
 		}
 	}

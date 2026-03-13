@@ -202,7 +202,7 @@ func IsRetryableNetworkError(err error) bool {
 	)
 }
 
-// IsRetryableAPIError returns true if the error is a TrueNAS API error
+// IsRetryableAPIError returns true if the error is a NASty API error
 // that should be retried (server busy, temporary failure, etc.).
 func IsRetryableAPIError(err error) bool {
 	if err == nil {
@@ -230,7 +230,7 @@ func IsRetryableError(err error) bool {
 // and the operation should be retried. This is used for deletion operations
 // where resources may be temporarily in use.
 //
-// Common busy error patterns from TrueNAS:
+// Common busy error patterns from NASty:
 //   - "dataset is busy" - ZFS dataset has active operations
 //   - "target is busy" - NVMe-oF/iSCSI target has active connections
 //   - "filesystem has dependent clones" - ZFS clone dependency

@@ -161,7 +161,7 @@ func (s *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 	switch protocol {
 	case ProtocolNVMeOF:
 		// For NVMe-oF, we need to pass the NQN which is derived from the volume ID
-		// With independent subsystems, NQN format is: nqn.2137.csi.tns:<volumeID>
+		// With independent subsystems, NQN format is: nqn.2137.io.nasty.csi:<volumeID>
 		volumeContext := map[string]string{}
 		resp, err := s.unstageNVMeOFVolume(ctx, req, volumeContext)
 		if err != nil {
@@ -173,9 +173,9 @@ func (s *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 	case ProtocolISCSI:
 		// For iSCSI, we need to pass the IQN which is derived from the volume ID
-		// IQN format is: iqn.2024-01.io.truenas.csi:<volumeID>
+		// IQN format is: iqn.2024-01.io.nasty.csi:<volumeID>
 		volumeContext := map[string]string{
-			VolumeContextKeyISCSIIQN: "iqn.2024-01.io.truenas.csi:" + volumeID,
+			VolumeContextKeyISCSIIQN: "iqn.2024-01.io.nasty.csi:" + volumeID,
 		}
 		resp, err := s.unstageISCSIVolume(ctx, req, volumeContext)
 		if err != nil {

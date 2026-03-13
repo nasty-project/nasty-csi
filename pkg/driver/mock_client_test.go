@@ -1,0 +1,267 @@
+package driver
+
+import (
+	"context"
+
+	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+)
+
+// MockAPIClient is a mock implementation of tnsapi.ClientInterface for testing.
+// Each method has a corresponding function field that can be set by tests.
+// If the function field is nil, the method panics to indicate unexpected calls.
+type MockAPIClient struct {
+	QueryPoolFunc                 func(ctx context.Context, poolName string) (*tnsapi.Pool, error)
+	CreateSubvolumeFunc           func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error)
+	DeleteSubvolumeFunc           func(ctx context.Context, pool, name string) error
+	GetSubvolumeFunc              func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error)
+	ListAllSubvolumesFunc         func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error)
+	SetSubvolumePropertiesFunc    func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error)
+	RemoveSubvolumePropertiesFunc func(ctx context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error)
+	FindSubvolumesByPropertyFunc  func(ctx context.Context, key, value, pool string) ([]tnsapi.Subvolume, error)
+	FindManagedSubvolumesFunc     func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error)
+	FindSubvolumeByCSIVolumeNameFunc func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error)
+	CreateSnapshotFunc            func(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error)
+	DeleteSnapshotFunc            func(ctx context.Context, pool, subvolume, name string) error
+	ListSnapshotsFunc             func(ctx context.Context, pool string) ([]tnsapi.Snapshot, error)
+	CreateNFSShareFunc            func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error)
+	DeleteNFSShareFunc            func(ctx context.Context, id string) error
+	ListNFSSharesFunc             func(ctx context.Context) ([]tnsapi.NFSShare, error)
+	GetNFSShareFunc               func(ctx context.Context, id string) (*tnsapi.NFSShare, error)
+	CreateSMBShareFunc            func(ctx context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error)
+	DeleteSMBShareFunc            func(ctx context.Context, id string) error
+	ListSMBSharesFunc             func(ctx context.Context) ([]tnsapi.SMBShare, error)
+	GetSMBShareFunc               func(ctx context.Context, id string) (*tnsapi.SMBShare, error)
+	CreateISCSITargetFunc         func(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error)
+	AddISCSILunFunc               func(ctx context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error)
+	AddISCSIACLFunc               func(ctx context.Context, targetID, initiatorIQN string) (*tnsapi.ISCSITarget, error)
+	DeleteISCSITargetFunc         func(ctx context.Context, id string) error
+	ListISCSITargetsFunc          func(ctx context.Context) ([]tnsapi.ISCSITarget, error)
+	GetISCSITargetByIQNFunc       func(ctx context.Context, iqn string) (*tnsapi.ISCSITarget, error)
+	CreateNVMeOFSubsystemFunc     func(ctx context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error)
+	DeleteNVMeOFSubsystemFunc     func(ctx context.Context, id string) error
+	ListNVMeOFSubsystemsFunc      func(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error)
+	GetNVMeOFSubsystemByNQNFunc   func(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error)
+}
+
+// MockAPIClientForSnapshots is an alias for MockAPIClient for backward compatibility in tests.
+type MockAPIClientForSnapshots = MockAPIClient
+
+func (m *MockAPIClient) Close() {}
+
+func (m *MockAPIClient) QueryPool(ctx context.Context, poolName string) (*tnsapi.Pool, error) {
+	if m.QueryPoolFunc != nil {
+		return m.QueryPoolFunc(ctx, poolName)
+	}
+	panic("QueryPool called unexpectedly")
+}
+
+func (m *MockAPIClient) CreateSubvolume(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+	if m.CreateSubvolumeFunc != nil {
+		return m.CreateSubvolumeFunc(ctx, params)
+	}
+	panic("CreateSubvolume called unexpectedly")
+}
+
+func (m *MockAPIClient) DeleteSubvolume(ctx context.Context, pool, name string) error {
+	if m.DeleteSubvolumeFunc != nil {
+		return m.DeleteSubvolumeFunc(ctx, pool, name)
+	}
+	panic("DeleteSubvolume called unexpectedly")
+}
+
+func (m *MockAPIClient) GetSubvolume(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+	if m.GetSubvolumeFunc != nil {
+		return m.GetSubvolumeFunc(ctx, pool, name)
+	}
+	panic("GetSubvolume called unexpectedly")
+}
+
+func (m *MockAPIClient) ListAllSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
+	if m.ListAllSubvolumesFunc != nil {
+		return m.ListAllSubvolumesFunc(ctx, pool)
+	}
+	panic("ListAllSubvolumes called unexpectedly")
+}
+
+func (m *MockAPIClient) SetSubvolumeProperties(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+	if m.SetSubvolumePropertiesFunc != nil {
+		return m.SetSubvolumePropertiesFunc(ctx, pool, name, props)
+	}
+	// Default: return empty subvolume (many tests don't care about this)
+	return &tnsapi.Subvolume{Pool: pool, Name: name}, nil
+}
+
+func (m *MockAPIClient) RemoveSubvolumeProperties(ctx context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error) {
+	if m.RemoveSubvolumePropertiesFunc != nil {
+		return m.RemoveSubvolumePropertiesFunc(ctx, pool, name, keys)
+	}
+	panic("RemoveSubvolumeProperties called unexpectedly")
+}
+
+func (m *MockAPIClient) FindSubvolumesByProperty(ctx context.Context, key, value, pool string) ([]tnsapi.Subvolume, error) {
+	if m.FindSubvolumesByPropertyFunc != nil {
+		return m.FindSubvolumesByPropertyFunc(ctx, key, value, pool)
+	}
+	panic("FindSubvolumesByProperty called unexpectedly")
+}
+
+func (m *MockAPIClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
+	if m.FindManagedSubvolumesFunc != nil {
+		return m.FindManagedSubvolumesFunc(ctx, pool)
+	}
+	panic("FindManagedSubvolumes called unexpectedly")
+}
+
+func (m *MockAPIClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+	if m.FindSubvolumeByCSIVolumeNameFunc != nil {
+		return m.FindSubvolumeByCSIVolumeNameFunc(ctx, pool, volumeName)
+	}
+	panic("FindSubvolumeByCSIVolumeName called unexpectedly")
+}
+
+func (m *MockAPIClient) CreateSnapshot(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error) {
+	if m.CreateSnapshotFunc != nil {
+		return m.CreateSnapshotFunc(ctx, params)
+	}
+	panic("CreateSnapshot called unexpectedly")
+}
+
+func (m *MockAPIClient) DeleteSnapshot(ctx context.Context, pool, subvolume, name string) error {
+	if m.DeleteSnapshotFunc != nil {
+		return m.DeleteSnapshotFunc(ctx, pool, subvolume, name)
+	}
+	panic("DeleteSnapshot called unexpectedly")
+}
+
+func (m *MockAPIClient) ListSnapshots(ctx context.Context, pool string) ([]tnsapi.Snapshot, error) {
+	if m.ListSnapshotsFunc != nil {
+		return m.ListSnapshotsFunc(ctx, pool)
+	}
+	panic("ListSnapshots called unexpectedly")
+}
+
+func (m *MockAPIClient) CreateNFSShare(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
+	if m.CreateNFSShareFunc != nil {
+		return m.CreateNFSShareFunc(ctx, params)
+	}
+	panic("CreateNFSShare called unexpectedly")
+}
+
+func (m *MockAPIClient) DeleteNFSShare(ctx context.Context, id string) error {
+	if m.DeleteNFSShareFunc != nil {
+		return m.DeleteNFSShareFunc(ctx, id)
+	}
+	panic("DeleteNFSShare called unexpectedly")
+}
+
+func (m *MockAPIClient) ListNFSShares(ctx context.Context) ([]tnsapi.NFSShare, error) {
+	if m.ListNFSSharesFunc != nil {
+		return m.ListNFSSharesFunc(ctx)
+	}
+	panic("ListNFSShares called unexpectedly")
+}
+
+func (m *MockAPIClient) GetNFSShare(ctx context.Context, id string) (*tnsapi.NFSShare, error) {
+	if m.GetNFSShareFunc != nil {
+		return m.GetNFSShareFunc(ctx, id)
+	}
+	panic("GetNFSShare called unexpectedly")
+}
+
+func (m *MockAPIClient) CreateSMBShare(ctx context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error) {
+	if m.CreateSMBShareFunc != nil {
+		return m.CreateSMBShareFunc(ctx, params)
+	}
+	panic("CreateSMBShare called unexpectedly")
+}
+
+func (m *MockAPIClient) DeleteSMBShare(ctx context.Context, id string) error {
+	if m.DeleteSMBShareFunc != nil {
+		return m.DeleteSMBShareFunc(ctx, id)
+	}
+	panic("DeleteSMBShare called unexpectedly")
+}
+
+func (m *MockAPIClient) ListSMBShares(ctx context.Context) ([]tnsapi.SMBShare, error) {
+	if m.ListSMBSharesFunc != nil {
+		return m.ListSMBSharesFunc(ctx)
+	}
+	panic("ListSMBShares called unexpectedly")
+}
+
+func (m *MockAPIClient) GetSMBShare(ctx context.Context, id string) (*tnsapi.SMBShare, error) {
+	if m.GetSMBShareFunc != nil {
+		return m.GetSMBShareFunc(ctx, id)
+	}
+	panic("GetSMBShare called unexpectedly")
+}
+
+func (m *MockAPIClient) CreateISCSITarget(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error) {
+	if m.CreateISCSITargetFunc != nil {
+		return m.CreateISCSITargetFunc(ctx, params)
+	}
+	panic("CreateISCSITarget called unexpectedly")
+}
+
+func (m *MockAPIClient) AddISCSILun(ctx context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error) {
+	if m.AddISCSILunFunc != nil {
+		return m.AddISCSILunFunc(ctx, targetID, backstorePath)
+	}
+	panic("AddISCSILun called unexpectedly")
+}
+
+func (m *MockAPIClient) AddISCSIACL(ctx context.Context, targetID, initiatorIQN string) (*tnsapi.ISCSITarget, error) {
+	if m.AddISCSIACLFunc != nil {
+		return m.AddISCSIACLFunc(ctx, targetID, initiatorIQN)
+	}
+	panic("AddISCSIACL called unexpectedly")
+}
+
+func (m *MockAPIClient) DeleteISCSITarget(ctx context.Context, id string) error {
+	if m.DeleteISCSITargetFunc != nil {
+		return m.DeleteISCSITargetFunc(ctx, id)
+	}
+	panic("DeleteISCSITarget called unexpectedly")
+}
+
+func (m *MockAPIClient) ListISCSITargets(ctx context.Context) ([]tnsapi.ISCSITarget, error) {
+	if m.ListISCSITargetsFunc != nil {
+		return m.ListISCSITargetsFunc(ctx)
+	}
+	panic("ListISCSITargets called unexpectedly")
+}
+
+func (m *MockAPIClient) GetISCSITargetByIQN(ctx context.Context, iqn string) (*tnsapi.ISCSITarget, error) {
+	if m.GetISCSITargetByIQNFunc != nil {
+		return m.GetISCSITargetByIQNFunc(ctx, iqn)
+	}
+	panic("GetISCSITargetByIQN called unexpectedly")
+}
+
+func (m *MockAPIClient) CreateNVMeOFSubsystem(ctx context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error) {
+	if m.CreateNVMeOFSubsystemFunc != nil {
+		return m.CreateNVMeOFSubsystemFunc(ctx, params)
+	}
+	panic("CreateNVMeOFSubsystem called unexpectedly")
+}
+
+func (m *MockAPIClient) DeleteNVMeOFSubsystem(ctx context.Context, id string) error {
+	if m.DeleteNVMeOFSubsystemFunc != nil {
+		return m.DeleteNVMeOFSubsystemFunc(ctx, id)
+	}
+	panic("DeleteNVMeOFSubsystem called unexpectedly")
+}
+
+func (m *MockAPIClient) ListNVMeOFSubsystems(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
+	if m.ListNVMeOFSubsystemsFunc != nil {
+		return m.ListNVMeOFSubsystemsFunc(ctx)
+	}
+	panic("ListNVMeOFSubsystems called unexpectedly")
+}
+
+func (m *MockAPIClient) GetNVMeOFSubsystemByNQN(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error) {
+	if m.GetNVMeOFSubsystemByNQNFunc != nil {
+		return m.GetNVMeOFSubsystemByNQNFunc(ctx, nqn)
+	}
+	panic("GetNVMeOFSubsystemByNQN called unexpectedly")
+}

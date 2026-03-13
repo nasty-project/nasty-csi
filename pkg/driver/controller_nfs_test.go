@@ -16,7 +16,7 @@ func TestCreateNFSVolume(t *testing.T) {
 
 	tests := []struct {
 		req           *csi.CreateVolumeRequest
-		mockSetup     func(*MockAPIClientForSnapshots)
+		mockSetup     func(*mockAPIClient)
 		checkResponse func(*testing.T, *csi.CreateVolumeResponse)
 		name          string
 		wantCode      codes.Code
@@ -37,34 +37,35 @@ func TestCreateNFSVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol":      "nfs",
-					"pool":          "tank",
-					"server":        "192.168.1.100",
-					"parentDataset": "tank/csi",
+					"protocol": "nfs",
+					"pool":     "tank",
+					"server":   "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{
 					RequiredBytes: 1 * 1024 * 1024 * 1024, // 1GB
 				},
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.QueryAllDatasetsFunc = func(ctx context.Context, prefix string) ([]tnsapi.Dataset, error) {
-					// No existing datasets - allow creation
-					return []tnsapi.Dataset{}, nil
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					// No existing subvolume
+					return nil, errors.New("not found")
 				}
-				m.CreateDatasetFunc = func(ctx context.Context, params tnsapi.DatasetCreateParams) (*tnsapi.Dataset, error) {
-					return &tnsapi.Dataset{
-						ID:         "tank/csi/test-nfs-volume",
-						Name:       "tank/csi/test-nfs-volume",
-						Type:       "FILESYSTEM",
-						Mountpoint: "/mnt/tank/csi/test-nfs-volume",
+				m.CreateSubvolumeFunc = func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{
+						Pool: params.Pool,
+						Name: params.Name,
+						Path: "/mnt/tank/test-nfs-volume",
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
 					return &tnsapi.NFSShare{
-						ID:      1,
-						Path:    "/mnt/tank/csi/test-nfs-volume",
+						ID:      "share-uuid-1",
+						Path:    "/mnt/tank/test-nfs-volume",
 						Enabled: true,
 					}, nil
+				}
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{Pool: pool, Name: name, Properties: props}, nil
 				}
 			},
 			wantErr: false,
@@ -80,12 +81,8 @@ func TestCreateNFSVolume(t *testing.T) {
 				if resp.Volume.CapacityBytes != 1*1024*1024*1024 {
 					t.Errorf("Expected capacity 1GB, got %d", resp.Volume.CapacityBytes)
 				}
-				// Check volume context
 				if resp.Volume.VolumeContext["server"] != "192.168.1.100" {
 					t.Errorf("Expected server 192.168.1.100, got %s", resp.Volume.VolumeContext["server"])
-				}
-				if resp.Volume.VolumeContext["share"] != "/mnt/tank/csi/test-nfs-volume" {
-					t.Errorf("Expected share path, got %s", resp.Volume.VolumeContext["share"])
 				}
 			},
 		},
@@ -110,25 +107,26 @@ func TestCreateNFSVolume(t *testing.T) {
 				},
 				// No capacity specified - should default to 1GB
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.QueryAllDatasetsFunc = func(ctx context.Context, prefix string) ([]tnsapi.Dataset, error) {
-					// No existing datasets - allow creation
-					return []tnsapi.Dataset{}, nil
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					return nil, errors.New("not found")
 				}
-				m.CreateDatasetFunc = func(ctx context.Context, params tnsapi.DatasetCreateParams) (*tnsapi.Dataset, error) {
-					return &tnsapi.Dataset{
-						ID:         "tank/test-nfs-volume-default",
-						Name:       "tank/test-nfs-volume-default",
-						Type:       "FILESYSTEM",
-						Mountpoint: "/mnt/tank/test-nfs-volume-default",
+				m.CreateSubvolumeFunc = func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{
+						Pool: params.Pool,
+						Name: params.Name,
+						Path: "/mnt/tank/test-nfs-volume-default",
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
 					return &tnsapi.NFSShare{
-						ID:      2,
+						ID:      "share-uuid-2",
 						Path:    "/mnt/tank/test-nfs-volume-default",
 						Enabled: true,
 					}, nil
+				}
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{Pool: pool, Name: name, Properties: props}, nil
 				}
 			},
 			wantErr: false,
@@ -156,12 +154,12 @@ func TestCreateNFSVolume(t *testing.T) {
 					// Missing pool parameter
 				},
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {},
+			mockSetup: func(m *mockAPIClient) {},
 			wantErr:   true,
 			wantCode:  codes.InvalidArgument,
 		},
 		{
-			name: "dataset creation failure",
+			name: "subvolume creation failure",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nfs-volume",
 				VolumeCapabilities: []*csi.VolumeCapability{
@@ -177,8 +175,11 @@ func TestCreateNFSVolume(t *testing.T) {
 					"server":   "192.168.1.100",
 				},
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.CreateDatasetFunc = func(ctx context.Context, params tnsapi.DatasetCreateParams) (*tnsapi.Dataset, error) {
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					return nil, errors.New("not found")
+				}
+				m.CreateSubvolumeFunc = func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
 					return nil, errors.New("pool not found")
 				}
 			},
@@ -186,7 +187,7 @@ func TestCreateNFSVolume(t *testing.T) {
 			wantCode: codes.Internal,
 		},
 		{
-			name: "NFS share creation failure with cleanup",
+			name: "NFS share creation failure triggers subvolume cleanup",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nfs-volume",
 				VolumeCapabilities: []*csi.VolumeCapability{
@@ -202,26 +203,25 @@ func TestCreateNFSVolume(t *testing.T) {
 					"server":   "192.168.1.100",
 				},
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				datasetCreated := false
-				m.CreateDatasetFunc = func(ctx context.Context, params tnsapi.DatasetCreateParams) (*tnsapi.Dataset, error) {
-					datasetCreated = true
-					return &tnsapi.Dataset{
-						ID:         "tank/test-nfs-volume",
-						Name:       "tank/test-nfs-volume",
-						Type:       "FILESYSTEM",
-						Mountpoint: "/mnt/tank/test-nfs-volume",
+			mockSetup: func(m *mockAPIClient) {
+				subvolCreated := false
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					return nil, errors.New("not found")
+				}
+				m.CreateSubvolumeFunc = func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+					subvolCreated = true
+					return &tnsapi.Subvolume{
+						Pool: params.Pool,
+						Name: params.Name,
+						Path: "/mnt/tank/test-nfs-volume",
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
 					return nil, errors.New("NFS service not running")
 				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
-					if !datasetCreated {
-						t.Error("DeleteDataset called before CreateDataset")
-					}
-					if datasetID != "tank/test-nfs-volume" {
-						t.Errorf("Expected dataset ID tank/test-nfs-volume, got %s", datasetID)
+				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error {
+					if !subvolCreated {
+						t.Error("DeleteSubvolume called before CreateSubvolume")
 					}
 					return nil
 				}
@@ -233,7 +233,7 @@ func TestCreateNFSVolume(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockAPIClientForSnapshots{}
+			mockClient := &mockAPIClient{}
 			tt.mockSetup(mockClient)
 
 			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
@@ -269,30 +269,36 @@ func TestDeleteNFSVolume(t *testing.T) {
 
 	tests := []struct {
 		meta      *VolumeMetadata
-		mockSetup func(*MockAPIClientForSnapshots)
+		mockSetup func(*mockAPIClient)
 		name      string
 		wantErr   bool
 	}{
 		{
 			name: "successful deletion",
 			meta: &VolumeMetadata{
-				Name:        "test-nfs-volume",
-				Protocol:    ProtocolNFS,
-				DatasetID:   "tank/test-nfs-volume",
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  1,
+				Name:         "test-nfs-volume",
+				Protocol:     ProtocolNFS,
+				DatasetID:    "tank/test-nfs-volume",
+				DatasetName:  "test-nfs-volume",
+				NFSShareUUID: "share-uuid-1",
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				// Both NFS share and dataset should be deleted
-				m.DeleteNFSShareFunc = func(ctx context.Context, shareID int) error {
-					if shareID != 1 {
-						t.Errorf("Expected share ID 1, got %d", shareID)
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{
+						Pool:       pool,
+						Name:       name,
+						Properties: map[string]string{tnsapi.PropertyManagedBy: tnsapi.ManagedByValue},
+					}, nil
+				}
+				m.DeleteNFSShareFunc = func(ctx context.Context, id string) error {
+					if id != "share-uuid-1" {
+						t.Errorf("Expected share ID share-uuid-1, got %s", id)
 					}
 					return nil
 				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
-					if datasetID != "tank/test-nfs-volume" {
-						t.Errorf("Expected dataset ID tank/test-nfs-volume, got %s", datasetID)
+				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error {
+					if pool != "tank" || name != "test-nfs-volume" {
+						t.Errorf("Expected tank/test-nfs-volume, got %s/%s", pool, name)
 					}
 					return nil
 				}
@@ -300,70 +306,80 @@ func TestDeleteNFSVolume(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "idempotent deletion - dataset already deleted",
+			name: "idempotent deletion - subvolume already deleted",
 			meta: &VolumeMetadata{
-				Name:        "test-nfs-volume",
-				Protocol:    ProtocolNFS,
-				DatasetID:   "tank/test-nfs-volume",
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  1,
+				Name:         "test-nfs-volume",
+				Protocol:     ProtocolNFS,
+				DatasetID:    "tank/test-nfs-volume",
+				DatasetName:  "test-nfs-volume",
+				NFSShareUUID: "share-uuid-1",
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				// Both share and dataset already deleted
-				m.DeleteNFSShareFunc = func(ctx context.Context, shareID int) error {
-					return errors.New("share does not exist")
-				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
-					return errors.New("dataset does not exist")
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					// Subvolume already gone
+					return nil, errors.New("Object not found")
 				}
 			},
 			wantErr: false, // Should succeed due to idempotency
 		},
 		{
-			name: "deletion with dataset error (should fail and retry)",
+			name: "deletion with subvolume backend error should fail",
 			meta: &VolumeMetadata{
-				Name:        "test-nfs-volume",
-				Protocol:    ProtocolNFS,
-				DatasetID:   "tank/test-nfs-volume",
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  1,
+				Name:         "test-nfs-volume",
+				Protocol:     ProtocolNFS,
+				DatasetID:    "tank/test-nfs-volume",
+				DatasetName:  "test-nfs-volume",
+				NFSShareUUID: "share-uuid-1",
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.DeleteNFSShareFunc = func(ctx context.Context, shareID int) error {
-					return nil // Share deleted successfully
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{
+						Pool:       pool,
+						Name:       name,
+						Properties: map[string]string{tnsapi.PropertyManagedBy: tnsapi.ManagedByValue},
+					}, nil
 				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
+				m.DeleteNFSShareFunc = func(ctx context.Context, id string) error {
+					return nil
+				}
+				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error {
 					return errors.New("some backend error")
 				}
 			},
-			wantErr: true, // Should fail to trigger retry and prevent orphaned datasets
+			wantErr: true, // Should fail to prevent orphaned subvolumes
 		},
 		{
-			name: "deletion with missing share ID",
+			name: "deletion with no share UUID skips share deletion",
 			meta: &VolumeMetadata{
 				Name:        "test-nfs-volume",
 				Protocol:    ProtocolNFS,
 				DatasetID:   "tank/test-nfs-volume",
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  0, // Missing share ID
+				DatasetName: "test-nfs-volume",
+				// No NFSShareUUID
 			},
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				// DeleteNFSShare should NOT be called when share ID is 0
-				m.DeleteNFSShareFunc = func(ctx context.Context, shareID int) error {
-					t.Error("DeleteNFSShare should not be called when share ID is 0")
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+					return &tnsapi.Subvolume{
+						Pool:       pool,
+						Name:       name,
+						Properties: map[string]string{tnsapi.PropertyManagedBy: tnsapi.ManagedByValue},
+					}, nil
+				}
+				m.DeleteNFSShareFunc = func(ctx context.Context, id string) error {
+					t.Error("DeleteNFSShare should not be called when share UUID is empty")
 					return nil
 				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
+				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error {
 					return nil
 				}
 			},
-			wantErr: false, // Should still delete dataset
+			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockAPIClientForSnapshots{}
+			mockClient := &mockAPIClient{}
 			tt.mockSetup(mockClient)
 
 			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
@@ -382,7 +398,7 @@ func TestExpandNFSVolume(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		mockSetup     func(*MockAPIClientForSnapshots)
+		mockSetup     func(*mockAPIClient)
 		checkResponse func(*testing.T, *csi.ControllerExpandVolumeResponse)
 		meta          *VolumeMetadata
 		name          string
@@ -393,25 +409,19 @@ func TestExpandNFSVolume(t *testing.T) {
 		{
 			name: "successful NFS volume expansion",
 			meta: &VolumeMetadata{
-				Name:        "test-nfs-volume",
-				Protocol:    ProtocolNFS,
-				DatasetID:   "tank/test-nfs-volume",
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  1,
+				Name:         "test-nfs-volume",
+				Protocol:     ProtocolNFS,
+				DatasetID:    "tank/test-nfs-volume",
+				DatasetName:  "test-nfs-volume",
+				NFSShareUUID: "share-uuid-1",
 			},
 			requiredBytes: 5 * 1024 * 1024 * 1024, // 5GB
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.UpdateDatasetFunc = func(ctx context.Context, datasetID string, params tnsapi.DatasetUpdateParams) (*tnsapi.Dataset, error) {
-					if datasetID != "tank/test-nfs-volume" {
-						t.Errorf("Expected dataset ID tank/test-nfs-volume, got %s", datasetID)
+			mockSetup: func(m *mockAPIClient) {
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+					if pool != "tank" || name != "test-nfs-volume" {
+						t.Errorf("Expected tank/test-nfs-volume, got %s/%s", pool, name)
 					}
-					if params.RefQuota == nil || *params.RefQuota != 5*1024*1024*1024 {
-						t.Errorf("Expected refquota 5GB, got %v", params.RefQuota)
-					}
-					return &tnsapi.Dataset{
-						ID:   datasetID,
-						Name: "tank/test-nfs-volume",
-					}, nil
+					return &tnsapi.Subvolume{Pool: pool, Name: name, Properties: props}, nil
 				}
 			},
 			wantErr: false,
@@ -431,37 +441,43 @@ func TestExpandNFSVolume(t *testing.T) {
 				Name:        "test-nfs-volume",
 				Protocol:    ProtocolNFS,
 				DatasetID:   "", // Missing dataset ID
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  1,
+				DatasetName: "test-nfs-volume",
 			},
 			requiredBytes: 5 * 1024 * 1024 * 1024,
-			mockSetup:     func(m *MockAPIClientForSnapshots) {},
+			mockSetup:     func(m *mockAPIClient) {},
 			wantErr:       true,
 			wantCode:      codes.InvalidArgument,
 		},
 		{
-			name: "TrueNAS API error during expansion",
+			name: "NASty API error during expansion",
 			meta: &VolumeMetadata{
-				Name:        "test-nfs-volume",
-				Protocol:    ProtocolNFS,
-				DatasetID:   "tank/test-nfs-volume",
-				DatasetName: "tank/test-nfs-volume",
-				NFSShareID:  1,
+				Name:         "test-nfs-volume",
+				Protocol:     ProtocolNFS,
+				DatasetID:    "tank/test-nfs-volume",
+				DatasetName:  "test-nfs-volume",
+				NFSShareUUID: "share-uuid-1",
 			},
 			requiredBytes: 5 * 1024 * 1024 * 1024,
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.UpdateDatasetFunc = func(ctx context.Context, datasetID string, params tnsapi.DatasetUpdateParams) (*tnsapi.Dataset, error) {
-					return nil, errors.New("dataset not found on TrueNAS")
+			mockSetup: func(m *mockAPIClient) {
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+					return nil, errors.New("subvolume not found")
 				}
 			},
-			wantErr:  true,
-			wantCode: codes.Internal,
+			// expandNFSVolume logs the error but still returns success with the requested capacity
+			// (the xattr set failure is non-fatal)
+			wantErr: false,
+			checkResponse: func(t *testing.T, resp *csi.ControllerExpandVolumeResponse) {
+				t.Helper()
+				if resp.CapacityBytes != 5*1024*1024*1024 {
+					t.Errorf("Expected capacity 5GB, got %d", resp.CapacityBytes)
+				}
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockAPIClientForSnapshots{}
+			mockClient := &mockAPIClient{}
 			tt.mockSetup(mockClient)
 
 			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
@@ -492,268 +508,100 @@ func TestExpandNFSVolume(t *testing.T) {
 	}
 }
 
-func TestSetupNFSVolumeFromClone(t *testing.T) {
+func TestSetupNFSVolumeFromClone_Unimplemented(t *testing.T) {
 	ctx := context.Background()
 
+	mockClient := &mockAPIClient{}
+	controller := NewControllerService(mockClient, NewNodeRegistry(), "")
+
+	resp, err := controller.setupNFSVolumeFromClone(ctx, &csi.CreateVolumeRequest{Name: "test"}, &tnsapi.Subvolume{}, "server", &cloneInfo{})
+	if resp != nil {
+		t.Error("Expected nil response")
+	}
+	if err == nil {
+		t.Fatal("Expected error but got nil")
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("Expected gRPC status error, got %v", err)
+	}
+	if st.Code() != codes.Unimplemented {
+		t.Errorf("Expected Unimplemented, got %v", st.Code())
+	}
+}
+
+func TestParseNFSClients(t *testing.T) {
 	tests := []struct {
-		req           *csi.CreateVolumeRequest
-		dataset       *tnsapi.Dataset
-		server        string
-		mockSetup     func(*MockAPIClientForSnapshots)
-		checkResponse func(*testing.T, *csi.CreateVolumeResponse)
-		name          string
-		wantCode      codes.Code
-		wantErr       bool
+		name        string
+		input       string
+		expectCount int
+		expectFirst tnsapi.NFSClient
 	}{
 		{
-			name: "successful NFS volume setup from clone",
-			req: &csi.CreateVolumeRequest{
-				Name: "cloned-nfs-volume",
-				VolumeCapabilities: []*csi.VolumeCapability{
-					{
-						AccessType: &csi.VolumeCapability_Mount{
-							Mount: &csi.VolumeCapability_MountVolume{},
-						},
-					},
-				},
-				CapacityRange: &csi.CapacityRange{
-					RequiredBytes: 2 * 1024 * 1024 * 1024, // 2GB
-				},
-			},
-			dataset: &tnsapi.Dataset{
-				ID:         "tank/cloned-nfs-volume",
-				Name:       "tank/cloned-nfs-volume",
-				Type:       "FILESYSTEM",
-				Mountpoint: "/mnt/tank/cloned-nfs-volume",
-			},
-			server: "192.168.1.100",
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.CreateNFSShareFunc = func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
-					if params.Path != "/mnt/tank/cloned-nfs-volume" {
-						t.Errorf("Expected path /mnt/tank/cloned-nfs-volume, got %s", params.Path)
-					}
-					return &tnsapi.NFSShare{
-						ID:      10,
-						Path:    params.Path,
-						Enabled: true,
-					}, nil
-				}
-			},
-			wantErr: false,
-			checkResponse: func(t *testing.T, resp *csi.CreateVolumeResponse) {
-				t.Helper()
-				if resp.Volume == nil {
-					t.Error("Expected volume to be non-nil")
-					return
-				}
-				if resp.Volume.VolumeContext["server"] != "192.168.1.100" {
-					t.Errorf("Expected server 192.168.1.100, got %s", resp.Volume.VolumeContext["server"])
-				}
-				if resp.Volume.VolumeContext["share"] != "/mnt/tank/cloned-nfs-volume" {
-					t.Errorf("Expected share path, got %s", resp.Volume.VolumeContext["share"])
-				}
-			},
+			name:        "empty string defaults to wildcard",
+			input:       "",
+			expectCount: 1,
+			expectFirst: tnsapi.NFSClient{Host: "*", Options: "rw,no_root_squash"},
 		},
 		{
-			name: "NFS share creation failure with cleanup",
-			req: &csi.CreateVolumeRequest{
-				Name: "cloned-nfs-volume",
-			},
-			dataset: &tnsapi.Dataset{
-				ID:         "tank/cloned-nfs-volume",
-				Name:       "tank/cloned-nfs-volume",
-				Type:       "FILESYSTEM",
-				Mountpoint: "/mnt/tank/cloned-nfs-volume",
-			},
-			server: "192.168.1.100",
-			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.CreateNFSShareFunc = func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
-					return nil, errors.New("NFS service not available")
-				}
-				m.DeleteDatasetFunc = func(ctx context.Context, datasetID string) error {
-					if datasetID != "tank/cloned-nfs-volume" {
-						t.Errorf("Expected cleanup of dataset tank/cloned-nfs-volume, got %s", datasetID)
-					}
-					return nil
-				}
-			},
-			wantErr:  true,
-			wantCode: codes.Internal,
+			name:        "single client with options",
+			input:       "10.0.0.1:rw,no_root_squash",
+			expectCount: 2,
+			expectFirst: tnsapi.NFSClient{Host: "10.0.0.1", Options: "rw"},
+		},
+		{
+			name:        "client without options gets defaults",
+			input:       "10.0.0.1",
+			expectCount: 1,
+			expectFirst: tnsapi.NFSClient{Host: "10.0.0.1", Options: "rw,no_root_squash"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockAPIClientForSnapshots{}
-			tt.mockSetup(mockClient)
-
-			controller := NewControllerService(mockClient, NewNodeRegistry(), "")
-			testCloneInfo := &cloneInfo{
-				Mode:       "cow",
-				SnapshotID: "snapshot-id",
-			}
-			resp, err := controller.setupNFSVolumeFromClone(ctx, tt.req, tt.dataset, tt.server, testCloneInfo)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Error("Expected error but got nil")
-					return
-				}
-				if st, ok := status.FromError(err); ok {
-					if st.Code() != tt.wantCode {
-						t.Errorf("Expected error code %v, got %v", tt.wantCode, st.Code())
-					}
-				}
+			result := parseNFSClients(tt.input)
+			if len(result) != tt.expectCount {
+				t.Errorf("Expected %d clients, got %d", tt.expectCount, len(result))
 				return
 			}
-
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-				return
+			if result[0].Host != tt.expectFirst.Host {
+				t.Errorf("Expected host %q, got %q", tt.expectFirst.Host, result[0].Host)
 			}
-
-			if tt.checkResponse != nil {
-				tt.checkResponse(t, resp)
+			if result[0].Options != tt.expectFirst.Options {
+				t.Errorf("Expected options %q, got %q", tt.expectFirst.Options, result[0].Options)
 			}
 		})
 	}
 }
 
-func TestParseEncryptionConfig(t *testing.T) {
+func TestParseCapacityFromComment(t *testing.T) {
 	tests := []struct {
-		params   map[string]string
-		secrets  map[string]string
-		expected *encryptionConfig
-		name     string
+		name    string
+		comment string
+		want    int64
 	}{
 		{
-			name: "encryption disabled (default)",
-			params: map[string]string{
-				"protocol": "nfs",
-				"pool":     "tank",
-			},
-			secrets:  nil,
-			expected: nil,
+			name:    "valid comment",
+			comment: "CSI Volume: my-vol | Capacity: 1073741824",
+			want:    1073741824,
 		},
 		{
-			name: "encryption disabled explicitly",
-			params: map[string]string{
-				"encryption": "false",
-			},
-			secrets:  nil,
-			expected: nil,
+			name:    "empty comment returns 0",
+			comment: "",
+			want:    0,
 		},
 		{
-			name: "encryption enabled with auto-generate key",
-			params: map[string]string{
-				"encryption":            "true",
-				"encryptionGenerateKey": "true",
-			},
-			secrets: nil,
-			expected: &encryptionConfig{
-				Enabled:     true,
-				Algorithm:   "AES-256-GCM", // default
-				GenerateKey: true,
-			},
-		},
-		{
-			name: "encryption enabled with custom algorithm",
-			params: map[string]string{
-				"encryption":            "true",
-				"encryptionAlgorithm":   "AES-128-CCM",
-				"encryptionGenerateKey": "true",
-			},
-			secrets: nil,
-			expected: &encryptionConfig{
-				Enabled:     true,
-				Algorithm:   "AES-128-CCM",
-				GenerateKey: true,
-			},
-		},
-		{
-			name: "encryption with passphrase from secret",
-			params: map[string]string{
-				"encryption": "true",
-			},
-			secrets: map[string]string{
-				"encryptionPassphrase": "mysecretpassphrase",
-			},
-			expected: &encryptionConfig{
-				Enabled:    true,
-				Algorithm:  "AES-256-GCM",
-				Passphrase: "mysecretpassphrase",
-			},
-		},
-		{
-			name: "encryption with hex key from secret",
-			params: map[string]string{
-				"encryption": "true",
-			},
-			secrets: map[string]string{
-				"encryptionKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-			},
-			expected: &encryptionConfig{
-				Enabled:   true,
-				Algorithm: "AES-256-GCM",
-				Key:       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-			},
-		},
-		{
-			name: "encryption enabled but no key source (warning case)",
-			params: map[string]string{
-				"encryption": "true",
-			},
-			secrets: nil,
-			expected: &encryptionConfig{
-				Enabled:   true,
-				Algorithm: "AES-256-GCM",
-			},
-		},
-		{
-			name: "encryption with mixed case",
-			params: map[string]string{
-				"encryption":            "TRUE",
-				"encryptionGenerateKey": "True",
-			},
-			secrets: nil,
-			expected: &encryptionConfig{
-				Enabled:     true,
-				Algorithm:   "AES-256-GCM",
-				GenerateKey: true,
-			},
+			name:    "invalid format returns 0",
+			comment: "some random comment",
+			want:    0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseEncryptionConfig(tt.params, tt.secrets)
-
-			if tt.expected == nil {
-				if result != nil {
-					t.Errorf("Expected nil, got %+v", result)
-				}
-				return
-			}
-
-			if result == nil {
-				t.Errorf("Expected %+v, got nil", tt.expected)
-				return
-			}
-
-			if result.Enabled != tt.expected.Enabled {
-				t.Errorf("Enabled: expected %v, got %v", tt.expected.Enabled, result.Enabled)
-			}
-			if result.Algorithm != tt.expected.Algorithm {
-				t.Errorf("Algorithm: expected %v, got %v", tt.expected.Algorithm, result.Algorithm)
-			}
-			if result.GenerateKey != tt.expected.GenerateKey {
-				t.Errorf("GenerateKey: expected %v, got %v", tt.expected.GenerateKey, result.GenerateKey)
-			}
-			if result.Passphrase != tt.expected.Passphrase {
-				t.Errorf("Passphrase: expected %v, got %v", tt.expected.Passphrase, result.Passphrase)
-			}
-			if result.Key != tt.expected.Key {
-				t.Errorf("Key: expected %v, got %v", tt.expected.Key, result.Key)
+			got := parseCapacityFromComment(tt.comment)
+			if got != tt.want {
+				t.Errorf("Expected %d, got %d", tt.want, got)
 			}
 		})
 	}

@@ -88,7 +88,7 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 	}
 
 	// Retry parameters for handling iSCSI service availability issues.
-	// The iSCSI service on TrueNAS may be temporarily unavailable during
+	// The iSCSI service on NASty may be temporarily unavailable during
 	// service reloads triggered by target creation.
 	const (
 		maxRetries = 5
@@ -219,8 +219,8 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 	}
 
 	// Step 2: Check if target is in node database
-	// Note: Don't specify portal here because TrueNAS may report a different portal IP
-	// than the hostname we used for discovery (e.g., discovery with hostname, but TrueNAS
+	// Note: Don't specify portal here because NASty may report a different portal IP
+	// than the hostname we used for discovery (e.g., discovery with hostname, but NASty
 	// reports its IP). The node database stores the portal from the discovery response.
 	klog.Infof("iSCSI: Checking if target '%s' is in node database", params.iqn)
 	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -231,7 +231,7 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 	if checkErr != nil {
 		klog.Errorf("iSCSI target '%s' not found in node database: %v, output: %s",
 			params.iqn, checkErr, string(checkOutput))
-		return fmt.Errorf("%w - check that TrueNAS iSCSI service is running and target is properly configured: %s", ErrISCSITargetNotInDB, string(checkOutput))
+		return fmt.Errorf("%w - check that NASty iSCSI service is running and target is properly configured: %s", ErrISCSITargetNotInDB, string(checkOutput))
 	}
 	klog.Infof("iSCSI target '%s' found in node database: %s", params.iqn, string(checkOutput))
 
