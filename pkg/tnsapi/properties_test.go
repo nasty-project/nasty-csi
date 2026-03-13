@@ -27,12 +27,10 @@ func TestPropertyNames(t *testing.T) {
 		PropertyNFSSharePath,
 		// NVMe-oF properties
 		PropertyNVMeSubsystemID,
-		PropertyNVMeNamespaceID,
 		PropertyNVMeSubsystemNQN,
 		// iSCSI properties
 		PropertyISCSIIQN,
 		PropertyISCSITargetID,
-		PropertyISCSIExtentID,
 		// SMB properties
 		PropertySMBShareID,
 		PropertySMBShareName,
@@ -41,8 +39,6 @@ func TestPropertyNames(t *testing.T) {
 		PropertySourceVolumeID,
 		PropertyDetachedSnapshot,
 		PropertySourceDataset,
-		PropertySnapshotSourceVolume,
-		PropertySnapshotCSIName,
 		// Clone properties
 		PropertyContentSourceType,
 		PropertyContentSourceID,
@@ -50,8 +46,6 @@ func TestPropertyNames(t *testing.T) {
 		PropertyOriginSnapshot,
 		// Multi-cluster
 		PropertyClusterID,
-		// Legacy
-		PropertyProvisionedAt,
 	}
 
 	if len(names) != len(expectedProps) {
@@ -68,158 +62,6 @@ func TestPropertyNames(t *testing.T) {
 		if !propsMap[expected] {
 			t.Errorf("PropertyNames() missing expected property: %s", expected)
 		}
-	}
-}
-
-func TestNFSVolumeProperties(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct optimization not critical
-	tests := []struct {
-		name           string
-		volumeName     string
-		shareID        int
-		provisionedAt  string
-		deleteStrategy string
-		wantProps      map[string]string
-	}{
-		{
-			name:           "standard NFS volume",
-			volumeName:     "pvc-12345678-1234-1234-1234-123456789012",
-			shareID:        42,
-			provisionedAt:  "2024-01-15T10:30:00Z",
-			deleteStrategy: DeleteStrategyDelete,
-			wantProps: map[string]string{
-				PropertySchemaVersion:  SchemaVersionV1,
-				PropertyManagedBy:      ManagedByValue,
-				PropertyCSIVolumeName:  "pvc-12345678-1234-1234-1234-123456789012",
-				PropertyNFSShareID:     "42",
-				PropertyProtocol:       ProtocolNFS,
-				PropertyCreatedAt:      "2024-01-15T10:30:00Z",
-				PropertyDeleteStrategy: DeleteStrategyDelete,
-			},
-		},
-		{
-			name:           "NFS volume with retain strategy",
-			volumeName:     "my-persistent-volume",
-			shareID:        100,
-			provisionedAt:  "2025-06-20T14:00:00Z",
-			deleteStrategy: DeleteStrategyRetain,
-			wantProps: map[string]string{
-				PropertySchemaVersion:  SchemaVersionV1,
-				PropertyManagedBy:      ManagedByValue,
-				PropertyCSIVolumeName:  "my-persistent-volume",
-				PropertyNFSShareID:     "100",
-				PropertyProtocol:       ProtocolNFS,
-				PropertyCreatedAt:      "2025-06-20T14:00:00Z",
-				PropertyDeleteStrategy: DeleteStrategyRetain,
-			},
-		},
-		{
-			name:           "NFS volume with zero share ID",
-			volumeName:     "test-volume",
-			shareID:        0,
-			provisionedAt:  "2024-12-01T00:00:00Z",
-			deleteStrategy: DeleteStrategyDelete,
-			wantProps: map[string]string{
-				PropertySchemaVersion:  SchemaVersionV1,
-				PropertyManagedBy:      ManagedByValue,
-				PropertyCSIVolumeName:  "test-volume",
-				PropertyNFSShareID:     "0",
-				PropertyProtocol:       ProtocolNFS,
-				PropertyCreatedAt:      "2024-12-01T00:00:00Z",
-				PropertyDeleteStrategy: DeleteStrategyDelete,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			props := NFSVolumeProperties(tt.volumeName, tt.shareID, tt.provisionedAt, tt.deleteStrategy)
-
-			if len(props) != len(tt.wantProps) {
-				t.Errorf("NFSVolumeProperties() returned %d properties, want %d", len(props), len(tt.wantProps))
-			}
-
-			for key, wantValue := range tt.wantProps {
-				if gotValue, ok := props[key]; !ok {
-					t.Errorf("NFSVolumeProperties() missing key: %s", key)
-				} else if gotValue != wantValue {
-					t.Errorf("NFSVolumeProperties()[%s] = %q, want %q", key, gotValue, wantValue)
-				}
-			}
-		})
-	}
-}
-
-func TestNVMeOFVolumeProperties(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct optimization not critical
-	tests := []struct {
-		name           string
-		volumeName     string
-		subsystemID    int
-		namespaceID    int
-		subsystemNQN   string
-		provisionedAt  string
-		deleteStrategy string
-		wantProps      map[string]string
-	}{
-		{
-			name:           "standard NVMe-oF volume",
-			volumeName:     "pvc-abcdef00-1234-5678-9abc-def012345678",
-			subsystemID:    338,
-			namespaceID:    456,
-			subsystemNQN:   "nqn.2137.csi.tns:pvc-abcdef00-1234-5678-9abc-def012345678",
-			provisionedAt:  "2024-01-15T10:30:00Z",
-			deleteStrategy: DeleteStrategyDelete,
-			wantProps: map[string]string{
-				PropertySchemaVersion:    SchemaVersionV1,
-				PropertyManagedBy:        ManagedByValue,
-				PropertyCSIVolumeName:    "pvc-abcdef00-1234-5678-9abc-def012345678",
-				PropertyNVMeSubsystemID:  "338",
-				PropertyNVMeNamespaceID:  "456",
-				PropertyNVMeSubsystemNQN: "nqn.2137.csi.tns:pvc-abcdef00-1234-5678-9abc-def012345678",
-				PropertyProtocol:         ProtocolNVMeOF,
-				PropertyCreatedAt:        "2024-01-15T10:30:00Z",
-				PropertyDeleteStrategy:   DeleteStrategyDelete,
-			},
-		},
-		{
-			name:           "NVMe-oF volume with retain strategy",
-			volumeName:     "database-volume",
-			subsystemID:    1,
-			namespaceID:    1,
-			subsystemNQN:   "nqn.2024.io.example:database",
-			provisionedAt:  "2025-12-19T08:00:00Z",
-			deleteStrategy: DeleteStrategyRetain,
-			wantProps: map[string]string{
-				PropertySchemaVersion:    SchemaVersionV1,
-				PropertyManagedBy:        ManagedByValue,
-				PropertyCSIVolumeName:    "database-volume",
-				PropertyNVMeSubsystemID:  "1",
-				PropertyNVMeNamespaceID:  "1",
-				PropertyNVMeSubsystemNQN: "nqn.2024.io.example:database",
-				PropertyProtocol:         ProtocolNVMeOF,
-				PropertyCreatedAt:        "2025-12-19T08:00:00Z",
-				PropertyDeleteStrategy:   DeleteStrategyRetain,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			props := NVMeOFVolumeProperties(tt.volumeName, tt.subsystemID, tt.namespaceID, tt.subsystemNQN, tt.provisionedAt, tt.deleteStrategy)
-
-			if len(props) != len(tt.wantProps) {
-				t.Errorf("NVMeOFVolumeProperties() returned %d properties, want %d", len(props), len(tt.wantProps))
-			}
-
-			for key, wantValue := range tt.wantProps {
-				if gotValue, ok := props[key]; !ok {
-					t.Errorf("NVMeOFVolumeProperties() missing key: %s", key)
-				} else if gotValue != wantValue {
-					t.Errorf("NVMeOFVolumeProperties()[%s] = %q, want %q", key, gotValue, wantValue)
-				}
-			}
-		})
 	}
 }
 
@@ -279,153 +121,6 @@ func TestClonedVolumeProperties(t *testing.T) {
 	}
 }
 
-func TestSnapshotProperties(t *testing.T) {
-	//nolint:govet // fieldalignment: test struct optimization not critical
-	tests := []struct {
-		name            string
-		snapshotCSIName string
-		sourceVolume    string
-		wantProps       map[string]string
-	}{
-		{
-			name:            "standard snapshot",
-			snapshotCSIName: "snapshot-abcd1234",
-			sourceVolume:    "pvc-12345678",
-			wantProps: map[string]string{
-				PropertySnapshotCSIName:      "snapshot-abcd1234",
-				PropertySnapshotSourceVolume: "pvc-12345678",
-			},
-		},
-		{
-			name:            "snapshot with long names",
-			snapshotCSIName: "snapshot-12345678-1234-1234-1234-123456789012",
-			sourceVolume:    "pvc-abcdef00-1234-5678-9abc-def012345678",
-			wantProps: map[string]string{
-				PropertySnapshotCSIName:      "snapshot-12345678-1234-1234-1234-123456789012",
-				PropertySnapshotSourceVolume: "pvc-abcdef00-1234-5678-9abc-def012345678",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			props := SnapshotProperties(tt.snapshotCSIName, tt.sourceVolume)
-
-			if len(props) != len(tt.wantProps) {
-				t.Errorf("SnapshotProperties() returned %d properties, want %d", len(props), len(tt.wantProps))
-			}
-
-			for key, wantValue := range tt.wantProps {
-				if gotValue, ok := props[key]; !ok {
-					t.Errorf("SnapshotProperties() missing key: %s", key)
-				} else if gotValue != wantValue {
-					t.Errorf("SnapshotProperties()[%s] = %q, want %q", key, gotValue, wantValue)
-				}
-			}
-		})
-	}
-}
-
-func TestStringToInt(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  int
-	}{
-		{
-			name:  "positive integer",
-			input: "42",
-			want:  42,
-		},
-		{
-			name:  "zero",
-			input: "0",
-			want:  0,
-		},
-		{
-			name:  "negative integer",
-			input: "-10",
-			want:  -10,
-		},
-		{
-			name:  "large number",
-			input: "999999999",
-			want:  999999999,
-		},
-		{
-			name:  "empty string returns 0",
-			input: "",
-			want:  0,
-		},
-		{
-			name:  "non-numeric string returns 0",
-			input: "not-a-number",
-			want:  0,
-		},
-		{
-			name:  "float string returns 0",
-			input: "3.14",
-			want:  0,
-		},
-		{
-			name:  "whitespace returns 0",
-			input: "  ",
-			want:  0,
-		},
-		{
-			name:  "number with spaces returns 0",
-			input: " 42 ",
-			want:  0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := StringToInt(tt.input)
-			if got != tt.want {
-				t.Errorf("StringToInt(%q) = %d, want %d", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestIntToString(t *testing.T) {
-	// intToString is unexported, but we can test it indirectly via NFSVolumeProperties
-	// which uses it for shareID conversion
-	//nolint:govet // fieldalignment: test struct optimization not critical
-	tests := []struct {
-		name    string
-		shareID int
-		want    string
-	}{
-		{
-			name:    "positive integer",
-			shareID: 42,
-			want:    "42",
-		},
-		{
-			name:    "zero",
-			shareID: 0,
-			want:    "0",
-		},
-		{
-			name:    "large number",
-			shareID: 999999999,
-			want:    "999999999",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			props := NFSVolumeProperties("test", tt.shareID, "2024-01-01T00:00:00Z", DeleteStrategyDelete)
-			got := props[PropertyNFSShareID]
-			if got != tt.want {
-				t.Errorf("intToString(%d) via NFSVolumeProperties = %q, want %q", tt.shareID, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestPropertyConstants(t *testing.T) {
 	// Verify all property constants have the correct prefix
 	props := []string{
@@ -447,19 +142,15 @@ func TestPropertyConstants(t *testing.T) {
 		PropertyNFSSharePath,
 		// NVMe-oF properties
 		PropertyNVMeSubsystemID,
-		PropertyNVMeNamespaceID,
 		PropertyNVMeSubsystemNQN,
 		// iSCSI properties
 		PropertyISCSIIQN,
 		PropertyISCSITargetID,
-		PropertyISCSIExtentID,
 		// Snapshot properties
 		PropertySnapshotID,
 		PropertySourceVolumeID,
 		PropertyDetachedSnapshot,
 		PropertySourceDataset,
-		PropertySnapshotSourceVolume,
-		PropertySnapshotCSIName,
 		// Clone properties
 		PropertyContentSourceType,
 		PropertyContentSourceID,
@@ -467,8 +158,6 @@ func TestPropertyConstants(t *testing.T) {
 		PropertyOriginSnapshot,
 		// Multi-cluster
 		PropertyClusterID,
-		// Legacy
-		PropertyProvisionedAt,
 	}
 
 	for _, prop := range props {
@@ -523,11 +212,11 @@ func TestNFSVolumePropertiesV1(t *testing.T) {
 		CreatedAt:      "2024-01-15T10:30:00Z",
 		DeleteStrategy: DeleteStrategyDelete,
 		SharePath:      "/mnt/tank/csi/pvc-12345678",
+		ShareIDStr:     "some-uuid-share-id",
 		PVCName:        "my-data",
 		PVCNamespace:   "default",
-		StorageClass:   "truenas-nfs",
+		StorageClass:   "nasty-nfs",
 		CapacityBytes:  10737418240,
-		ShareID:        42,
 	}
 
 	props := NFSVolumePropertiesV1(params)
@@ -556,8 +245,8 @@ func TestNFSVolumePropertiesV1(t *testing.T) {
 	}
 
 	// Check NFS-specific properties
-	if props[PropertyNFSShareID] != "42" {
-		t.Errorf("PropertyNFSShareID = %q, want %q", props[PropertyNFSShareID], "42")
+	if props[PropertyNFSShareID] != "some-uuid-share-id" {
+		t.Errorf("PropertyNFSShareID = %q, want %q", props[PropertyNFSShareID], "some-uuid-share-id")
 	}
 	if props[PropertyNFSSharePath] != params.SharePath {
 		t.Errorf("PropertyNFSSharePath = %q, want %q", props[PropertyNFSSharePath], params.SharePath)
@@ -582,8 +271,8 @@ func TestNFSVolumePropertiesV1_OptionalAdoption(t *testing.T) {
 		CreatedAt:      "2024-01-15T10:30:00Z",
 		DeleteStrategy: DeleteStrategyDelete,
 		SharePath:      "/mnt/tank/csi/pvc-test",
+		ShareIDStr:     "some-uuid",
 		CapacityBytes:  1073741824,
-		ShareID:        1,
 		// Adoption fields left empty
 	}
 
@@ -610,8 +299,8 @@ func TestClusterIDProperty(t *testing.T) {
 			CreatedAt:      "2024-01-15T10:30:00Z",
 			DeleteStrategy: DeleteStrategyDelete,
 			SharePath:      "/mnt/tank/csi/pvc-test",
+			ShareIDStr:     "some-uuid",
 			CapacityBytes:  1073741824,
-			ShareID:        1,
 			ClusterID:      "prod-east",
 		}
 		props := NFSVolumePropertiesV1(params)
@@ -627,8 +316,7 @@ func TestClusterIDProperty(t *testing.T) {
 			DeleteStrategy: DeleteStrategyDelete,
 			SubsystemNQN:   "nqn.test",
 			CapacityBytes:  1073741824,
-			SubsystemID:    1,
-			NamespaceID:    1,
+			SubsystemIDStr: "some-uuid-1",
 			ClusterID:      "staging",
 		}
 		props := NVMeOFVolumePropertiesV1(params)
@@ -644,8 +332,7 @@ func TestClusterIDProperty(t *testing.T) {
 			DeleteStrategy: DeleteStrategyDelete,
 			TargetIQN:      "iqn.test",
 			CapacityBytes:  1073741824,
-			TargetID:       1,
-			ExtentID:       1,
+			TargetIDStr:    "some-uuid-target",
 			ClusterID:      "dev",
 		}
 		props := ISCSIVolumePropertiesV1(params)
@@ -661,7 +348,6 @@ func TestClusterIDProperty(t *testing.T) {
 			DeleteStrategy: DeleteStrategyDelete,
 			ShareName:      "pvc-test",
 			CapacityBytes:  1073741824,
-			ShareID:        1,
 			ClusterID:      "prod-west",
 		}
 		props := SMBVolumePropertiesV1(params)
@@ -689,8 +375,8 @@ func TestClusterIDProperty(t *testing.T) {
 			CreatedAt:      "2024-01-15T10:30:00Z",
 			DeleteStrategy: DeleteStrategyDelete,
 			SharePath:      "/mnt/tank/csi/pvc-test",
+			ShareIDStr:     "some-uuid",
 			CapacityBytes:  1073741824,
-			ShareID:        1,
 		}
 		props := NFSVolumePropertiesV1(params)
 		if _, ok := props[PropertyClusterID]; ok {
@@ -704,13 +390,12 @@ func TestNVMeOFVolumePropertiesV1(t *testing.T) {
 		VolumeID:       "pvc-abcdef00-1234-5678-9abc-def012345678",
 		CreatedAt:      "2024-01-15T10:30:00Z",
 		DeleteStrategy: DeleteStrategyRetain,
-		SubsystemNQN:   "nqn.2024.io.truenas:nvme:pvc-abcdef00",
+		SubsystemNQN:   "nqn.2024.io.nasty:nvme:pvc-abcdef00",
+		SubsystemIDStr: "338",
 		PVCName:        "database",
 		PVCNamespace:   "production",
-		StorageClass:   "truenas-nvmeof",
+		StorageClass:   "nasty-nvmeof",
 		CapacityBytes:  53687091200,
-		SubsystemID:    338,
-		NamespaceID:    456,
 	}
 
 	props := NVMeOFVolumePropertiesV1(params)
@@ -729,9 +414,6 @@ func TestNVMeOFVolumePropertiesV1(t *testing.T) {
 	// Check NVMe-oF-specific properties
 	if props[PropertyNVMeSubsystemID] != "338" {
 		t.Errorf("PropertyNVMeSubsystemID = %q, want %q", props[PropertyNVMeSubsystemID], "338")
-	}
-	if props[PropertyNVMeNamespaceID] != "456" {
-		t.Errorf("PropertyNVMeNamespaceID = %q, want %q", props[PropertyNVMeNamespaceID], "456")
 	}
 	if props[PropertyNVMeSubsystemNQN] != params.SubsystemNQN {
 		t.Errorf("PropertyNVMeSubsystemNQN = %q, want %q", props[PropertyNVMeSubsystemNQN], params.SubsystemNQN)

@@ -5,10 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
@@ -20,38 +18,36 @@ import (
 // Error message constants.
 const (
 	errMsgVolumeIDRequired   = "Volume ID is required"
-	errMsgVolumeSizeTooSmall = "requested volume size %d bytes is below minimum %d bytes (1 GiB) enforced by TrueNAS"
+	errMsgVolumeSizeTooSmall = "requested volume size %d bytes is below minimum %d bytes (1 GiB) enforced by NASty"
 	msgVolumeIsHealthy       = "Volume is healthy"
 )
 
 // Default values.
 const (
 	defaultServerAddress = "defaultServerAddress"
-	// MinVolumeSize is the minimum volume size enforced by TrueNAS (1 GiB).
-	// TrueNAS API rejects quota/volsize values below this threshold.
+	// MinVolumeSize is the minimum volume size enforced by NASty (1 GiB).
+	// NASty API rejects quota/volsize values below this threshold.
 	MinVolumeSize = 1 << 30 // 1 GiB in bytes (1073741824)
 )
 
 // VolumeContext key constants - these are used consistently across the driver.
 const (
-	VolumeContextKeyProtocol          = "protocol"
-	VolumeContextKeyServer            = "server"
-	VolumeContextKeyShare             = "share"
-	VolumeContextKeyDatasetID         = "datasetID"
-	VolumeContextKeyDatasetName       = "datasetName"
-	VolumeContextKeyNFSShareID        = "nfsShareID"
-	VolumeContextKeyNQN               = "nqn"
-	VolumeContextKeyNVMeOFSubsystemID = "nvmeofSubsystemID"
-	VolumeContextKeyNVMeOFNamespaceID = "nvmeofNamespaceID"
-	VolumeContextKeyNSID              = "nsid"
-	VolumeContextKeyISCSIIQN          = "iscsiIQN"
-	VolumeContextKeyISCSITargetID     = "iscsiTargetID"
-	VolumeContextKeyISCSIExtentID     = "iscsiExtentID"
-	VolumeContextKeySMBShareID        = "smbShareID"
-	VolumeContextKeyExpectedCapacity  = "expectedCapacity"
-	VolumeContextKeyClonedFromSnap    = "clonedFromSnapshot"
-	VolumeContextValueTrue            = "true"
-	VolumeContextValueFalse           = "false"
+	VolumeContextKeyProtocol            = "protocol"
+	VolumeContextKeyServer              = "server"
+	VolumeContextKeyShare               = "share"
+	VolumeContextKeyDatasetID           = "datasetID"
+	VolumeContextKeyDatasetName         = "datasetName"
+	VolumeContextKeyNFSShareUUID        = "nfsShareUUID"
+	VolumeContextKeyNQN                 = "nqn"
+	VolumeContextKeyNSID                = "nsid"
+	VolumeContextKeyISCSIIQN            = "iscsiIQN"
+	VolumeContextKeyISCSITargetUUID     = "iscsiTargetUUID"
+	VolumeContextKeySMBShareUUID        = "smbShareUUID"
+	VolumeContextKeyNVMeOFSubsystemUUID = "nvmeofSubsystemUUID"
+	VolumeContextKeyExpectedCapacity    = "expectedCapacity"
+	VolumeContextKeyClonedFromSnap      = "clonedFromSnapshot"
+	VolumeContextValueTrue              = "true"
+	VolumeContextValueFalse             = "false"
 )
 
 // Static errors for controller operations.
@@ -61,7 +57,7 @@ var (
 )
 
 // capacityErrorSubstrings are error message patterns that indicate insufficient pool capacity.
-// TrueNAS returns these when a pool or dataset doesn't have enough free space.
+// NASty returns these when a pool or dataset doesn't have enough free space.
 var errNoDeferredClonesToPromote = errors.New("no deferred-destroy snapshot clones to promote")
 
 var capacityErrorSubstrings = []string{
@@ -97,31 +93,23 @@ func createVolumeError(msg string, err error) error {
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
-// mountpointToDatasetID converts a ZFS mountpoint to a dataset ID.
-// ZFS datasets are mounted at /mnt/<dataset_name>, so we strip the /mnt/ prefix.
-// Example: /mnt/tank/csi/pvc-xxx -> tank/csi/pvc-xxx.
-func mountpointToDatasetID(mountpoint string) string {
-	return strings.TrimPrefix(mountpoint, "/mnt/")
-}
 
 // VolumeMetadata contains information needed to manage a volume.
 // This is used internally and for building VolumeContext.
 // Note: Volume ID is now just the volume name (CSI spec compliant, max 128 bytes).
 // All metadata is passed via VolumeContext.
 type VolumeMetadata struct {
-	Name              string
-	Protocol          string
-	DatasetID         string
-	DatasetName       string
-	Server            string // TrueNAS server address
-	NVMeOFNQN         string // NVMe-oF subsystem NQN
-	ISCSIIQN          string // iSCSI target IQN
-	NFSShareID        int
-	NVMeOFSubsystemID int
-	NVMeOFNamespaceID int
-	ISCSITargetID     int
-	ISCSIExtentID     int
-	SMBShareID        int
+	Name                string
+	Protocol            string
+	DatasetID           string
+	DatasetName         string
+	Server              string // NASty server address
+	NVMeOFNQN           string // NVMe-oF subsystem NQN
+	NVMeOFSubsystemUUID string // NASty API UUID subsystem ID
+	ISCSIIQN            string // iSCSI target IQN
+	ISCSITargetUUID     string // NASty API UUID target ID
+	NFSShareUUID        string // NASty API UUID share ID
+	SMBShareUUID        string // NASty API UUID SMB share ID
 }
 
 // buildVolumeContext creates a VolumeContext map from VolumeMetadata.
@@ -144,32 +132,26 @@ func buildVolumeContext(meta VolumeMetadata) map[string]string {
 	// Protocol-specific fields
 	switch meta.Protocol {
 	case ProtocolNFS:
-		if meta.NFSShareID != 0 {
-			ctx[VolumeContextKeyNFSShareID] = strconv.Itoa(meta.NFSShareID)
+		if meta.NFSShareUUID != "" {
+			ctx[VolumeContextKeyNFSShareUUID] = meta.NFSShareUUID
 		}
 	case ProtocolNVMeOF:
 		if meta.NVMeOFNQN != "" {
 			ctx[VolumeContextKeyNQN] = meta.NVMeOFNQN
 		}
-		if meta.NVMeOFSubsystemID != 0 {
-			ctx[VolumeContextKeyNVMeOFSubsystemID] = strconv.Itoa(meta.NVMeOFSubsystemID)
-		}
-		if meta.NVMeOFNamespaceID != 0 {
-			ctx[VolumeContextKeyNVMeOFNamespaceID] = strconv.Itoa(meta.NVMeOFNamespaceID)
+		if meta.NVMeOFSubsystemUUID != "" {
+			ctx[VolumeContextKeyNVMeOFSubsystemUUID] = meta.NVMeOFSubsystemUUID
 		}
 	case ProtocolISCSI:
 		if meta.ISCSIIQN != "" {
 			ctx[VolumeContextKeyISCSIIQN] = meta.ISCSIIQN
 		}
-		if meta.ISCSITargetID != 0 {
-			ctx[VolumeContextKeyISCSITargetID] = strconv.Itoa(meta.ISCSITargetID)
-		}
-		if meta.ISCSIExtentID != 0 {
-			ctx[VolumeContextKeyISCSIExtentID] = strconv.Itoa(meta.ISCSIExtentID)
+		if meta.ISCSITargetUUID != "" {
+			ctx[VolumeContextKeyISCSITargetUUID] = meta.ISCSITargetUUID
 		}
 	case ProtocolSMB:
-		if meta.SMBShareID != 0 {
-			ctx[VolumeContextKeySMBShareID] = strconv.Itoa(meta.SMBShareID)
+		if meta.SMBShareUUID != "" {
+			ctx[VolumeContextKeySMBShareUUID] = meta.SMBShareUUID
 		}
 	}
 
@@ -177,7 +159,7 @@ func buildVolumeContext(meta VolumeMetadata) map[string]string {
 }
 
 // getProtocolFromVolumeContext determines the protocol from volume context.
-// Falls back to NFS if protocol is not specified (for backwards compatibility).
+// Falls back to NFS if protocol is not specified.
 func getProtocolFromVolumeContext(ctx map[string]string) string {
 	if protocol := ctx[VolumeContextKeyProtocol]; protocol != "" {
 		return protocol
@@ -186,16 +168,12 @@ func getProtocolFromVolumeContext(ctx map[string]string) string {
 	if ctx[VolumeContextKeyNQN] != "" {
 		return ProtocolNVMeOF
 	}
-	if ctx[VolumeContextKeyISCSIIQN] != "" || ctx[VolumeContextKeyISCSITargetID] != "" {
+	if ctx[VolumeContextKeyISCSIIQN] != "" {
 		return ProtocolISCSI
 	}
-	if ctx[VolumeContextKeySMBShareID] != "" {
-		return ProtocolSMB
-	}
-	if ctx[VolumeContextKeyShare] != "" || ctx[VolumeContextKeyNFSShareID] != "" {
+	if ctx[VolumeContextKeyShare] != "" {
 		return ProtocolNFS
 	}
-	// Default to NFS for backwards compatibility
 	return ProtocolNFS
 }
 
@@ -228,331 +206,169 @@ func isDatasetPathVolumeID(volumeID string) bool {
 	return strings.Contains(volumeID, "/")
 }
 
-// lookupVolumeByCSIName finds a volume by its CSI volume name using ZFS properties.
-// This is the preferred method for volume discovery as it uses the source of truth (ZFS properties).
-// For new-format volume IDs (containing "/"), uses O(1) direct dataset lookup.
+// lookupVolumeByCSIName finds a volume by its CSI volume name using xattr properties.
+// This is the preferred method for volume discovery as it uses the source of truth (xattr properties).
+// For new-format volume IDs (containing "/"), uses O(1) direct subvolume lookup (pool/name).
 // For legacy volume IDs (plain names), falls back to O(n) property scan.
 // Returns nil, nil if volume not found; returns error only on API failures.
 func (s *ControllerService) lookupVolumeByCSIName(ctx context.Context, poolDatasetPrefix, volumeName string) (*VolumeMetadata, error) {
 	klog.V(4).Infof("Looking up volume by CSI name: %s (prefix: %s)", volumeName, poolDatasetPrefix)
 
-	// New-format volume IDs are the full dataset path — use O(1) direct lookup
+	// New-format volume IDs contain "/" (e.g., "pool/pvc-xxx") — use O(1) direct lookup
 	if isDatasetPathVolumeID(volumeName) {
-		return s.lookupVolumeByDatasetPath(ctx, volumeName)
+		return s.lookupVolumeBySubvolumePath(ctx, volumeName)
 	}
 
-	// Legacy volume IDs are plain names — use O(n) property scan
+	// Plain-name volume IDs — use O(n) property scan
 	return s.lookupVolumeByPropertyScan(ctx, poolDatasetPrefix, volumeName)
 }
 
-// lookupVolumeByDatasetPath looks up a volume by its full dataset path (O(1) lookup).
-// This is used for new-format volume IDs where the volume ID IS the dataset path.
-func (s *ControllerService) lookupVolumeByDatasetPath(ctx context.Context, datasetPath string) (*VolumeMetadata, error) {
-	klog.V(4).Infof("Looking up volume by dataset path (O(1)): %s", datasetPath)
+// lookupVolumeBySubvolumePath looks up a volume by its full subvolume path "pool/name" (O(1) lookup).
+func (s *ControllerService) lookupVolumeBySubvolumePath(ctx context.Context, subvolumePath string) (*VolumeMetadata, error) {
+	klog.V(4).Infof("Looking up volume by subvolume path (O(1)): %s", subvolumePath)
 
-	dataset, err := s.apiClient.GetDatasetWithProperties(ctx, datasetPath)
+	pool, name, err := splitSubvolumeID(subvolumePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query dataset %s: %w", datasetPath, err)
+		return nil, fmt.Errorf("invalid subvolume path %s: %w", subvolumePath, err)
 	}
-	if dataset == nil {
-		klog.V(4).Infof("Dataset not found: %s", datasetPath)
+
+	subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	if err != nil {
+		if isNotFoundError(err) {
+			klog.V(4).Infof("Subvolume not found: %s", subvolumePath)
+			return nil, nil //nolint:nilnil // nil, nil indicates "not found" - callers check for nil result
+		}
+		return nil, fmt.Errorf("failed to query subvolume %s: %w", subvolumePath, err)
+	}
+	if subvol == nil {
+		klog.V(4).Infof("Subvolume not found: %s", subvolumePath)
 		return nil, nil //nolint:nilnil // nil, nil indicates "not found" - callers check for nil result
 	}
 
-	return extractVolumeMetadata(datasetPath, dataset)
+	return extractVolumeMetadataFromSubvolume(subvolumePath, subvol)
 }
 
-// lookupVolumeByPropertyScan finds a volume by scanning datasets for matching CSI volume name property (O(n) legacy).
-func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, poolDatasetPrefix, volumeName string) (*VolumeMetadata, error) {
-	klog.V(4).Infof("Looking up volume by property scan (O(n) legacy): %s (prefix: %s)", volumeName, poolDatasetPrefix)
+// lookupVolumeByPropertyScan finds a volume by scanning subvolumes for matching CSI volume name property (O(n)).
+func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, pool, volumeName string) (*VolumeMetadata, error) {
+	klog.V(4).Infof("Looking up volume by property scan (O(n)): %s (pool: %s)", volumeName, pool)
 
-	dataset, err := s.apiClient.FindDatasetByCSIVolumeName(ctx, poolDatasetPrefix, volumeName)
+	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, pool, volumeName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find dataset by CSI volume name: %w", err)
+		return nil, fmt.Errorf("failed to find subvolume by CSI volume name: %w", err)
 	}
-	if dataset == nil {
+	if subvol == nil {
 		klog.V(4).Infof("Volume not found by CSI name: %s", volumeName)
 		return nil, nil //nolint:nilnil // nil, nil indicates "not found" - callers check for nil result
 	}
 
-	return extractVolumeMetadata(volumeName, dataset)
+	volumeID := subvol.Pool + "/" + subvol.Name
+	return extractVolumeMetadataFromSubvolume(volumeID, subvol)
 }
 
-// extractVolumeMetadata builds VolumeMetadata from a DatasetWithProperties.
-// Verifies ownership and extracts all protocol-specific metadata from ZFS properties.
-// Returns nil, nil if the dataset is not managed by tns-csi.
-func extractVolumeMetadata(volumeID string, dataset *tnsapi.DatasetWithProperties) (*VolumeMetadata, error) {
-	props := dataset.UserProperties
+// extractVolumeMetadataFromSubvolume builds VolumeMetadata from a Subvolume.
+// Verifies ownership and extracts all protocol-specific metadata from xattr properties.
+// Returns nil, nil if the subvolume is not managed by nasty-csi.
+func extractVolumeMetadataFromSubvolume(volumeID string, subvol *tnsapi.Subvolume) (*VolumeMetadata, error) {
+	props := subvol.Properties
 	if props == nil {
-		klog.Warningf("Dataset %s has no user properties, may not be managed by tns-csi", dataset.ID)
-		return nil, nil //nolint:nilnil // Dataset exists but no properties - treat as not found
+		klog.Warningf("Subvolume %s/%s has no properties, may not be managed by nasty-csi", subvol.Pool, subvol.Name)
+		return nil, nil //nolint:nilnil // Subvolume exists but no properties - treat as not found
 	}
 
 	// Verify ownership
-	if managedBy, ok := props[tnsapi.PropertyManagedBy]; !ok || managedBy.Value != tnsapi.ManagedByValue {
-		klog.Warningf("Dataset %s not managed by tns-csi (managed_by=%v)", dataset.ID, props[tnsapi.PropertyManagedBy])
+	if managedBy, ok := props[tnsapi.PropertyManagedBy]; !ok || managedBy != tnsapi.ManagedByValue {
+		klog.Warningf("Subvolume %s/%s not managed by nasty-csi (managed_by=%s)", subvol.Pool, subvol.Name, managedBy)
 		return nil, nil //nolint:nilnil // Not our volume - treat as not found
 	}
+
+	subvolumeID := subvol.Pool + "/" + subvol.Name
 
 	// Build VolumeMetadata from properties
 	meta := &VolumeMetadata{
 		Name:        volumeID,
-		DatasetID:   dataset.ID,
-		DatasetName: dataset.Name,
+		DatasetID:   subvolumeID,
+		DatasetName: subvol.Name,
 	}
 
 	// Extract protocol
 	if protocol, ok := props[tnsapi.PropertyProtocol]; ok {
-		meta.Protocol = protocol.Value
+		meta.Protocol = protocol
 	}
 
 	// Extract protocol-specific IDs
-	if nfsShareID, ok := props[tnsapi.PropertyNFSShareID]; ok {
-		meta.NFSShareID = tnsapi.StringToInt(nfsShareID.Value)
+	if nfsShareID, ok := props[tnsapi.PropertyNFSShareID]; ok && nfsShareID != "" {
+		meta.NFSShareUUID = nfsShareID
 	}
-	if nvmeSubsystemID, ok := props[tnsapi.PropertyNVMeSubsystemID]; ok {
-		meta.NVMeOFSubsystemID = tnsapi.StringToInt(nvmeSubsystemID.Value)
-	}
-	if nvmeNamespaceID, ok := props[tnsapi.PropertyNVMeNamespaceID]; ok {
-		meta.NVMeOFNamespaceID = tnsapi.StringToInt(nvmeNamespaceID.Value)
+	if nvmeSubsystemID, ok := props[tnsapi.PropertyNVMeSubsystemID]; ok && nvmeSubsystemID != "" {
+		meta.NVMeOFSubsystemUUID = nvmeSubsystemID
 	}
 	if nvmeNQN, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		meta.NVMeOFNQN = nvmeNQN.Value
+		meta.NVMeOFNQN = nvmeNQN
 	}
-	if iscsiTargetID, ok := props[tnsapi.PropertyISCSITargetID]; ok {
-		meta.ISCSITargetID = tnsapi.StringToInt(iscsiTargetID.Value)
-	}
-	if iscsiExtentID, ok := props[tnsapi.PropertyISCSIExtentID]; ok {
-		meta.ISCSIExtentID = tnsapi.StringToInt(iscsiExtentID.Value)
+	if iscsiTargetID, ok := props[tnsapi.PropertyISCSITargetID]; ok && iscsiTargetID != "" {
+		meta.ISCSITargetUUID = iscsiTargetID
 	}
 	if iscsiIQN, ok := props[tnsapi.PropertyISCSIIQN]; ok {
-		meta.ISCSIIQN = iscsiIQN.Value
+		meta.ISCSIIQN = iscsiIQN
+	}
+	if smbShareID, ok := props[tnsapi.PropertySMBShareID]; ok && smbShareID != "" {
+		meta.SMBShareUUID = smbShareID
 	}
 
-	klog.V(4).Infof("Found volume: %s (dataset=%s, protocol=%s)", volumeID, dataset.ID, meta.Protocol)
+	klog.V(4).Infof("Found volume: %s (subvolume=%s, protocol=%s)", volumeID, subvolumeID, meta.Protocol)
 	return meta, nil
 }
 
-// lookupSnapshotByCSIName finds a detached snapshot by its CSI snapshot name using ZFS properties.
-// This searches for datasets with PropertySnapshotID matching the given name.
-// Note: This only finds detached snapshots (stored as datasets). Regular ZFS snapshots
-// store properties differently and should be queried via QuerySnapshots.
-// Returns nil, nil if snapshot not found; returns error only on API failures.
-func (s *ControllerService) lookupSnapshotByCSIName(ctx context.Context, poolDatasetPrefix, snapshotName string) (*SnapshotMetadata, error) {
-	klog.Infof("Looking up detached snapshot by property %s=%s (prefix: %q)", tnsapi.PropertySnapshotID, snapshotName, poolDatasetPrefix)
 
-	// Search for datasets with matching snapshot ID property
-	datasets, err := s.apiClient.FindDatasetsByProperty(ctx, poolDatasetPrefix, tnsapi.PropertySnapshotID, snapshotName)
-	if err != nil {
-		klog.Errorf("FindDatasetsByProperty failed for snapshot lookup: %v", err)
-		return nil, fmt.Errorf("failed to find snapshot by CSI name: %w", err)
-	}
-
-	klog.V(4).Infof("FindDatasetsByProperty returned %d datasets for snapshot_id=%s", len(datasets), snapshotName)
-
-	if len(datasets) == 0 {
-		klog.Warningf("Detached snapshot not found by property: %s=%s (no datasets matched)", tnsapi.PropertySnapshotID, snapshotName)
-		return nil, nil //nolint:nilnil // nil, nil indicates "not found" - callers check for nil result
-	}
-
-	if len(datasets) > 1 {
-		klog.Warningf("Found multiple datasets with snapshot ID %s (using first): %d datasets", snapshotName, len(datasets))
-	}
-
-	dataset := datasets[0]
-	props := dataset.UserProperties
-
-	// Verify ownership
-	if managedBy, ok := props[tnsapi.PropertyManagedBy]; !ok || managedBy.Value != tnsapi.ManagedByValue {
-		klog.Warningf("Snapshot dataset %s not managed by tns-csi", dataset.ID)
-		return nil, nil //nolint:nilnil // Not our snapshot - treat as not found
-	}
-
-	// Build SnapshotMetadata from properties (uses existing struct from controller_snapshot.go)
-	meta := &SnapshotMetadata{
-		SnapshotName: snapshotName, // CSI snapshot name
-		DatasetName:  dataset.ID,   // Dataset ID where snapshot data lives
-	}
-
-	// Extract properties
-	if protocol, ok := props[tnsapi.PropertyProtocol]; ok {
-		meta.Protocol = protocol.Value
-	}
-	if sourceVolumeID, ok := props[tnsapi.PropertySourceVolumeID]; ok {
-		meta.SourceVolume = sourceVolumeID.Value
-	}
-	if detached, ok := props[tnsapi.PropertyDetachedSnapshot]; ok {
-		meta.Detached = detached.Value == VolumeContextValueTrue
-	}
-
-	klog.V(4).Infof("Found snapshot: %s (dataset=%s, type=%s, protocol=%s, detached=%v)", snapshotName, dataset.ID, dataset.Type, meta.Protocol, meta.Detached)
-	return meta, nil
-}
-
-// deleteDatasetSnapshots deletes all snapshots on a dataset before deleting the dataset itself.
-// This handles the ZFS clone promotion case where snapshots may have dependent clones that
-// prevent dataset deletion. By deleting snapshots with defer=true first, ZFS will automatically
-// clean them up once all dependents are destroyed.
-//
-// datasetHasCSIManagedSnapshots checks if a dataset has any CSI-managed snapshots
-// (snapshots with nasty-csi:managed_by = "nasty-csi"). This is used as a pre-deletion guard
-// to prevent destroying snapshots that external tools like VolSync depend on.
-//
+// subvolumeHasCSIManagedSnapshots checks if a subvolume has any CSI-managed snapshots.
+// This is used as a pre-deletion guard to prevent destroying snapshots that other tools depend on.
 // When CSI-managed snapshots exist, DeleteVolume should return FAILED_PRECONDITION
 // so Kubernetes retries until the snapshots are explicitly removed via DeleteSnapshot.
-// This matches democratic-csi's behavior of blocking deletion when managed snapshots exist.
-//
-// Uses extra.user_properties=true which is the only way to get user-defined ZFS properties
-// from pool.snapshot.query. The extra.properties list option is silently ignored for snapshots.
-func (s *ControllerService) datasetHasCSIManagedSnapshots(_ context.Context, datasetID string) (bool, error) {
-	// Use background context — parent gRPC context deadline is too short for reliable checks.
-	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	filters := []interface{}{
-		[]interface{}{"dataset", "=", datasetID},
-	}
-
-	snapshots, err := s.apiClient.QuerySnapshotsWithProperties(snapCtx, filters) //nolint:contextcheck // intentional: parent gRPC context deadline is too short
+func (s *ControllerService) subvolumeHasCSIManagedSnapshots(ctx context.Context, pool, name string) (bool, error) {
+	snapshots, err := s.apiClient.ListSnapshots(ctx, pool)
 	if err != nil {
-		return false, fmt.Errorf("failed to query snapshots for %s: %w", datasetID, err)
-	}
-
-	if len(snapshots) == 0 {
-		klog.V(4).Infof("No snapshots on dataset %s", datasetID)
-		return false, nil
+		return false, fmt.Errorf("failed to list snapshots for %s/%s: %w", pool, name, err)
 	}
 
 	for _, snap := range snapshots {
-		// Use tns-csi:snapshot_id as the definitive CSI snapshot indicator.
-		// This property is ONLY set on snapshots created by CSI CreateSnapshot
-		// and is never set on parent datasets, so it cannot be inherited.
-		// (nasty-csi:managed_by is inherited by ALL child snapshots from the parent
-		// dataset, making it unreliable for distinguishing CSI vs temp snapshots.)
-		if _, hasSnapshotID := tnsapi.GetSnapshotPropertyValue(snap, tnsapi.PropertySnapshotID); hasSnapshotID {
-			// Skip snapshots marked for deferred destruction — DeleteSnapshot already
-			// succeeded (defer=true), ZFS will auto-destroy when all clones are gone.
-			if dv, dok := tnsapi.GetSnapshotPropertyValue(snap, "defer_destroy"); dok && dv == "on" {
-				klog.Infof("Dataset %s: skipping deferred-destroy snapshot %s", datasetID, snap.ID)
-				continue
-			}
-			klog.Infof("Dataset %s has CSI-managed snapshot: %s", datasetID, snap.ID)
+		if snap.Subvolume != name {
+			continue
+		}
+		// A snapshot is CSI-managed if its name starts with "csi-" prefix convention.
+		// TODO: When NASty supports snapshot properties/xattrs, use PropertySnapshotID instead.
+		if strings.HasPrefix(snap.Name, "csi-") {
+			klog.Infof("Subvolume %s/%s has CSI-managed snapshot: %s", pool, name, snap.Name)
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-// This is necessary because after ZFS clone promotion:
-//   - The snapshot moves from the source to the promoted clone.
-//   - The original source volume becomes a dependent of the promoted snapshot.
-//   - Without deleting the snapshot first, neither the clone nor the source can be deleted.
-//
-// Uses a 30-second timeout as a safety net — this is best-effort cleanup, not critical path.
-// Skips CSI-managed snapshots (those with nasty-csi:managed_by property) to prevent
-// VolSync deadlock — those must be deleted via DeleteSnapshot by their owner.
-func (s *ControllerService) deleteDatasetSnapshots(_ context.Context, datasetID string) {
-	klog.V(4).Infof("Checking for non-CSI snapshots on dataset %s before deletion", datasetID)
+// deleteSubvolumeSnapshots deletes all non-CSI snapshots on a subvolume before deleting it.
+// This is best-effort cleanup; errors are logged and skipped.
+func (s *ControllerService) deleteSubvolumeSnapshots(ctx context.Context, pool, name string) {
+	klog.V(4).Infof("Checking for non-CSI snapshots on subvolume %s/%s before deletion", pool, name)
 
-	// Use background context — parent gRPC context may have a short deadline
-	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	filters := []interface{}{
-		[]interface{}{"dataset", "=", datasetID},
-	}
-
-	snapshots, err := s.apiClient.QuerySnapshotsWithProperties(snapCtx, filters) //nolint:contextcheck // intentional: background context needed for reliable cleanup
+	snapshots, err := s.apiClient.ListSnapshots(ctx, pool)
 	if err != nil {
-		klog.Warningf("Failed to query snapshots for dataset %s: %v (skipping snapshot cleanup)", datasetID, err)
-		return
-	}
-
-	if len(snapshots) == 0 {
-		klog.V(4).Infof("No snapshots found on dataset %s", datasetID)
+		klog.Warningf("Failed to list snapshots for %s/%s: %v (skipping snapshot cleanup)", pool, name, err)
 		return
 	}
 
 	for _, snap := range snapshots {
-		// Skip CSI-managed snapshots — they must be deleted via DeleteSnapshot by their owner (e.g., VolSync).
-		// Use tns-csi:snapshot_id as the indicator (not managed_by which is inherited from parent dataset).
-		if _, hasSnapshotID := tnsapi.GetSnapshotPropertyValue(snap, tnsapi.PropertySnapshotID); hasSnapshotID {
-			klog.Infof("Skipping CSI-managed snapshot %s (will be deleted via DeleteSnapshot)", snap.ID)
+		if snap.Subvolume != name {
 			continue
 		}
-		// Skip snapshots with dependent clones — deleting them (even with defer=true)
-		// would trigger the promote cascade and allow the source to be deleted when it
-		// should be blocked. Let DeleteDataset handle these via FailedPrecondition.
-		if cloneVal, cok := tnsapi.GetSnapshotPropertyValue(snap, "clones"); cok && cloneVal != "" {
-			klog.Infof("Skipping snapshot %s with dependent clones: %s", snap.ID, cloneVal)
+		// Skip CSI-managed snapshots — they must be deleted via DeleteSnapshot.
+		if strings.HasPrefix(snap.Name, "csi-") {
+			klog.Infof("Skipping CSI-managed snapshot %s on %s/%s", snap.Name, pool, name)
 			continue
 		}
-		klog.V(4).Infof("Deleting non-CSI snapshot %s (defer=true to handle dependent clones)", snap.ID)
-		if err := s.apiClient.DeleteSnapshot(snapCtx, snap.ID); err != nil { //nolint:contextcheck // intentional: background context needed for reliable cleanup
-			klog.Warningf("Failed to delete snapshot %s: %v (continuing)", snap.ID, err)
+		klog.V(4).Infof("Deleting non-CSI snapshot %s on subvolume %s/%s", snap.Name, pool, name)
+		if err := s.apiClient.DeleteSnapshot(ctx, pool, name, snap.Name); err != nil {
+			klog.Warningf("Failed to delete snapshot %s: %v (continuing)", snap.Name, err)
 		}
 	}
-}
-
-// promoteClonesOfDeferredSnapshots promotes clones of deferred-destroy snapshots on a dataset.
-// When CSI DeleteSnapshot is called with defer=true (because a clone depends on the snapshot),
-// the snapshot remains on the source dataset and blocks deletion. Promoting the clone reverses
-// the dependency, allowing the source dataset to be deleted.
-// Returns true if any clones were promoted (caller should retry deletion).
-func (s *ControllerService) promoteClonesOfDeferredSnapshots(_ context.Context, datasetID string) bool {
-	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	snapshots, err := s.apiClient.QuerySnapshotsWithProperties(snapCtx, []interface{}{ //nolint:contextcheck // intentional: background context needed
-		[]interface{}{"dataset", "=", datasetID},
-	})
-	if err != nil {
-		klog.Warningf("Failed to query snapshots for %s: %v", datasetID, err)
-		return false
-	}
-
-	promoted := false
-	for _, snap := range snapshots {
-		dv, dok := tnsapi.GetSnapshotPropertyValue(snap, "defer_destroy")
-		if !dok || dv != "on" {
-			continue
-		}
-		cloneVal, cok := tnsapi.GetSnapshotPropertyValue(snap, "clones")
-		if !cok || cloneVal == "" {
-			continue
-		}
-		// clones value can be comma-separated for multiple clones
-		for _, clone := range strings.Split(cloneVal, ",") {
-			clone = strings.TrimSpace(clone)
-			if clone == "" {
-				continue
-			}
-			klog.Infof("Promoting clone %s of deferred-destroy snapshot %s", clone, snap.ID)
-			if err := s.apiClient.PromoteDataset(snapCtx, clone); err != nil { //nolint:contextcheck // intentional
-				klog.Warningf("Failed to promote clone %s: %v", clone, err)
-			} else {
-				promoted = true
-			}
-		}
-	}
-	return promoted
-}
-
-// tryPromoteAndDeleteDataset handles the dependent-clones case during dataset deletion.
-// When DeleteDataset fails with "dependent clones", this tries promoting clones of
-// deferred-destroy snapshots (CSI-deleted but still present due to clone dependency),
-// then retries deletion. Returns nil on success, or the original error if unresolvable.
-func (s *ControllerService) tryPromoteAndDeleteDataset(ctx context.Context, datasetID string) error {
-	if s.promoteClonesOfDeferredSnapshots(ctx, datasetID) {
-		retryErr := s.apiClient.DeleteDataset(ctx, datasetID)
-		if retryErr == nil || isNotFoundError(retryErr) {
-			klog.Infof("Dataset %s deleted after promoting deferred snapshot clones", datasetID)
-			return nil
-		}
-		klog.Warningf("Dataset %s still has dependent clones after promotion: %v", datasetID, retryErr)
-		return retryErr
-	}
-	return errNoDeferredClonesToPromote
 }
 
 // CreateVolume creates a new volume.
@@ -651,7 +467,7 @@ func validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 		return status.Error(codes.InvalidArgument, "Volume capabilities are required")
 	}
 
-	// Validate minimum volume size (TrueNAS enforces 1 GiB minimum for quota/volsize)
+	// Validate minimum volume size (NASty enforces 1 GiB minimum for quota/volsize)
 	if capacityRange := req.GetCapacityRange(); capacityRange != nil {
 		requiredBytes := capacityRange.GetRequiredBytes()
 		if requiredBytes > 0 && requiredBytes < MinVolumeSize {
@@ -757,301 +573,21 @@ func (s *ControllerService) createVolumeByProtocol(ctx context.Context, req *csi
 }
 
 // checkExistingVolume checks if a volume with the same name already exists and returns it for idempotency.
-// Returns ErrVolumeNotFound if the volume doesn't exist, or error if the volume exists but with incompatible parameters.
-func (s *ControllerService) checkExistingVolume(ctx context.Context, req *csi.CreateVolumeRequest, params map[string]string, protocol string) (*csi.CreateVolumeResponse, error) {
-	pool := params["pool"]
-	parentDataset := params["parentDataset"]
-	if parentDataset == "" {
-		parentDataset = pool
-	}
-
-	if parentDataset == "" {
-		return nil, ErrVolumeNotFound
-	}
-
-	expectedDatasetName := fmt.Sprintf("%s/%s", parentDataset, req.GetName())
-	existingDataset, err := s.apiClient.Dataset(ctx, expectedDatasetName)
-	if err != nil || existingDataset == nil {
-		// Dataset doesn't exist or error querying - continue with creation
-		if err != nil {
-			klog.V(4).Infof("Dataset %s does not exist or error querying: %v - proceeding with creation", expectedDatasetName, err)
-		}
-		return nil, ErrVolumeNotFound
-	}
-
-	// Volume already exists - check capacity compatibility
-	klog.V(4).Infof("Volume %s already exists as dataset %s", req.GetName(), expectedDatasetName)
-
-	reqCapacity := req.GetCapacityRange().GetRequiredBytes()
-	if reqCapacity == 0 {
-		reqCapacity = 1 * 1024 * 1024 * 1024 // 1 GiB default
-	}
-
-	// Build complete volume metadata based on protocol
-	var volumeMeta VolumeMetadata
-	var volumeContext map[string]string
-
-	switch protocol {
-	case ProtocolNFS:
-		meta, ctx, err := s.checkExistingNFSVolume(ctx, req, params, existingDataset, expectedDatasetName, reqCapacity)
-		if err != nil {
-			return nil, err
-		}
-		volumeMeta = meta
-		volumeContext = ctx
-
-	case ProtocolNVMeOF, ProtocolISCSI, ProtocolSMB:
-		// Defer to protocol-specific handler which validates all resources
-		// (subsystem/target/share exist + capacity match + builds complete VolumeContext)
-		return nil, ErrVolumeNotFound
-
-	default:
-		klog.Errorf("Unknown protocol: %s", protocol)
-		return nil, ErrVolumeNotFound
-	}
-
-	// Volume ID is the full dataset path for O(1) lookups
-	volumeID := expectedDatasetName
-
-	// Return capacity from request if specified, otherwise use a default
-	capacity := reqCapacity
-	if capacity <= 0 {
-		capacity = 1 * 1024 * 1024 * 1024 // 1 GiB default
-	}
-
-	// Ensure volume context includes protocol
-	if volumeContext == nil {
-		volumeContext = buildVolumeContext(volumeMeta)
-	} else {
-		volumeContext[VolumeContextKeyProtocol] = protocol
-	}
-
-	klog.V(4).Infof("Returning existing volume %s (idempotent)", req.GetName())
-	return &csi.CreateVolumeResponse{
-		Volume: &csi.Volume{
-			VolumeId:      volumeID,
-			CapacityBytes: capacity,
-			VolumeContext: volumeContext,
-		},
-	}, nil
-}
-
-// checkExistingNFSVolume validates an existing NFS volume for idempotency.
-func (s *ControllerService) checkExistingNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, params map[string]string, existingDataset *tnsapi.Dataset, expectedDatasetName string, reqCapacity int64) (VolumeMetadata, map[string]string, error) {
-	// Query for NFS share to get share ID
-	shares, err := s.apiClient.QueryNFSShare(ctx, existingDataset.Mountpoint)
-	if err != nil {
-		klog.Errorf("Failed to query NFS shares for existing volume: %v", err)
-		return VolumeMetadata{}, nil, ErrVolumeNotFound
-	}
-
-	if len(shares) == 0 {
-		klog.Errorf("No NFS share found for dataset %s (mountpoint: %s)", expectedDatasetName, existingDataset.Mountpoint)
-		return VolumeMetadata{}, nil, ErrVolumeNotFound
-	}
-
-	// Parse capacity from NFS share comment and validate compatibility
-	existingCapacity := parseNFSShareCapacity(shares[0].Comment)
-	if err := validateCapacityCompatibility(req.GetName(), existingCapacity, reqCapacity); err != nil {
-		return VolumeMetadata{}, nil, err
-	}
-
-	// Get server parameter
-	server := params["server"]
-	if server == "" {
-		server = "defaultServerAddress" // Default for testing
-	}
-
-	volumeMeta := VolumeMetadata{
-		Name:        req.GetName(),
-		Protocol:    ProtocolNFS,
-		DatasetID:   existingDataset.ID,
-		DatasetName: expectedDatasetName,
-		Server:      server,
-		NFSShareID:  shares[0].ID,
-	}
-
-	volumeContext := map[string]string{
-		"server":      server,
-		"share":       existingDataset.Mountpoint,
-		"datasetID":   existingDataset.ID,
-		"datasetName": expectedDatasetName,
-		"nfsShareID":  strconv.Itoa(shares[0].ID),
-	}
-
-	return volumeMeta, volumeContext, nil
-}
-
-// parseNFSShareCapacity extracts capacity from NFS share comment.
-// Supports multiple formats:
-// - "CSI Volume: <name>, Capacity: <bytes>"
-// - "CSI Volume: <name> | Capacity: <bytes>".
-func parseNFSShareCapacity(comment string) int64 {
-	if comment == "" {
-		klog.V(4).Infof("Comment is empty")
-		return 0
-	}
-
-	klog.V(4).Infof("Parsing comment: %s", comment)
-
-	// Parse pipe separator format: "volume-name | Capacity: 1073741824"
-	parts := strings.Split(comment, " | Capacity: ")
-	if len(parts) != 2 {
-		klog.V(4).Infof("Comment does not match expected format: %s", comment)
-		return 0
-	}
-
-	parsed, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		klog.V(4).Infof("Could not parse capacity number: %s (error: %v)", parts[1], err)
-		return 0
-	}
-
-	klog.V(4).Infof("Successfully parsed capacity: %d", parsed)
-	return parsed
-}
-
-// validateCapacityCompatibility checks if the requested capacity matches the existing capacity.
-func validateCapacityCompatibility(volumeName string, existingCapacity, reqCapacity int64) error {
-	klog.V(4).Infof("Validating capacity - existing: %d, requested: %d", existingCapacity, reqCapacity)
-
-	if existingCapacity > 0 && reqCapacity != existingCapacity {
-		klog.Errorf("Volume %s already exists with different capacity (existing: %d, requested: %d)",
-			volumeName, existingCapacity, reqCapacity)
-		return status.Errorf(codes.AlreadyExists,
-			"Volume %s already exists with different capacity", volumeName)
-	}
-
-	klog.V(4).Infof("Capacity check passed (existing: %d, requested: %d)", existingCapacity, reqCapacity)
-	return nil
+// For the NASty backend, each protocol handler manages its own idempotency checks.
+// This function defers to protocol-specific handlers which use subvolume lookups.
+// Returns ErrVolumeNotFound to signal that creation should proceed.
+func (s *ControllerService) checkExistingVolume(_ context.Context, _ *csi.CreateVolumeRequest, _ map[string]string, _ string) (*csi.CreateVolumeResponse, error) {
+	// Protocol-specific handlers (createNFSVolume, createISCSIVolume, etc.) perform
+	// idempotency checks internally by querying the subvolume directly. This top-level
+	// check is not needed for the NASty backend since subvolume IDs are deterministic.
+	return nil, ErrVolumeNotFound
 }
 
 // createVolumeFromVolume creates a new volume by cloning an existing volume.
-// This is done by creating a temporary snapshot and cloning from it.
-//
-// The clone maintains a COW (Copy-on-Write) relationship with the temporary snapshot.
-// This is space-efficient as the clone shares blocks with the source until modified.
-// The temporary snapshot is kept because the clone depends on it - this is fundamental
-// ZFS behavior where clones always depend on their origin snapshot.
-func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).Infof("=== createVolumeFromVolume CALLED === New volume: %s, Source volume: %s", req.GetName(), sourceVolumeID)
-
-	// With plain volume IDs, we need to look up the source volume's metadata from TrueNAS
-	// The sourceVolumeID is now just the volume name, we need to find its dataset
-	params := req.GetParameters()
-	pool := params["pool"]
-	parentDataset := params["parentDataset"]
-	if parentDataset == "" {
-		parentDataset = pool
-	}
-
-	// Determine protocol from parameters (default to NFS)
-	protocol := params["protocol"]
-	if protocol == "" {
-		protocol = ProtocolNFS
-	}
-
-	// Determine clone mode from StorageClass parameters:
-	// - detachedVolumesFromVolumes=true: Use send/receive for truly independent copy
-	// - promotedVolumesFromVolumes=true: Use clone+promote (reversed dependency)
-	// - default: Standard COW clone (clone depends on temp snapshot)
-	//
-	// WARNING: Promoted mode reverses the ZFS dependency — the SOURCE volume becomes
-	// dependent on the CLONE. This means you cannot delete the clone while the source
-	// exists. Only use promoted mode when you intend to delete the source first.
-	detachedMode := params[DetachedVolumesFromVolumesParam] == VolumeContextValueTrue
-	promotedMode := params[PromotedVolumesFromVolumesParam] == VolumeContextValueTrue
-
-	if detachedMode && promotedMode {
-		klog.Warningf("Both detachedVolumesFromVolumes and promotedVolumesFromVolumes are set; using detached mode")
-		promotedMode = false
-	}
-
-	// Build expected dataset name for source volume
-	var sourceDatasetName string
-	if isDatasetPathVolumeID(sourceVolumeID) {
-		sourceDatasetName = sourceVolumeID
-	} else {
-		sourceDatasetName = fmt.Sprintf("%s/%s", parentDataset, sourceVolumeID)
-	}
-
-	// Verify source volume exists
-	sourceDataset, err := s.apiClient.Dataset(ctx, sourceDatasetName)
-	if err != nil || sourceDataset == nil {
-		klog.Warningf("Source volume %s not found (dataset: %s): %v", sourceVolumeID, sourceDatasetName, err)
-		return nil, status.Errorf(codes.NotFound, "Source volume not found: %s", sourceVolumeID)
-	}
-
-	klog.V(4).Infof("Cloning from source volume %s (dataset: %s, protocol: %s, detached: %v, promoted: %v)",
-		sourceVolumeID, sourceDatasetName, protocol, detachedMode, promotedMode)
-
-	// Create a temporary snapshot of the source volume
-	// Use predictable naming convention matching democratic-csi: volume-source-for-volume-<new_volume_id>
-	// This allows tracking and cleanup of temp snapshots if needed
-	tempSnapshotName := VolumeSourceSnapshotPrefix + req.GetName()
-	snapshotParams := tnsapi.SnapshotCreateParams{
-		Dataset:   sourceDatasetName,
-		Name:      tempSnapshotName,
-		Recursive: false,
-	}
-
-	snapshot, err := s.apiClient.CreateSnapshot(ctx, snapshotParams)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create temporary snapshot for cloning: %v", err)
-	}
-
-	klog.V(4).Infof("Created temporary snapshot: %s", snapshot.ID)
-
-	// Create snapshot metadata for the temporary snapshot
-	snapshotMeta := SnapshotMetadata{
-		SnapshotName: snapshot.ID,
-		SourceVolume: sourceVolumeID,
-		DatasetName:  sourceDatasetName,
-		Protocol:     protocol,
-		CreatedAt:    time.Now().Unix(),
-	}
-
-	snapshotID, encodeErr := encodeSnapshotID(snapshotMeta)
-	if encodeErr != nil {
-		// Cleanup the temporary snapshot
-		if delErr := s.apiClient.DeleteSnapshot(ctx, snapshot.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup temporary snapshot: %v", delErr)
-		}
-		return nil, status.Errorf(codes.Internal, "Failed to encode snapshot ID: %v", encodeErr)
-	}
-
-	// Clone from the temporary snapshot
-	resp, cloneErr := s.createVolumeFromSnapshot(ctx, req, snapshotID)
-	if cloneErr != nil {
-		// Clone failed - cleanup temp snapshot
-		if delErr := s.apiClient.DeleteSnapshot(ctx, snapshot.ID); delErr != nil {
-			klog.Warningf("Failed to cleanup temporary snapshot %s after clone failure: %v", snapshot.ID, delErr)
-		}
-		return nil, cloneErr
-	}
-
-	// Handle temp snapshot cleanup based on clone mode:
-	// - Default (COW clone): Keep snapshot - clone depends on it
-	// - Promoted: Delete snapshot - dependency was reversed, snapshot depends on clone
-	// - Detached: Delete snapshot - no dependency exists (full data copy)
-	if promotedMode || detachedMode {
-		modeDesc := "promoted"
-		if detachedMode {
-			modeDesc = "detached"
-		}
-		klog.V(4).Infof("Deleting temporary snapshot %s (%s mode - no clone dependency)", snapshot.ID, modeDesc)
-		if delErr := s.apiClient.DeleteSnapshot(ctx, snapshot.ID); delErr != nil {
-			// Log warning but don't fail - the clone was created successfully
-			klog.Warningf("Failed to cleanup temporary snapshot %s after %s clone: %v (non-fatal)", snapshot.ID, modeDesc, delErr)
-		} else {
-			klog.V(4).Infof("Successfully deleted temporary snapshot %s", snapshot.ID)
-		}
-	} else {
-		// Default COW mode - keep temporary snapshot as clone depends on it
-		klog.V(4).Infof("Keeping temporary snapshot %s (clone depends on it for COW)", snapshot.ID)
-	}
-
-	return resp, nil
+// TODO: Implement when NASty supports subvolume cloning.
+func (s *ControllerService) createVolumeFromVolume(_ context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
+	klog.V(4).Infof("createVolumeFromVolume called for %s from source %s (not yet implemented)", req.GetName(), sourceVolumeID)
+	return nil, status.Error(codes.Unimplemented, "volume cloning from volume is not yet supported by the NASty backend")
 }
 
 // DeleteVolume deletes a volume.
@@ -1189,25 +725,11 @@ func (s *ControllerService) ValidateVolumeCapabilities(ctx context.Context, req 
 	klog.V(4).Infof("ValidateVolumeCapabilities: validating volume %s", volumeID)
 
 	// Look up the volume and determine its protocol
-	var protocol string
-
-	if isDatasetPathVolumeID(volumeID) {
-		// New format: volume ID is the dataset path, query directly (O(1))
-		dataset, err := s.apiClient.GetDatasetWithProperties(ctx, volumeID)
-		if err != nil || dataset == nil {
-			return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)
-		}
-		if p, ok := dataset.UserProperties[tnsapi.PropertyProtocol]; ok {
-			protocol = p.Value
-		}
-	} else {
-		// Legacy format: plain volume name — use property-based lookup
-		meta, err := s.lookupVolumeByCSIName(ctx, "", volumeID)
-		if err != nil || meta == nil {
-			return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)
-		}
-		protocol = meta.Protocol
+	meta, err := s.lookupVolumeByCSIName(ctx, "", volumeID)
+	if err != nil || meta == nil {
+		return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)
 	}
+	protocol := meta.Protocol
 
 	// Validate capabilities against the volume's protocol
 	if protocol != "" {
@@ -1281,71 +803,64 @@ func (s *ControllerService) ListVolumes(ctx context.Context, req *csi.ListVolume
 	}, nil
 }
 
-// listManagedVolumes lists all CSI-managed volumes using a single FindManagedDatasets call.
-// ZFS properties store all metadata needed to build ListVolumes entries, so no need
-// to query shares/namespaces/extents separately.
+// listManagedVolumes lists all CSI-managed volumes using FindManagedSubvolumes.
+// Xattr properties store all metadata needed to build ListVolumes entries.
 func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.ListVolumesResponse_Entry, error) {
-	klog.V(5).Info("Listing all managed volumes via FindManagedDatasets")
+	klog.V(5).Info("Listing all managed volumes via FindManagedSubvolumes")
 
-	datasets, err := s.apiClient.FindManagedDatasets(ctx, "")
+	// TODO: pool name should come from configuration — for now list from empty pool to trigger scan
+	// When NASty API supports listing managed subvolumes across all pools, use that.
+	// For now, return empty to avoid requiring pool configuration here.
+	// This can be enhanced once pool configuration is available.
+	subvols, err := s.apiClient.FindManagedSubvolumes(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to find managed datasets: %w", err)
+		return nil, fmt.Errorf("failed to find managed subvolumes: %w", err)
 	}
 
 	var entries []*csi.ListVolumesResponse_Entry
-	for i := range datasets {
-		ds := &datasets[i]
+	for i := range subvols {
+		sv := &subvols[i]
 
-		// Skip detached snapshots — they are not volumes
-		if ds.UserProperties != nil {
-			if detached, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && detached.Value == "true" {
-				continue
-			}
-			if _, ok := ds.UserProperties[tnsapi.PropertySnapshotID]; ok {
-				continue
-			}
+		props := sv.Properties
+		if props == nil {
+			continue
 		}
 
-		meta, err := extractVolumeMetadata(ds.ID, ds)
+		// Skip detached snapshots — they are not volumes
+		if detached, ok := props[tnsapi.PropertyDetachedSnapshot]; ok && detached == "true" {
+			continue
+		}
+		if _, ok := props[tnsapi.PropertySnapshotID]; ok {
+			continue
+		}
+
+		volumeID := sv.Pool + "/" + sv.Name
+		meta, err := extractVolumeMetadataFromSubvolume(volumeID, sv)
 		if err != nil {
-			klog.Warningf("Skipping dataset %s: failed to extract metadata: %v", ds.ID, err)
+			klog.Warningf("Skipping subvolume %s/%s: failed to extract metadata: %v", sv.Pool, sv.Name, err)
 			continue
 		}
 		if meta == nil {
-			// Not managed by tns-csi or missing properties
 			continue
 		}
 
-		entry := s.buildVolumeEntry(ds.Dataset, *meta)
-		if entry != nil {
-			entries = append(entries, entry)
+		// Get capacity from stored property
+		var capacityBytes int64
+		if capStr, ok := props[tnsapi.PropertyCapacityBytes]; ok {
+			capacityBytes = tnsapi.StringToInt64(capStr)
 		}
+
+		entries = append(entries, &csi.ListVolumesResponse_Entry{
+			Volume: &csi.Volume{
+				VolumeId:      volumeID,
+				CapacityBytes: capacityBytes,
+				VolumeContext: buildVolumeContext(*meta),
+			},
+		})
 	}
 
 	klog.V(5).Infof("Found %d managed volumes", len(entries))
 	return entries, nil
-}
-
-// buildVolumeEntry constructs a ListVolumesResponse_Entry from dataset and metadata.
-func (s *ControllerService) buildVolumeEntry(dataset tnsapi.Dataset, meta VolumeMetadata) *csi.ListVolumesResponse_Entry {
-	// Volume ID is the full dataset path for O(1) lookups
-	volumeID := dataset.ID
-
-	// Determine capacity from dataset
-	var capacityBytes int64
-	if dataset.Available != nil {
-		if val, ok := dataset.Available["parsed"].(float64); ok {
-			capacityBytes = int64(val)
-		}
-	}
-
-	return &csi.ListVolumesResponse_Entry{
-		Volume: &csi.Volume{
-			VolumeId:      volumeID,
-			CapacityBytes: capacityBytes,
-			VolumeContext: buildVolumeContext(meta),
-		},
-	}
 }
 
 // GetCapacity returns the capacity of the storage pool.
@@ -1365,7 +880,7 @@ func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacit
 		return &csi.GetCapacityResponse{}, nil
 	}
 
-	// Query pool capacity from TrueNAS
+	// Query pool capacity from NASty
 	pool, err := s.apiClient.QueryPool(ctx, poolName)
 	if err != nil {
 		klog.Errorf("Failed to query pool %s: %v", poolName, err)
@@ -1373,12 +888,12 @@ func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacit
 	}
 
 	// Return available capacity in bytes
-	availableCapacity := pool.Properties.Free.Parsed
+	availableCapacity := int64(pool.AvailableBytes) //nolint:gosec // uint64 to int64 safe for realistic pool sizes
 	klog.V(4).Infof("Pool %s capacity: total=%d bytes, available=%d bytes, used=%d bytes",
 		poolName,
-		pool.Properties.Size.Parsed,
+		pool.TotalBytes,
 		availableCapacity,
-		pool.Properties.Allocated.Parsed)
+		pool.UsedBytes)
 
 	return &csi.GetCapacityResponse{
 		AvailableCapacity: availableCapacity,
@@ -1389,111 +904,82 @@ func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacit
 // Volume Adoption Foundation
 // ========================================
 // These functions provide the foundation for cross-cluster volume adoption.
-// A volume is "adoptable" if it has tns-csi metadata but its TrueNAS resources
+// A volume is "adoptable" if it has tns-csi metadata but its NASty resources
 // (NFS share or NVMe-oF namespace) no longer exist.
 
-// IsVolumeAdoptable checks if a volume can be adopted based on its ZFS properties.
+// IsVolumeAdoptable checks if a volume can be adopted based on its xattr properties.
 // A volume is adoptable if:
-// 1. It has the managed_by property set to tns-csi
+// 1. It has the managed_by property set to nasty-csi
 // 2. It has a valid schema version
 // 3. It has the required protocol-specific properties
-// Returns false if the volume doesn't have proper tns-csi metadata.
-func IsVolumeAdoptable(props map[string]tnsapi.UserProperty) bool {
+// Returns false if the volume doesn't have proper nasty-csi metadata.
+func IsVolumeAdoptable(props map[string]string) bool {
 	// Check managed_by property
 	managedBy, ok := props[tnsapi.PropertyManagedBy]
-	if !ok || managedBy.Value != tnsapi.ManagedByValue {
+	if !ok || managedBy != tnsapi.ManagedByValue {
 		return false
 	}
 
 	// Check schema version (optional for v1, but good practice)
 	schemaVersion, hasSchema := props[tnsapi.PropertySchemaVersion]
-	if hasSchema && schemaVersion.Value != tnsapi.SchemaVersionV1 {
+	if hasSchema && schemaVersion != tnsapi.SchemaVersionV1 {
 		// Unknown schema version - don't adopt
 		return false
 	}
 
 	// Check protocol is set
 	protocol, ok := props[tnsapi.PropertyProtocol]
-	if !ok || protocol.Value == "" {
+	if !ok || protocol == "" {
 		return false
 	}
 
 	// Verify protocol-specific required properties exist
-	switch protocol.Value {
+	switch protocol {
 	case tnsapi.ProtocolNFS:
-		// NFS requires share path
 		if _, ok := props[tnsapi.PropertyNFSSharePath]; !ok {
 			return false
 		}
 	case tnsapi.ProtocolNVMeOF:
-		// NVMe-oF requires NQN
 		if _, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; !ok {
 			return false
 		}
 	case tnsapi.ProtocolISCSI:
-		// iSCSI requires IQN
 		if _, ok := props[tnsapi.PropertyISCSIIQN]; !ok {
 			return false
 		}
 	case tnsapi.ProtocolSMB:
-		// SMB requires share name
 		if _, ok := props[tnsapi.PropertySMBShareName]; !ok {
 			return false
 		}
 	default:
-		// Unknown protocol - don't adopt
 		return false
 	}
 
 	return true
 }
 
-// GetAdoptionInfo extracts adoption-relevant information from volume properties.
+// GetAdoptionInfo extracts adoption-relevant information from volume xattr properties.
 // This is useful for building static PV manifests for adopted volumes.
-func GetAdoptionInfo(props map[string]tnsapi.UserProperty) map[string]string {
+func GetAdoptionInfo(props map[string]string) map[string]string {
 	info := make(map[string]string)
 
-	// Extract core properties
-	if v, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
-		info["volumeID"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyProtocol]; ok {
-		info["protocol"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyCapacityBytes]; ok {
-		info["capacityBytes"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyDeleteStrategy]; ok {
-		info["deleteStrategy"] = v.Value
+	extract := func(key, infoKey string) {
+		if v, ok := props[key]; ok && v != "" {
+			info[infoKey] = v
+		}
 	}
 
-	// Extract adoption properties
-	if v, ok := props[tnsapi.PropertyPVCName]; ok {
-		info["pvcName"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyPVCNamespace]; ok {
-		info["pvcNamespace"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyStorageClass]; ok {
-		info["storageClass"] = v.Value
-	}
-
-	// Extract protocol-specific properties
-	if v, ok := props[tnsapi.PropertyNFSSharePath]; ok {
-		info["nfsSharePath"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		info["nvmeofNQN"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyISCSIIQN]; ok {
-		info["iscsiIQN"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyISCSITargetID]; ok {
-		info["iscsiTargetID"] = v.Value
-	}
-	if v, ok := props[tnsapi.PropertyISCSIExtentID]; ok {
-		info["iscsiExtentID"] = v.Value
-	}
+	extract(tnsapi.PropertyCSIVolumeName, "volumeID")
+	extract(tnsapi.PropertyProtocol, "protocol")
+	extract(tnsapi.PropertyCapacityBytes, "capacityBytes")
+	extract(tnsapi.PropertyDeleteStrategy, "deleteStrategy")
+	extract(tnsapi.PropertyPVCName, "pvcName")
+	extract(tnsapi.PropertyPVCNamespace, "pvcNamespace")
+	extract(tnsapi.PropertyStorageClass, "storageClass")
+	extract(tnsapi.PropertyNFSSharePath, "nfsSharePath")
+	extract(tnsapi.PropertyNVMeSubsystemNQN, "nvmeofNQN")
+	extract(tnsapi.PropertyISCSIIQN, "iscsiIQN")
+	extract(tnsapi.PropertyISCSITargetID, "iscsiTargetID")
 
 	return info
 }
@@ -1505,40 +991,36 @@ func GetAdoptionInfo(props map[string]tnsapi.UserProperty) map[string]string {
 func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.CreateVolumeRequest, params map[string]string, protocol string) (*csi.CreateVolumeResponse, bool, error) {
 	volumeName := req.GetName()
 	adoptExisting := params["adoptExisting"] == VolumeContextValueTrue
+	pool := params["pool"]
 
 	klog.V(4).Infof("Checking for adoptable volume: %s (adoptExisting=%v)", volumeName, adoptExisting)
 
-	// Search for volume by CSI name across ALL pools (empty prefix)
-	// This finds volumes even if they exist in a different parentDataset than what's configured
-	dataset, err := s.apiClient.FindDatasetByCSIVolumeName(ctx, "", volumeName)
+	// Search for subvolume by CSI volume name
+	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, pool, volumeName)
 	if err != nil {
 		klog.V(4).Infof("Error searching for orphaned volume %s: %v", volumeName, err)
 		return nil, false, nil // Not found or error - continue with normal creation
 	}
-	if dataset == nil {
+	if subvol == nil {
 		klog.V(4).Infof("No orphaned volume found for %s", volumeName)
 		return nil, false, nil // Not found - continue with normal creation
 	}
 
-	// Found a dataset with matching CSI volume name - check if adoption is allowed
-	props := dataset.UserProperties
+	// Found a subvolume with matching CSI volume name - check if adoption is allowed
+	props := subvol.Properties
 	if props == nil {
-		klog.V(4).Infof("Dataset %s has no user properties, cannot adopt", dataset.ID)
+		klog.V(4).Infof("Subvolume %s/%s has no properties, cannot adopt", subvol.Pool, subvol.Name)
 		return nil, false, nil
 	}
 
-	// Verify it's managed by tns-csi
+	// Verify it's managed by nasty-csi
 	if !IsVolumeAdoptable(props) {
-		klog.V(4).Infof("Dataset %s is not adoptable (missing required properties)", dataset.ID)
+		klog.V(4).Infof("Subvolume %s/%s is not adoptable (missing required properties)", subvol.Pool, subvol.Name)
 		return nil, false, nil
 	}
 
 	// Check if adoption is allowed: either volume has adoptable=true OR StorageClass has adoptExisting=true
-	volumeAdoptable := false
-	if adoptableProp, ok := props[tnsapi.PropertyAdoptable]; ok && adoptableProp.Value == VolumeContextValueTrue {
-		volumeAdoptable = true
-	}
-
+	volumeAdoptable := props[tnsapi.PropertyAdoptable] == VolumeContextValueTrue
 	if !volumeAdoptable && !adoptExisting {
 		klog.V(4).Infof("Volume %s found but adoption not allowed (adoptable=%v, adoptExisting=%v)",
 			volumeName, volumeAdoptable, adoptExisting)
@@ -1546,10 +1028,7 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	}
 
 	// Verify protocol matches
-	volumeProtocol := ""
-	if protocolProp, ok := props[tnsapi.PropertyProtocol]; ok {
-		volumeProtocol = protocolProp.Value
-	}
+	volumeProtocol := props[tnsapi.PropertyProtocol]
 	if volumeProtocol != protocol {
 		klog.Warningf("Cannot adopt volume %s: protocol mismatch (volume=%s, requested=%s)",
 			volumeName, volumeProtocol, protocol)
@@ -1558,52 +1037,34 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 			volumeName, volumeProtocol, protocol)
 	}
 
-	klog.Infof("Found adoptable volume %s (dataset=%s, protocol=%s, adoptable=%v, adoptExisting=%v)",
-		volumeName, dataset.ID, volumeProtocol, volumeAdoptable, adoptExisting)
+	klog.Infof("Found adoptable volume %s (subvolume=%s/%s, protocol=%s, adoptable=%v, adoptExisting=%v)",
+		volumeName, subvol.Pool, subvol.Name, volumeProtocol, volumeAdoptable, adoptExisting)
 
-	// Handle capacity: expand if requested is larger than existing
-	existingCapacity := int64(0)
-	if capacityProp, ok := props[tnsapi.PropertyCapacityBytes]; ok {
-		existingCapacity = tnsapi.StringToInt64(capacityProp.Value)
-	}
-	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
-	if requestedCapacity == 0 {
-		requestedCapacity = 1 * 1024 * 1024 * 1024 // 1 GiB default
-	}
-
-	if requestedCapacity > existingCapacity && existingCapacity > 0 {
-		klog.Infof("Expanding adopted volume %s from %d to %d bytes", volumeName, existingCapacity, requestedCapacity)
-		if expandErr := s.expandAdoptedVolume(ctx, dataset, protocol, requestedCapacity); expandErr != nil {
-			return nil, true, status.Errorf(codes.Internal,
-				"Failed to expand adopted volume %s: %v", volumeName, expandErr)
-		}
-	}
-
-	// Adopt the volume: re-create missing TrueNAS resources based on protocol
+	// Adopt the volume: re-create missing NASty resources based on protocol
 	switch protocol {
 	case ProtocolNFS:
-		resp, err := s.adoptNFSVolume(ctx, req, dataset, params)
+		resp, err := s.adoptNFSVolume(ctx, req, subvol, params)
 		if err != nil {
 			return nil, true, err
 		}
 		return resp, true, nil
 
 	case ProtocolNVMeOF:
-		resp, err := s.adoptNVMeOFVolume(ctx, req, dataset, params)
+		resp, err := s.adoptNVMeOFVolume(ctx, req, subvol, params)
 		if err != nil {
 			return nil, true, err
 		}
 		return resp, true, nil
 
 	case ProtocolISCSI:
-		resp, err := s.adoptISCSIVolume(ctx, req, dataset, params)
+		resp, err := s.adoptISCSIVolume(ctx, req, subvol, params)
 		if err != nil {
 			return nil, true, err
 		}
 		return resp, true, nil
 
 	case ProtocolSMB:
-		resp, err := s.adoptSMBVolume(ctx, req, dataset, params)
+		resp, err := s.adoptSMBVolume(ctx, req, subvol, params)
 		if err != nil {
 			return nil, true, err
 		}
@@ -1613,35 +1074,6 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 		return nil, true, status.Errorf(codes.InvalidArgument,
 			"Unsupported protocol for adoption: %s", protocol)
 	}
-}
-
-// expandAdoptedVolume expands a volume during adoption if requested capacity is larger.
-func (s *ControllerService) expandAdoptedVolume(ctx context.Context, dataset *tnsapi.DatasetWithProperties, protocol string, newCapacityBytes int64) error {
-	updateParams := tnsapi.DatasetUpdateParams{}
-
-	switch protocol {
-	case ProtocolNFS, ProtocolSMB:
-		// NFS and SMB use quota (both are FILESYSTEM datasets)
-		updateParams.Quota = &newCapacityBytes
-	case ProtocolNVMeOF, ProtocolISCSI:
-		// NVMe-oF and iSCSI use volsize (both are ZVOLs)
-		updateParams.Volsize = &newCapacityBytes
-	}
-
-	_, err := s.apiClient.UpdateDataset(ctx, dataset.ID, updateParams)
-	if err != nil {
-		return fmt.Errorf("failed to expand dataset %s: %w", dataset.ID, err)
-	}
-
-	// Update capacity property
-	capacityProps := map[string]string{
-		tnsapi.PropertyCapacityBytes: strconv.FormatInt(newCapacityBytes, 10),
-	}
-	if propErr := s.apiClient.SetDatasetProperties(ctx, dataset.ID, capacityProps); propErr != nil {
-		klog.Warningf("Failed to update capacity property on %s: %v", dataset.ID, propErr)
-	}
-
-	return nil
 }
 
 // ControllerGetCapabilities returns controller capabilities.
@@ -1765,7 +1197,7 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 	volumeID := req.GetVolumeId()
 	requiredBytes := req.GetCapacityRange().GetRequiredBytes()
 
-	// Validate minimum volume size (TrueNAS enforces 1 GiB minimum for quota/volsize)
+	// Validate minimum volume size (NASty enforces 1 GiB minimum for quota/volsize)
 	if requiredBytes > 0 && requiredBytes < MinVolumeSize {
 		return nil, status.Errorf(codes.InvalidArgument, errMsgVolumeSizeTooSmall, requiredBytes, MinVolumeSize)
 	}
@@ -1845,55 +1277,56 @@ func (s *ControllerService) ControllerGetVolume(ctx context.Context, req *csi.Co
 
 // getNFSVolumeInfo retrieves volume information and health status for an NFS volume.
 func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
-	klog.V(4).Infof("Getting NFS volume info: %s (dataset: %s, shareID: %d)", meta.Name, meta.DatasetName, meta.NFSShareID)
+	klog.V(4).Infof("Getting NFS volume info: %s (subvolume: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
 	abnormal := false
 	var messages []string
+	var capacityBytes int64
 
-	// Check 1: Verify dataset exists
-	dataset, err := s.apiClient.Dataset(ctx, meta.DatasetName)
-	if err != nil || dataset == nil {
-		abnormal = true
-		messages = append(messages, fmt.Sprintf("Dataset %s not accessible: %v", meta.DatasetName, err))
-	} else {
-		klog.V(4).Infof("Dataset %s exists (ID: %s)", meta.DatasetName, dataset.ID)
-	}
-
-	// Check 2: Verify NFS share exists and is enabled
-	if meta.NFSShareID > 0 {
-		foundShare, err := s.apiClient.QueryNFSShareByID(ctx, meta.NFSShareID)
-		if err != nil {
+	// Check 1: Verify subvolume exists
+	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	if splitErr == nil {
+		subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+		switch {
+		case err != nil && isNotFoundError(err):
 			abnormal = true
-			messages = append(messages, fmt.Sprintf("Failed to query NFS share %d: %v", meta.NFSShareID, err))
-		} else {
-			switch {
-			case foundShare == nil:
-				abnormal = true
-				messages = append(messages, fmt.Sprintf("NFS share %d not found", meta.NFSShareID))
-			case !foundShare.Enabled:
-				abnormal = true
-				messages = append(messages, fmt.Sprintf("NFS share %d is disabled", meta.NFSShareID))
-			default:
-				klog.V(4).Infof("NFS share %d is healthy (enabled: %t, path: %s)", foundShare.ID, foundShare.Enabled, foundShare.Path)
+			messages = append(messages, fmt.Sprintf("Subvolume %s not found", meta.DatasetID))
+		case err != nil:
+			abnormal = true
+			messages = append(messages, fmt.Sprintf("Subvolume %s query failed: %v", meta.DatasetID, err))
+		default:
+			klog.V(4).Infof("Subvolume %s/%s exists", pool, name)
+			if subvol.Properties != nil {
+				if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
+					capacityBytes = tnsapi.StringToInt64(capStr)
+				}
 			}
 		}
 	}
 
-	// Build response message
+	// Check 2: Verify NFS share exists and is enabled
+	if meta.NFSShareUUID != "" {
+		foundShare, err := s.apiClient.GetNFSShare(ctx, meta.NFSShareUUID)
+		if err != nil {
+			abnormal = true
+			messages = append(messages, fmt.Sprintf("Failed to query NFS share %s: %v", meta.NFSShareUUID, err))
+		} else {
+			switch {
+			case foundShare == nil:
+				abnormal = true
+				messages = append(messages, fmt.Sprintf("NFS share %s not found", meta.NFSShareUUID))
+			case !foundShare.Enabled:
+				abnormal = true
+				messages = append(messages, fmt.Sprintf("NFS share %s is disabled", meta.NFSShareUUID))
+			default:
+				klog.V(4).Infof("NFS share %s is healthy (enabled: %t, path: %s)", foundShare.ID, foundShare.Enabled, foundShare.Path)
+			}
+		}
+	}
+
 	message := msgVolumeIsHealthy
 	if abnormal {
 		message = strings.Join(messages, "; ")
-	}
-
-	// Build volume context
-	volumeContext := buildVolumeContext(*meta)
-
-	// Get capacity from dataset if available
-	var capacityBytes int64
-	if dataset != nil && dataset.Available != nil {
-		if val, ok := dataset.Available["parsed"].(float64); ok {
-			capacityBytes = int64(val)
-		}
 	}
 
 	klog.V(4).Infof("NFS volume %s status: abnormal=%t, message=%s", meta.Name, abnormal, message)
@@ -1902,7 +1335,7 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 		Volume: &csi.Volume{
 			VolumeId:      meta.Name,
 			CapacityBytes: capacityBytes,
-			VolumeContext: volumeContext,
+			VolumeContext: buildVolumeContext(*meta),
 		},
 		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
 			VolumeCondition: &csi.VolumeCondition{
@@ -1915,89 +1348,51 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 
 // getNVMeOFVolumeInfo retrieves volume information and health status for an NVMe-oF volume.
 func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
-	klog.V(4).Infof("Getting NVMe-oF volume info: %s (dataset: %s, subsystemID: %d, namespaceID: %d)",
-		meta.Name, meta.DatasetName, meta.NVMeOFSubsystemID, meta.NVMeOFNamespaceID)
+	klog.V(4).Infof("Getting NVMe-oF volume info: %s (subvolume: %s, NQN: %s)",
+		meta.Name, meta.DatasetID, meta.NVMeOFNQN)
 
 	abnormal := false
 	var messages []string
+	var capacityBytes int64
 
-	// Check 1: Verify ZVOL exists
-	var datasets []tnsapi.Dataset
-	datasets, err := s.apiClient.QueryAllDatasets(ctx, meta.DatasetName)
-	switch {
-	case err != nil:
-		abnormal = true
-		messages = append(messages, fmt.Sprintf("ZVOL %s query failed: %v", meta.DatasetName, err))
-	case len(datasets) == 0:
-		abnormal = true
-		messages = append(messages, fmt.Sprintf("ZVOL %s not found", meta.DatasetName))
-	default:
-		klog.V(4).Infof("ZVOL %s exists (ID: %s)", meta.DatasetName, datasets[0].ID)
+	// Check 1: Verify block subvolume exists
+	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	if splitErr == nil {
+		subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+		switch {
+		case err != nil && isNotFoundError(err):
+			abnormal = true
+			messages = append(messages, fmt.Sprintf("Block subvolume %s not found", meta.DatasetID))
+		case err != nil:
+			abnormal = true
+			messages = append(messages, fmt.Sprintf("Block subvolume %s query failed: %v", meta.DatasetID, err))
+		default:
+			klog.V(4).Infof("Block subvolume %s/%s exists", pool, name)
+			if subvol.Properties != nil {
+				if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
+					capacityBytes = tnsapi.StringToInt64(capStr)
+				}
+			}
+		}
 	}
 
-	// Check 2: Verify NVMe-oF subsystem exists (use NQN-based lookup if available)
-	var subsystemHealthy bool
+	// Check 2: Verify NVMe-oF subsystem exists by NQN
 	if meta.NVMeOFNQN != "" {
-		foundSubsystem, err := s.apiClient.NVMeOFSubsystemByNQN(ctx, meta.NVMeOFNQN)
+		foundSubsystem, err := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, meta.NVMeOFNQN)
 		if err != nil {
 			abnormal = true
 			messages = append(messages, fmt.Sprintf("NVMe-oF subsystem not found for NQN %s: %v", meta.NVMeOFNQN, err))
-		} else {
-			subsystemHealthy = true
-			klog.V(4).Infof("NVMe-oF subsystem %d is healthy (NQN: %s)", foundSubsystem.ID, foundSubsystem.NQN)
-		}
-	} else if meta.NVMeOFSubsystemID > 0 {
-		// Fallback: no NQN stored, list all subsystems to find by ID
-		subsystems, err := s.apiClient.ListAllNVMeOFSubsystems(ctx)
-		if err != nil {
+		} else if foundSubsystem == nil {
 			abnormal = true
-			messages = append(messages, fmt.Sprintf("Failed to query NVMe-oF subsystems: %v", err))
+			messages = append(messages, fmt.Sprintf("NVMe-oF subsystem not found for NQN %s", meta.NVMeOFNQN))
 		} else {
-			var found bool
-			for i := range subsystems {
-				if subsystems[i].ID == meta.NVMeOFSubsystemID {
-					found = true
-					subsystemHealthy = true
-					klog.V(4).Infof("NVMe-oF subsystem %d is healthy (NQN: %s)", subsystems[i].ID, subsystems[i].NQN)
-					break
-				}
-			}
-			if !found {
-				abnormal = true
-				messages = append(messages, fmt.Sprintf("NVMe-oF subsystem %d not found", meta.NVMeOFSubsystemID))
-			}
+			klog.V(4).Infof("NVMe-oF subsystem %s is healthy (NQN: %s)", foundSubsystem.ID, foundSubsystem.NQN)
 		}
 	}
 
-	// Check 3: Verify NVMe-oF namespace exists (O(1) server-side filter)
-	if meta.NVMeOFNamespaceID > 0 && subsystemHealthy {
-		foundNamespace, err := s.apiClient.QueryNVMeOFNamespaceByID(ctx, meta.NVMeOFNamespaceID)
-		switch {
-		case err != nil:
-			abnormal = true
-			messages = append(messages, fmt.Sprintf("Failed to query NVMe-oF namespace %d: %v", meta.NVMeOFNamespaceID, err))
-		case foundNamespace == nil:
-			abnormal = true
-			messages = append(messages, fmt.Sprintf("NVMe-oF namespace %d not found", meta.NVMeOFNamespaceID))
-		default:
-			klog.V(4).Infof("NVMe-oF namespace %d is healthy (NSID: %d, device: %s)",
-				foundNamespace.ID, foundNamespace.NSID, foundNamespace.GetDevice())
-		}
-	}
-
-	// Build response message
 	message := msgVolumeIsHealthy
 	if abnormal {
 		message = strings.Join(messages, "; ")
-	}
-
-	// Build volume context
-	volumeContext := buildVolumeContext(*meta)
-
-	// Get capacity from ZVOL if available
-	var capacityBytes int64
-	if len(datasets) > 0 {
-		capacityBytes = getZvolCapacity(&datasets[0])
 	}
 
 	klog.V(4).Infof("NVMe-oF volume %s status: abnormal=%t, message=%s", meta.Name, abnormal, message)
@@ -2006,7 +1401,7 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 		Volume: &csi.Volume{
 			VolumeId:      meta.Name,
 			CapacityBytes: capacityBytes,
-			VolumeContext: volumeContext,
+			VolumeContext: buildVolumeContext(*meta),
 		},
 		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
 			VolumeCondition: &csi.VolumeCondition{

@@ -57,7 +57,7 @@ const (
 const (
 	// PropertyAdoptable marks a volume as adoptable by a new cluster.
 	// When set to "true", CreateVolume will automatically adopt this volume
-	// if found by CSI volume name, re-creating any missing TrueNAS resources.
+	// if found by CSI volume name, re-creating any missing NASty resources.
 	// Value: "true" or "false".
 	PropertyAdoptable = "nasty-csi:adoptable"
 
@@ -70,13 +70,13 @@ const (
 	PropertyPVCNamespace = "nasty-csi:pvc_namespace"
 
 	// PropertyStorageClass stores the original StorageClass name for adoption.
-	// Value: e.g., "truenas-nfs".
+	// Value: e.g., "nasty-nfs".
 	PropertyStorageClass = "nasty-csi:storage_class"
 )
 
 // NFS-specific properties.
 const (
-	// PropertyNFSShareID stores the TrueNAS NFS share ID (mutable on re-share).
+	// PropertyNFSShareID stores the NASty NFS share ID (mutable on re-share).
 	// Value: e.g., "42" (integer stored as string).
 	PropertyNFSShareID = "nasty-csi:nfs_share_id"
 
@@ -87,38 +87,30 @@ const (
 
 // NVMe-oF-specific properties.
 const (
-	// PropertyNVMeSubsystemID stores the TrueNAS NVMe-oF subsystem ID (mutable).
+	// PropertyNVMeSubsystemID stores the NASty NVMe-oF subsystem ID (mutable).
 	// Value: e.g., "338" (integer stored as string).
 	PropertyNVMeSubsystemID = "nasty-csi:nvmeof_subsystem_id"
 
-	// PropertyNVMeNamespaceID stores the TrueNAS NVMe-oF namespace ID (mutable).
-	// Value: e.g., "456" (integer stored as string).
-	PropertyNVMeNamespaceID = "nasty-csi:nvmeof_namespace_id"
-
 	// PropertyNVMeSubsystemNQN stores the NVMe-oF subsystem NQN (stable identifier).
-	// Value: e.g., "nqn.2024.io.truenas:nvme:pvc-xxx".
+	// Value: e.g., "nqn.2024.io.nasty:nvme:pvc-xxx".
 	PropertyNVMeSubsystemNQN = "nasty-csi:nvmeof_subsystem_nqn"
 )
 
 // iSCSI-specific properties (future).
 const (
 	// PropertyISCSIIQN stores the iSCSI target IQN (stable identifier).
-	// Value: e.g., "iqn.2024.io.truenas:target:pvc-xxx".
+	// Value: e.g., "iqn.2024.io.nasty:target:pvc-xxx".
 	PropertyISCSIIQN = "nasty-csi:iscsi_iqn"
 
-	// PropertyISCSITargetID stores the TrueNAS iSCSI target ID (mutable).
+	// PropertyISCSITargetID stores the NASty iSCSI target ID (mutable).
 	// Value: e.g., "10" (integer stored as string).
 	PropertyISCSITargetID = "nasty-csi:iscsi_target_id"
-
-	// PropertyISCSIExtentID stores the TrueNAS iSCSI extent ID (mutable).
-	// Value: e.g., "15" (integer stored as string).
-	PropertyISCSIExtentID = "nasty-csi:iscsi_extent_id"
 )
 
 // Multi-cluster isolation properties.
 const (
-	// PropertyClusterID stores the cluster identifier for multi-cluster TrueNAS sharing.
-	// When multiple K8s clusters share a TrueNAS box, this property distinguishes
+	// PropertyClusterID stores the cluster identifier for multi-cluster NASty sharing.
+	// When multiple K8s clusters share a NASty box, this property distinguishes
 	// which cluster owns each volume/snapshot.
 	// Value: user-defined cluster identifier, e.g., "prod-east", "staging".
 	PropertyClusterID = "nasty-csi:cluster_id"
@@ -126,7 +118,7 @@ const (
 
 // SMB-specific properties.
 const (
-	// PropertySMBShareID stores the TrueNAS SMB share ID (mutable on re-share).
+	// PropertySMBShareID stores the NASty SMB share ID (mutable on re-share).
 	// Value: e.g., "42" (integer stored as string).
 	PropertySMBShareID = "nasty-csi:smb_share_id"
 
@@ -152,14 +144,6 @@ const (
 	// PropertySourceDataset stores the source dataset path for detached snapshots.
 	// Value: e.g., "pool/datasets/pvc-xxx".
 	PropertySourceDataset = "nasty-csi:source_dataset"
-
-	// PropertySnapshotSourceVolume stores the source volume for a snapshot (legacy).
-	// Value: e.g., "pvc-12345678-1234-1234-1234-123456789012".
-	PropertySnapshotSourceVolume = "nasty-csi:snapshot_source_volume"
-
-	// PropertySnapshotCSIName stores the CSI snapshot name (legacy).
-	// Value: e.g., "snapshot-12345678-1234-1234-1234-123456789012".
-	PropertySnapshotCSIName = "nasty-csi:snapshot_csi_name"
 )
 
 // Clone/content source properties.
@@ -193,12 +177,6 @@ const (
 
 	// CloneModeDetached indicates a detached clone via send/receive (no dependency).
 	CloneModeDetached = "detached"
-)
-
-// Legacy property aliases for backward compatibility during migration.
-const (
-	// PropertyProvisionedAt is an alias for PropertyCreatedAt (legacy name).
-	PropertyProvisionedAt = "nasty-csi:provisioned_at"
 )
 
 // Property values.
@@ -255,12 +233,10 @@ func PropertyNames() []string {
 		PropertyNFSSharePath,
 		// NVMe-oF properties
 		PropertyNVMeSubsystemID,
-		PropertyNVMeNamespaceID,
 		PropertyNVMeSubsystemNQN,
 		// iSCSI properties
 		PropertyISCSIIQN,
 		PropertyISCSITargetID,
-		PropertyISCSIExtentID,
 		// SMB properties
 		PropertySMBShareID,
 		PropertySMBShareName,
@@ -269,8 +245,6 @@ func PropertyNames() []string {
 		PropertySourceVolumeID,
 		PropertyDetachedSnapshot,
 		PropertySourceDataset,
-		PropertySnapshotSourceVolume,
-		PropertySnapshotCSIName,
 		// Clone properties
 		PropertyContentSourceType,
 		PropertyContentSourceID,
@@ -278,8 +252,6 @@ func PropertyNames() []string {
 		PropertyOriginSnapshot,
 		// Multi-cluster
 		PropertyClusterID,
-		// Legacy
-		PropertyProvisionedAt,
 	}
 }
 
@@ -289,12 +261,12 @@ type NFSVolumeParams struct {
 	CreatedAt      string
 	DeleteStrategy string
 	SharePath      string
+	ShareIDStr     string // NASty API UUID share ID
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
 	ClusterID      string
 	CapacityBytes  int64
-	ShareID        int
 	Adoptable      bool // Mark volume as adoptable for cross-cluster adoption
 }
 
@@ -310,7 +282,7 @@ func NFSVolumePropertiesV1(params NFSVolumeParams) map[string]string {
 		PropertyProtocol:       ProtocolNFS,
 		PropertyCreatedAt:      params.CreatedAt,
 		PropertyDeleteStrategy: params.DeleteStrategy,
-		PropertyNFSShareID:     intToString(params.ShareID),
+		PropertyNFSShareID:     params.ShareIDStr,
 		PropertyNFSSharePath:   params.SharePath,
 	}
 	// Add adoption properties if provided
@@ -332,40 +304,22 @@ func NFSVolumePropertiesV1(params NFSVolumeParams) map[string]string {
 	return props
 }
 
-// NFSVolumeProperties returns properties to set when creating an NFS volume.
-//
-// Deprecated: Use NFSVolumePropertiesV1 for new volumes.
-func NFSVolumeProperties(volumeName string, shareID int, provisionedAt, deleteStrategy string) map[string]string {
-	return map[string]string{
-		PropertySchemaVersion:  SchemaVersionV1,
-		PropertyManagedBy:      ManagedByValue,
-		PropertyCSIVolumeName:  volumeName,
-		PropertyNFSShareID:     intToString(shareID),
-		PropertyProtocol:       ProtocolNFS,
-		PropertyCreatedAt:      provisionedAt,
-		PropertyDeleteStrategy: deleteStrategy,
-	}
-}
-
 // NVMeOFVolumeParams contains parameters for creating NVMe-oF volume properties.
 type NVMeOFVolumeParams struct {
-	VolumeID       string
-	CreatedAt      string
-	DeleteStrategy string
-	SubsystemNQN   string
-	PVCName        string
-	PVCNamespace   string
-	StorageClass   string
-	ClusterID      string
-	CapacityBytes  int64
-	SubsystemID    int
-	NamespaceID    int
-	Adoptable      bool // Mark volume as adoptable for cross-cluster adoption
+	VolumeID        string
+	CreatedAt       string
+	DeleteStrategy  string
+	SubsystemNQN    string
+	SubsystemIDStr  string // NASty API UUID subsystem ID (preferred when non-empty)
+	PVCName         string
+	PVCNamespace    string
+	StorageClass    string
+	ClusterID       string
+	CapacityBytes   int64
+	Adoptable       bool // Mark volume as adoptable for cross-cluster adoption
 }
 
 // NVMeOFVolumePropertiesV1 returns Schema v1 properties for an NVMe-oF volume.
-//
-//nolint:dupl // Intentionally similar structure to iSCSI volume properties
 func NVMeOFVolumePropertiesV1(params NVMeOFVolumeParams) map[string]string {
 	props := map[string]string{
 		PropertySchemaVersion:    SchemaVersionV1,
@@ -375,8 +329,7 @@ func NVMeOFVolumePropertiesV1(params NVMeOFVolumeParams) map[string]string {
 		PropertyProtocol:         ProtocolNVMeOF,
 		PropertyCreatedAt:        params.CreatedAt,
 		PropertyDeleteStrategy:   params.DeleteStrategy,
-		PropertyNVMeSubsystemID:  intToString(params.SubsystemID),
-		PropertyNVMeNamespaceID:  intToString(params.NamespaceID),
+		PropertyNVMeSubsystemID:  params.SubsystemIDStr,
 		PropertyNVMeSubsystemNQN: params.SubsystemNQN,
 	}
 	// Add adoption properties if provided
@@ -398,42 +351,22 @@ func NVMeOFVolumePropertiesV1(params NVMeOFVolumeParams) map[string]string {
 	return props
 }
 
-// NVMeOFVolumeProperties returns properties to set when creating an NVMe-oF volume.
-//
-// Deprecated: Use NVMeOFVolumePropertiesV1 for new volumes.
-func NVMeOFVolumeProperties(volumeName string, subsystemID, namespaceID int, subsystemNQN, provisionedAt, deleteStrategy string) map[string]string {
-	return map[string]string{
-		PropertySchemaVersion:    SchemaVersionV1,
-		PropertyManagedBy:        ManagedByValue,
-		PropertyCSIVolumeName:    volumeName,
-		PropertyNVMeSubsystemID:  intToString(subsystemID),
-		PropertyNVMeNamespaceID:  intToString(namespaceID),
-		PropertyNVMeSubsystemNQN: subsystemNQN,
-		PropertyProtocol:         ProtocolNVMeOF,
-		PropertyCreatedAt:        provisionedAt,
-		PropertyDeleteStrategy:   deleteStrategy,
-	}
-}
-
 // ISCSIVolumeParams contains parameters for creating iSCSI volume properties.
 type ISCSIVolumeParams struct {
 	VolumeID       string
 	CreatedAt      string
 	DeleteStrategy string
 	TargetIQN      string
+	TargetIDStr    string // NASty API UUID target ID
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
 	ClusterID      string
 	CapacityBytes  int64
-	TargetID       int
-	ExtentID       int
 	Adoptable      bool // Mark volume as adoptable for cross-cluster adoption
 }
 
 // ISCSIVolumePropertiesV1 returns Schema v1 properties for an iSCSI volume.
-//
-//nolint:dupl // Intentionally similar structure to NVMe-oF volume properties
 func ISCSIVolumePropertiesV1(params ISCSIVolumeParams) map[string]string {
 	props := map[string]string{
 		PropertySchemaVersion:  SchemaVersionV1,
@@ -443,8 +376,7 @@ func ISCSIVolumePropertiesV1(params ISCSIVolumeParams) map[string]string {
 		PropertyProtocol:       ProtocolISCSI,
 		PropertyCreatedAt:      params.CreatedAt,
 		PropertyDeleteStrategy: params.DeleteStrategy,
-		PropertyISCSITargetID:  intToString(params.TargetID),
-		PropertyISCSIExtentID:  intToString(params.ExtentID),
+		PropertyISCSITargetID:  params.TargetIDStr,
 		PropertyISCSIIQN:       params.TargetIQN,
 	}
 	// Add adoption properties if provided
@@ -472,12 +404,12 @@ type SMBVolumeParams struct {
 	CreatedAt      string
 	DeleteStrategy string
 	ShareName      string
+	ShareIDStr     string // NASty API UUID share ID (preferred when non-empty)
 	PVCName        string
 	PVCNamespace   string
 	StorageClass   string
 	ClusterID      string
 	CapacityBytes  int64
-	ShareID        int
 	Adoptable      bool // Mark volume as adoptable for cross-cluster adoption
 }
 
@@ -493,7 +425,7 @@ func SMBVolumePropertiesV1(params SMBVolumeParams) map[string]string {
 		PropertyProtocol:       ProtocolSMB,
 		PropertyCreatedAt:      params.CreatedAt,
 		PropertyDeleteStrategy: params.DeleteStrategy,
-		PropertySMBShareID:     intToString(params.ShareID),
+		PropertySMBShareID:     params.ShareIDStr,
 		PropertySMBShareName:   params.ShareName,
 	}
 	// Add adoption properties if provided
@@ -573,34 +505,9 @@ func ClonedVolumePropertiesV2(sourceType, sourceID, cloneMode, originSnapshot st
 	return props
 }
 
-// SnapshotProperties returns properties to set on a snapshot's source dataset.
-//
-// Deprecated: Use SnapshotPropertiesV1 for new snapshots.
-func SnapshotProperties(snapshotCSIName, sourceVolume string) map[string]string {
-	return map[string]string{
-		PropertySnapshotCSIName:      snapshotCSIName,
-		PropertySnapshotSourceVolume: sourceVolume,
-	}
-}
-
-// intToString converts an integer to string for ZFS property storage.
-func intToString(i int) string {
-	return strconv.Itoa(i)
-}
-
 // int64ToString converts an int64 to string for ZFS property storage.
 func int64ToString(i int64) string {
 	return strconv.FormatInt(i, 10)
-}
-
-// StringToInt converts a string to integer, returns 0 on error.
-// Exported for use in controllers when reading properties.
-func StringToInt(s string) int {
-	i, err := strconv.Atoi(s)
-	if err != nil {
-		return 0
-	}
-	return i
 }
 
 // StringToInt64 converts a string to int64, returns 0 on error.
