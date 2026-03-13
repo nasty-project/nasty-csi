@@ -65,11 +65,11 @@ print_driver_info() {
     version_line=$(kubectl logs -n kube-system \
         -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
         -c nasty-csi-plugin --tail=50 2>/dev/null \
-        | grep -m1 "Starting TNS CSI Driver" || echo "")
+        | grep -m1 "Starting NASty CSI Driver" || echo "")
     if [[ -n "$version_line" ]]; then
         # Extract just the version info: "v0.9.3 (commit: abc1234, built: 2026-01-15T...)"
         local version_info
-        version_info="${version_line##*Starting TNS CSI Driver }"
+        version_info="${version_line##*Starting NASty CSI Driver }"
         echo -e "${CYAN}  │${NC} Driver:  ${version_info}"
     fi
 

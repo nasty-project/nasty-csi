@@ -1,6 +1,6 @@
-# Contributing to TNS CSI Driver
+# Contributing to NASty CSI Driver
 
-Thank you for your interest in contributing to the TNS CSI Driver project! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to the NASty CSI Driver project! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 

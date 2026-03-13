@@ -137,23 +137,23 @@ func parseMetricLine(line string, summary *MetricsSummary) {
 	}
 
 	switch metricName {
-	case "tns_csi_websocket_connection_status":
+	case "nasty_csi_websocket_connection_status":
 		summary.WebSocketConnected = value == 1
 
-	case "tns_csi_websocket_reconnections_total":
+	case "nasty_csi_websocket_reconnections_total":
 		summary.WebSocketReconnects = int64(value)
 
-	case "tns_csi_websocket_connection_duration_seconds":
+	case "nasty_csi_websocket_connection_duration_seconds":
 		summary.ConnectionDurationSecs = value
 
-	case "tns_csi_websocket_messages_total":
+	case "nasty_csi_websocket_messages_total":
 		if strings.Contains(labels, `direction="sent"`) {
 			summary.MessagesSent = int64(value)
 		} else if strings.Contains(labels, `direction="received"`) {
 			summary.MessagesReceived = int64(value)
 		}
 
-	case "tns_csi_volume_operations_total":
+	case "nasty_csi_volume_operations_total":
 		intVal := int64(value)
 
 		// Count by status

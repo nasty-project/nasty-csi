@@ -73,7 +73,7 @@ Response:
 
 The version is logged at startup:
 ```
-Starting TNS CSI Driver v0.17.3 (commit: abc1234, built: 2025-12-21T10:30:00Z)
+Starting NASty CSI Driver v0.17.3 (commit: abc1234, built: 2025-12-21T10:30:00Z)
 ```
 
 ### From Helm

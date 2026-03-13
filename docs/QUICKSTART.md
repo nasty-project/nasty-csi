@@ -89,7 +89,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: tns-nfs
+  storageClassName: nasty-nfs
 ```
 
 Apply:
@@ -499,7 +499,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: my-app-restored
 spec:
-  storageClassName: tns-nfs
+  storageClassName: nasty-nfs
   dataSource:
     name: my-app-snapshot
     kind: VolumeSnapshot

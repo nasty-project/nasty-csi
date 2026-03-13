@@ -37,7 +37,7 @@ type Config struct {
 	MaxConcurrentNVMeConnects int    // Max concurrent NVMe-oF connect operations per node (default: 5)
 }
 
-// Driver is the TNS CSI driver.
+// Driver is the NASty CSI driver.
 type Driver struct {
 	srv          *grpc.Server
 	metricsSrv   *http.Server
@@ -154,13 +154,13 @@ func (d *Driver) Run() error {
 	csi.RegisterControllerServer(d.srv, d.controller)
 	csi.RegisterNodeServer(d.srv, d.node)
 
-	klog.Info("TNS CSI Driver is ready")
+	klog.Info("NASty CSI Driver is ready")
 	return d.srv.Serve(listener)
 }
 
 // Stop stops the driver.
 func (d *Driver) Stop() {
-	klog.Info("Stopping TNS CSI Driver")
+	klog.Info("Stopping NASty CSI Driver")
 
 	// Stop dashboard server
 	if d.dashboardSrv != nil {

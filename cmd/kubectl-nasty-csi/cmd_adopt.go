@@ -15,7 +15,7 @@ import (
 var (
 	errDatasetNotFound    = errors.New("dataset not found")
 	errNoUserProperties   = errors.New("no user properties found")
-	errNotManagedByTNSCSI = errors.New("not managed by nasty-csi")
+	errNotManagedByNastyCSI = errors.New("not managed by nasty-csi")
 )
 
 func newAdoptCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
@@ -171,7 +171,7 @@ func extractVolumeInfo(ds *nastyapi.Subvolume) (*adoptionVolumeInfo, error) {
 
 	// Verify it's managed by nasty-csi
 	if val, ok := props[nastyapi.PropertyManagedBy]; !ok || val != nastyapi.ManagedByValue {
-		return nil, errNotManagedByTNSCSI
+		return nil, errNotManagedByNastyCSI
 	}
 
 	info := &adoptionVolumeInfo{

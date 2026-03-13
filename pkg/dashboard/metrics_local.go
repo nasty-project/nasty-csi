@@ -28,31 +28,31 @@ func GatherLocalMetrics() *MetricsSummary {
 		name := family.GetName()
 
 		switch name {
-		case "tns_csi_websocket_connection_status":
+		case "nasty_csi_websocket_connection_status":
 			for _, m := range family.GetMetric() {
 				if m.GetGauge() != nil {
 					summary.WebSocketConnected = m.GetGauge().GetValue() == 1
 				}
 			}
 
-		case "tns_csi_websocket_reconnections_total":
+		case "nasty_csi_websocket_reconnections_total":
 			for _, m := range family.GetMetric() {
 				if m.GetCounter() != nil {
 					summary.WebSocketReconnects = int64(m.GetCounter().GetValue())
 				}
 			}
 
-		case "tns_csi_websocket_connection_duration_seconds":
+		case "nasty_csi_websocket_connection_duration_seconds":
 			for _, m := range family.GetMetric() {
 				if m.GetGauge() != nil {
 					summary.ConnectionDurationSecs = m.GetGauge().GetValue()
 				}
 			}
 
-		case "tns_csi_websocket_messages_total":
+		case "nasty_csi_websocket_messages_total":
 			gatherMessageMetrics(summary, family.GetMetric())
 
-		case "tns_csi_volume_operations_total":
+		case "nasty_csi_volume_operations_total":
 			gatherOperationMetrics(summary, family.GetMetric())
 		}
 	}

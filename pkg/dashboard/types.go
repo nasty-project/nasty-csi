@@ -1,4 +1,4 @@
-// Package dashboard provides an in-cluster web dashboard for the TNS CSI driver.
+// Package dashboard provides an in-cluster web dashboard for the NASty CSI driver.
 // It reuses the controller's persistent NASty WebSocket connection and reads
 // metrics directly from prometheus.DefaultGatherer.
 package dashboard

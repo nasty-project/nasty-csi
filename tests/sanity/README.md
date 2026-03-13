@@ -54,14 +54,14 @@ For testability, we need:
 
 ```go
 // Refactored implementation with interface
-type TNSClient interface {
+type NastyClient interface {
     CreateDataset(...) (string, error)
     DeleteDataset(...) error
     CreateNFSShare(...) (int, error)
     // ... other methods
 }
 
-func NewDriverWithClient(cfg Config, client TNSClient) (*Driver, error)
+func NewDriverWithClient(cfg Config, client NastyClient) (*Driver, error)
 ```
 
 This allows injecting `MockClient` during tests while using `nastyapi.Client` in production.

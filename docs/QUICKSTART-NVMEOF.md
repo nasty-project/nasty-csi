@@ -88,7 +88,7 @@ NASty requires a static IP - DHCP interfaces won't appear in NVMe-oF configurati
 4. **Save** the port configuration
 
 That's it! The CSI driver will automatically:
-- Create a dedicated subsystem for each volume (NQN: `nqn.2137.csi.tns:<volume-name>`)
+- Create a dedicated subsystem for each volume (NQN: `nqn.2026-02.io.nasty.csi:<volume-name>`)
 - Bind the subsystem to the first available port
 - Create a namespace with the ZVOL
 - Clean up everything when the volume is deleted

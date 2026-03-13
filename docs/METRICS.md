@@ -1,6 +1,6 @@
 # Prometheus Metrics
 
-The TNS CSI Driver exposes Prometheus metrics on the controller pod to provide observability into volume operations, WebSocket connection health, and CSI operations.
+The NASty CSI Driver exposes Prometheus metrics on the controller pod to provide observability into volume operations, WebSocket connection health, and CSI operations.
 
 ## Metrics Endpoint
 
@@ -12,11 +12,11 @@ By default, metrics are exposed on port `8080` at the `/metrics` endpoint. The m
 
 These metrics track all CSI RPC operations:
 
-- **`tns_csi_operations_total`** (counter)
+- **`nasty_csi_operations_total`** (counter)
   - Total number of CSI operations
   - Labels: `method` (CSI method name, e.g., CreateVolume, DeleteVolume), `grpc_status_code`
 
-- **`tns_csi_operations_duration_seconds`** (histogram)
+- **`nasty_csi_operations_duration_seconds`** (histogram)
   - Duration of CSI operations in seconds
   - Labels: `method`, `grpc_status_code`
   - Buckets: 0.1s, 0.5s, 1s, 2.5s, 5s, 10s, 30s, 60s
@@ -25,25 +25,25 @@ These metrics track all CSI RPC operations:
 
 Protocol-specific volume operations (NFS, NVMe-oF, iSCSI, and SMB):
 
-- **`tns_volume_operations_total`** (counter)
+- **`nasty_volume_operations_total`** (counter)
   - Total number of volume operations
   - Labels: `protocol` (nfs, nvmeof, iscsi, or smb), `operation` (create, delete, expand), `status` (success or error)
 
-- **`tns_volume_operations_duration_seconds`** (histogram)
+- **`nasty_volume_operations_duration_seconds`** (histogram)
   - Duration of volume operations in seconds
   - Labels: `protocol`, `operation`, `status`
   - Buckets: 0.5s, 1s, 2s, 5s, 10s, 30s, 60s, 120s
 
-- **`tns_volume_capacity_bytes`** (gauge)
+- **`nasty_volume_capacity_bytes`** (gauge)
   - Capacity of provisioned volumes in bytes
   - Labels: `volume_id`, `protocol`
 
 ### NVMe-oF Connect Concurrency Metrics
 
-- **`tns_csi_nvme_connect_concurrent`** (gauge)
+- **`nasty_csi_nvme_connect_concurrent`** (gauge)
   - Number of NVMe-oF connect operations currently in progress
 
-- **`tns_csi_nvme_connect_waiting`** (gauge)
+- **`nasty_csi_nvme_connect_waiting`** (gauge)
   - Number of NVMe-oF connect operations waiting for the semaphore
   - Non-zero values indicate the concurrency limit is actively throttling connections
 
@@ -51,22 +51,22 @@ Protocol-specific volume operations (NFS, NVMe-oF, iSCSI, and SMB):
 
 Metrics for the NASty API WebSocket connection:
 
-- **`tns_websocket_connected`** (gauge)
+- **`nasty_websocket_connected`** (gauge)
   - WebSocket connection status (1 = connected, 0 = disconnected)
 
-- **`tns_websocket_reconnects_total`** (counter)
+- **`nasty_websocket_reconnects_total`** (counter)
   - Total number of WebSocket reconnection attempts
 
-- **`tns_websocket_messages_total`** (counter)
+- **`nasty_websocket_messages_total`** (counter)
   - Total number of WebSocket messages
   - Labels: `direction` (sent or received)
 
-- **`tns_websocket_message_duration_seconds`** (histogram)
+- **`nasty_websocket_message_duration_seconds`** (histogram)
   - Duration of WebSocket RPC calls in seconds
   - Labels: `method` (NASty API method name)
   - Buckets: 0.1s, 0.25s, 0.5s, 1s, 2s, 5s, 10s, 30s
 
-- **`tns_websocket_connection_duration_seconds`** (gauge)
+- **`nasty_websocket_connection_duration_seconds`** (gauge)
   - Current WebSocket connection duration in seconds (updated every 20s)
 
 ## Configuration
@@ -150,58 +150,58 @@ scrape_configs:
 
 Total volume operations by protocol:
 ```promql
-sum by (protocol, operation) (rate(tns_volume_operations_total[5m]))
+sum by (protocol, operation) (rate(nasty_volume_operations_total[5m]))
 ```
 
 Volume operation error rate:
 ```promql
-sum by (protocol, operation) (rate(tns_volume_operations_total{status="error"}[5m])) 
+sum by (protocol, operation) (rate(nasty_volume_operations_total{status="error"}[5m])) 
 / 
-sum by (protocol, operation) (rate(tns_volume_operations_total[5m]))
+sum by (protocol, operation) (rate(nasty_volume_operations_total[5m]))
 ```
 
 95th percentile volume operation latency:
 ```promql
-histogram_quantile(0.95, rate(tns_volume_operations_duration_seconds_bucket[5m]))
+histogram_quantile(0.95, rate(nasty_volume_operations_duration_seconds_bucket[5m]))
 ```
 
 ### WebSocket Health
 
 WebSocket connection status:
 ```promql
-tns_websocket_connected
+nasty_websocket_connected
 ```
 
 WebSocket reconnection rate:
 ```promql
-rate(tns_websocket_reconnects_total[5m])
+rate(nasty_websocket_reconnects_total[5m])
 ```
 
 Average WebSocket message duration by method:
 ```promql
-rate(tns_websocket_message_duration_seconds_sum[5m]) 
+rate(nasty_websocket_message_duration_seconds_sum[5m]) 
 / 
-rate(tns_websocket_message_duration_seconds_count[5m])
+rate(nasty_websocket_message_duration_seconds_count[5m])
 ```
 
 ### CSI Operations
 
 CSI operation rate by method:
 ```promql
-sum by (method) (rate(tns_csi_operations_total[5m]))
+sum by (method) (rate(nasty_csi_operations_total[5m]))
 ```
 
 CSI operation error rate:
 ```promql
-sum by (method) (rate(tns_csi_operations_total{grpc_status_code!="OK"}[5m])) 
+sum by (method) (rate(nasty_csi_operations_total{grpc_status_code!="OK"}[5m])) 
 / 
-sum by (method) (rate(tns_csi_operations_total[5m]))
+sum by (method) (rate(nasty_csi_operations_total[5m]))
 ```
 
 95th percentile CSI operation latency:
 ```promql
 histogram_quantile(0.95, 
-  sum by (method, le) (rate(tns_csi_operations_duration_seconds_bucket[5m]))
+  sum by (method, le) (rate(nasty_csi_operations_duration_seconds_bucket[5m]))
 )
 ```
 

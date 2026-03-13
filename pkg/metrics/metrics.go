@@ -1,4 +1,4 @@
-// Package metrics provides Prometheus metrics for the TNS CSI driver.
+// Package metrics provides Prometheus metrics for the NASty CSI driver.
 package metrics
 
 import (
@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	namespace = "tns_csi"
+	namespace = "nasty_csi"
 )
 
 // VersionInfo holds version information for the driver.

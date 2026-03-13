@@ -1,6 +1,6 @@
 # Release Process
 
-This document describes how to create a new release of the TNS CSI Driver.
+This document describes how to create a new release of the NASty CSI Driver.
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Add the following secrets:
    - Docker Hub access token (NOT your password)
    - Generate at: https://hub.docker.com/settings/security
    - Click "New Access Token"
-   - Give it a descriptive name like "GitHub Actions - TNS CSI"
+   - Give it a descriptive name like "GitHub Actions - NASty CSI"
    - Select "Read, Write, Delete" permissions
    - Copy the token (you won't see it again)
 

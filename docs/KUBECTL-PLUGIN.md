@@ -81,7 +81,7 @@ kubectl nasty-csi summary
 Output:
 ```
 ╔════════════════════════════════════════════════════════════════╗
-║                    TNS-CSI Summary                             ║
+║                    NASty CSI Summary                             ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  VOLUMES                                                       ║
 ║    Total: 12    NFS: 8    NVMe-oF: 4    Clones: 2             ║

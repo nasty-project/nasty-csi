@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Prometheus datasource for TNS CSI metrics",
+      "description": "Prometheus datasource for NASty CSI metrics",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
@@ -1094,7 +1094,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "TNS CSI Driver Overview",
+  "title": "NASty CSI Driver Overview",
   "uid": "nasty-csi-overview",
   "version": 1,
   "weekStart": ""

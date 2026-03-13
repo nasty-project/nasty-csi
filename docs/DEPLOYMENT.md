@@ -166,7 +166,7 @@ This creates the ZVOL needed for the initial namespace.
 - **Port:** The CSI driver cannot create ports - they must be pre-configured infrastructure
 - **Subsystems:** Automatically created and deleted by the CSI driver for each volume
 
-The CSI driver will automatically create a dedicated subsystem (with NQN like `nqn.2137.csi.tns:<volume-name>`) for each PVC.
+The CSI driver will automatically create a dedicated subsystem (with NQN like `nqn.2026-02.io.nasty.csi:<volume-name>`) for each PVC.
 
 Without proper configuration, volume provisioning will fail with:
 
@@ -602,7 +602,7 @@ kubectl get pvc test-pvc
 
 # Expected output:
 # NAME       STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS    AGE
-# test-pvc   Bound    pvc-12345678-1234-1234-1234-123456789012   10Gi       RWX            tns-nfs     30s
+# test-pvc   Bound    pvc-12345678-1234-1234-1234-123456789012   10Gi       RWX            nasty-nfs     30s
 ```
 
 ### 5.3 Verify in NASty

@@ -66,16 +66,16 @@ func getDriverVersionInfo() string {
 		return ""
 	}
 
-	// Look for the startup log line: "Starting TNS CSI Driver v0.1.0 (commit: abc1234, built: 2024-01-22T12:00:00Z)"
+	// Look for the startup log line: "Starting NASty CSI Driver v0.1.0 (commit: abc1234, built: 2024-01-22T12:00:00Z)"
 	logs := stdout.String()
-	re := regexp.MustCompile(`Starting TNS CSI Driver (\S+) \(commit: ([^,]+), built: ([^)]+)\)`)
+	re := regexp.MustCompile(`Starting NASty CSI Driver (\S+) \(commit: ([^,]+), built: ([^)]+)\)`)
 	matches := re.FindStringSubmatch(logs)
 	if len(matches) >= 4 {
 		return fmt.Sprintf("%s (commit: %s, built: %s)", matches[1], matches[2], matches[3])
 	}
 
 	// Fallback: try to find just version
-	reSimple := regexp.MustCompile(`Starting TNS CSI Driver (\S+)`)
+	reSimple := regexp.MustCompile(`Starting NASty CSI Driver (\S+)`)
 	matchesSimple := reSimple.FindStringSubmatch(logs)
 	if len(matchesSimple) >= 2 {
 		return matchesSimple[1]

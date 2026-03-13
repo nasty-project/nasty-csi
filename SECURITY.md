@@ -8,7 +8,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in the TNS CSI Driver, please report it responsibly:
+If you discover a security vulnerability in the NASty CSI Driver, please report it responsibly:
 
 1. **DO NOT** open a public GitHub issue
 2. Email the maintainer directly with details

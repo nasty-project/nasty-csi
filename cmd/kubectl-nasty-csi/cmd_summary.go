@@ -390,7 +390,7 @@ func outputSummary(summary *Summary, format string) error {
 
 // outputSummaryTable outputs the summary in a clean format.
 func outputSummaryTable(summary *Summary) error {
-	colorHeader.Println("=== TNS-CSI Summary ===") //nolint:errcheck,gosec
+	colorHeader.Println("=== NASty CSI Summary ===") //nolint:errcheck,gosec
 	fmt.Println()
 
 	// Volumes section

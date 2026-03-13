@@ -17,7 +17,7 @@ const (
 	endpoint      = "unix:///tmp/csi-sanity.sock"
 )
 
-// TestSanity runs the CSI sanity test suite against the TNS CSI driver.
+// TestSanity runs the CSI sanity test suite against the NASty CSI driver.
 func TestSanity(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()

@@ -36,15 +36,15 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        # TNS CSI Controller
+        # NASty CSI Controller
         - name: nasty-csi-plugin
           image: "{{ .Values.image.repository }}:{{ include "nasty-csi-driver.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--endpoint=unix:///var/lib/csi/sockets/pluginproxy/csi.sock"
             - "--node-id=$(NODE_ID)"
-            - "--api-url=$(TNS_URL)"
-            - "--api-key=$(TNS_API_KEY)"
+            - "--api-url=$(NASTY_URL)"
+            - "--api-key=$(NASTY_API_KEY)"
             - "--v={{ .Values.controller.logLevel }}"
             {{- if .Values.nasty.skipTLSVerify }}
             - "--skip-tls-verify"
@@ -66,12 +66,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: TNS_URL
+            - name: NASTY_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "nasty-csi-driver.secretName" . }}
                   key: url
-            - name: TNS_API_KEY
+            - name: NASTY_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "nasty-csi-driver.secretName" . }}

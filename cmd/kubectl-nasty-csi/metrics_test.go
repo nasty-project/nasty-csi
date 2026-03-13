@@ -31,7 +31,7 @@ func TestParsePrometheusMetrics(t *testing.T) {
 		},
 		{
 			name: "websocket connected metric",
-			data: `tns_csi_websocket_connection_status 1`,
+			data: `nasty_csi_websocket_connection_status 1`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if !s.WebSocketConnected {
@@ -41,7 +41,7 @@ func TestParsePrometheusMetrics(t *testing.T) {
 		},
 		{
 			name: "websocket disconnected metric",
-			data: `tns_csi_websocket_connection_status 0`,
+			data: `nasty_csi_websocket_connection_status 0`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if s.WebSocketConnected {
@@ -51,7 +51,7 @@ func TestParsePrometheusMetrics(t *testing.T) {
 		},
 		{
 			name: "websocket reconnection counter",
-			data: `tns_csi_websocket_reconnections_total 5`,
+			data: `nasty_csi_websocket_reconnections_total 5`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if s.WebSocketReconnects != 5 {
@@ -61,8 +61,8 @@ func TestParsePrometheusMetrics(t *testing.T) {
 		},
 		{
 			name: "message counters",
-			data: `tns_csi_websocket_messages_total{direction="sent"} 42
-tns_csi_websocket_messages_total{direction="received"} 38`,
+			data: `nasty_csi_websocket_messages_total{direction="sent"} 42
+nasty_csi_websocket_messages_total{direction="received"} 38`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if s.MessagesSent != 42 {
@@ -75,11 +75,11 @@ tns_csi_websocket_messages_total{direction="received"} 38`,
 		},
 		{
 			name: "volume operations with labels",
-			data: `tns_csi_volume_operations_total{protocol="nfs",operation="create",status="success"} 10
-tns_csi_volume_operations_total{protocol="nfs",operation="delete",status="success"} 3
-tns_csi_volume_operations_total{protocol="nvmeof",operation="create",status="success"} 7
-tns_csi_volume_operations_total{protocol="nvmeof",operation="create",status="error"} 2
-tns_csi_volume_operations_total{protocol="iscsi",operation="expand",status="success"} 1`,
+			data: `nasty_csi_volume_operations_total{protocol="nfs",operation="create",status="success"} 10
+nasty_csi_volume_operations_total{protocol="nfs",operation="delete",status="success"} 3
+nasty_csi_volume_operations_total{protocol="nvmeof",operation="create",status="success"} 7
+nasty_csi_volume_operations_total{protocol="nvmeof",operation="create",status="error"} 2
+nasty_csi_volume_operations_total{protocol="iscsi",operation="expand",status="success"} 1`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if s.NFSOperations != 13 {
@@ -113,14 +113,14 @@ tns_csi_volume_operations_total{protocol="iscsi",operation="expand",status="succ
 		},
 		{
 			name: "comments and blank lines are skipped",
-			data: `# HELP tns_csi_websocket_connection_status WebSocket connection status
-# TYPE tns_csi_websocket_connection_status gauge
+			data: `# HELP nasty_csi_websocket_connection_status WebSocket connection status
+# TYPE nasty_csi_websocket_connection_status gauge
 
-tns_csi_websocket_connection_status 1
+nasty_csi_websocket_connection_status 1
 
-# HELP tns_csi_websocket_reconnections_total Total reconnections
-# TYPE tns_csi_websocket_reconnections_total counter
-tns_csi_websocket_reconnections_total 3`,
+# HELP nasty_csi_websocket_reconnections_total Total reconnections
+# TYPE nasty_csi_websocket_reconnections_total counter
+nasty_csi_websocket_reconnections_total 3`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if !s.WebSocketConnected {
@@ -133,14 +133,14 @@ tns_csi_websocket_reconnections_total 3`,
 		},
 		{
 			name: "mixed metrics with all fields",
-			data: `# HELP tns_csi_websocket_connection_status WebSocket connection status
-tns_csi_websocket_connection_status 1
-tns_csi_websocket_reconnections_total 2
-tns_csi_websocket_connection_duration_seconds 3600.5
-tns_csi_websocket_messages_total{direction="sent"} 100
-tns_csi_websocket_messages_total{direction="received"} 95
-tns_csi_volume_operations_total{protocol="nfs",operation="create",status="success"} 5
-tns_csi_volume_operations_total{protocol="nfs",operation="delete",status="error"} 1`,
+			data: `# HELP nasty_csi_websocket_connection_status WebSocket connection status
+nasty_csi_websocket_connection_status 1
+nasty_csi_websocket_reconnections_total 2
+nasty_csi_websocket_connection_duration_seconds 3600.5
+nasty_csi_websocket_messages_total{direction="sent"} 100
+nasty_csi_websocket_messages_total{direction="received"} 95
+nasty_csi_volume_operations_total{protocol="nfs",operation="create",status="success"} 5
+nasty_csi_volume_operations_total{protocol="nfs",operation="delete",status="error"} 1`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if !s.WebSocketConnected {
@@ -180,8 +180,8 @@ tns_csi_volume_operations_total{protocol="nfs",operation="delete",status="error"
 		},
 		{
 			name: "total operations equals success plus error",
-			data: `tns_csi_volume_operations_total{protocol="nfs",operation="create",status="success"} 100
-tns_csi_volume_operations_total{protocol="nfs",operation="create",status="error"} 25`,
+			data: `nasty_csi_volume_operations_total{protocol="nfs",operation="create",status="success"} 100
+nasty_csi_volume_operations_total{protocol="nfs",operation="create",status="error"} 25`,
 			check: func(t *testing.T, s *MetricsSummary) {
 				t.Helper()
 				if s.TotalOperations != s.SuccessOperations+s.ErrorOperations {

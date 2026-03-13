@@ -138,7 +138,7 @@ kind load docker-image bfenski/nasty-csi:v0.17.3 --name nasty-csi-test
 
 ```bash
 # Load credentials
-source .tns-credentials
+source .nasty-credentials
 
 # Create secret
 kubectl create secret generic nasty-csi-secret \
@@ -296,7 +296,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: tns-nfs
+  storageClassName: nasty-nfs
   resources:
     requests:
       storage: 500Mi

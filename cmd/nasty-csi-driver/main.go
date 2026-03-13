@@ -71,7 +71,7 @@ func main() {
 	// Set version info for metrics endpoint
 	metrics.SetVersionInfo(version, gitCommit, buildDate)
 
-	klog.Infof("Starting TNS CSI Driver %s (commit: %s, built: %s)", version, gitCommit, buildDate)
+	klog.Infof("Starting NASty CSI Driver %s (commit: %s, built: %s)", version, gitCommit, buildDate)
 	klog.V(4).Infof("Driver: %s", *driverName)
 	klog.V(4).Infof("Node ID: %s", *nodeID)
 

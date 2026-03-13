@@ -53,16 +53,16 @@ func TestMetricsAvailability(t *testing.T) {
 
 	// Verify that our custom metrics are present
 	expectedMetrics := []string{
-		"tns_csi_operations_total",
-		"tns_csi_operation_duration_seconds",
-		"tns_csi_volume_operations_total",
-		"tns_csi_volume_operation_duration_seconds",
-		"tns_csi_websocket_connection_status",
-		"tns_csi_websocket_reconnections_total",
-		"tns_csi_websocket_messages_total",
-		"tns_csi_websocket_message_duration_seconds",
-		"tns_csi_websocket_connection_duration_seconds",
-		"tns_csi_volume_capacity_bytes",
+		"nasty_csi_operations_total",
+		"nasty_csi_operation_duration_seconds",
+		"nasty_csi_volume_operations_total",
+		"nasty_csi_volume_operation_duration_seconds",
+		"nasty_csi_websocket_connection_status",
+		"nasty_csi_websocket_reconnections_total",
+		"nasty_csi_websocket_messages_total",
+		"nasty_csi_websocket_message_duration_seconds",
+		"nasty_csi_websocket_connection_duration_seconds",
+		"nasty_csi_volume_capacity_bytes",
 	}
 
 	for _, metric := range expectedMetrics {

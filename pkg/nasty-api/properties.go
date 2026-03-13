@@ -212,7 +212,7 @@ const (
 	PropertyValueTrue = "true"
 )
 
-// PropertyNames returns all tns-csi property names for querying.
+// PropertyNames returns all nasty-csi property names for querying.
 func PropertyNames() []string {
 	return []string{
 		// Schema v1 core properties

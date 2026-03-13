@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TNS CSI Driver is tested comprehensively using **real infrastructure** - not mocks, simulators, or virtual NASty instances. Every commit triggers automated tests against actual hardware and software.
+The NASty CSI Driver is tested comprehensively using **real infrastructure** - not mocks, simulators, or virtual NASty instances. Every commit triggers automated tests against actual hardware and software.
 
 ## Testing Infrastructure
 

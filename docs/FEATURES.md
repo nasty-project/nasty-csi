@@ -1,12 +1,12 @@
-# TNS CSI Driver - Feature Support Documentation
+# NASty CSI Driver - Feature Support Documentation
 
 **⚠️ EARLY DEVELOPMENT - NOT PRODUCTION READY**
 
-This document provides a comprehensive overview of currently implemented and tested features in the TNS CSI Driver.
+This document provides a comprehensive overview of currently implemented and tested features in the NASty CSI Driver.
 
 ## Overview
 
-The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that enables dynamic provisioning and management of persistent storage volumes on NASty systems. This driver is in active development with core features implemented and undergoing testing.
+The NASty CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that enables dynamic provisioning and management of persistent storage volumes on NASty systems. This driver is in active development with core features implemented and undergoing testing.
 
 ## Supported Storage Protocols
 
@@ -450,20 +450,20 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 - **Available Metrics**:
 
 #### CSI Operation Metrics
-- `tns_csi_operations_total`: Counter of CSI operations by method and status
-- `tns_csi_operations_duration_seconds`: Histogram of operation durations
+- `nasty_csi_operations_total`: Counter of CSI operations by method and status
+- `nasty_csi_operations_duration_seconds`: Histogram of operation durations
 
 #### Volume Operation Metrics
-- `tns_volume_operations_total`: Counter by protocol, operation, and status
-- `tns_volume_operations_duration_seconds`: Histogram of volume operation durations
-- `tns_volume_capacity_bytes`: Gauge of provisioned volume sizes
+- `nasty_volume_operations_total`: Counter by protocol, operation, and status
+- `nasty_volume_operations_duration_seconds`: Histogram of volume operation durations
+- `nasty_volume_capacity_bytes`: Gauge of provisioned volume sizes
 
 #### WebSocket Metrics
-- `tns_websocket_connected`: Connection status gauge (1=connected, 0=disconnected)
-- `tns_websocket_reconnects_total`: Counter of reconnection attempts
-- `tns_websocket_messages_total`: Counter by direction (sent/received)
-- `tns_websocket_message_duration_seconds`: Histogram of API call durations
-- `tns_websocket_connection_duration_seconds`: Current connection duration
+- `nasty_websocket_connected`: Connection status gauge (1=connected, 0=disconnected)
+- `nasty_websocket_reconnects_total`: Counter of reconnection attempts
+- `nasty_websocket_messages_total`: Counter by direction (sent/received)
+- `nasty_websocket_message_duration_seconds`: Histogram of API call durations
+- `nasty_websocket_connection_duration_seconds`: Current connection duration
 
 ### ServiceMonitor Support
 - **Status**: ✅ Implemented

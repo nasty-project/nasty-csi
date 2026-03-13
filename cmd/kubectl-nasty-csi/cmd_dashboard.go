@@ -151,7 +151,7 @@ func runDashboard(ctx context.Context, url, apiKey, secretRef *string, skipTLSVe
 	}()
 
 	dashboardURL := fmt.Sprintf("http://localhost:%d", port)
-	fmt.Printf("TNS-CSI Dashboard starting on %s\n", dashboardURL)
+	fmt.Printf("NASty CSI Dashboard starting on %s\n", dashboardURL)
 	fmt.Println("Press Ctrl+C to stop")
 
 	// Open browser if requested
