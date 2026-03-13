@@ -159,11 +159,11 @@ var _ = Describe("Edge Cases", func() {
 				createAndMountPVC(ctx, f, proto, srcPVC, srcPod)
 				writeData(ctx, f.K8s, srcPod, "data.txt", "rapid-test")
 
-				// Take TrueNAS resource snapshot before cycles
+				// Take NASty resource snapshot before cycles
 				var beforeSnap *framework.ResourceSnapshot
-				if f.TrueNAS != nil {
-					By("Taking TrueNAS resource snapshot before rapid cycles")
-					beforeSnap = f.TrueNAS.SnapshotResources(ctx, f.Config.TrueNASPool)
+				if f.NASty != nil {
+					By("Taking NASty resource snapshot before rapid cycles")
+					beforeSnap = f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
 				}
 
 				// Run 5 rapid snapshot create-delete cycles
@@ -220,10 +220,10 @@ var _ = Describe("Edge Cases", func() {
 				Expect(readData(ctx, f.K8s, srcPod, "post-cycles.txt")).To(Equal("still-alive"))
 
 				// Verify zero resource leaks
-				if f.TrueNAS != nil && beforeSnap != nil {
+				if f.NASty != nil && beforeSnap != nil {
 					By("Verifying zero resource leaks after rapid cycles")
 					time.Sleep(5 * time.Second)
-					afterSnap := f.TrueNAS.SnapshotResources(ctx, f.Config.TrueNASPool)
+					afterSnap := f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
 
 					for dsName := range afterSnap.Datasets {
 						if _, existed := beforeSnap.Datasets[dsName]; !existed {

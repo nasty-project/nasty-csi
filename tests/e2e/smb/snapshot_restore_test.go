@@ -1,4 +1,4 @@
-// Package smb contains SMB-specific E2E tests for the TrueNAS CSI driver.
+// Package smb contains SMB-specific E2E tests for the NASty CSI driver.
 package smb
 
 import (

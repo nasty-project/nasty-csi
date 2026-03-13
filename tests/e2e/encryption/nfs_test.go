@@ -44,8 +44,8 @@ var _ = Describe("NFS Encryption", func() {
 			scName := "tns-csi-nfs-encrypted-basic"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":              "nfs",
-				"server":                f.Config.TrueNASHost,
-				"pool":                  f.Config.TrueNASPool,
+				"server":                f.Config.NAStyHost,
+				"pool":                  f.Config.NAStyPool,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -112,8 +112,8 @@ var _ = Describe("NFS Encryption", func() {
 			scName := "tns-csi-nfs-encrypted-aes128"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":              "nfs",
-				"server":                f.Config.TrueNASHost,
-				"pool":                  f.Config.TrueNASPool,
+				"server":                f.Config.NAStyHost,
+				"pool":                  f.Config.NAStyPool,
 				"encryption":            "true",
 				"encryptionAlgorithm":   "AES-128-CCM",
 				"encryptionGenerateKey": "true",
@@ -167,8 +167,8 @@ var _ = Describe("NFS Encryption", func() {
 			scName := "tns-csi-nfs-encrypted-expand"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":              "nfs",
-				"server":                f.Config.TrueNASHost,
-				"pool":                  f.Config.TrueNASPool,
+				"server":                f.Config.NAStyHost,
+				"pool":                  f.Config.NAStyPool,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -243,8 +243,8 @@ var _ = Describe("NFS Encryption", func() {
 			scName := "tns-csi-nfs-encrypted-snapshot"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":              "nfs",
-				"server":                f.Config.TrueNASHost,
-				"pool":                  f.Config.TrueNASPool,
+				"server":                f.Config.NAStyHost,
+				"pool":                  f.Config.NAStyPool,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -340,8 +340,8 @@ var _ = Describe("NFS Encryption", func() {
 			scName := "tns-csi-nfs-encrypted-clone"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":              "nfs",
-				"server":                f.Config.TrueNASHost,
-				"pool":                  f.Config.TrueNASPool,
+				"server":                f.Config.NAStyHost,
+				"pool":                  f.Config.NAStyPool,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -428,8 +428,8 @@ var _ = Describe("NFS Encryption", func() {
 			scName := "tns-csi-nfs-encrypted-persist"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":              "nfs",
-				"server":                f.Config.TrueNASHost,
-				"pool":                  f.Config.TrueNASPool,
+				"server":                f.Config.NAStyHost,
+				"pool":                  f.Config.NAStyPool,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})

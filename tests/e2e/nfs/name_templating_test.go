@@ -1,4 +1,4 @@
-// Package nfs contains NFS-specific E2E tests for the TrueNAS CSI driver.
+// Package nfs contains NFS-specific E2E tests for the NASty CSI driver.
 package nfs
 
 import (
@@ -39,8 +39,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with nameTemplate parameter")
 		params := map[string]string{
 			"protocol":     "nfs",
-			"pool":         f.Config.TrueNASPool,
-			"server":       f.Config.TrueNASHost,
+			"pool":         f.Config.NAStyPool,
+			"server":       f.Config.NAStyHost,
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
@@ -110,8 +110,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with namePrefix and nameSuffix")
 		params := map[string]string{
 			"protocol":   "nfs",
-			"pool":       f.Config.TrueNASPool,
-			"server":     f.Config.TrueNASHost,
+			"pool":       f.Config.NAStyPool,
+			"server":     f.Config.NAStyHost,
 			"namePrefix": "prod-",
 			"nameSuffix": "-data",
 		}

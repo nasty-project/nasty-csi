@@ -1,4 +1,4 @@
-// Package framework provides utilities for E2E testing of the TrueNAS CSI driver.
+// Package framework provides utilities for E2E testing of the NASty CSI driver.
 package framework
 
 import (
@@ -18,44 +18,44 @@ import (
 // ErrDatasetDeleteTimeout is returned when waiting for a dataset to be deleted times out.
 var ErrDatasetDeleteTimeout = errors.New("timeout waiting for dataset to be deleted")
 
-// ErrMissingIDField is returned when a TrueNAS resource is missing its ID field.
+// ErrMissingIDField is returned when a NASty resource is missing its ID field.
 var ErrMissingIDField = errors.New("resource has no ID field")
 
-// ErrInvalidIDType is returned when a TrueNAS resource ID cannot be converted to int.
+// ErrInvalidIDType is returned when a NASty resource ID cannot be converted to int.
 var ErrInvalidIDType = errors.New("cannot convert resource ID to int")
 
 // ErrDatasetNotFound is returned when a requested dataset doesn't exist.
 var ErrDatasetNotFound = errors.New("dataset not found")
 
-// TrueNASVerifier provides methods for verifying TrueNAS backend state.
-type TrueNASVerifier struct {
+// NAStyVerifier provides methods for verifying NASty backend state.
+type NAStyVerifier struct {
 	client *tnsapi.Client
 }
 
-// NewTrueNASVerifier creates a new TrueNASVerifier.
-func NewTrueNASVerifier(host, apiKey string) (*TrueNASVerifier, error) {
+// NewNAStyVerifier creates a new NAStyVerifier.
+func NewNAStyVerifier(host, apiKey string) (*NAStyVerifier, error) {
 	url := fmt.Sprintf("wss://%s/api/current", host)
 	client, err := tnsapi.NewClient(url, apiKey, true) // skip TLS verify for tests
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to TrueNAS: %w", err)
+		return nil, fmt.Errorf("failed to connect to NASty: %w", err)
 	}
-	return &TrueNASVerifier{client: client}, nil
+	return &NAStyVerifier{client: client}, nil
 }
 
-// Close closes the TrueNAS client connection.
-func (v *TrueNASVerifier) Close() {
+// Close closes the NASty client connection.
+func (v *NAStyVerifier) Close() {
 	if v.client != nil {
 		v.client.Close()
 	}
 }
 
-// Client returns the underlying TrueNAS API client for advanced queries.
-func (v *TrueNASVerifier) Client() *tnsapi.Client {
+// Client returns the underlying NASty API client for advanced queries.
+func (v *NAStyVerifier) Client() *tnsapi.Client {
 	return v.client
 }
 
-// DatasetExists checks if a dataset exists on TrueNAS.
-func (v *TrueNASVerifier) DatasetExists(ctx context.Context, datasetPath string) (bool, error) {
+// DatasetExists checks if a dataset exists on NASty.
+func (v *NAStyVerifier) DatasetExists(ctx context.Context, datasetPath string) (bool, error) {
 	var datasets []map[string]any
 	filter := []any{[]any{"id", "=", datasetPath}}
 	if err := v.client.Call(ctx, "pool.dataset.query", []any{filter}, &datasets); err != nil {
@@ -64,8 +64,8 @@ func (v *TrueNASVerifier) DatasetExists(ctx context.Context, datasetPath string)
 	return len(datasets) > 0, nil
 }
 
-// WaitForDatasetDeleted polls TrueNAS until the dataset is confirmed deleted or timeout.
-func (v *TrueNASVerifier) WaitForDatasetDeleted(ctx context.Context, datasetPath string, timeout time.Duration) error {
+// WaitForDatasetDeleted polls NASty until the dataset is confirmed deleted or timeout.
+func (v *NAStyVerifier) WaitForDatasetDeleted(ctx context.Context, datasetPath string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	pollInterval := 2 * time.Second
 
@@ -90,31 +90,32 @@ func (v *TrueNASVerifier) WaitForDatasetDeleted(ctx context.Context, datasetPath
 }
 
 // NFSShareExists checks if an NFS share exists for the given path.
-func (v *TrueNASVerifier) NFSShareExists(ctx context.Context, path string) (bool, error) {
-	var shares []map[string]any
-	filter := []any{[]any{"path", "=", path}}
-	if err := v.client.Call(ctx, "sharing.nfs.query", []any{filter}, &shares); err != nil {
+func (v *NAStyVerifier) NFSShareExists(ctx context.Context, path string) (bool, error) {
+	shares, err := v.client.ListNFSShares(ctx)
+	if err != nil {
 		return false, fmt.Errorf("failed to query NFS shares: %w", err)
 	}
-	return len(shares) > 0, nil
+	for _, s := range shares {
+		if s.Path == path {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // NVMeOFSubsystemExists checks if an NVMe-oF subsystem exists with the given NQN.
-// Note: TrueNAS uses "nvmet.subsys" API namespace, not "nvmeof.subsystem".
-func (v *TrueNASVerifier) NVMeOFSubsystemExists(ctx context.Context, nqn string) (bool, error) {
-	var subsystems []map[string]any
-	filter := []any{[]any{"name", "=", nqn}}
-	// Try nvmet.subsys.query first (current TrueNAS API)
-	if err := v.client.Call(ctx, "nvmet.subsys.query", []any{filter}, &subsystems); err != nil {
+func (v *NAStyVerifier) NVMeOFSubsystemExists(ctx context.Context, nqn string) (bool, error) {
+	subsystem, err := v.client.GetNVMeOFSubsystemByNQN(ctx, nqn)
+	if err != nil {
 		return false, fmt.Errorf("failed to query NVMe-oF subsystems: %w", err)
 	}
-	return len(subsystems) > 0, nil
+	return subsystem != nil, nil
 }
 
-// DeleteDataset deletes a dataset from TrueNAS with recursive+force flags and retry logic.
+// DeleteDataset deletes a dataset from NASty with recursive+force flags and retry logic.
 // This matches the driver's DeleteDataset approach: passes recursive=true, force=true,
 // and retries on EBUSY errors (12 attempts × 5s interval = ~60s total).
-func (v *TrueNASVerifier) DeleteDataset(ctx context.Context, datasetPath string) error {
+func (v *NAStyVerifier) DeleteDataset(ctx context.Context, datasetPath string) error {
 	return retry.WithRetryNoResult(ctx, retry.DeletionConfig("DeleteDataset("+datasetPath+")"), func() error {
 		var result any
 		params := []any{datasetPath, map[string]any{"recursive": true, "force": true}}
@@ -126,7 +127,7 @@ func (v *TrueNASVerifier) DeleteDataset(ctx context.Context, datasetPath string)
 }
 
 // deleteResourceByFilter is a helper that queries for a resource by filter, gets its ID, and deletes it.
-func (v *TrueNASVerifier) deleteResourceByFilter(
+func (v *NAStyVerifier) deleteResourceByFilter(
 	ctx context.Context,
 	queryMethod string,
 	deleteMethod string,
@@ -159,67 +160,30 @@ func (v *TrueNASVerifier) deleteResourceByFilter(
 	return nil
 }
 
-// DeleteNVMeOFSubsystem deletes an NVMe-oF subsystem from TrueNAS.
+// DeleteNVMeOFSubsystem deletes an NVMe-oF subsystem from NASty by NQN.
 // This is used for cleaning up retained NVMe-oF subsystems after tests.
-// Note: TrueNAS uses "nvmet.subsys" API namespace, not "nvmeof.subsystem".
-// The filter key is "name" (which contains the NQN), not "nqn".
-//
-// TrueNAS requires the following order for deletion:
-//  1. Delete all namespaces attached to the subsystem.
-//  2. Remove all port associations (port-subsystem bindings).
-//  3. Delete the subsystem itself.
-func (v *TrueNASVerifier) DeleteNVMeOFSubsystem(ctx context.Context, nqn string) error {
-	// Step 1: Query the subsystem to get its ID
-	var subsystems []map[string]any
-	filter := []any{[]any{"name", "=", nqn}}
-	if err := v.client.Call(ctx, "nvmet.subsys.query", []any{filter}, &subsystems); err != nil {
+func (v *NAStyVerifier) DeleteNVMeOFSubsystem(ctx context.Context, nqn string) error {
+	subsystem, err := v.client.GetNVMeOFSubsystemByNQN(ctx, nqn)
+	if err != nil {
 		return fmt.Errorf("failed to query NVMe-oF subsystem: %w", err)
 	}
-	if len(subsystems) == 0 {
+	if subsystem == nil {
 		// Subsystem doesn't exist, nothing to delete
 		return nil
 	}
 
-	subsystemID, ok := subsystems[0]["id"]
-	if !ok {
-		return fmt.Errorf("NVMe-oF subsystem %s: %w", nqn, ErrMissingIDField)
-	}
-
-	// Convert subsystemID to int (JSON numbers come as float64)
-	subsystemIDInt, err := toInt(subsystemID)
-	if err != nil {
-		return fmt.Errorf("invalid subsystem ID type: %w", err)
-	}
-
-	// Step 2: Delete all namespaces attached to this subsystem
-	if err := v.deleteRelatedResources(ctx, subsystemIDInt, "nvmet.namespace.query", "nvmet.namespace.delete", "subsys", "namespace"); err != nil {
-		return fmt.Errorf("failed to delete namespaces for subsystem %s: %w", nqn, err)
-	}
-
-	// Step 3: Remove all port associations for this subsystem
-	// Note: TrueNAS uses underscore in port_subsys API methods, not dot
-	if err := v.deleteRelatedResources(ctx, subsystemIDInt, "nvmet.port_subsys.query", "nvmet.port_subsys.delete", "subsys", "port binding"); err != nil {
-		return fmt.Errorf("failed to remove port bindings for subsystem %s: %w", nqn, err)
-	}
-
-	// Step 4: Delete the subsystem itself
-	var result any
-	if err := v.client.Call(ctx, "nvmet.subsys.delete", []any{subsystemIDInt}, &result); err != nil {
-		return fmt.Errorf("failed to delete NVMe-oF subsystem %s (id=%d): %w", nqn, subsystemIDInt, err)
-	}
-
-	return nil
+	return v.client.DeleteNVMeOFSubsystem(ctx, subsystem.ID)
 }
 
 // deleteRelatedResources deletes all resources that reference a parent resource ID.
 // This is used to delete namespaces/port-bindings associated with a subsystem.
 //
-// TrueNAS API returns the parent reference (e.g., "subsys") as a nested object like:
+// NASty API returns the parent reference (e.g., "subsys") as a nested object like:
 //
 //	{"id": 123, "name": "nqn...", "subnqn": "..."}
 //
 // NOT as a direct integer. This function handles both formats for robustness.
-func (v *TrueNASVerifier) deleteRelatedResources(
+func (v *NAStyVerifier) deleteRelatedResources(
 	ctx context.Context,
 	parentID int,
 	queryMethod string,
@@ -289,7 +253,7 @@ func toInt(v any) (int, error) {
 // - A direct number (int, int64, float64)
 // - A nested object with an "id" field (map[string]any)
 //
-// TrueNAS API returns parent references (like "subsys" in namespaces) as nested objects:
+// NASty API returns parent references (like "subsys" in namespaces) as nested objects:
 //
 //	{"id": 123, "name": "nqn...", "subnqn": "..."}
 func extractID(v any) (int, error) {
@@ -308,128 +272,89 @@ func extractID(v any) (int, error) {
 	return 0, ErrInvalidIDType
 }
 
-// DeleteNFSShare deletes an NFS share from TrueNAS.
+// DeleteNFSShare deletes an NFS share from NASty by path.
 // This is used for cleaning up retained NFS shares after tests.
-func (v *TrueNASVerifier) DeleteNFSShare(ctx context.Context, path string) error {
-	return v.deleteResourceByFilter(
-		ctx,
-		"sharing.nfs.query",
-		"sharing.nfs.delete",
-		"path",
-		path,
-		"NFS share for path "+path,
-	)
-}
-
-// SMBShareExists checks if an SMB share exists for the given path.
-func (v *TrueNASVerifier) SMBShareExists(ctx context.Context, path string) (bool, error) {
-	var shares []map[string]any
-	filter := []any{[]any{"path", "=", path}}
-	if err := v.client.Call(ctx, "sharing.smb.query", []any{filter}, &shares); err != nil {
-		return false, fmt.Errorf("failed to query SMB shares: %w", err)
-	}
-	return len(shares) > 0, nil
-}
-
-// DeleteSMBShare deletes an SMB share from TrueNAS.
-func (v *TrueNASVerifier) DeleteSMBShare(ctx context.Context, path string) error {
-	return v.deleteResourceByFilter(
-		ctx,
-		"sharing.smb.query",
-		"sharing.smb.delete",
-		"path",
-		path,
-		"SMB share for path "+path,
-	)
-}
-
-// ISCSITargetExists checks if an iSCSI target exists with the given name.
-func (v *TrueNASVerifier) ISCSITargetExists(ctx context.Context, targetName string) (bool, error) {
-	var targets []map[string]any
-	filter := []any{[]any{"name", "=", targetName}}
-	if err := v.client.Call(ctx, "iscsi.target.query", []any{filter}, &targets); err != nil {
-		return false, fmt.Errorf("failed to query iSCSI targets: %w", err)
-	}
-	return len(targets) > 0, nil
-}
-
-// ISCSIExtentExists checks if an iSCSI extent exists with the given name.
-func (v *TrueNASVerifier) ISCSIExtentExists(ctx context.Context, extentName string) (bool, error) {
-	var extents []map[string]any
-	filter := []any{[]any{"name", "=", extentName}}
-	if err := v.client.Call(ctx, "iscsi.extent.query", []any{filter}, &extents); err != nil {
-		return false, fmt.Errorf("failed to query iSCSI extents: %w", err)
-	}
-	return len(extents) > 0, nil
-}
-
-// DeleteISCSITarget deletes an iSCSI target from TrueNAS.
-// This is used for cleaning up retained iSCSI targets after tests.
-func (v *TrueNASVerifier) DeleteISCSITarget(ctx context.Context, targetName string) error {
-	// Query for the target first
-	var targets []map[string]any
-	filter := []any{[]any{"name", "=", targetName}}
-	if err := v.client.Call(ctx, "iscsi.target.query", []any{filter}, &targets); err != nil {
-		return fmt.Errorf("failed to query iSCSI target: %w", err)
-	}
-	if len(targets) == 0 {
-		return nil // Target doesn't exist
-	}
-
-	targetID, ok := targets[0]["id"]
-	if !ok {
-		return fmt.Errorf("iSCSI target %s: %w", targetName, ErrMissingIDField)
-	}
-
-	targetIDInt, err := toInt(targetID)
+func (v *NAStyVerifier) DeleteNFSShare(ctx context.Context, path string) error {
+	shares, err := v.client.ListNFSShares(ctx)
 	if err != nil {
-		return fmt.Errorf("invalid target ID type: %w", err)
+		return fmt.Errorf("failed to list NFS shares: %w", err)
 	}
-
-	// Delete the target (force=true to delete associated resources)
-	var result any
-	if err := v.client.Call(ctx, "iscsi.target.delete", []any{targetIDInt, true}, &result); err != nil {
-		return fmt.Errorf("failed to delete iSCSI target %s (id=%d): %w", targetName, targetIDInt, err)
+	for _, s := range shares {
+		if s.Path == path {
+			return v.client.DeleteNFSShare(ctx, s.ID)
+		}
 	}
+	// Not found, nothing to delete
 	return nil
 }
 
-// DeleteISCSIExtent deletes an iSCSI extent from TrueNAS.
-// This is used for cleaning up retained iSCSI extents after tests.
-func (v *TrueNASVerifier) DeleteISCSIExtent(ctx context.Context, extentName string) error {
-	// Query for the extent first
-	var extents []map[string]any
-	filter := []any{[]any{"name", "=", extentName}}
-	if err := v.client.Call(ctx, "iscsi.extent.query", []any{filter}, &extents); err != nil {
-		return fmt.Errorf("failed to query iSCSI extent: %w", err)
-	}
-	if len(extents) == 0 {
-		return nil // Extent doesn't exist
-	}
-
-	extentID, ok := extents[0]["id"]
-	if !ok {
-		return fmt.Errorf("iSCSI extent %s: %w", extentName, ErrMissingIDField)
-	}
-
-	extentIDInt, err := toInt(extentID)
+// SMBShareExists checks if an SMB share exists for the given path.
+func (v *NAStyVerifier) SMBShareExists(ctx context.Context, path string) (bool, error) {
+	shares, err := v.client.ListSMBShares(ctx)
 	if err != nil {
-		return fmt.Errorf("invalid extent ID type: %w", err)
+		return false, fmt.Errorf("failed to query SMB shares: %w", err)
 	}
+	for _, s := range shares {
+		if s.Path == path {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
-	// Delete the extent with positional arguments: id, remove_file, force
-	// TrueNAS API: iscsi.extent.delete(id, remove_file, force)
-	var result any
-	if err := v.client.Call(ctx, "iscsi.extent.delete", []any{extentIDInt, false, true}, &result); err != nil {
-		return fmt.Errorf("failed to delete iSCSI extent %s (id=%d): %w", extentName, extentIDInt, err)
+// DeleteSMBShare deletes an SMB share from NASty by path.
+func (v *NAStyVerifier) DeleteSMBShare(ctx context.Context, path string) error {
+	shares, err := v.client.ListSMBShares(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list SMB shares: %w", err)
 	}
+	for _, s := range shares {
+		if s.Path == path {
+			return v.client.DeleteSMBShare(ctx, s.ID)
+		}
+	}
+	// Not found, nothing to delete
+	return nil
+}
+
+// ISCSITargetExists checks if an iSCSI target exists with the given IQN.
+func (v *NAStyVerifier) ISCSITargetExists(ctx context.Context, iqn string) (bool, error) {
+	target, err := v.client.GetISCSITargetByIQN(ctx, iqn)
+	if err != nil {
+		return false, fmt.Errorf("failed to query iSCSI targets: %w", err)
+	}
+	return target != nil, nil
+}
+
+// ISCSIExtentExists is kept for backward compatibility — NASty does not have separate extents.
+// Always returns false, nil.
+func (v *NAStyVerifier) ISCSIExtentExists(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
+// DeleteISCSITarget deletes an iSCSI target from NASty by IQN.
+// This is used for cleaning up retained iSCSI targets after tests.
+func (v *NAStyVerifier) DeleteISCSITarget(ctx context.Context, iqn string) error {
+	target, err := v.client.GetISCSITargetByIQN(ctx, iqn)
+	if err != nil {
+		return fmt.Errorf("failed to query iSCSI target: %w", err)
+	}
+	if target == nil {
+		return nil // Target doesn't exist
+	}
+	return v.client.DeleteISCSITarget(ctx, target.ID)
+}
+
+// DeleteISCSIExtent is kept for backward compatibility — NASty does not have separate extents.
+// This is a no-op.
+func (v *NAStyVerifier) DeleteISCSIExtent(_ context.Context, _ string) error {
 	return nil
 }
 
 // GetDatasetOrigin returns the origin of a dataset (if it's a clone).
 // Returns empty string if the dataset is not a clone.
 // The origin is the snapshot from which the clone was created.
-func (v *TrueNASVerifier) GetDatasetOrigin(ctx context.Context, datasetPath string) (string, error) {
+func (v *NAStyVerifier) GetDatasetOrigin(ctx context.Context, datasetPath string) (string, error) {
 	var datasets []map[string]any
 	filter := []any{[]any{"id", "=", datasetPath}}
 	if err := v.client.Call(ctx, "pool.dataset.query", []any{filter}, &datasets); err != nil {
@@ -459,7 +384,7 @@ func (v *TrueNASVerifier) GetDatasetOrigin(ctx context.Context, datasetPath stri
 }
 
 // IsDatasetClone checks if a dataset is a ZFS clone (has an origin).
-func (v *TrueNASVerifier) IsDatasetClone(ctx context.Context, datasetPath string) (isClone bool, origin string, err error) {
+func (v *NAStyVerifier) IsDatasetClone(ctx context.Context, datasetPath string) (isClone bool, origin string, err error) {
 	origin, err = v.GetDatasetOrigin(ctx, datasetPath)
 	if err != nil {
 		return false, "", err
@@ -467,15 +392,15 @@ func (v *TrueNASVerifier) IsDatasetClone(ctx context.Context, datasetPath string
 	return origin != "", origin, nil
 }
 
-// ResourceSnapshot holds a point-in-time inventory of CSI-related TrueNAS resources.
+// ResourceSnapshot holds a point-in-time inventory of CSI-related NASty resources.
 // Used for before/after comparison to detect resource leaks from test runs.
 type ResourceSnapshot struct {
 	Datasets     map[string]datasetInfo // dataset path -> info
 	NFSShares    map[string]bool        // share path -> exists
 	SMBShares    map[string]bool        // share path -> exists
 	NVMeSubsNQNs map[string]bool        // subsystem NQN -> exists
-	ISCSITargets map[string]bool        // target name -> exists
-	ISCSIExtents map[string]bool        // extent name -> exists
+	ISCSITargets map[string]bool        // target IQN -> exists
+	ISCSIExtents map[string]bool        // extent name -> exists (legacy, always empty for NASty)
 }
 
 type datasetInfo struct {
@@ -485,7 +410,7 @@ type datasetInfo struct {
 
 // SnapshotResources queries all CSI-related resource types and returns a point-in-time snapshot.
 // Errors are logged but non-fatal — an incomplete snapshot is better than failing the suite.
-func (v *TrueNASVerifier) SnapshotResources(ctx context.Context, poolPrefix string) *ResourceSnapshot {
+func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string) *ResourceSnapshot {
 	snap := &ResourceSnapshot{
 		Datasets:     make(map[string]datasetInfo),
 		NFSShares:    make(map[string]bool),
@@ -495,32 +420,28 @@ func (v *TrueNASVerifier) SnapshotResources(ctx context.Context, poolPrefix stri
 		ISCSIExtents: make(map[string]bool),
 	}
 
-	// Managed datasets
-	datasets, err := v.client.FindManagedDatasets(ctx, poolPrefix)
+	// Managed subvolumes
+	subvols, err := v.client.FindManagedSubvolumes(ctx, poolPrefix)
 	if err != nil {
-		klog.Warningf("Resource snapshot: failed to query managed datasets: %v", err)
+		klog.Warningf("Resource snapshot: failed to query managed subvolumes: %v", err)
 	} else {
-		for _, ds := range datasets {
+		for _, sv := range subvols {
 			info := datasetInfo{}
-			if props := ds.UserProperties; props != nil {
-				if p, ok := props[tnsapi.PropertyProtocol]; ok {
-					info.Protocol = p.Value
-				}
-				if p, ok := props[tnsapi.PropertyCreatedAt]; ok {
-					info.CreatedAt = p.Value
-				}
+			if sv.Properties != nil {
+				info.Protocol = sv.Properties[tnsapi.PropertyProtocol]
+				info.CreatedAt = sv.Properties[tnsapi.PropertyCreatedAt]
 			}
-			snap.Datasets[ds.ID] = info
+			snap.Datasets[sv.Pool+"/"+sv.Name] = info
 		}
 	}
 
 	// NFS shares — filter to shares under the pool mount path
-	shares, err := v.client.QueryAllNFSShares(ctx, "")
+	nfsShares, err := v.client.ListNFSShares(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query NFS shares: %v", err)
 	} else {
 		mountPrefix := "/mnt/" + poolPrefix
-		for _, s := range shares {
+		for _, s := range nfsShares {
 			if strings.HasPrefix(s.Path, mountPrefix) {
 				snap.NFSShares[s.Path] = true
 			}
@@ -528,7 +449,7 @@ func (v *TrueNASVerifier) SnapshotResources(ctx context.Context, poolPrefix stri
 	}
 
 	// SMB shares — filter to shares under the pool mount path
-	smbShares, err := v.client.QueryAllSMBShares(ctx, "")
+	smbShares, err := v.client.ListSMBShares(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query SMB shares: %v", err)
 	} else {
@@ -541,44 +462,31 @@ func (v *TrueNASVerifier) SnapshotResources(ctx context.Context, poolPrefix stri
 	}
 
 	// NVMe-oF subsystems — filter to CSI-created ones (NQN contains "nasty-csi" or "pvc-")
-	subsystems, err := v.client.ListAllNVMeOFSubsystems(ctx)
+	subsystems, err := v.client.ListNVMeOFSubsystems(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query NVMe-oF subsystems: %v", err)
 	} else {
 		for _, sub := range subsystems {
 			nqn := sub.NQN
-			if nqn == "" {
-				nqn = sub.Name
-			}
 			if isCSIResource(nqn) {
 				snap.NVMeSubsNQNs[nqn] = true
 			}
 		}
 	}
 
-	// iSCSI targets — filter to CSI-created ones
-	targets, err := v.client.QueryISCSITargets(ctx, nil)
+	// iSCSI targets — filter to CSI-created ones (by IQN)
+	targets, err := v.client.ListISCSITargets(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query iSCSI targets: %v", err)
 	} else {
 		for _, t := range targets {
-			if isCSIResource(t.Name) {
-				snap.ISCSITargets[t.Name] = true
+			if isCSIResource(t.IQN) {
+				snap.ISCSITargets[t.IQN] = true
 			}
 		}
 	}
 
-	// iSCSI extents — filter to CSI-created ones
-	extents, err := v.client.QueryISCSIExtents(ctx, nil)
-	if err != nil {
-		klog.Warningf("Resource snapshot: failed to query iSCSI extents: %v", err)
-	} else {
-		for _, e := range extents {
-			if isCSIResource(e.Name) {
-				snap.ISCSIExtents[e.Name] = true
-			}
-		}
-	}
+	// ISCSIExtents is always empty for NASty (no separate extents)
 
 	return snap
 }
@@ -629,20 +537,13 @@ func LogResourceDiff(before, after *ResourceSnapshot) {
 	}
 
 	// iSCSI targets
-	for name := range after.ISCSITargets {
-		if !before.ISCSITargets[name] {
-			leaks = append(leaks, "LEAKED iSCSI target: "+name)
+	for iqn := range after.ISCSITargets {
+		if !before.ISCSITargets[iqn] {
+			leaks = append(leaks, "LEAKED iSCSI target: "+iqn)
 		}
 	}
 
-	// iSCSI extents
-	for name := range after.ISCSIExtents {
-		if !before.ISCSIExtents[name] {
-			leaks = append(leaks, "LEAKED iSCSI extent: "+name)
-		}
-	}
-
-	ginkgo.GinkgoWriter.Printf("\n=== TrueNAS Resource Leak Report ===\n")
+	ginkgo.GinkgoWriter.Printf("\n=== NASty Resource Leak Report ===\n")
 	if len(leaks) == 0 {
 		ginkgo.GinkgoWriter.Printf("No resource leaks detected.\n")
 	} else {
@@ -674,19 +575,15 @@ func LogSnapshot(label string, snap *ResourceSnapshot) {
 		ginkgo.GinkgoWriter.Printf("    %s\n", nqn)
 	}
 	ginkgo.GinkgoWriter.Printf("  iSCSI targets: %d\n", len(snap.ISCSITargets))
-	for name := range snap.ISCSITargets {
-		ginkgo.GinkgoWriter.Printf("    %s\n", name)
-	}
-	ginkgo.GinkgoWriter.Printf("  iSCSI extents: %d\n", len(snap.ISCSIExtents))
-	for name := range snap.ISCSIExtents {
-		ginkgo.GinkgoWriter.Printf("    %s\n", name)
+	for iqn := range snap.ISCSITargets {
+		ginkgo.GinkgoWriter.Printf("    %s\n", iqn)
 	}
 	ginkgo.GinkgoWriter.Printf("---\n\n")
 }
 
 // GetDatasetProperty retrieves a specific ZFS user property from a dataset.
 // Returns empty string if the property doesn't exist or is unset.
-func (v *TrueNASVerifier) GetDatasetProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
+func (v *NAStyVerifier) GetDatasetProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
 	var datasets []map[string]any
 	filter := []any{[]any{"id", "=", datasetPath}}
 	// Request user properties to be included in the response
@@ -734,7 +631,7 @@ func (v *TrueNASVerifier) GetDatasetProperty(ctx context.Context, datasetPath, p
 
 // GetZFSProperty retrieves a native ZFS property (e.g., "compression", "recordsize", "atime", "volblocksize")
 // from a dataset. Returns the parsed value as a string. Returns empty string if the property doesn't exist.
-func (v *TrueNASVerifier) GetZFSProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
+func (v *NAStyVerifier) GetZFSProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
 	var datasets []map[string]any
 	filter := []any{[]any{"id", "=", datasetPath}}
 	if err := v.client.Call(ctx, "pool.dataset.query", []any{filter}, &datasets); err != nil {

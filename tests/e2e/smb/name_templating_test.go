@@ -39,8 +39,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with nameTemplate parameter")
 		params := map[string]string{
 			"protocol":     "smb",
-			"pool":         f.Config.TrueNASPool,
-			"server":       f.Config.TrueNASHost,
+			"pool":         f.Config.NAStyPool,
+			"server":       f.Config.NAStyHost,
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
 			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
@@ -112,8 +112,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with namePrefix and nameSuffix")
 		params := map[string]string{
 			"protocol":   "smb",
-			"pool":       f.Config.TrueNASPool,
-			"server":     f.Config.TrueNASHost,
+			"pool":       f.Config.NAStyPool,
+			"server":     f.Config.NAStyHost,
 			"namePrefix": "prod-",
 			"nameSuffix": "-data",
 			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",

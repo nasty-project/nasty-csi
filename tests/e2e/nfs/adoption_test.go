@@ -44,8 +44,8 @@ var _ = Describe("NFS Volume Adoption", func() {
 		adoptableStorageClass := "tns-csi-nfs-adoptable"
 		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "nfs",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"deleteStrategy": "retain",
 			"markAdoptable":  "true",
 		})
@@ -84,10 +84,10 @@ var _ = Describe("NFS Volume Adoption", func() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
 		if f.Verbose() {
-			GinkgoWriter.Printf("Expected dataset path on TrueNAS: %s\n", datasetPath)
+			GinkgoWriter.Printf("Expected dataset path on NASty: %s\n", datasetPath)
 		}
 		if f.Verbose() {
-			GinkgoWriter.Printf("Expected NFS share path on TrueNAS: %s\n", nfsSharePath)
+			GinkgoWriter.Printf("Expected NFS share path on NASty: %s\n", nfsSharePath)
 		}
 
 		By("Creating a POD to write test data")
@@ -127,18 +127,18 @@ var _ = Describe("NFS Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying dataset still exists on TrueNAS")
-		Expect(f.TrueNAS).NotTo(BeNil(), "TrueNAS verifier must be available for this test")
-		exists, err := f.TrueNAS.DatasetExists(ctx, datasetPath)
+		By("Verifying dataset still exists on NASty")
+		Expect(f.NASty).NotTo(BeNil(), "NASty verifier must be available for this test")
+		exists, err := f.NASty.DatasetExists(ctx, datasetPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "Dataset should still exist on TrueNAS after PVC deletion with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "Dataset should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
 		By("Deleting the NFS share to simulate orphaned volume (dataset exists, but share is missing)")
-		err = f.TrueNAS.DeleteNFSShare(ctx, nfsSharePath)
+		err = f.NASty.DeleteNFSShare(ctx, nfsSharePath)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Verifying NFS share was deleted")
-		shareExists, err := f.TrueNAS.NFSShareExists(ctx, nfsSharePath)
+		shareExists, err := f.NASty.NFSShareExists(ctx, nfsSharePath)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(shareExists).To(BeFalse(), "NFS share should be deleted")
 		if f.Verbose() {
@@ -149,8 +149,8 @@ var _ = Describe("NFS Volume Adoption", func() {
 		adoptingStorageClass := "tns-csi-nfs-adopting"
 		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "tns.csi.io", map[string]string{
 			"protocol":      "nfs",
-			"server":        f.Config.TrueNASHost,
-			"pool":          f.Config.TrueNASPool,
+			"server":        f.Config.NAStyHost,
+			"pool":          f.Config.NAStyPool,
 			"adoptExisting": "true",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -252,9 +252,9 @@ var _ = Describe("NFS Volume Adoption", func() {
 		err = f.K8s.WaitForPodDeleted(ctx, adoptedPodName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Cleaning up the orphaned dataset from TrueNAS")
+		By("Cleaning up the orphaned dataset from NASty")
 		// The original dataset is still there, clean it up
-		err = f.TrueNAS.DeleteDataset(ctx, datasetPath)
+		err = f.NASty.DeleteDataset(ctx, datasetPath)
 		Expect(err).NotTo(HaveOccurred())
 		if f.Verbose() {
 			GinkgoWriter.Printf("Cleaned up orphaned dataset: %s\n", datasetPath)
@@ -266,8 +266,8 @@ var _ = Describe("NFS Volume Adoption", func() {
 		nonAdoptingStorageClass := "tns-csi-nfs-nonadopt"
 		err := f.K8s.CreateStorageClassWithParams(ctx, nonAdoptingStorageClass, "tns.csi.io", map[string]string{
 			"protocol":      "nfs",
-			"server":        f.Config.TrueNASHost,
-			"pool":          f.Config.TrueNASPool,
+			"server":        f.Config.NAStyHost,
+			"pool":          f.Config.NAStyPool,
 			"markAdoptable": "true",
 			// adoptExisting defaults to false
 		})
@@ -303,10 +303,10 @@ var _ = Describe("NFS Volume Adoption", func() {
 			GinkgoWriter.Printf("Created new volume (no adoption): %s\n", volumeHandle)
 		}
 
-		By("Verifying dataset exists on TrueNAS")
-		Expect(f.TrueNAS).NotTo(BeNil())
+		By("Verifying dataset exists on NASty")
+		Expect(f.NASty).NotTo(BeNil())
 		datasetPath := volumeHandle
-		exists, err := f.TrueNAS.DatasetExists(ctx, datasetPath)
+		exists, err := f.NASty.DatasetExists(ctx, datasetPath)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(exists).To(BeTrue())
 	})
@@ -316,8 +316,8 @@ var _ = Describe("NFS Volume Adoption", func() {
 		markAdoptableStorageClass := "tns-csi-nfs-mark-adoptable"
 		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "nfs",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"deleteStrategy": "retain",
 			"markAdoptable":  "true",
 		})
@@ -355,9 +355,9 @@ var _ = Describe("NFS Volume Adoption", func() {
 			GinkgoWriter.Printf("Dataset path: %s\n", datasetPath)
 		}
 
-		By("Verifying adoptable property is set on TrueNAS dataset")
-		Expect(f.TrueNAS).NotTo(BeNil())
-		adoptableValue, err := f.TrueNAS.GetDatasetProperty(ctx, datasetPath, "tns-csi:adoptable")
+		By("Verifying adoptable property is set on NASty dataset")
+		Expect(f.NASty).NotTo(BeNil())
+		adoptableValue, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "tns-csi:adoptable")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(adoptableValue).To(Equal("true"), "Dataset should have tns-csi:adoptable=true")
 		if f.Verbose() {
@@ -372,16 +372,16 @@ var _ = Describe("NFS Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying dataset still exists on TrueNAS after deletion")
-		exists, err := f.TrueNAS.DatasetExists(ctx, datasetPath)
+		By("Verifying dataset still exists on NASty after deletion")
+		exists, err := f.NASty.DatasetExists(ctx, datasetPath)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(exists).To(BeTrue(), "Dataset should be retained with deleteStrategy=retain")
 
-		By("Cleaning up retained resources from TrueNAS")
+		By("Cleaning up retained resources from NASty")
 		nfsSharePath := "/mnt/" + volumeHandle
-		err = f.TrueNAS.DeleteNFSShare(ctx, nfsSharePath)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NFS share from TrueNAS")
-		err = f.TrueNAS.DeleteDataset(ctx, datasetPath)
+		err = f.NASty.DeleteNFSShare(ctx, nfsSharePath)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NFS share from NASty")
+		err = f.NASty.DeleteDataset(ctx, datasetPath)
 		Expect(err).NotTo(HaveOccurred())
 		if f.Verbose() {
 			GinkgoWriter.Printf("Cleaned up retained dataset: %s\n", datasetPath)

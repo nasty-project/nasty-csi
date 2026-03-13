@@ -1,4 +1,4 @@
-// Package nvmeof contains NVMe-oF-specific E2E tests for the TrueNAS CSI driver.
+// Package nvmeof contains NVMe-oF-specific E2E tests for the NASty CSI driver.
 package nvmeof
 
 import (
@@ -39,8 +39,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with nameTemplate parameter")
 		params := map[string]string{
 			"protocol":     "nvmeof",
-			"pool":         f.Config.TrueNASPool,
-			"server":       f.Config.TrueNASHost,
+			"pool":         f.Config.NAStyPool,
+			"server":       f.Config.NAStyHost,
 			"fsType":       "ext4",
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
 		}
@@ -111,8 +111,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with namePrefix and nameSuffix")
 		params := map[string]string{
 			"protocol":   "nvmeof",
-			"pool":       f.Config.TrueNASPool,
-			"server":     f.Config.TrueNASHost,
+			"pool":       f.Config.NAStyPool,
+			"server":     f.Config.NAStyHost,
 			"fsType":     "ext4",
 			"namePrefix": "prod-",
 			"nameSuffix": "-data",

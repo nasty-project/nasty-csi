@@ -1,4 +1,4 @@
-// Package iscsi contains iSCSI-specific E2E tests for the TrueNAS CSI driver.
+// Package iscsi contains iSCSI-specific E2E tests for the NASty CSI driver.
 package iscsi
 
 import (
@@ -39,8 +39,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with nameTemplate parameter")
 		params := map[string]string{
 			"protocol":     "iscsi",
-			"pool":         f.Config.TrueNASPool,
-			"server":       f.Config.TrueNASHost,
+			"pool":         f.Config.NAStyPool,
+			"server":       f.Config.NAStyHost,
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
 			"fsType":       "ext4",
 		}
@@ -111,8 +111,8 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with namePrefix and nameSuffix")
 		params := map[string]string{
 			"protocol":   "iscsi",
-			"pool":       f.Config.TrueNASPool,
-			"server":     f.Config.TrueNASHost,
+			"pool":       f.Config.NAStyPool,
+			"server":     f.Config.NAStyHost,
 			"namePrefix": "prod-",
 			"nameSuffix": "-data",
 			"fsType":     "ext4",

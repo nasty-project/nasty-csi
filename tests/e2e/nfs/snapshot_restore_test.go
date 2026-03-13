@@ -1,4 +1,4 @@
-// Package nfs contains NFS-specific E2E tests for the TrueNAS CSI driver.
+// Package nfs contains NFS-specific E2E tests for the NASty CSI driver.
 package nfs
 
 import (
@@ -165,7 +165,7 @@ var _ = Describe("Snapshot Restore", func() {
 		Expect(err).NotTo(HaveOccurred())
 		restore1DatasetPath, err := f.K8s.GetVolumeHandle(ctx, restore1PVName)
 		Expect(err).NotTo(HaveOccurred())
-		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, restore1DatasetPath, "nasty-csi:cluster_id")
+		clusterID, err := f.NASty.GetDatasetProperty(ctx, restore1DatasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(clusterID).To(Equal(f.Config.ClusterID), "Restored volume should have nasty-csi:cluster_id set")
 

@@ -108,16 +108,16 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			err = f.K8s.WaitForPVDeleted(ctx, pvName, 3*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Verifying the ZFS dataset was deleted from TrueNAS backend")
-			Expect(f.TrueNAS).NotTo(BeNil(), "TrueNAS verifier should be available")
-			time.Sleep(5 * time.Second) // Give TrueNAS a moment to finalize
-			exists, err := f.TrueNAS.DatasetExists(ctx, datasetPath)
+			By("Verifying the ZFS dataset was deleted from NASty backend")
+			Expect(f.NASty).NotTo(BeNil(), "NASty verifier should be available")
+			time.Sleep(5 * time.Second) // Give NASty a moment to finalize
+			exists, err := f.NASty.DatasetExists(ctx, datasetPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(exists).To(BeFalse(), "Dataset %s should be deleted from TrueNAS", datasetPath)
+			Expect(exists).To(BeFalse(), "Dataset %s should be deleted from NASty", datasetPath)
 
 			By("Verifying NFS share was cleaned up")
 			nfsSharePath := "/mnt/" + datasetPath
-			shareExists, err := f.TrueNAS.NFSShareExists(ctx, nfsSharePath)
+			shareExists, err := f.NASty.NFSShareExists(ctx, nfsSharePath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(shareExists).To(BeFalse(), "NFS share for %s should be deleted", nfsSharePath)
 
@@ -232,12 +232,12 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred(), "PV %s was not deleted in time", vi.pvName)
 			}
 
-			By("Verifying all ZFS datasets were cleaned up from TrueNAS backend")
-			Expect(f.TrueNAS).NotTo(BeNil())
+			By("Verifying all ZFS datasets were cleaned up from NASty backend")
+			Expect(f.NASty).NotTo(BeNil())
 			time.Sleep(5 * time.Second)
 			for i := range volumeCount {
 				vi := &volumes[i]
-				exists, err := f.TrueNAS.DatasetExists(ctx, vi.datasetPath)
+				exists, err := f.NASty.DatasetExists(ctx, vi.datasetPath)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(exists).To(BeFalse(), "Dataset %s should be deleted", vi.datasetPath)
 			}
@@ -347,15 +347,15 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			err = f.K8s.WaitForPVDeleted(ctx, srcPVName, 3*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Verifying both datasets are gone from TrueNAS")
-			Expect(f.TrueNAS).NotTo(BeNil())
+			By("Verifying both datasets are gone from NASty")
+			Expect(f.NASty).NotTo(BeNil())
 			time.Sleep(5 * time.Second)
 
-			exists, err := f.TrueNAS.DatasetExists(ctx, srcDatasetPath)
+			exists, err := f.NASty.DatasetExists(ctx, srcDatasetPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(exists).To(BeFalse(), "Source dataset %s should be deleted", srcDatasetPath)
 
-			exists, err = f.TrueNAS.DatasetExists(ctx, restoreDatasetPath)
+			exists, err = f.NASty.DatasetExists(ctx, restoreDatasetPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(exists).To(BeFalse(), "Restored dataset %s should be deleted", restoreDatasetPath)
 

@@ -1,4 +1,4 @@
-// Package framework provides utilities for E2E testing of the TrueNAS CSI driver.
+// Package framework provides utilities for E2E testing of the NASty CSI driver.
 package framework
 
 import (
@@ -16,7 +16,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// apiKeyPattern matches TrueNAS API keys in error messages for redaction.
+// apiKeyPattern matches NASty API keys in error messages for redaction.
 var apiKeyPattern = regexp.MustCompile(`(apiKey=)[^\s,]+`)
 
 // sanitizeError redacts sensitive values (API keys) from error messages before logging.
@@ -30,10 +30,10 @@ func sanitizeError(err error) string {
 // suiteState holds suite-level state for Helm deployment.
 // This allows us to deploy Helm once per suite instead of per test.
 type suiteState struct {
-	truenasError   error
+	nastyError   error
 	helm           *HelmDeployer
 	config         *Config
-	truenas        *TrueNASVerifier
+	nasty        *NAStyVerifier
 	beforeSnapshot *ResourceSnapshot
 	protocol       string
 	mu             sync.Mutex
@@ -122,18 +122,18 @@ func SetupSuite(protocol string) error {
 	}
 	suite.config = config
 
-	// Pre-flight: verify TrueNAS is reachable before attempting Helm install.
+	// Pre-flight: verify NASty is reachable before attempting Helm install.
 	// This fails fast with a clear message instead of waiting for Helm's 8-minute timeout.
-	klog.Infof("Pre-flight: checking TrueNAS connectivity at %s", config.TrueNASHost)
+	klog.Infof("Pre-flight: checking NASty connectivity at %s", config.NAStyHost)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	conn, dialErr := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(config.TrueNASHost, "443"))
+	conn, dialErr := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(config.NAStyHost, "443"))
 	if dialErr != nil {
-		return fmt.Errorf("pre-flight failed: TrueNAS unreachable at %s:443: %w", config.TrueNASHost, dialErr)
+		return fmt.Errorf("pre-flight failed: NASty unreachable at %s:443: %w", config.NAStyHost, dialErr)
 	}
 	if closeErr := conn.Close(); closeErr != nil {
 		klog.Warningf("Pre-flight: failed to close connectivity check connection: %v", closeErr)
 	}
-	klog.Infof("Pre-flight: TrueNAS is reachable")
+	klog.Infof("Pre-flight: NASty is reachable")
 
 	// Create SMB credentials secret before Helm deploy (StorageClass references it)
 	if (protocol == protocolSMB || protocol == protocolAll || protocol == protocolBoth) && config.SMBUsername != "" {
@@ -158,7 +158,7 @@ func SetupSuite(protocol string) error {
 	suite.helm = NewHelmDeployer(config)
 
 	// Deploy the CSI driver with retry logic.
-	// Helm deploy can fail transiently over internet (image pull, TrueNAS WebSocket timeout).
+	// Helm deploy can fail transiently over internet (image pull, NASty WebSocket timeout).
 	// Retry up to 3 times with cleanup between attempts.
 	const maxDeployAttempts = 3
 	var lastDeployErr error
@@ -200,19 +200,19 @@ func SetupSuite(protocol string) error {
 		klog.Infof("Driver version: %s", versionInfo)
 	}
 
-	// Create TrueNAS verifier (store any error for later)
-	truenas, truenasErr := NewTrueNASVerifier(config.TrueNASHost, config.TrueNASAPIKey)
-	if truenasErr != nil {
-		klog.Warningf("Failed to create TrueNAS verifier: %v (TrueNAS verification will be skipped)", truenasErr)
-		suite.truenasError = truenasErr
+	// Create NASty verifier (store any error for later)
+	nasty, nastyErr := NewNAStyVerifier(config.NAStyHost, config.NAStyAPIKey)
+	if nastyErr != nil {
+		klog.Warningf("Failed to create NASty verifier: %v (NASty verification will be skipped)", nastyErr)
+		suite.nastyError = nastyErr
 	} else {
-		suite.truenas = truenas
+		suite.nasty = nasty
 	}
 
 	// Take "before" resource snapshot for leak detection
-	if suite.truenas != nil {
+	if suite.nasty != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		snap := suite.truenas.SnapshotResources(ctx, config.TrueNASPool)
+		snap := suite.nasty.SnapshotResources(ctx, config.NAStyPool)
 		cancel()
 		suite.beforeSnapshot = snap
 		LogSnapshot("Before suite (pre-existing)", snap)
@@ -232,9 +232,9 @@ func TeardownSuite() {
 	defer suite.mu.Unlock()
 
 	// Take "after" resource snapshot and diff against "before" for leak detection
-	if suite.truenas != nil && suite.beforeSnapshot != nil && suite.config != nil {
+	if suite.nasty != nil && suite.beforeSnapshot != nil && suite.config != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		afterSnap := suite.truenas.SnapshotResources(ctx, suite.config.TrueNASPool)
+		afterSnap := suite.nasty.SnapshotResources(ctx, suite.config.NAStyPool)
 		cancel()
 		LogSnapshot("After suite", afterSnap)
 		LogResourceDiff(suite.beforeSnapshot, afterSnap)
@@ -243,12 +243,12 @@ func TeardownSuite() {
 	// Clean up the csi-detached-snapshots parent dataset if it exists and is empty.
 	// This dataset is created by the CSI driver during detached snapshot operations.
 	// Individual detached snapshots are cleaned up by tests, but the parent container remains.
-	if suite.truenas != nil && suite.config != nil {
-		detachedPath := suite.config.TrueNASPool + "/csi-detached-snapshots"
+	if suite.nasty != nil && suite.config != nil {
+		detachedPath := suite.config.NAStyPool + "/csi-detached-snapshots"
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		exists, err := suite.truenas.DatasetExists(ctx, detachedPath)
+		exists, err := suite.nasty.DatasetExists(ctx, detachedPath)
 		if err == nil && exists {
-			if delErr := suite.truenas.DeleteDataset(ctx, detachedPath); delErr != nil {
+			if delErr := suite.nasty.DeleteDataset(ctx, detachedPath); delErr != nil {
 				klog.Warningf("Failed to cleanup csi-detached-snapshots dataset: %v", delErr)
 			} else {
 				klog.Infof("Cleaned up csi-detached-snapshots parent dataset")
@@ -257,9 +257,9 @@ func TeardownSuite() {
 		cancel()
 	}
 
-	if suite.truenas != nil {
-		suite.truenas.Close()
-		suite.truenas = nil
+	if suite.nasty != nil {
+		suite.nasty.Close()
+		suite.nasty = nil
 	}
 
 	// Clean up SMB credentials secret if it was created
@@ -292,7 +292,7 @@ type Framework struct {
 	Config   *Config
 	K8s      *KubernetesClient
 	Helm     *HelmDeployer
-	TrueNAS  *TrueNASVerifier
+	NASty  *NAStyVerifier
 	Cleanup  *CleanupTracker
 	protocol string
 }
@@ -346,7 +346,7 @@ func (f *Framework) Setup(protocol string) error {
 	if suite.deployed && (suite.protocol == protocol || suite.protocol == protocolBoth || suite.protocol == protocolAll) {
 		// Suite already deployed with compatible protocol
 		f.Helm = suite.helm
-		f.TrueNAS = suite.truenas
+		f.NASty = suite.nasty
 		suite.mu.Unlock()
 		klog.Infof("Using suite-level Helm deployment for protocol %s", protocol)
 	} else {
@@ -363,14 +363,14 @@ func (f *Framework) Setup(protocol string) error {
 			return fmt.Errorf("CSI driver not ready: %w", waitErr)
 		}
 
-		// Create TrueNAS verifier
-		truenas, truenasErr := NewTrueNASVerifier(f.Config.TrueNASHost, f.Config.TrueNASAPIKey)
-		if truenasErr != nil {
-			klog.Warningf("Failed to create TrueNAS verifier: %v (TrueNAS verification will be skipped)", truenasErr)
+		// Create NASty verifier
+		nasty, nastyErr := NewNAStyVerifier(f.Config.NAStyHost, f.Config.NAStyAPIKey)
+		if nastyErr != nil {
+			klog.Warningf("Failed to create NASty verifier: %v (NASty verification will be skipped)", nastyErr)
 		} else {
-			f.TrueNAS = truenas
+			f.NASty = nasty
 			f.Cleanup.Add(func() error {
-				f.TrueNAS.Close()
+				f.NASty.Close()
 				return nil
 			})
 		}
@@ -529,15 +529,15 @@ func (f *Framework) RegisterPVCCleanup(pvcName string) {
 	})
 }
 
-// VerifyTrueNASCleanup verifies that a dataset was deleted from TrueNAS.
+// VerifyNAStyCleanup verifies that a dataset was deleted from NASty.
 // This is useful for testing the full cleanup path.
-func (f *Framework) VerifyTrueNASCleanup(ctx context.Context, datasetPath string, timeout time.Duration) error {
-	if f.TrueNAS == nil {
-		klog.Warningf("TrueNAS verifier not available, skipping verification for %s", datasetPath)
+func (f *Framework) VerifyNAStyCleanup(ctx context.Context, datasetPath string, timeout time.Duration) error {
+	if f.NASty == nil {
+		klog.Warningf("NASty verifier not available, skipping verification for %s", datasetPath)
 		return nil
 	}
 
-	return f.TrueNAS.WaitForDatasetDeleted(ctx, datasetPath, timeout)
+	return f.NASty.WaitForDatasetDeleted(ctx, datasetPath, timeout)
 }
 
 // GetDatasetPathFromPV extracts the dataset path from a PV's CSI volume attributes.

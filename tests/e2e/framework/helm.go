@@ -1,4 +1,4 @@
-// Package framework provides utilities for E2E testing of the TrueNAS CSI driver.
+// Package framework provides utilities for E2E testing of the NASty CSI driver.
 package framework
 
 import (
@@ -62,13 +62,13 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		"--create-namespace",
 		"--wait",
 		"--timeout", "8m",
-		"--set", "truenas.url=wss://" + h.config.TrueNASHost + "/api/current",
-		"--set", "truenas.apiKey=" + h.config.TrueNASAPIKey,
-		"--set", "truenas.pool=" + h.config.TrueNASPool,
+		"--set", "nasty.url=wss://" + h.config.NAStyHost + "/api/current",
+		"--set", "nasty.apiKey=" + h.config.NAStyAPIKey,
+		"--set", "nasty.pool=" + h.config.NAStyPool,
 		"--set", "image.repository=" + h.config.CSIImageRepo,
 		"--set", "image.tag=" + h.config.CSIImageTag,
 		"--set", "image.pullPolicy=" + h.config.CSIImagePullPolicy,
-		"--set", "truenas.skipTLSVerify=true",
+		"--set", "nasty.skipTLSVerify=true",
 	}
 
 	// Enable snapshots for all protocols (required for snapshot tests)
@@ -91,16 +91,16 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[0].name=tns-csi-nfs",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=nfs",
-			"--set", "storageClasses[0].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[0].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[0].server="+h.config.NAStyHost,
 		)
 	case "nvmeof":
 		args = append(args,
 			"--set", "storageClasses[0].name=tns-csi-nvmeof",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=nvmeof",
-			"--set", "storageClasses[0].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[0].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[0].server="+h.config.NAStyHost,
 			"--set", "storageClasses[0].transport=tcp",
 			"--set", "storageClasses[0].port=4420",
 		)
@@ -109,8 +109,8 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[0].name=tns-csi-iscsi",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=iscsi",
-			"--set", "storageClasses[0].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[0].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[0].server="+h.config.NAStyHost,
 			"--set", "storageClasses[0].port=3260",
 		)
 	case protocolSMB:
@@ -118,8 +118,8 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[0].name=tns-csi-smb",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=smb",
-			"--set", "storageClasses[0].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[0].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[0].server="+h.config.NAStyHost,
 		)
 		if h.config.SMBUsername != "" {
 			args = append(args,
@@ -132,20 +132,20 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[0].name=tns-csi-nfs",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=nfs",
-			"--set", "storageClasses[0].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[0].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[0].server="+h.config.NAStyHost,
 			"--set", "storageClasses[1].name=tns-csi-nvmeof",
 			"--set", "storageClasses[1].enabled=true",
 			"--set", "storageClasses[1].protocol=nvmeof",
-			"--set", "storageClasses[1].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[1].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[1].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[1].server="+h.config.NAStyHost,
 			"--set", "storageClasses[1].transport=tcp",
 			"--set", "storageClasses[1].port=4420",
 			"--set", "storageClasses[2].name=tns-csi-iscsi",
 			"--set", "storageClasses[2].enabled=true",
 			"--set", "storageClasses[2].protocol=iscsi",
-			"--set", "storageClasses[2].pool="+h.config.TrueNASPool,
-			"--set", "storageClasses[2].server="+h.config.TrueNASHost,
+			"--set", "storageClasses[2].pool="+h.config.NAStyPool,
+			"--set", "storageClasses[2].server="+h.config.NAStyHost,
 			"--set", "storageClasses[2].port=3260",
 		)
 		if h.config.SMBUsername != "" {
@@ -153,8 +153,8 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 				"--set", "storageClasses[3].name=tns-csi-smb",
 				"--set", "storageClasses[3].enabled=true",
 				"--set", "storageClasses[3].protocol=smb",
-				"--set", "storageClasses[3].pool="+h.config.TrueNASPool,
-				"--set", "storageClasses[3].server="+h.config.TrueNASHost,
+				"--set", "storageClasses[3].pool="+h.config.NAStyPool,
+				"--set", "storageClasses[3].server="+h.config.NAStyHost,
 				"--set", "storageClasses[3].smbCredentialsSecret.name=nasty-csi-smb-creds",
 				"--set", "storageClasses[3].smbCredentialsSecret.namespace="+helmNamespace,
 			)

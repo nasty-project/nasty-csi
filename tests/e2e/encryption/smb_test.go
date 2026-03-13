@@ -24,8 +24,8 @@ var _ = Describe("SMB Encryption", func() {
 	smbParams := func(f *framework.Framework) map[string]string {
 		return map[string]string{
 			"protocol":              "smb",
-			"server":                f.Config.TrueNASHost,
-			"pool":                  f.Config.TrueNASPool,
+			"server":                f.Config.NAStyHost,
+			"pool":                  f.Config.NAStyPool,
 			"encryption":            "true",
 			"encryptionGenerateKey": "true",
 			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",

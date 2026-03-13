@@ -1,4 +1,4 @@
-// Package e2e contains end-to-end tests for the TrueNAS CSI driver.
+// Package e2e contains end-to-end tests for the NASty CSI driver.
 package e2e
 
 import (
@@ -41,7 +41,7 @@ var _ = Describe("Error Handling", func() {
 		By("Creating StorageClass with non-existent pool")
 		params := map[string]string{
 			"protocol": "nfs",
-			"server":   f.Config.TrueNASHost,
+			"server":   f.Config.NAStyHost,
 			"pool":     "nonexistent-pool-xyz-12345",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
@@ -99,7 +99,7 @@ var _ = Describe("Error Handling", func() {
 		By("Creating StorageClass without server parameter")
 		params := map[string]string{
 			"protocol": "nfs",
-			"pool":     f.Config.TrueNASPool,
+			"pool":     f.Config.NAStyPool,
 			// server parameter intentionally omitted
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
@@ -162,8 +162,8 @@ var _ = Describe("Error Handling", func() {
 		By("Creating StorageClass with invalid protocol (foobar)")
 		params := map[string]string{
 			"protocol": "foobar", // Invalid - not a supported protocol
-			"server":   f.Config.TrueNASHost,
-			"pool":     f.Config.TrueNASPool,
+			"server":   f.Config.NAStyHost,
+			"pool":     f.Config.NAStyPool,
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
@@ -217,7 +217,7 @@ var _ = Describe("Error Handling", func() {
 		invalidSCName := "tns-csi-recovery-invalid"
 		invalidParams := map[string]string{
 			"protocol": "nfs",
-			"server":   f.Config.TrueNASHost,
+			"server":   f.Config.NAStyHost,
 			"pool":     "nonexistent-pool-recovery",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, invalidSCName, "tns.csi.io", invalidParams)
@@ -246,8 +246,8 @@ var _ = Describe("Error Handling", func() {
 		validSCName := "tns-csi-recovery-valid"
 		validParams := map[string]string{
 			"protocol": "nfs",
-			"server":   f.Config.TrueNASHost,
-			"pool":     f.Config.TrueNASPool,
+			"server":   f.Config.NAStyHost,
+			"pool":     f.Config.NAStyPool,
 		}
 		err = f.K8s.CreateStorageClassWithParams(ctx, validSCName, "tns.csi.io", validParams)
 		Expect(err).NotTo(HaveOccurred())

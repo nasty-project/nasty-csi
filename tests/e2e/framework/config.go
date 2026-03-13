@@ -1,4 +1,4 @@
-// Package framework provides utilities for E2E testing of the TrueNAS CSI driver.
+// Package framework provides utilities for E2E testing of the NASty CSI driver.
 package framework
 
 import (
@@ -11,16 +11,16 @@ import (
 
 // Configuration errors.
 var (
-	ErrMissingTrueNASHost   = errors.New("TRUENAS_HOST environment variable is required")
-	ErrMissingTrueNASAPIKey = errors.New("TRUENAS_API_KEY environment variable is required")
+	ErrMissingNAStyHost   = errors.New("NASTY_HOST environment variable is required")
+	ErrMissingNAStyAPIKey = errors.New("NASTY_API_KEY environment variable is required")
 )
 
 // Config holds the configuration for E2E tests.
 type Config struct {
-	// TrueNAS connection settings
-	TrueNASHost   string
-	TrueNASAPIKey string
-	TrueNASPool   string
+	// NASty connection settings
+	NAStyHost   string
+	NAStyAPIKey string
+	NAStyPool   string
 
 	// CSI driver image settings
 	CSIImageRepo       string
@@ -45,9 +45,9 @@ type Config struct {
 // NewConfig creates a Config from environment variables.
 func NewConfig() (*Config, error) {
 	cfg := &Config{
-		TrueNASHost:        os.Getenv("TRUENAS_HOST"),
-		TrueNASAPIKey:      os.Getenv("TRUENAS_API_KEY"),
-		TrueNASPool:        getEnvOrDefault("TRUENAS_POOL", "csi"),
+		NAStyHost:        os.Getenv("NASTY_HOST"),
+		NAStyAPIKey:      os.Getenv("NASTY_API_KEY"),
+		NAStyPool:        getEnvOrDefault("NASTY_POOL", "csi"),
 		CSIImageRepo:       getEnvOrDefault("CSI_IMAGE_REPO", "ghcr.io/fenio/tns-csi"),
 		CSIImageTag:        getEnvOrDefault("CSI_IMAGE_TAG", "latest"),
 		CSIImagePullPolicy: getEnvOrDefault("CSI_IMAGE_PULL_POLICY", "Always"),
@@ -68,18 +68,18 @@ func NewConfig() (*Config, error) {
 
 // Validate checks that all required configuration is present.
 func (c *Config) Validate() error {
-	if c.TrueNASHost == "" {
-		return ErrMissingTrueNASHost
+	if c.NAStyHost == "" {
+		return ErrMissingNAStyHost
 	}
-	if c.TrueNASAPIKey == "" {
-		return ErrMissingTrueNASAPIKey
+	if c.NAStyAPIKey == "" {
+		return ErrMissingNAStyAPIKey
 	}
 	return nil
 }
 
-// TrueNASURL returns the WebSocket URL for the TrueNAS API.
-func (c *Config) TrueNASURL() string {
-	return fmt.Sprintf("wss://%s/api/current", c.TrueNASHost)
+// NAStyURL returns the WebSocket URL for the NASty API.
+func (c *Config) NAStyURL() string {
+	return fmt.Sprintf("wss://%s/api/current", c.NAStyHost)
 }
 
 // CSIImage returns the full Docker image reference.

@@ -52,8 +52,8 @@ var _ = Describe("Shared Encryption", func() {
 				podTimeout: 2 * time.Minute,
 				scParams: map[string]string{
 					"protocol":              "nfs",
-					"server":                f.Config.TrueNASHost,
-					"pool":                  f.Config.TrueNASPool,
+					"server":                f.Config.NAStyHost,
+					"pool":                  f.Config.NAStyPool,
 					"encryption":            "true",
 					"encryptionGenerateKey": "true",
 				},
@@ -66,8 +66,8 @@ var _ = Describe("Shared Encryption", func() {
 				podTimeout: 3 * time.Minute,
 				scParams: map[string]string{
 					"protocol":                  "nvmeof",
-					"server":                    f.Config.TrueNASHost,
-					"pool":                      f.Config.TrueNASPool,
+					"server":                    f.Config.NAStyHost,
+					"pool":                      f.Config.NAStyPool,
 					"transport":                 "tcp",
 					"port":                      "4420",
 					"csi.storage.k8s.io/fstype": "ext4",
@@ -83,8 +83,8 @@ var _ = Describe("Shared Encryption", func() {
 				podTimeout: 3 * time.Minute,
 				scParams: map[string]string{
 					"protocol":                  "iscsi",
-					"server":                    f.Config.TrueNASHost,
-					"pool":                      f.Config.TrueNASPool,
+					"server":                    f.Config.NAStyHost,
+					"pool":                      f.Config.NAStyPool,
 					"port":                      "3260",
 					"csi.storage.k8s.io/fstype": "ext4",
 					"encryption":                "true",
@@ -101,8 +101,8 @@ var _ = Describe("Shared Encryption", func() {
 				podTimeout: 2 * time.Minute,
 				scParams: map[string]string{
 					"protocol":              "smb",
-					"server":                f.Config.TrueNASHost,
-					"pool":                  f.Config.TrueNASPool,
+					"server":                f.Config.NAStyHost,
+					"pool":                  f.Config.NAStyPool,
 					"encryption":            "true",
 					"encryptionGenerateKey": "true",
 					"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",

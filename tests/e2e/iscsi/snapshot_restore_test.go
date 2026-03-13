@@ -1,4 +1,4 @@
-// Package iscsi contains iSCSI-specific E2E tests for the TrueNAS CSI driver.
+// Package iscsi contains iSCSI-specific E2E tests for the NASty CSI driver.
 package iscsi
 
 import (

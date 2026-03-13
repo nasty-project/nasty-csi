@@ -101,11 +101,11 @@ var _ = Describe("Complex Cleanup", func() {
 				Expect(readData(ctx, f.K8s, restPod, "data.txt")).To(Equal("cleanup-test"))
 				Expect(readData(ctx, f.K8s, clonePod, "data.txt")).To(Equal("cleanup-test"))
 
-				// Take TrueNAS resource snapshot (before cleanup)
+				// Take NASty resource snapshot (before cleanup)
 				var beforeSnap *framework.ResourceSnapshot
-				if f.TrueNAS != nil {
-					By("Taking TrueNAS resource snapshot before cleanup")
-					beforeSnap = f.TrueNAS.SnapshotResources(ctx, f.Config.TrueNASPool)
+				if f.NASty != nil {
+					By("Taking NASty resource snapshot before cleanup")
+					beforeSnap = f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
 				}
 
 				// Record PV names and dataset paths before manual cleanup
@@ -161,12 +161,12 @@ var _ = Describe("Complex Cleanup", func() {
 				err = f.K8s.WaitForPVDeleted(ctx, srcPVName, 4*time.Minute)
 				Expect(err).NotTo(HaveOccurred(), "Source PV should be deleted")
 
-				// Take TrueNAS resource snapshot (after cleanup) and verify zero leaks
-				if f.TrueNAS != nil && beforeSnap != nil {
-					By("Taking TrueNAS resource snapshot after cleanup and verifying zero leaks")
-					// Wait briefly for TrueNAS to process all deletions
+				// Take NASty resource snapshot (after cleanup) and verify zero leaks
+				if f.NASty != nil && beforeSnap != nil {
+					By("Taking NASty resource snapshot after cleanup and verifying zero leaks")
+					// Wait briefly for NASty to process all deletions
 					time.Sleep(5 * time.Second)
-					afterSnap := f.TrueNAS.SnapshotResources(ctx, f.Config.TrueNASPool)
+					afterSnap := f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
 
 					// Verify no new resources were leaked (after should have <= before)
 					for dsName := range afterSnap.Datasets {
@@ -180,23 +180,27 @@ var _ = Describe("Complex Cleanup", func() {
 
 							// Query properties for diagnostics
 							for _, prop := range []string{"tns-csi:csi_volume_name", "tns-csi:protocol", "tns-csi:origin_snapshot", "tns-csi:clone_mode", "tns-csi:content_source_type"} {
-								if val, propErr := f.TrueNAS.GetDatasetProperty(ctx, dsName, prop); propErr == nil && val != "" {
+								if val, propErr := f.NASty.GetDatasetProperty(ctx, dsName, prop); propErr == nil && val != "" {
 									fmt.Fprintf(&diag, "\n  %s = %s", prop, val)
 								}
 							}
 
 							// Check ZFS origin (is it a clone?)
-							if origin, originErr := f.TrueNAS.GetDatasetOrigin(ctx, dsName); originErr == nil && origin != "" {
+							if origin, originErr := f.NASty.GetDatasetOrigin(ctx, dsName); originErr == nil && origin != "" {
 								fmt.Fprintf(&diag, "\n  ZFS origin = %s", origin)
 							}
 
 							// Check for snapshots on the leaked dataset
-							if snaps, snapErr := f.TrueNAS.Client().QuerySnapshots(ctx, []interface{}{
-								[]interface{}{"dataset", "=", dsName},
-							}); snapErr == nil {
-								fmt.Fprintf(&diag, "\n  Snapshots on dataset: %d", len(snaps))
+							if snaps, snapErr := f.NASty.Client().ListSnapshots(ctx, ""); snapErr == nil {
+								var matchingSnaps []string
 								for _, s := range snaps {
-									fmt.Fprintf(&diag, "\n    - %s (dataset=%s)", s.ID, s.Dataset)
+									if s.Subvolume == dsName {
+										matchingSnaps = append(matchingSnaps, s.Name)
+									}
+								}
+								fmt.Fprintf(&diag, "\n  Snapshots on dataset: %d", len(matchingSnaps))
+								for _, snapName := range matchingSnaps {
+									fmt.Fprintf(&diag, "\n    - %s (subvolume=%s)", snapName, dsName)
 								}
 							}
 

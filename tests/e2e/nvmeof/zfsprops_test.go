@@ -41,8 +41,8 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 		zfsStorageClass := "tns-csi-nvmeof-zfsprops"
 		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, zfsStorageClass, "tns.csi.io", map[string]string{
 			"protocol":         "nvmeof",
-			"server":           f.Config.TrueNASHost,
-			"pool":             f.Config.TrueNASPool,
+			"server":           f.Config.NAStyHost,
+			"pool":             f.Config.NAStyPool,
 			"transport":        "tcp",
 			"port":             "4420",
 			"fsType":           "ext4",
@@ -94,12 +94,12 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 		Expect(datasetPath).NotTo(BeEmpty())
 
 		By("Verifying compression is set to lz4")
-		compression, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "compression")
+		compression, err := f.NASty.GetZFSProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(compression).To(Equal("LZ4"), "compression should be LZ4")
 
 		By("Verifying volblocksize is set to 16K")
-		volblocksize, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "volblocksize")
+		volblocksize, err := f.NASty.GetZFSProperty(ctx, datasetPath, "volblocksize")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(volblocksize).To(Equal("16K"), "volblocksize should be 16K")
 	})

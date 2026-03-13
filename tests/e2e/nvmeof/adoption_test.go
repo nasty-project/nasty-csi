@@ -44,8 +44,8 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		adoptableStorageClass := "tns-csi-nvmeof-adoptable"
 		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "nvmeof",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",
@@ -92,7 +92,7 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
 		if f.Verbose() {
-			GinkgoWriter.Printf("Expected ZVOL path on TrueNAS: %s\n", zvolPath)
+			GinkgoWriter.Printf("Expected ZVOL path on NASty: %s\n", zvolPath)
 		}
 		if f.Verbose() {
 			GinkgoWriter.Printf("Expected NVMe-oF subsystem NQN: %s\n", subsystemNQN)
@@ -135,18 +135,18 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying ZVOL still exists on TrueNAS")
-		Expect(f.TrueNAS).NotTo(BeNil(), "TrueNAS verifier must be available for this test")
-		exists, err := f.TrueNAS.DatasetExists(ctx, zvolPath)
+		By("Verifying ZVOL still exists on NASty")
+		Expect(f.NASty).NotTo(BeNil(), "NASty verifier must be available for this test")
+		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "ZVOL should still exist on TrueNAS after PVC deletion with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "ZVOL should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
 		By("Deleting the NVMe-oF subsystem to simulate orphaned volume (ZVOL exists, but subsystem is missing)")
-		err = f.TrueNAS.DeleteNVMeOFSubsystem(ctx, subsystemNQN)
+		err = f.NASty.DeleteNVMeOFSubsystem(ctx, subsystemNQN)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Verifying NVMe-oF subsystem was deleted")
-		subsystemExists, err := f.TrueNAS.NVMeOFSubsystemExists(ctx, subsystemNQN)
+		subsystemExists, err := f.NASty.NVMeOFSubsystemExists(ctx, subsystemNQN)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(subsystemExists).To(BeFalse(), "NVMe-oF subsystem should be deleted")
 		if f.Verbose() {
@@ -157,8 +157,8 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		adoptingStorageClass := "tns-csi-nvmeof-adopting"
 		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "tns.csi.io", map[string]string{
 			"protocol":      "nvmeof",
-			"server":        f.Config.TrueNASHost,
-			"pool":          f.Config.TrueNASPool,
+			"server":        f.Config.NAStyHost,
+			"pool":          f.Config.NAStyPool,
 			"transport":     "tcp",
 			"port":          "4420",
 			"fsType":        "ext4",
@@ -224,8 +224,8 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		// which cleans up the NEW subsystem and namespace. However, the ORIGINAL
 		// retained ZVOL (zvolPath) is left behind because adoption creates a new
 		// dataset path. Clean up the original retained ZVOL explicitly.
-		By("Cleaning up original retained ZVOL from TrueNAS")
-		err = f.TrueNAS.DeleteDataset(ctx, zvolPath)
+		By("Cleaning up original retained ZVOL from NASty")
+		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained ZVOL")
 	})
 
@@ -234,8 +234,8 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		markAdoptableStorageClass := "tns-csi-nvmeof-mark-adoptable"
 		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "nvmeof",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",
@@ -282,9 +282,9 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 			GinkgoWriter.Printf("ZVOL path: %s\n", zvolPath)
 		}
 
-		By("Verifying adoptable property is set on TrueNAS dataset")
-		Expect(f.TrueNAS).NotTo(BeNil())
-		adoptableValue, err := f.TrueNAS.GetDatasetProperty(ctx, zvolPath, "tns-csi:adoptable")
+		By("Verifying adoptable property is set on NASty dataset")
+		Expect(f.NASty).NotTo(BeNil())
+		adoptableValue, err := f.NASty.GetDatasetProperty(ctx, zvolPath, "tns-csi:adoptable")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(adoptableValue).To(Equal("true"), "Dataset should have tns-csi:adoptable=true")
 		if f.Verbose() {
@@ -299,15 +299,15 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying dataset still exists on TrueNAS after deletion")
-		exists, err := f.TrueNAS.DatasetExists(ctx, zvolPath)
+		By("Verifying dataset still exists on NASty after deletion")
+		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(exists).To(BeTrue(), "Dataset should be retained with deleteStrategy=retain")
 
-		By("Cleaning up retained resources from TrueNAS")
-		err = f.TrueNAS.DeleteNVMeOFSubsystem(ctx, subsystemNQN)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NVMe-oF subsystem from TrueNAS")
-		err = f.TrueNAS.DeleteDataset(ctx, zvolPath)
+		By("Cleaning up retained resources from NASty")
+		err = f.NASty.DeleteNVMeOFSubsystem(ctx, subsystemNQN)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NVMe-oF subsystem from NASty")
+		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
 		if f.Verbose() {
 			GinkgoWriter.Printf("Cleaned up retained dataset: %s\n", zvolPath)

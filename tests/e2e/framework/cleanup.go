@@ -1,4 +1,4 @@
-// Package framework provides utilities for E2E testing of the TrueNAS CSI driver.
+// Package framework provides utilities for E2E testing of the NASty CSI driver.
 package framework
 
 import (

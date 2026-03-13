@@ -1,4 +1,4 @@
-// Package iscsi contains iSCSI-specific E2E tests for the TrueNAS CSI driver.
+// Package iscsi contains iSCSI-specific E2E tests for the NASty CSI driver.
 package iscsi
 
 import (
@@ -46,8 +46,8 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		podTimeout := 6 * time.Minute
 		pool := "storage"
 
-		if f.TrueNAS == nil {
-			Skip("TrueNAS verifier not configured - skipping ZFS-level verification")
+		if f.NASty == nil {
+			Skip("NASty verifier not configured - skipping ZFS-level verification")
 		}
 
 		By("Creating source PVC")
@@ -91,7 +91,7 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		By("Finding source ZFS dataset")
 		var sourceDatasetPath string
 		for _, path := range possibleDatasetPaths {
-			dsExists, dsErr := f.TrueNAS.DatasetExists(ctx, path)
+			dsExists, dsErr := f.NASty.DatasetExists(ctx, path)
 			if dsErr == nil && dsExists {
 				sourceDatasetPath = path
 				break
@@ -148,13 +148,13 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		detachedDatasetPath := fmt.Sprintf("%s/csi-detached-snapshots/%s", pool, csiSnapshotName)
 
 		By("Verifying detached snapshot dataset exists")
-		exists, err := f.TrueNAS.DatasetExists(ctx, detachedDatasetPath)
+		exists, err := f.NASty.DatasetExists(ctx, detachedDatasetPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to check if detached dataset exists")
 		Expect(exists).To(BeTrue(), fmt.Sprintf("Detached snapshot dataset %s should exist", detachedDatasetPath))
 		GinkgoWriter.Printf("[iSCSI] Detached snapshot dataset path: %s (exists: %v)\n", detachedDatasetPath, exists)
 
 		By("CRITICAL: Verifying detached snapshot is NOT a ZFS clone (no origin)")
-		isClone, origin, err := f.TrueNAS.IsDatasetClone(ctx, detachedDatasetPath)
+		isClone, origin, err := f.NASty.IsDatasetClone(ctx, detachedDatasetPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to check clone status")
 
 		if isClone {
@@ -180,7 +180,7 @@ var _ = Describe("Detached Snapshot Independence", func() {
 
 		By("Verifying source ZFS dataset was deleted")
 		time.Sleep(5 * time.Second)
-		sourceExists, _ := f.TrueNAS.DatasetExists(ctx, sourceDatasetPath)
+		sourceExists, _ := f.NASty.DatasetExists(ctx, sourceDatasetPath)
 		if sourceExists {
 			GinkgoWriter.Printf("[iSCSI] WARNING: Source dataset %s still exists after PVC deletion\n", sourceDatasetPath)
 			Fail(fmt.Sprintf("Source dataset %s could not be deleted - likely due to clone dependency", sourceDatasetPath))

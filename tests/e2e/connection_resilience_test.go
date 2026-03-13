@@ -1,4 +1,4 @@
-// Package e2e contains end-to-end tests for the TrueNAS CSI driver.
+// Package e2e contains end-to-end tests for the NASty CSI driver.
 package e2e
 
 import (

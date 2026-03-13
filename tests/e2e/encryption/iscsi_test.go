@@ -44,8 +44,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-basic"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -114,8 +114,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-aes128"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -171,8 +171,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-expand"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -267,8 +267,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-expand-inline"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -345,8 +345,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-snapshot"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -450,8 +450,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-clone"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -535,8 +535,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-persist"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -609,8 +609,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			scName := "tns-csi-iscsi-encrypted-block"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "iscsi",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",

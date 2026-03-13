@@ -82,7 +82,7 @@ func TestSanity(t *testing.T) {
 	sanityCfg.TestVolumeParameters = map[string]string{
 		"protocol": "nfs",
 		"pool":     "tank",
-		"server":   "truenas.local",
+		"server":   "nasty.local",
 	}
 
 	// Configure custom cleanup functions to properly remove test directories
@@ -98,7 +98,7 @@ func TestSanity(t *testing.T) {
 }
 
 // TestSanityIdentity runs only Identity service sanity tests.
-// These tests don't require a TrueNAS backend and can run immediately.
+// These tests don't require a NASty backend and can run immediately.
 func TestSanityIdentity(t *testing.T) {
 	t.Skip("Identity tests are covered by TestSanity - skipping separate test")
 }

@@ -44,8 +44,8 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		adoptableStorageClass := "tns-csi-iscsi-adoptable"
 		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "iscsi",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"port":           "3260",
 			"fsType":         "ext4",
 			"deleteStrategy": "retain",
@@ -85,7 +85,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
 		if f.Verbose() {
-			GinkgoWriter.Printf("Expected ZVOL path on TrueNAS: %s\n", zvolPath)
+			GinkgoWriter.Printf("Expected ZVOL path on NASty: %s\n", zvolPath)
 		}
 
 		By("Creating a POD to write test data")
@@ -125,23 +125,23 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying ZVOL still exists on TrueNAS")
-		Expect(f.TrueNAS).NotTo(BeNil(), "TrueNAS verifier must be available for this test")
-		exists, err := f.TrueNAS.DatasetExists(ctx, zvolPath)
+		By("Verifying ZVOL still exists on NASty")
+		Expect(f.NASty).NotTo(BeNil(), "NASty verifier must be available for this test")
+		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "ZVOL should still exist on TrueNAS after PVC deletion with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "ZVOL should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
 		By("Deleting the iSCSI target and extent to simulate orphaned volume (ZVOL exists, but iSCSI resources are missing)")
-		err = f.TrueNAS.DeleteISCSITarget(ctx, volumeHandle)
+		err = f.NASty.DeleteISCSITarget(ctx, volumeHandle)
 		Expect(err).NotTo(HaveOccurred())
-		err = f.TrueNAS.DeleteISCSIExtent(ctx, volumeHandle)
+		err = f.NASty.DeleteISCSIExtent(ctx, volumeHandle)
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Verifying iSCSI resources were deleted")
-		targetExists, err := f.TrueNAS.ISCSITargetExists(ctx, volumeHandle)
+		targetExists, err := f.NASty.ISCSITargetExists(ctx, volumeHandle)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(targetExists).To(BeFalse(), "iSCSI target should be deleted")
-		extentExists, err := f.TrueNAS.ISCSIExtentExists(ctx, volumeHandle)
+		extentExists, err := f.NASty.ISCSIExtentExists(ctx, volumeHandle)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(extentExists).To(BeFalse(), "iSCSI extent should be deleted")
 		if f.Verbose() {
@@ -152,8 +152,8 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		adoptingStorageClass := "tns-csi-iscsi-adopting"
 		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "tns.csi.io", map[string]string{
 			"protocol":      "iscsi",
-			"server":        f.Config.TrueNASHost,
-			"pool":          f.Config.TrueNASPool,
+			"server":        f.Config.NAStyHost,
+			"pool":          f.Config.NAStyPool,
 			"port":          "3260",
 			"fsType":        "ext4",
 			"adoptExisting": "true",
@@ -218,8 +218,8 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		// which cleans up the NEW iSCSI target/extent and ZVOL. However, the ORIGINAL
 		// retained ZVOL (zvolPath) is left behind because adoption creates a new
 		// dataset path. Clean up the original retained ZVOL explicitly.
-		By("Cleaning up original retained ZVOL from TrueNAS")
-		err = f.TrueNAS.DeleteDataset(ctx, zvolPath)
+		By("Cleaning up original retained ZVOL from NASty")
+		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained ZVOL")
 	})
 
@@ -228,8 +228,8 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		markAdoptableStorageClass := "tns-csi-iscsi-mark-adoptable"
 		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "iscsi",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"port":           "3260",
 			"fsType":         "ext4",
 			"deleteStrategy": "retain",
@@ -269,9 +269,9 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 			GinkgoWriter.Printf("ZVOL path: %s\n", zvolPath)
 		}
 
-		By("Verifying adoptable property is set on TrueNAS dataset")
-		Expect(f.TrueNAS).NotTo(BeNil())
-		adoptableValue, err := f.TrueNAS.GetDatasetProperty(ctx, zvolPath, "tns-csi:adoptable")
+		By("Verifying adoptable property is set on NASty dataset")
+		Expect(f.NASty).NotTo(BeNil())
+		adoptableValue, err := f.NASty.GetDatasetProperty(ctx, zvolPath, "tns-csi:adoptable")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(adoptableValue).To(Equal("true"), "Dataset should have tns-csi:adoptable=true")
 		if f.Verbose() {
@@ -286,17 +286,17 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying dataset still exists on TrueNAS after deletion")
-		exists, err := f.TrueNAS.DatasetExists(ctx, zvolPath)
+		By("Verifying dataset still exists on NASty after deletion")
+		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(exists).To(BeTrue(), "Dataset should be retained with deleteStrategy=retain")
 
-		By("Cleaning up retained resources from TrueNAS")
-		err = f.TrueNAS.DeleteISCSITarget(ctx, volumeHandle)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI target from TrueNAS")
-		err = f.TrueNAS.DeleteISCSIExtent(ctx, volumeHandle)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI extent from TrueNAS")
-		err = f.TrueNAS.DeleteDataset(ctx, zvolPath)
+		By("Cleaning up retained resources from NASty")
+		err = f.NASty.DeleteISCSITarget(ctx, volumeHandle)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI target from NASty")
+		err = f.NASty.DeleteISCSIExtent(ctx, volumeHandle)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI extent from NASty")
+		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
 		if f.Verbose() {
 			GinkgoWriter.Printf("Cleaned up retained dataset: %s\n", zvolPath)

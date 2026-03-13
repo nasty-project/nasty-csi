@@ -41,8 +41,8 @@ var _ = Describe("NFS ZFS Properties", func() {
 		zfsStorageClass := "tns-csi-nfs-zfsprops"
 		err = f.K8s.CreateStorageClassWithParams(ctx, zfsStorageClass, "tns.csi.io", map[string]string{
 			"protocol":        "nfs",
-			"server":          f.Config.TrueNASHost,
-			"pool":            f.Config.TrueNASPool,
+			"server":          f.Config.NAStyHost,
+			"pool":            f.Config.NAStyPool,
 			"zfs.compression": "lz4",
 			"zfs.atime":       "off",
 			"zfs.recordsize":  "128K",
@@ -92,22 +92,22 @@ var _ = Describe("NFS ZFS Properties", func() {
 		Expect(datasetPath).NotTo(BeEmpty())
 
 		By("Verifying compression is set to lz4")
-		compression, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "compression")
+		compression, err := f.NASty.GetZFSProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(compression).To(Equal("LZ4"), "compression should be LZ4")
 
 		By("Verifying atime is set to off")
-		atime, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "atime")
+		atime, err := f.NASty.GetZFSProperty(ctx, datasetPath, "atime")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(atime).To(Equal("OFF"), "atime should be OFF")
 
 		By("Verifying recordsize is set to 128K")
-		recordsize, err := f.TrueNAS.GetZFSProperty(ctx, datasetPath, "recordsize")
+		recordsize, err := f.NASty.GetZFSProperty(ctx, datasetPath, "recordsize")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(recordsize).To(Equal("128K"), "recordsize should be 128K")
 
 		By("Verifying cluster_id user property is set")
-		clusterID, err := f.TrueNAS.GetDatasetProperty(ctx, datasetPath, "nasty-csi:cluster_id")
+		clusterID, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have nasty-csi:cluster_id matching configured cluster ID")
 	})

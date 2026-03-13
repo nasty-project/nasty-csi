@@ -1,4 +1,4 @@
-// Package nvmeof contains NVMe-oF-specific E2E tests for the TrueNAS CSI driver.
+// Package nvmeof contains NVMe-oF-specific E2E tests for the NASty CSI driver.
 package nvmeof
 
 import (

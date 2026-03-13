@@ -1,4 +1,4 @@
-// Package e2e contains E2E tests for the TrueNAS CSI driver.
+// Package e2e contains E2E tests for the NASty CSI driver.
 package e2e
 
 import (
@@ -86,8 +86,8 @@ var _ = Describe("Reclaim Policy", func() {
 			scName := "tns-csi-" + proto.id + "-delete-policy"
 			params := map[string]string{
 				"protocol": proto.id,
-				"pool":     f.Config.TrueNASPool,
-				"server":   f.Config.TrueNASHost,
+				"pool":     f.Config.NAStyPool,
+				"server":   f.Config.NAStyHost,
 			}
 			if proto.id != "nfs" && proto.id != "smb" {
 				params["fsType"] = "ext4"
@@ -166,8 +166,8 @@ var _ = Describe("Reclaim Policy", func() {
 			scName := "tns-csi-" + proto.id + "-retain-policy"
 			params := map[string]string{
 				"protocol": proto.id,
-				"pool":     f.Config.TrueNASPool,
-				"server":   f.Config.TrueNASHost,
+				"pool":     f.Config.NAStyPool,
+				"server":   f.Config.NAStyHost,
 			}
 			if proto.id != "nfs" && proto.id != "smb" {
 				params["fsType"] = "ext4"
@@ -257,53 +257,53 @@ var _ = Describe("Reclaim Policy", func() {
 			err = f.K8s.DeletePV(ctx, pvName)
 			Expect(err).NotTo(HaveOccurred(), "Failed to delete retained PV")
 
-			By("Cleaning up retained TrueNAS resources")
-			if f.TrueNAS != nil && volumeHandle != "" {
-				cleanupRetainedTrueNASResources(ctx, f.TrueNAS, proto.id, volumeHandle, subsystemNQN)
+			By("Cleaning up retained NASty resources")
+			if f.NASty != nil && volumeHandle != "" {
+				cleanupRetainedNAStyResources(ctx, f.NASty, proto.id, volumeHandle, subsystemNQN)
 			}
 		})
 	}
 })
 
-// cleanupRetainedTrueNASResources removes TrueNAS backend resources that are left behind
+// cleanupRetainedNAStyResources removes NASty backend resources that are left behind
 // when a volume uses Retain reclaim policy (K8s PV deletion does not trigger CSI DeleteVolume).
 // For NVMe-oF, subsystemNQN should be extracted from the PV's CSI volumeAttributes["nqn"] before PV deletion.
-func cleanupRetainedTrueNASResources(ctx context.Context, truenas *framework.TrueNASVerifier, protocol, volumeHandle, subsystemNQN string) {
+func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVerifier, protocol, volumeHandle, subsystemNQN string) {
 	switch protocol {
 	case "nfs":
 		sharePath := "/mnt/" + volumeHandle
-		if err := truenas.DeleteNFSShare(ctx, sharePath); err != nil {
+		if err := nasty.DeleteNFSShare(ctx, sharePath); err != nil {
 			klog.Warningf("Failed to cleanup retained NFS share %s: %v", sharePath, err)
 		}
-		if err := truenas.DeleteDataset(ctx, volumeHandle); err != nil {
+		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
 			klog.Warningf("Failed to cleanup retained NFS dataset %s: %v", volumeHandle, err)
 		}
 	case "nvmeof":
 		if subsystemNQN != "" {
-			if err := truenas.DeleteNVMeOFSubsystem(ctx, subsystemNQN); err != nil {
+			if err := nasty.DeleteNVMeOFSubsystem(ctx, subsystemNQN); err != nil {
 				klog.Warningf("Failed to cleanup retained NVMe-oF subsystem %s: %v", subsystemNQN, err)
 			}
 		}
-		if err := truenas.DeleteDataset(ctx, volumeHandle); err != nil {
+		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
 			klog.Warningf("Failed to cleanup retained ZVOL %s: %v", volumeHandle, err)
 		}
 	case "iscsi":
 		targetName := path.Base(volumeHandle)
-		if err := truenas.DeleteISCSITarget(ctx, targetName); err != nil {
+		if err := nasty.DeleteISCSITarget(ctx, targetName); err != nil {
 			klog.Warningf("Failed to cleanup retained iSCSI target %s: %v", targetName, err)
 		}
-		if err := truenas.DeleteISCSIExtent(ctx, targetName); err != nil {
+		if err := nasty.DeleteISCSIExtent(ctx, targetName); err != nil {
 			klog.Warningf("Failed to cleanup retained iSCSI extent %s: %v", targetName, err)
 		}
-		if err := truenas.DeleteDataset(ctx, volumeHandle); err != nil {
+		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
 			klog.Warningf("Failed to cleanup retained ZVOL %s: %v", volumeHandle, err)
 		}
 	case "smb":
 		sharePath := "/mnt/" + volumeHandle
-		if err := truenas.DeleteSMBShare(ctx, sharePath); err != nil {
+		if err := nasty.DeleteSMBShare(ctx, sharePath); err != nil {
 			klog.Warningf("Failed to cleanup retained SMB share %s: %v", sharePath, err)
 		}
-		if err := truenas.DeleteDataset(ctx, volumeHandle); err != nil {
+		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
 			klog.Warningf("Failed to cleanup retained SMB dataset %s: %v", volumeHandle, err)
 		}
 	}

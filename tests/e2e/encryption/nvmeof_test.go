@@ -44,8 +44,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-basic"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -115,8 +115,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-aes128"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -173,8 +173,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-expand"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -270,8 +270,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-expand-inline"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -349,8 +349,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-snapshot"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -455,8 +455,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-clone"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -541,8 +541,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-persist"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",
@@ -616,8 +616,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			scName := "tns-csi-nvmeof-encrypted-block"
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
-				"server":                    f.Config.TrueNASHost,
-				"pool":                      f.Config.TrueNASPool,
+				"server":                    f.Config.NAStyHost,
+				"pool":                      f.Config.NAStyPool,
 				"transport":                 "tcp",
 				"port":                      "4420",
 				"csi.storage.k8s.io/fstype": "ext4",

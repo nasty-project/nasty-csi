@@ -39,13 +39,13 @@ var _ = Describe("NVMe-oF Delete Strategy Retain", func() {
 		}
 	})
 
-	It("should retain TrueNAS resources when deleteStrategy=retain is set", func() {
+	It("should retain NASty resources when deleteStrategy=retain is set", func() {
 		By("Creating StorageClass with deleteStrategy=retain")
 		retainStorageClass := "tns-csi-nvmeof-retain"
 		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "tns.csi.io", map[string]string{
 			"protocol":       "nvmeof",
-			"server":         f.Config.TrueNASHost,
-			"pool":           f.Config.TrueNASPool,
+			"server":         f.Config.NAStyHost,
+			"pool":           f.Config.NAStyPool,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",
@@ -89,7 +89,7 @@ var _ = Describe("NVMe-oF Delete Strategy Retain", func() {
 		Expect(ok).To(BeTrue(), "PV should contain CSI volumeAttributes.nqn")
 		Expect(subsystemNQN).NotTo(BeEmpty())
 		GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
-		GinkgoWriter.Printf("Expected ZVOL path on TrueNAS: %s\n", zvolPath)
+		GinkgoWriter.Printf("Expected ZVOL path on NASty: %s\n", zvolPath)
 		GinkgoWriter.Printf("Expected NVMe-oF subsystem NQN: %s\n", subsystemNQN)
 
 		By("Creating a POD to verify volume works")
@@ -129,41 +129,41 @@ var _ = Describe("NVMe-oF Delete Strategy Retain", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying ZVOL still exists on TrueNAS")
-		Expect(f.TrueNAS).NotTo(BeNil(), "TrueNAS verifier must be available for this test")
-		exists, err := f.TrueNAS.DatasetExists(ctx, zvolPath)
+		By("Verifying ZVOL still exists on NASty")
+		Expect(f.NASty).NotTo(BeNil(), "NASty verifier must be available for this test")
+		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "ZVOL should still exist on TrueNAS after PVC deletion with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "ZVOL should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
-		By("Verifying NVMe-oF subsystem still exists on TrueNAS")
-		subsystemExists, err := f.TrueNAS.NVMeOFSubsystemExists(ctx, subsystemNQN)
+		By("Verifying NVMe-oF subsystem still exists on NASty")
+		subsystemExists, err := f.NASty.NVMeOFSubsystemExists(ctx, subsystemNQN)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(subsystemExists).To(BeTrue(), "NVMe-oF subsystem should still exist on TrueNAS after PVC deletion with deleteStrategy=retain")
+		Expect(subsystemExists).To(BeTrue(), "NVMe-oF subsystem should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
-		By("ZVOL and subsystem confirmed to still exist on TrueNAS - retain strategy working correctly")
-		GinkgoWriter.Printf("Successfully verified ZVOL %s was retained on TrueNAS\n", zvolPath)
-		GinkgoWriter.Printf("Successfully verified NVMe-oF subsystem %s was retained on TrueNAS\n", subsystemNQN)
+		By("ZVOL and subsystem confirmed to still exist on NASty - retain strategy working correctly")
+		GinkgoWriter.Printf("Successfully verified ZVOL %s was retained on NASty\n", zvolPath)
+		GinkgoWriter.Printf("Successfully verified NVMe-oF subsystem %s was retained on NASty\n", subsystemNQN)
 
-		By("Cleaning up retained NVMe-oF subsystem from TrueNAS")
-		err = f.TrueNAS.DeleteNVMeOFSubsystem(ctx, subsystemNQN)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NVMe-oF subsystem from TrueNAS")
+		By("Cleaning up retained NVMe-oF subsystem from NASty")
+		err = f.NASty.DeleteNVMeOFSubsystem(ctx, subsystemNQN)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NVMe-oF subsystem from NASty")
 
-		By("Cleaning up retained ZVOL from TrueNAS")
-		err = f.TrueNAS.DeleteDataset(ctx, zvolPath)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained ZVOL from TrueNAS")
+		By("Cleaning up retained ZVOL from NASty")
+		err = f.NASty.DeleteDataset(ctx, zvolPath)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained ZVOL from NASty")
 
-		By("Verifying ZVOL was successfully deleted from TrueNAS")
-		exists, err = f.TrueNAS.DatasetExists(ctx, zvolPath)
+		By("Verifying ZVOL was successfully deleted from NASty")
+		exists, err = f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeFalse(), "ZVOL should no longer exist on TrueNAS after cleanup")
+		Expect(exists).To(BeFalse(), "ZVOL should no longer exist on NASty after cleanup")
 
-		By("Verifying NVMe-oF subsystem was successfully deleted from TrueNAS")
-		subsystemExists, err = f.TrueNAS.NVMeOFSubsystemExists(ctx, subsystemNQN)
+		By("Verifying NVMe-oF subsystem was successfully deleted from NASty")
+		subsystemExists, err = f.NASty.NVMeOFSubsystemExists(ctx, subsystemNQN)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(subsystemExists).To(BeFalse(), "NVMe-oF subsystem should no longer exist on TrueNAS after cleanup")
+		Expect(subsystemExists).To(BeFalse(), "NVMe-oF subsystem should no longer exist on NASty after cleanup")
 
-		By("Cleanup verified - ZVOL and subsystem successfully removed from TrueNAS")
-		GinkgoWriter.Printf("Successfully cleaned up ZVOL %s from TrueNAS\n", zvolPath)
-		GinkgoWriter.Printf("Successfully cleaned up NVMe-oF subsystem %s from TrueNAS\n", subsystemNQN)
+		By("Cleanup verified - ZVOL and subsystem successfully removed from NASty")
+		GinkgoWriter.Printf("Successfully cleaned up ZVOL %s from NASty\n", zvolPath)
+		GinkgoWriter.Printf("Successfully cleaned up NVMe-oF subsystem %s from NASty\n", subsystemNQN)
 	})
 })

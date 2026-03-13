@@ -1,4 +1,4 @@
-// Package framework provides utilities for E2E testing of the TrueNAS CSI driver.
+// Package framework provides utilities for E2E testing of the NASty CSI driver.
 package framework
 
 import (
@@ -249,11 +249,11 @@ func (k *KubernetesClient) waitForPVCBoundOnce(ctx context.Context, name string,
 		return err
 	}
 
-	// Log the volume handle for debugging - this is the TrueNAS dataset/zvol name
+	// Log the volume handle for debugging - this is the NASty dataset/zvol name
 	pvc, getErr := k.GetPVC(ctx, name)
 	if getErr == nil && pvc.Spec.VolumeName != "" {
 		if volumeHandle, handleErr := k.GetVolumeHandle(ctx, pvc.Spec.VolumeName); handleErr == nil {
-			klog.V(1).Infof("PVC %s bound to PV %s (VolumeHandle/TrueNAS path: %s)", name, pvc.Spec.VolumeName, volumeHandle)
+			klog.V(1).Infof("PVC %s bound to PV %s (VolumeHandle/NASty path: %s)", name, pvc.Spec.VolumeName, volumeHandle)
 		}
 	}
 
