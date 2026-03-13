@@ -20,7 +20,7 @@ var _ = Describe("iSCSI Concurrent Operations", func() {
 
 	const (
 		numVolumes       = 3
-		storageClassName = "tns-csi-iscsi"
+		storageClassName = "nasty-csi-iscsi"
 		storageSize      = "1Gi"
 		// iSCSI uses WaitForFirstConsumer, needs longer timeouts
 		pvcTimeout = 180 * time.Second

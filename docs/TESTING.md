@@ -142,7 +142,7 @@ Each test run:
 - Cleans up all resources automatically (LIFO stack)
 - Verifies NASty backend cleanup
 
-**View test results:** [Test Dashboard](https://fenio.github.io/tns-csi/dashboard/)
+**View test results:** [Test Dashboard](https://fenio.github.io/nasty-csi/dashboard/)
 
 ## Test Results and History
 
@@ -154,7 +154,7 @@ Each test run:
 ### Test Dashboard
 
 Interactive test results dashboard with history and metrics:
-- https://fenio.github.io/tns-csi/dashboard/
+- https://fenio.github.io/nasty-csi/dashboard/
 - Shows pass/fail status for all tests
 - Tracks test duration over time
 - Identifies flaky tests and patterns
@@ -312,7 +312,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for details.
 ### Getting Help
 
 - Check test logs in GitHub Actions runs
-- Review [Test Dashboard](https://fenio.github.io/tns-csi/dashboard/) for patterns
+- Review [Test Dashboard](https://fenio.github.io/nasty-csi/dashboard/) for patterns
 - Open an issue with test failure details
 
 ## References

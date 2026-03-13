@@ -1,4 +1,4 @@
-# CODEOWNERS file for tns-csi
+# CODEOWNERS file for nasty-csi
 # These owners will be automatically requested for review when someone opens a PR
 
 # Default owner for everything
@@ -6,7 +6,7 @@
 
 # Core driver implementation
 /pkg/driver/ @fenio
-/pkg/tnsapi/ @fenio
+/pkg/nasty-api/ @fenio
 
 # Helm charts and deployment
 /charts/ @fenio

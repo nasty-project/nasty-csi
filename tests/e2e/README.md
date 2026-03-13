@@ -17,7 +17,7 @@ This directory contains end-to-end tests for the TrueNAS CSI driver using [Ginkg
 | `TRUENAS_HOST` | Yes | - | TrueNAS server hostname (e.g., `truenas.local`) |
 | `TRUENAS_API_KEY` | Yes | - | TrueNAS API key for authentication |
 | `TRUENAS_POOL` | No | `csi` | ZFS pool to use for test volumes |
-| `CSI_IMAGE_REPO` | No | `ghcr.io/fenio/tns-csi` | Docker image repository |
+| `CSI_IMAGE_REPO` | No | `ghcr.io/fenio/nasty-csi` | Docker image repository |
 | `CSI_IMAGE_TAG` | No | `latest` | Docker image tag |
 | `KUBECONFIG` | No | `~/.kube/config` | Path to kubeconfig file |
 | `TEST_TIMEOUT` | No | `5m` | Default timeout for operations |
@@ -132,7 +132,7 @@ var _ = Describe("My Feature", func() {
         By("Creating a PVC")
         pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
             Name:             "test-pvc",
-            StorageClassName: "tns-csi-nfs",
+            StorageClassName: "nasty-csi-nfs",
             Size:             "1Gi",
             AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
         })

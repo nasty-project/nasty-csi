@@ -112,7 +112,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-retained
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -164,7 +164,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-custom
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -184,7 +184,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nvmeof-custom
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nvmeof
   pool: tank
@@ -270,7 +270,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-detached
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -304,7 +304,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-snapshot-detached
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 parameters:
   detachedSnapshots: "true"
@@ -388,7 +388,7 @@ spec:
   resources:
     requests:
       storage: 20Gi
-  storageClassName: tns-csi-nvmeof  # or tns-csi-iscsi
+  storageClassName: nasty-csi-nvmeof  # or nasty-csi-iscsi
 ```
 
 **StorageProfile for CDI:**
@@ -399,7 +399,7 @@ KubeVirt's [Containerized Data Importer (CDI)](https://github.com/kubevirt/conta
 apiVersion: cdi.kubevirt.io/v1beta1
 kind: StorageProfile
 metadata:
-  name: tns-csi-nvmeof  # must match the StorageClass name
+  name: nasty-csi-nvmeof  # must match the StorageClass name
 spec:
   claimPropertySets:
     - accessModes:
@@ -407,7 +407,7 @@ spec:
       volumeMode: Block
 ```
 
-Create one for each block protocol storage class you use with KubeVirt (e.g., `tns-csi-nvmeof`, `tns-csi-iscsi`).
+Create one for each block protocol storage class you use with KubeVirt (e.g., `nasty-csi-nvmeof`, `nasty-csi-iscsi`).
 
 See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/compute/live_migration/#limitations) for more details on requirements.
 
@@ -496,13 +496,13 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 ### kubectl Plugin Dashboard
 - **Status**: ✅ Fully implemented
 - **Port**: 2137 (default, configurable via `--port`)
-- **Command**: `kubectl tns-csi dashboard`
+- **Command**: `kubectl nasty-csi dashboard`
 - **Description**: Local dashboard that connects directly to NASty via WebSocket. Same UI as the in-cluster dashboard but runs on your machine. Auto-discovers credentials from installed driver.
 
 ### Grafana Dashboard
 - **Status**: ✅ Fully implemented
 - **Enable**: `grafana.dashboards.enabled: true` in Helm values
-- **Description**: Pre-built Grafana dashboard (`tns-csi-overview.json`) provisioned via ConfigMap with sidecar auto-discovery
+- **Description**: Pre-built Grafana dashboard (`nasty-csi-overview.json`) provisioned via ConfigMap with sidecar auto-discovery
 - **Panels**: WebSocket health, operation counts by protocol, operations by type (create/delete/expand), message throughput, per-protocol breakdown (NFS, NVMe-oF, iSCSI, SMB)
 
 ## Deployment Features
@@ -570,7 +570,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-compressed
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -589,7 +589,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nvmeof-compressed
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nvmeof
   pool: tank
@@ -679,7 +679,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-encrypted
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -696,7 +696,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nvmeof-encrypted
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nvmeof
   pool: tank
@@ -745,49 +745,49 @@ The driver stores metadata as ZFS user properties on each volume's dataset/ZVOL.
 |----------|-------------|---------|
 | `nasty-csi:schema_version` | Schema version for migrations | `"1"` |
 | `nasty-csi:managed_by` | Ownership marker | `"nasty-csi"` |
-| `tns-csi:csi_volume_name` | CSI volume identifier | `"pvc-abc123"` |
-| `tns-csi:protocol` | Storage protocol | `"nfs"`, `"nvmeof"`, or `"iscsi"` |
-| `tns-csi:capacity_bytes` | Volume size in bytes | `"10737418240"` |
-| `tns-csi:created_at` | Creation timestamp (RFC3339) | `"2024-01-15T10:30:00Z"` |
-| `tns-csi:delete_strategy` | Retain/delete policy | `"delete"` or `"retain"` |
+| `nasty-csi:csi_volume_name` | CSI volume identifier | `"pvc-abc123"` |
+| `nasty-csi:protocol` | Storage protocol | `"nfs"`, `"nvmeof"`, or `"iscsi"` |
+| `nasty-csi:capacity_bytes` | Volume size in bytes | `"10737418240"` |
+| `nasty-csi:created_at` | Creation timestamp (RFC3339) | `"2024-01-15T10:30:00Z"` |
+| `nasty-csi:delete_strategy` | Retain/delete policy | `"delete"` or `"retain"` |
 
 #### Adoption Properties (For Cross-Cluster Adoption)
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `tns-csi:pvc_name` | Original PVC name | `"my-data"` |
-| `tns-csi:pvc_namespace` | Original namespace | `"default"` |
-| `tns-csi:storage_class` | Original StorageClass | `"nasty-nfs"` |
+| `nasty-csi:pvc_name` | Original PVC name | `"my-data"` |
+| `nasty-csi:pvc_namespace` | Original namespace | `"default"` |
+| `nasty-csi:storage_class` | Original StorageClass | `"nasty-nfs"` |
 
 #### Protocol-Specific Properties
 
 **NFS Volumes:**
 | Property | Description | Mutable? |
 |----------|-------------|----------|
-| `tns-csi:nfs_share_path` | NFS export path (stable) | No |
-| `tns-csi:nfs_share_id` | NASty share ID | Yes (on re-share) |
+| `nasty-csi:nfs_share_path` | NFS export path (stable) | No |
+| `nasty-csi:nfs_share_id` | NASty share ID | Yes (on re-share) |
 
 **NVMe-oF Volumes:**
 | Property | Description | Mutable? |
 |----------|-------------|----------|
-| `tns-csi:nvmeof_subsystem_nqn` | Subsystem NQN (stable) | No |
-| `tns-csi:nvmeof_subsystem_id` | NASty subsystem ID | Yes |
-| `tns-csi:nvmeof_namespace_id` | NASty namespace ID | Yes |
+| `nasty-csi:nvmeof_subsystem_nqn` | Subsystem NQN (stable) | No |
+| `nasty-csi:nvmeof_subsystem_id` | NASty subsystem ID | Yes |
+| `nasty-csi:nvmeof_namespace_id` | NASty namespace ID | Yes |
 
 **iSCSI Volumes:**
 | Property | Description | Mutable? |
 |----------|-------------|----------|
-| `tns-csi:iscsi_iqn` | Target IQN (stable) | No |
-| `tns-csi:iscsi_target_id` | NASty target ID | Yes |
-| `tns-csi:iscsi_extent_id` | NASty extent ID | Yes |
+| `nasty-csi:iscsi_iqn` | Target IQN (stable) | No |
+| `nasty-csi:iscsi_target_id` | NASty target ID | Yes |
+| `nasty-csi:iscsi_extent_id` | NASty extent ID | Yes |
 
 **Clone/Content Source Properties (set automatically when cloning):**
 | Property | Description | Values |
 |----------|-------------|--------|
-| `tns-csi:content_source_type` | Type of clone source | `"snapshot"` or `"volume"` |
-| `tns-csi:content_source_id` | Source snapshot/volume ID | CSI ID of source |
-| `tns-csi:clone_mode` | Clone dependency mode | `"cow"`, `"promoted"`, or `"detached"` |
-| `tns-csi:origin_snapshot` | ZFS origin (COW clones only) | ZFS snapshot path |
+| `nasty-csi:content_source_type` | Type of clone source | `"snapshot"` or `"volume"` |
+| `nasty-csi:content_source_id` | Source snapshot/volume ID | CSI ID of source |
+| `nasty-csi:clone_mode` | Clone dependency mode | `"cow"`, `"promoted"`, or `"detached"` |
+| `nasty-csi:origin_snapshot` | ZFS origin (COW clones only) | ZFS snapshot path |
 
 Clone modes determine dependency relationships:
 - **cow** (Copy-on-Write): Clone depends on snapshot. Snapshot CANNOT be deleted while clone exists.
@@ -797,12 +797,12 @@ Clone modes determine dependency relationships:
 **Viewing Volume Properties:**
 ```bash
 # On NASty, view all properties for a volume
-zfs get all tank/csi/pvc-12345678 | grep tns-csi
+zfs get all tank/csi/pvc-12345678 | grep nasty-csi
 ```
 
 ### Volume Adoption (Cross-Cluster)
 - **Status**: ✅ Fully Implemented
-- **Description**: Import existing tns-csi managed volumes into a new Kubernetes cluster
+- **Description**: Import existing nasty-csi managed volumes into a new Kubernetes cluster
 - **Use Cases**:
   - GitOps recovery - recreate cluster from same Git repo, volumes are automatically adopted
   - Disaster recovery - restore volumes to a new cluster
@@ -820,7 +820,7 @@ zfs get all tank/csi/pvc-12345678 | grep tns-csi
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `markAdoptable` | `bool` | `false` | Mark new volumes as adoptable (`tns-csi:adoptable=true`) |
+| `markAdoptable` | `bool` | `false` | Mark new volumes as adoptable (`nasty-csi:adoptable=true`) |
 | `adoptExisting` | `bool` | `false` | Automatically adopt any managed volume with matching name |
 
 **Adoption Behavior Matrix:**
@@ -838,7 +838,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-gitops
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -866,11 +866,11 @@ allowVolumeExpansion: true
 A volume is adoptable if it has:
 1. `nasty-csi:managed_by` = `"nasty-csi"` (ownership marker)
 2. Valid `nasty-csi:schema_version` (currently `"1"`)
-3. `tns-csi:protocol` set to `"nfs"`, `"nvmeof"`, or `"iscsi"`
+3. `nasty-csi:protocol` set to `"nfs"`, `"nvmeof"`, or `"iscsi"`
 4. Protocol-specific stable identifier:
-   - NFS: `tns-csi:nfs_share_path`
-   - NVMe-oF: `tns-csi:nvmeof_subsystem_nqn`
-   - iSCSI: `tns-csi:iscsi_iqn`
+   - NFS: `nasty-csi:nfs_share_path`
+   - NVMe-oF: `nasty-csi:nvmeof_subsystem_nqn`
+   - iSCSI: `nasty-csi:iscsi_iqn`
 
 #### Manual Adoption Workflow
 
@@ -882,14 +882,14 @@ Your actual paths depend on StorageClass configuration:
 
 1. **Identify adoptable volumes** on NASty:
    ```bash
-   # List all tns-csi managed datasets (adjust path to match your pool/parentDataset)
-   zfs list -o name,nasty-csi:managed_by,tns-csi:csi_volume_name,tns-csi:protocol -r tank
+   # List all nasty-csi managed datasets (adjust path to match your pool/parentDataset)
+   zfs list -o name,nasty-csi:managed_by,nasty-csi:csi_volume_name,nasty-csi:protocol -r tank
    ```
 
 2. **Extract volume information**:
    ```bash
    # Get all properties for a specific volume
-   zfs get all tank/my-volume | grep tns-csi
+   zfs get all tank/my-volume | grep nasty-csi
    ```
 
 3. **Re-create NFS share or NVMe-oF namespace** if missing (NASty UI or API)
@@ -902,18 +902,18 @@ Your actual paths depend on StorageClass configuration:
      name: adopted-volume
    spec:
      capacity:
-       storage: 10Gi  # Match tns-csi:capacity_bytes
+       storage: 10Gi  # Match nasty-csi:capacity_bytes
      accessModes:
        - ReadWriteMany
      persistentVolumeReclaimPolicy: Retain
      storageClassName: nasty-nfs
      csi:
-       driver: tns.csi.io
-       volumeHandle: my-volume  # Must match tns-csi:csi_volume_name
+       driver: nasty.csi.io
+       volumeHandle: my-volume  # Must match nasty-csi:csi_volume_name
        volumeAttributes:
          protocol: nfs
          server: nasty.local
-         share: /mnt/tank/my-volume  # Must match tns-csi:nfs_share_path
+         share: /mnt/tank/my-volume  # Must match nasty-csi:nfs_share_path
    ```
 
 5. **Create PVC** bound to the static PV:
@@ -937,14 +937,14 @@ Your actual paths depend on StorageClass configuration:
 The kubectl plugin provides CLI tooling for volume discovery and adoption:
 ```bash
 # Discover orphaned volumes (volumes on NASty without matching PVCs)
-kubectl tns-csi list-orphaned
+kubectl nasty-csi list-orphaned
 
 # Generate PV manifest to adopt a specific volume
-kubectl tns-csi adopt <dataset-path> -o yaml > pv.yaml
+kubectl nasty-csi adopt <dataset-path> -o yaml > pv.yaml
 kubectl apply -f pv.yaml
 
 # Mark volumes as adoptable for future cluster recreation
-kubectl tns-csi mark-adoptable --all
+kubectl nasty-csi mark-adoptable --all
 ```
 
 See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full details on adoption workflows.
@@ -988,7 +988,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-named
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -1007,7 +1007,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-commented
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -1026,7 +1026,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-prefixed
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -1077,7 +1077,7 @@ reclaimPolicy: Delete
 
 ### Test Dashboard
 - **Status**: ✅ Live dashboard
-- **URL**: https://fenio.github.io/tns-csi/dashboard/
+- **URL**: https://fenio.github.io/nasty-csi/dashboard/
 - **Features**: Test results history, trend analysis
 
 ## Security Features
@@ -1296,7 +1296,7 @@ All features are tested on **real infrastructure** - not mocks or simulators:
 - ✅ Orphaned resource detection and cleanup
 
 **Test Results:**
-- View live dashboard: [Test Dashboard](https://fenio.github.io/tns-csi/dashboard/)
+- View live dashboard: [Test Dashboard](https://fenio.github.io/nasty-csi/dashboard/)
 - CI status: [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
 
 See [TESTING.md](TESTING.md) for comprehensive testing documentation.
@@ -1312,12 +1312,12 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 
 ### Quick Install (NFS)
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -1327,12 +1327,12 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ### Quick Install (NVMe-oF)
 ```bash
 # Pre-requisite: Configure NVMe-oF port in NASty first!
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nvmeof" \
+  --set storageClasses[0].name="nasty-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -1342,12 +1342,12 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ### Quick Install (iSCSI)
 ```bash
 # Pre-requisite: Configure iSCSI portal in NASty and install open-iscsi on nodes!
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-iscsi" \
+  --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -1366,7 +1366,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 - Focus areas: Testing, documentation, bug fixes
 
 ### Status Updates
-- Test Dashboard: https://fenio.github.io/tns-csi/dashboard/
+- Test Dashboard: https://fenio.github.io/nasty-csi/dashboard/
 - GitHub Actions: https://github.com/nasty-project/nasty-csi/actions
 
 ---

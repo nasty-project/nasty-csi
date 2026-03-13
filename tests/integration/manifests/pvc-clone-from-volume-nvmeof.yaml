@@ -9,7 +9,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-nvmeof
+  storageClassName: nasty-csi-nvmeof
   dataSource:
     name: test-pvc-source-nvmeof
     kind: PersistentVolumeClaim

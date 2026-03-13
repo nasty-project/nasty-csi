@@ -608,7 +608,7 @@ func (k *KubernetesClient) WaitForPVDeleted(ctx context.Context, pvName string, 
 
 		// Nudge the PV every 10s to reset provisioner backoff.
 		if pv.Status.Phase == corev1.VolumeReleased && time.Since(lastNudge) >= 10*time.Second {
-			patch := fmt.Sprintf(`{"metadata":{"annotations":{"tns-csi-test/nudge":%q}}}`,
+			patch := fmt.Sprintf(`{"metadata":{"annotations":{"nasty-csi-test/nudge":%q}}}`,
 				time.Now().Format(time.RFC3339))
 			if _, patchErr := k.clientset.CoreV1().PersistentVolumes().Patch(
 				ctx, pvName, types.MergePatchType, []byte(patch), metav1.PatchOptions{},

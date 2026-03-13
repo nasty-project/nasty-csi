@@ -3,14 +3,14 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.26.0-00ADD8?logo=go)](https://go.dev/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nasty-project/nasty-csi)](https://goreportcard.com/report/github.com/nasty-project/nasty-csi)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fenio_tns-csi&metric=coverage)](https://sonarcloud.io/summary/overall?id=fenio_tns-csi)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fenio_nasty-csi&metric=coverage)](https://sonarcloud.io/summary/overall?id=fenio_nasty-csi)
 [![CI](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml)
 [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
 [![Distro Compatibility](https://github.com/nasty-project/nasty-csi/actions/workflows/distro-compatibility.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/distro-compatibility.yml)
-[![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/tns-csi/dashboard/)
-[![Docker Hub](https://img.shields.io/docker/pulls/bfenski/tns-csi?logo=docker)](https://hub.docker.com/r/bfenski/tns-csi)
-[![Driver](https://img.shields.io/github/v/release/fenio/tns-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
-[![Plugin](https://img.shields.io/github/v/release/fenio/tns-csi?filter=plugin-*&label=plugin&logo=github)](https://github.com/nasty-project/nasty-csi/releases)
+[![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/nasty-csi/dashboard/)
+[![Docker Hub](https://img.shields.io/docker/pulls/bfenski/nasty-csi?logo=docker)](https://hub.docker.com/r/bfenski/nasty-csi)
+[![Driver](https://img.shields.io/github/v/release/fenio/nasty-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
+[![Plugin](https://img.shields.io/github/v/release/fenio/nasty-csi?filter=plugin-*&label=plugin&logo=github)](https://github.com/nasty-project/nasty-csi/releases)
 
 A Kubernetes CSI (Container Storage Interface) driver for TrueNAS Scale 25.10+.
 
@@ -67,7 +67,7 @@ See detailed comparisons:
 The driver includes two dashboard options and a pre-built Grafana dashboard:
 
 - **In-cluster dashboard** — runs inside the controller pod (port 9090), enable with `controller.dashboard.enabled: true`
-- **kubectl plugin dashboard** — runs locally via `kubectl tns-csi dashboard` (port 2137)
+- **kubectl plugin dashboard** — runs locally via `kubectl nasty-csi dashboard` (port 2137)
 - **Grafana dashboard** — pre-built Prometheus dashboard, enable with `grafana.dashboards.enabled: true`
 
 Both web dashboards show volume health, Kubernetes binding, snapshots, clones, and metrics. See [METRICS.md](docs/METRICS.md) for setup details.
@@ -100,11 +100,11 @@ This driver supports four storage protocols:
 
 ## kubectl Plugin
 
-The project includes a kubectl plugin (`kubectl tns-csi`) for managing volumes directly from the command line:
+The project includes a kubectl plugin (`kubectl nasty-csi`) for managing volumes directly from the command line:
 
 ```bash
 # Install via krew (recommended)
-kubectl krew install tns-csi
+kubectl krew install nasty-csi
 
 # Or download from GitHub releases
 ```
@@ -112,15 +112,15 @@ kubectl krew install tns-csi
 **Key Commands:**
 | Command | Description |
 |---------|-------------|
-| `kubectl tns-csi summary` | Dashboard overview of all resources |
-| `kubectl tns-csi list` | List all managed volumes |
-| `kubectl tns-csi list-snapshots` | List snapshots with source volumes |
-| `kubectl tns-csi health` | Check health of all volumes |
-| `kubectl tns-csi troubleshoot <pvc>` | Diagnose PVC issues |
-| `kubectl tns-csi cleanup` | Delete orphaned volumes |
-| `kubectl tns-csi dashboard` | Start web dashboard on http://localhost:2137 |
+| `kubectl nasty-csi summary` | Dashboard overview of all resources |
+| `kubectl nasty-csi list` | List all managed volumes |
+| `kubectl nasty-csi list-snapshots` | List snapshots with source volumes |
+| `kubectl nasty-csi health` | Check health of all volumes |
+| `kubectl nasty-csi troubleshoot <pvc>` | Diagnose PVC issues |
+| `kubectl nasty-csi cleanup` | Delete orphaned volumes |
+| `kubectl nasty-csi dashboard` | Start web dashboard on http://localhost:2137 |
 
-The plugin **auto-discovers credentials** from the installed driver, so it works out of the box on clusters with tns-csi installed.
+The plugin **auto-discovers credentials** from the installed driver, so it works out of the box on clusters with nasty-csi installed.
 
 See [kubectl Plugin Documentation](docs/KUBECTL-PLUGIN.md) for full details.
 
@@ -178,13 +178,13 @@ The TNS CSI Driver is published to both Docker Hub and GitHub Container Registry
 
 #### Docker Hub (recommended)
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=tns-csi-nfs \
+  --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -193,13 +193,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **NVMe-oF Example:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=tns-csi-nvmeof \
+  --set storageClasses[0].name=nasty-csi-nvmeof \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nvmeof \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -212,13 +212,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **iSCSI Example:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=tns-csi-iscsi \
+  --set storageClasses[0].name=nasty-csi-iscsi \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=iscsi \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -229,13 +229,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **SMB Example:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=tns-csi-smb \
+  --set storageClasses[0].name=nasty-csi-smb \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=smb \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -254,9 +254,9 @@ The driver is configured via command-line flags and Kubernetes secrets:
 
 ### Command-Line Flags
 
-- `--endpoint` - CSI endpoint (default: `unix:///var/lib/kubelet/plugins/tns.csi.io/csi.sock`)
+- `--endpoint` - CSI endpoint (default: `unix:///var/lib/kubelet/plugins/nasty.csi.io/csi.sock`)
 - `--node-id` - Node identifier (typically the node name)
-- `--driver-name` - CSI driver name (default: `tns.csi.io`)
+- `--driver-name` - CSI driver name (default: `nasty.csi.io`)
 - `--api-url` - TrueNAS API URL (e.g., `ws://YOUR-TRUENAS-IP/api/v2.0/websocket`)
 - `--api-key` - TrueNAS API key
 - `--max-concurrent-nvme-connects` - Maximum concurrent NVMe-oF connect operations per node (default: `5`)
@@ -317,7 +317,7 @@ Every commit triggers comprehensive integration tests:
 - Passes [Kubernetes CSI sanity tests](https://github.com/kubernetes-csi/csi-test) (v5.4.0)
 - Full CSI spec compliance verified
 
-View test results and history: [![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/tns-csi/dashboard/)
+View test results and history: [![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/nasty-csi/dashboard/)
 
 ## Project Status and Limitations
 
@@ -360,7 +360,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kuber
 kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node
 
 # Check version
-kubectl logs -n kube-system deployment/tns-csi-controller 2>&1 | head -1
+kubectl logs -n kube-system deployment/nasty-csi-controller 2>&1 | head -1
 ```
 
 ## Documentation
@@ -382,12 +382,12 @@ kubectl logs -n kube-system deployment/tns-csi-controller 2>&1 | head -1
 
 ## Volume Adoption
 
-The driver supports **cross-cluster volume adoption** - importing existing tns-csi managed volumes into a new Kubernetes cluster. This is useful for:
+The driver supports **cross-cluster volume adoption** - importing existing nasty-csi managed volumes into a new Kubernetes cluster. This is useful for:
 - Disaster recovery scenarios
 - Cluster migrations
 - Re-importing retained volumes after upgrades
 
-Volumes are adoptable if they have proper `tns-csi:*` ZFS user properties set. See [Volume Adoption](docs/FEATURES.md#volume-adoption-cross-cluster) in the Features documentation for details.
+Volumes are adoptable if they have proper `nasty-csi:*` ZFS user properties set. See [Volume Adoption](docs/FEATURES.md#volume-adoption-cross-cluster) in the Features documentation for details.
 
 ## Development
 

@@ -24,7 +24,7 @@ var _ = Describe("SMB StatefulSet", func() {
 		volumeName       = "data" // Name in volumeClaimTemplates
 		mountPath        = "/data"
 		storageSize      = "1Gi"
-		storageClassName = "tns-csi-smb"
+		storageClassName = "nasty-csi-smb"
 		podTimeout       = 120 * time.Second
 	)
 

@@ -11,7 +11,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-nvmeof-detached
+  storageClassName: nasty-csi-nvmeof-detached
   dataSource:
     name: test-snapshot-nvmeof
     kind: VolumeSnapshot

@@ -168,7 +168,7 @@ func TestBuildISCSIVolumeResponse(t *testing.T) {
 	_ = capacity
 	_ = subvol
 	_ = target
-	// buildISCSIVolumeResponse uses tnsapi.Subvolume and tnsapi.ISCSITarget directly;
+	// buildISCSIVolumeResponse uses nastyapi.Subvolume and nastyapi.ISCSITarget directly;
 	// tested indirectly via integration. This placeholder ensures compilation.
 }
 

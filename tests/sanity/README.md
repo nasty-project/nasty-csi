@@ -43,11 +43,11 @@ CSI specification compliance tests that validate:
 
 ## Why Refactoring is Needed
 
-The current driver creates a `tnsapi.Client` directly in `NewDriver()`:
+The current driver creates a `nastyapi.Client` directly in `NewDriver()`:
 
 ```go
 // Current implementation
-apiClient, err := tnsapi.NewClient(cfg.APIURL, cfg.APIKey)
+apiClient, err := nastyapi.NewClient(cfg.APIURL, cfg.APIKey)
 ```
 
 For testability, we need:
@@ -64,7 +64,7 @@ type TNSClient interface {
 func NewDriverWithClient(cfg Config, client TNSClient) (*Driver, error)
 ```
 
-This allows injecting `MockClient` during tests while using `tnsapi.Client` in production.
+This allows injecting `MockClient` during tests while using `nastyapi.Client` in production.
 
 ## Running Tests (After Refactoring)
 

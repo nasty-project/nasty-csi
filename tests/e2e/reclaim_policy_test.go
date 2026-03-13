@@ -48,21 +48,21 @@ var _ = Describe("Reclaim Policy", func() {
 		{
 			name:         "NFS",
 			id:           "nfs",
-			storageClass: "tns-csi-nfs",
+			storageClass: "nasty-csi-nfs",
 			accessMode:   corev1.ReadWriteMany,
 			podTimeout:   2 * time.Minute,
 		},
 		{
 			name:         "NVMe-oF",
 			id:           "nvmeof",
-			storageClass: "tns-csi-nvmeof",
+			storageClass: "nasty-csi-nvmeof",
 			accessMode:   corev1.ReadWriteOnce,
 			podTimeout:   6 * time.Minute,
 		},
 		{
 			name:         "iSCSI",
 			id:           "iscsi",
-			storageClass: "tns-csi-iscsi",
+			storageClass: "nasty-csi-iscsi",
 			accessMode:   corev1.ReadWriteOnce,
 			podTimeout:   6 * time.Minute,
 		},
@@ -72,7 +72,7 @@ var _ = Describe("Reclaim Policy", func() {
 		protocols = append(protocols, protocolConfig{
 			name:         "SMB",
 			id:           "smb",
-			storageClass: "tns-csi-smb",
+			storageClass: "nasty-csi-smb",
 			accessMode:   corev1.ReadWriteMany,
 			podTimeout:   2 * time.Minute,
 		})
@@ -83,7 +83,7 @@ var _ = Describe("Reclaim Policy", func() {
 			ctx := context.Background()
 
 			By("Creating StorageClass with Delete reclaim policy")
-			scName := "tns-csi-" + proto.id + "-delete-policy"
+			scName := "nasty-csi-" + proto.id + "-delete-policy"
 			params := map[string]string{
 				"protocol": proto.id,
 				"pool":     f.Config.NAStyPool,
@@ -96,7 +96,7 @@ var _ = Describe("Reclaim Policy", func() {
 				params["csi.storage.k8s.io/node-stage-secret-name"] = "nasty-csi-smb-creds"
 				params["csi.storage.k8s.io/node-stage-secret-namespace"] = "kube-system"
 			}
-			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "tns.csi.io", params, corev1.PersistentVolumeReclaimDelete)
+			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "nasty.csi.io", params, corev1.PersistentVolumeReclaimDelete)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(context.Background(), scName)
@@ -163,7 +163,7 @@ var _ = Describe("Reclaim Policy", func() {
 			ctx := context.Background()
 
 			By("Creating StorageClass with Retain reclaim policy")
-			scName := "tns-csi-" + proto.id + "-retain-policy"
+			scName := "nasty-csi-" + proto.id + "-retain-policy"
 			params := map[string]string{
 				"protocol": proto.id,
 				"pool":     f.Config.NAStyPool,
@@ -176,7 +176,7 @@ var _ = Describe("Reclaim Policy", func() {
 				params["csi.storage.k8s.io/node-stage-secret-name"] = "nasty-csi-smb-creds"
 				params["csi.storage.k8s.io/node-stage-secret-namespace"] = "kube-system"
 			}
-			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "tns.csi.io", params, corev1.PersistentVolumeReclaimRetain)
+			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "nasty.csi.io", params, corev1.PersistentVolumeReclaimRetain)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(context.Background(), scName)

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	driverName    = "tns.csi.io"
+	driverName    = "nasty.csi.io"
 	driverVersion = "test"
 	nodeID        = "test-node"
 	endpoint      = "unix:///tmp/csi-sanity.sock"

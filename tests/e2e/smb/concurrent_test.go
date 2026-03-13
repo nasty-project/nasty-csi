@@ -20,7 +20,7 @@ var _ = Describe("SMB Concurrent Operations", func() {
 
 	const (
 		numVolumes       = 3
-		storageClassName = "tns-csi-smb"
+		storageClassName = "nasty-csi-smb"
 		storageSize      = "1Gi"
 		pvcTimeout       = 180 * time.Second
 		podTimeout       = 120 * time.Second

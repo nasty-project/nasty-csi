@@ -35,7 +35,7 @@ jobs:
           echo "Version: ${VERSION}"
 
       - name: Run tests
-        run: go test ./cmd/kubectl-nasty-csi/... ./pkg/tnsapi/...
+        run: go test ./cmd/kubectl-nasty-csi/... ./pkg/nasty-api/...
 
       - name: Run linter
         uses: golangci/golangci-lint-action@v9
@@ -66,7 +66,7 @@ jobs:
           for platform in "${platforms[@]}"; do
             GOOS=${platform%/*}
             GOARCH=${platform#*/}
-            output="kubectl-tns_csi"
+            output="kubectl-nasty-csi"
             if [ "$GOOS" = "windows" ]; then
               output="${output}.exe"
             fi
@@ -80,9 +80,9 @@ jobs:
             # Create tarball with binary and LICENSE at root (krew expects this)
             cd dist
             if [ "$GOOS" = "windows" ]; then
-              zip "kubectl-tns_csi-${GOOS}-${GOARCH}.zip" "${output}" LICENSE
+              zip "kubectl-nasty-csi-${GOOS}-${GOARCH}.zip" "${output}" LICENSE
             else
-              tar -czvf "kubectl-tns_csi-${GOOS}-${GOARCH}.tar.gz" "${output}" LICENSE
+              tar -czvf "kubectl-nasty-csi-${GOOS}-${GOARCH}.tar.gz" "${output}" LICENSE
             fi
             rm "${output}"
             cd ..
@@ -99,17 +99,17 @@ jobs:
           TAG=${{ steps.version.outputs.tag }}
 
           # Calculate checksums for krew manifest
-          LINUX_AMD64_SHA=$(sha256sum dist/kubectl-tns_csi-linux-amd64.tar.gz | cut -d' ' -f1)
-          LINUX_ARM64_SHA=$(sha256sum dist/kubectl-tns_csi-linux-arm64.tar.gz | cut -d' ' -f1)
-          DARWIN_AMD64_SHA=$(sha256sum dist/kubectl-tns_csi-darwin-amd64.tar.gz | cut -d' ' -f1)
-          DARWIN_ARM64_SHA=$(sha256sum dist/kubectl-tns_csi-darwin-arm64.tar.gz | cut -d' ' -f1)
-          WINDOWS_AMD64_SHA=$(sha256sum dist/kubectl-tns_csi-windows-amd64.zip | cut -d' ' -f1)
+          LINUX_AMD64_SHA=$(sha256sum dist/kubectl-nasty-csi-linux-amd64.tar.gz | cut -d' ' -f1)
+          LINUX_ARM64_SHA=$(sha256sum dist/kubectl-nasty-csi-linux-arm64.tar.gz | cut -d' ' -f1)
+          DARWIN_AMD64_SHA=$(sha256sum dist/kubectl-nasty-csi-darwin-amd64.tar.gz | cut -d' ' -f1)
+          DARWIN_ARM64_SHA=$(sha256sum dist/kubectl-nasty-csi-darwin-arm64.tar.gz | cut -d' ' -f1)
+          WINDOWS_AMD64_SHA=$(sha256sum dist/kubectl-nasty-csi-windows-amd64.zip | cut -d' ' -f1)
 
-          cat > dist/tns-csi.yaml << EOF
+          cat > dist/nasty-csi.yaml << EOF
           apiVersion: krew.googlecontainertools.github.com/v1alpha2
           kind: Plugin
           metadata:
-            name: tns-csi
+            name: nasty-csi
           spec:
             version: v${VERSION}
             homepage: https://github.com/${{ github.repository }}
@@ -135,37 +135,37 @@ jobs:
                 matchLabels:
                   os: linux
                   arch: amd64
-              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-tns_csi-linux-amd64.tar.gz
+              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-nasty-csi-linux-amd64.tar.gz
               sha256: ${LINUX_AMD64_SHA}
-              bin: kubectl-tns_csi
+              bin: kubectl-nasty-csi
             - selector:
                 matchLabels:
                   os: linux
                   arch: arm64
-              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-tns_csi-linux-arm64.tar.gz
+              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-nasty-csi-linux-arm64.tar.gz
               sha256: ${LINUX_ARM64_SHA}
-              bin: kubectl-tns_csi
+              bin: kubectl-nasty-csi
             - selector:
                 matchLabels:
                   os: darwin
                   arch: amd64
-              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-tns_csi-darwin-amd64.tar.gz
+              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-nasty-csi-darwin-amd64.tar.gz
               sha256: ${DARWIN_AMD64_SHA}
-              bin: kubectl-tns_csi
+              bin: kubectl-nasty-csi
             - selector:
                 matchLabels:
                   os: darwin
                   arch: arm64
-              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-tns_csi-darwin-arm64.tar.gz
+              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-nasty-csi-darwin-arm64.tar.gz
               sha256: ${DARWIN_ARM64_SHA}
-              bin: kubectl-tns_csi
+              bin: kubectl-nasty-csi
             - selector:
                 matchLabels:
                   os: windows
                   arch: amd64
-              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-tns_csi-windows-amd64.zip
+              uri: https://github.com/${{ github.repository }}/releases/download/${TAG}/kubectl-nasty-csi-windows-amd64.zip
               sha256: ${WINDOWS_AMD64_SHA}
-              bin: kubectl-tns_csi.exe
+              bin: kubectl-nasty-csi.exe
           EOF
 
       - name: Generate changelog
@@ -196,7 +196,7 @@ jobs:
 
           #### Using Krew (recommended)
           \`\`\`bash
-          kubectl krew install tns-csi
+          kubectl krew install nasty-csi
           \`\`\`
 
           #### Manual Installation
@@ -204,21 +204,21 @@ jobs:
 
           \`\`\`bash
           # Example for Linux amd64
-          tar -xzf kubectl-tns_csi-linux-amd64.tar.gz
-          mv kubectl-tns_csi-linux-amd64/kubectl-tns_csi /usr/local/bin/
+          tar -xzf kubectl-nasty-csi-linux-amd64.tar.gz
+          mv kubectl-nasty-csi-linux-amd64/kubectl-nasty-csi /usr/local/bin/
           \`\`\`
 
           ### Usage
           \`\`\`bash
-          kubectl tns-csi summary              # Dashboard overview
-          kubectl tns-csi list                 # List all managed volumes
-          kubectl tns-csi list-snapshots       # List snapshots
-          kubectl tns-csi list-orphaned        # Find orphaned volumes
-          kubectl tns-csi describe <volume>    # Detailed volume info
-          kubectl tns-csi health               # Check all volumes health
-          kubectl tns-csi troubleshoot <pvc>   # Diagnose PVC issues
-          kubectl tns-csi cleanup --execute    # Delete orphaned volumes
-          kubectl tns-csi connectivity         # Test NASty connection
+          kubectl nasty-csi summary              # Dashboard overview
+          kubectl nasty-csi list                 # List all managed volumes
+          kubectl nasty-csi list-snapshots       # List snapshots
+          kubectl nasty-csi list-orphaned        # Find orphaned volumes
+          kubectl nasty-csi describe <volume>    # Detailed volume info
+          kubectl nasty-csi health               # Check all volumes health
+          kubectl nasty-csi troubleshoot <pvc>   # Diagnose PVC issues
+          kubectl nasty-csi cleanup --execute    # Delete orphaned volumes
+          kubectl nasty-csi connectivity         # Test NASty connection
           \`\`\`
           EOF
 
@@ -233,11 +233,11 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/checksums.txt
-            dist/tns-csi.yaml
+            dist/nasty-csi.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update krew-index
         uses: rajatjindal/krew-release-bot@v0.0.50
         with:
-          krew_template_file: dist/tns-csi.yaml
+          krew_template_file: dist/nasty-csi.yaml

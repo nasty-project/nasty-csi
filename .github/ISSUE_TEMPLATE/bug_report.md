@@ -39,13 +39,13 @@ What actually happened.
 
 **Controller logs:**
 ```
-kubectl logs -n kube-system -l app=tns-csi-controller
+kubectl logs -n kube-system -l app=nasty-csi-controller
 (paste logs here)
 ```
 
 **Node logs:**
 ```
-kubectl logs -n kube-system -l app=tns-csi-node
+kubectl logs -n kube-system -l app=nasty-csi-node
 (paste logs here)
 ```
 

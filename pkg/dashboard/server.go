@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"k8s.io/klog/v2"
 )
 
@@ -17,7 +17,7 @@ var templateFS embed.FS
 
 // Server holds the in-cluster dashboard server state.
 type Server struct {
-	client    tnsapi.ClientInterface
+	client    nastyapi.ClientInterface
 	templates *template.Template
 	httpSrv   *http.Server
 	pool      string
@@ -26,7 +26,7 @@ type Server struct {
 }
 
 // NewServer creates a new dashboard server.
-func NewServer(client tnsapi.ClientInterface, pool, version, clusterID string) (*Server, error) {
+func NewServer(client nastyapi.ClientInterface, pool, version, clusterID string) (*Server, error) {
 	funcMap := template.FuncMap{
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },

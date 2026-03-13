@@ -1,0 +1,275 @@
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "nasty-csi-driver.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified app name.
+If release name contains "nasty-csi", just use the release name to avoid duplication.
+*/}}
+{{- define "nasty-csi-driver.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- if contains "nasty-csi" .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-nasty-csi" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create chart name and version as used by the chart label.
+*/}}
+{{- define "nasty-csi-driver.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Common labels
+*/}}
+{{- define "nasty-csi-driver.labels" -}}
+helm.sh/chart: {{ include "nasty-csi-driver.chart" . }}
+{{ include "nasty-csi-driver.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- with .Values.customLabels }}
+{{ toYaml . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Selector labels for controller
+*/}}
+{{- define "nasty-csi-driver.controller.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "nasty-csi-driver.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: controller
+{{- end }}
+
+{{/*
+Selector labels for node
+*/}}
+{{- define "nasty-csi-driver.node.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "nasty-csi-driver.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: node
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "nasty-csi-driver.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "nasty-csi-driver.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Create the name of the controller service account to use
+*/}}
+{{- define "nasty-csi-driver.controller.serviceAccountName" -}}
+{{- printf "%s-controller" (include "nasty-csi-driver.fullname" .) }}
+{{- end }}
+
+{{/*
+Create the name of the node service account to use
+*/}}
+{{- define "nasty-csi-driver.node.serviceAccountName" -}}
+{{- printf "%s-node" (include "nasty-csi-driver.fullname" .) }}
+{{- end }}
+
+{{/*
+Create the name of the secret
+*/}}
+{{- define "nasty-csi-driver.secretName" -}}
+{{- if .Values.truenas.existingSecret }}
+{{- .Values.truenas.existingSecret }}
+{{- else }}
+{{- printf "%s-secret" (include "nasty-csi-driver.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Return the appropriate apiVersion for RBAC APIs
+*/}}
+{{- define "nasty-csi-driver.rbac.apiVersion" -}}
+{{- if .Capabilities.APIVersions.Has "rbac.authorization.k8s.io/v1" -}}
+rbac.authorization.k8s.io/v1
+{{- else -}}
+rbac.authorization.k8s.io/v1beta1
+{{- end -}}
+{{- end -}}
+
+{{/*
+Return the appropriate apiVersion for CSIDriver
+*/}}
+{{- define "nasty-csi-driver.csidriver.apiVersion" -}}
+{{- if .Capabilities.APIVersions.Has "storage.k8s.io/v1" -}}
+storage.k8s.io/v1
+{{- else -}}
+storage.k8s.io/v1beta1
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the CSI driver name
+*/}}
+{{- define "nasty-csi-driver.driverName" -}}
+{{- .Values.driverName | default "nasty.csi.io" }}
+{{- end }}
+
+{{/*
+Validate required TrueNAS configuration
+*/}}
+{{- define "nasty-csi-driver.validateConfig" -}}
+{{- if not .Values.truenas.existingSecret }}
+  {{- if not .Values.truenas.url }}
+    {{- fail "\n\nCONFIGURATION ERROR: truenas.url is required.\nExample: --set truenas.url=\"wss://YOUR-TRUENAS-IP:443/api/current\"" }}
+  {{- end }}
+  {{- if not .Values.truenas.apiKey }}
+    {{- fail "\n\nCONFIGURATION ERROR: truenas.apiKey is required.\nCreate an API key in TrueNAS UI: Settings > API Keys\nExample: --set truenas.apiKey=\"1-xxxxxxxxxx\"" }}
+  {{- end }}
+{{- end }}
+{{- range .Values.storageClasses }}
+{{- if .enabled }}
+{{- if not (mustHas .protocol (list "nfs" "nvmeof" "iscsi" "smb")) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: storageClasses entry %q: protocol must be one of: nfs, nvmeof, iscsi, smb (got %q)" .name .protocol) }}
+{{- end }}
+{{- if not .pool }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: storageClasses entry %q: pool is required.\nExample: --set 'storageClasses[0].pool=tank'" .name) }}
+{{- end }}
+{{- if and (eq .protocol "nfs") (not .server) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for NFS storage class %q.\nExample: --set 'storageClasses[0].server=YOUR-TRUENAS-IP'" .name) }}
+{{- end }}
+{{- if and (eq .protocol "nvmeof") (not .server) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for NVMe-oF storage class %q.\nExample: --set 'storageClasses[1].server=YOUR-TRUENAS-IP'" .name) }}
+{{- end }}
+{{- if and (eq .protocol "iscsi") (not .server) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for iSCSI storage class %q." .name) }}
+{{- end }}
+{{- if and (eq .protocol "smb") (not .server) }}
+  {{- fail (printf "\n\nCONFIGURATION ERROR: server is required for SMB storage class %q.\nExample: --set 'storageClasses[0].server=YOUR-TRUENAS-IP'" .name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get the image tag to use.
+Uses .Values.image.tag if explicitly set, otherwise falls back to .Chart.AppVersion.
+If neither is set, defaults to "latest" as a last resort.
+This allows users to either:
+1. Pin a specific version: --set image.tag=v0.5.0
+2. Use the chart's default (appVersion): helm install --version 0.5.0
+*/}}
+{{- define "nasty-csi-driver.imageTag" -}}
+{{- if .Values.image.tag }}
+{{- .Values.image.tag }}
+{{- else if .Chart.AppVersion }}
+{{- .Chart.AppVersion }}
+{{- else }}
+{{- "latest" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Render a StorageClass resource.
+Accepts a dict with keys: protocol, sc (storage class config), root (root context).
+*/}}
+{{- define "nasty-csi-driver.storageclass" -}}
+{{- $protocol := .protocol -}}
+{{- $sc := .sc -}}
+{{- $ := .root -}}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $sc.name }}
+  labels:
+    {{- include "nasty-csi-driver.labels" $ | nindent 4 }}
+  {{- if $sc.isDefault }}
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+  {{- end }}
+provisioner: {{ include "nasty-csi-driver.driverName" $ }}
+parameters:
+  protocol: {{ $protocol | quote }}
+  pool: {{ $sc.pool | quote }}
+  {{- if $sc.server }}
+  server: {{ $sc.server | quote }}
+  {{- end }}
+  {{- if $sc.parentDataset }}
+  parentDataset: {{ $sc.parentDataset | quote }}
+  {{- end }}
+  {{- if $sc.deleteStrategy }}
+  deleteStrategy: {{ $sc.deleteStrategy | quote }}
+  {{- end }}
+  {{- if $sc.nameTemplate }}
+  nameTemplate: {{ $sc.nameTemplate | quote }}
+  {{- end }}
+  {{- if $sc.namePrefix }}
+  namePrefix: {{ $sc.namePrefix | quote }}
+  {{- end }}
+  {{- if $sc.nameSuffix }}
+  nameSuffix: {{ $sc.nameSuffix | quote }}
+  {{- end }}
+  {{- if $sc.commentTemplate }}
+  commentTemplate: {{ $sc.commentTemplate | quote }}
+  {{- end }}
+  {{- if $sc.markAdoptable }}
+  markAdoptable: {{ $sc.markAdoptable | quote }}
+  {{- end }}
+  {{- if $sc.adoptExisting }}
+  adoptExisting: {{ $sc.adoptExisting | quote }}
+  {{- end }}
+  {{- if $sc.encryption }}
+  encryption: {{ $sc.encryption | quote }}
+  {{- end }}
+  {{- if $sc.encryptionAlgorithm }}
+  encryptionAlgorithm: {{ $sc.encryptionAlgorithm | quote }}
+  {{- end }}
+  {{- if $sc.encryptionGenerateKey }}
+  encryptionGenerateKey: {{ $sc.encryptionGenerateKey | quote }}
+  {{- end }}
+  {{- if eq $protocol "nvmeof" }}
+  transport: {{ $sc.transport | default "tcp" | quote }}
+  port: {{ $sc.port | default "4420" | quote }}
+  csi.storage.k8s.io/fstype: {{ $sc.fsType | default "ext4" | quote }}
+  {{- if $sc.subsystemNQN }}
+  subsystemNQN: {{ $sc.subsystemNQN | quote }}
+  {{- end }}
+  {{- end }}
+  {{- if eq $protocol "iscsi" }}
+  port: {{ $sc.port | default "3260" | quote }}
+  csi.storage.k8s.io/fstype: {{ $sc.fsType | default "ext4" | quote }}
+  {{- end }}
+  {{- if and (eq $protocol "smb") $sc.smbCredentialsSecret }}
+  {{- if $sc.smbCredentialsSecret.name }}
+  csi.storage.k8s.io/node-stage-secret-name: {{ $sc.smbCredentialsSecret.name | quote }}
+  csi.storage.k8s.io/node-stage-secret-namespace: {{ $sc.smbCredentialsSecret.namespace | default $.Release.Namespace | quote }}
+  {{- end }}
+  {{- end }}
+  {{- if $sc.parameters }}
+  {{- range $key, $value := $sc.parameters }}
+  {{- if kindIs "map" $value }}
+  {{- range $subKey, $subValue := $value }}
+  {{ $key }}.{{ $subKey }}: {{ $subValue | quote }}
+  {{- end }}
+  {{- else }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+allowVolumeExpansion: {{ $sc.allowVolumeExpansion | default true }}
+reclaimPolicy: {{ $sc.reclaimPolicy | default "Delete" }}
+volumeBindingMode: {{ $sc.volumeBindingMode | default "Immediate" }}
+{{- if $sc.mountOptions }}
+mountOptions:
+  {{- toYaml $sc.mountOptions | nindent 2 }}
+{{- end }}
+{{ end }}

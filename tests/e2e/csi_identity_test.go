@@ -37,12 +37,12 @@ var _ = Describe("CSI Identity", func() {
 		ctx := context.Background()
 
 		By("Checking CSIDriver resource exists")
-		csiDriver, err := f.K8s.GetCSIDriver(ctx, "tns.csi.io")
+		csiDriver, err := f.K8s.GetCSIDriver(ctx, "nasty.csi.io")
 		Expect(err).NotTo(HaveOccurred(), "Failed to get CSIDriver resource")
 		Expect(csiDriver).NotTo(BeNil(), "CSIDriver resource should exist")
 
 		By("Verifying CSIDriver name")
-		Expect(csiDriver.Name).To(Equal("tns.csi.io"), "CSIDriver name should be tns.csi.io")
+		Expect(csiDriver.Name).To(Equal("nasty.csi.io"), "CSIDriver name should be nasty.csi.io")
 
 		By("Checking CSIDriver spec")
 		if csiDriver.Spec.AttachRequired != nil {
@@ -128,9 +128,9 @@ var _ = Describe("CSI Identity", func() {
 		ctx := context.Background()
 
 		requiredStorageClasses := []string{
-			"tns-csi-nfs",
-			"tns-csi-nvmeof",
-			"tns-csi-iscsi",
+			"nasty-csi-nfs",
+			"nasty-csi-nvmeof",
+			"nasty-csi-iscsi",
 		}
 
 		By("Checking required StorageClasses exist")
@@ -142,8 +142,8 @@ var _ = Describe("CSI Identity", func() {
 				}
 				continue
 			}
-			Expect(sc.Provisioner).To(Equal("tns.csi.io"),
-				"StorageClass %s should use tns.csi.io provisioner", scName)
+			Expect(sc.Provisioner).To(Equal("nasty.csi.io"),
+				"StorageClass %s should use nasty.csi.io provisioner", scName)
 
 			if f.Verbose() {
 				GinkgoWriter.Printf("StorageClass %s: provisioner=%s, reclaimPolicy=%v\n",

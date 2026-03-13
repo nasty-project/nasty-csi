@@ -33,13 +33,13 @@ var _ = Describe("Snapshot Restore", func() {
 	It("should restore from multiple snapshots with correct point-in-time data", func() {
 		ctx := context.Background()
 
-		storageClass := "tns-csi-smb"
-		snapshotClass := "tns-csi-smb-snapshot"
+		storageClass := "nasty-csi-smb"
+		snapshotClass := "nasty-csi-smb-snapshot"
 		accessMode := corev1.ReadWriteMany
 		podTimeout := 2 * time.Minute
 
 		By("Creating VolumeSnapshotClass")
-		err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+		err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)

@@ -1,12 +1,12 @@
 # Volume Adoption Guide
 
-This guide covers importing existing NASty volumes into tns-csi management and adopting them into Kubernetes clusters.
+This guide covers importing existing NASty volumes into nasty-csi management and adopting them into Kubernetes clusters.
 
 ## Overview
 
-**Adoption** is the process of taking an existing NASty dataset/ZVOL and making it available as a Kubernetes PersistentVolume managed by tns-csi. This is useful for:
+**Adoption** is the process of taking an existing NASty dataset/ZVOL and making it available as a Kubernetes PersistentVolume managed by nasty-csi. This is useful for:
 
-- **Migration from democratic-csi** - Move volumes to tns-csi without data loss
+- **Migration from democratic-csi** - Move volumes to nasty-csi without data loss
 - **Disaster recovery** - Restore volumes to a new cluster after failure
 - **Cluster recreation** - Re-attach volumes after rebuilding a cluster
 - **Manual volume import** - Bring manually-created NASty volumes into Kubernetes
@@ -85,8 +85,8 @@ The full adoption process involves both **NASty-side** and **Kubernetes-side** s
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    NASTY SIDE (tns-csi)                       │
-│  5. Import dataset into tns-csi (sets ZFS properties)           │
+│                    NASTY SIDE (nasty-csi)                       │
+│  5. Import dataset into nasty-csi (sets ZFS properties)           │
 │  6. Generate PV/PVC manifests                                   │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -105,7 +105,7 @@ This is the most common adoption scenario. Follow these steps carefully.
 ### Prerequisites
 
 - kubectl access to the cluster
-- kubectl tns-csi plugin installed ([installation guide](KUBECTL-PLUGIN.md))
+- kubectl nasty-csi plugin installed ([installation guide](KUBECTL-PLUGIN.md))
 - NASty credentials configured (plugin auto-discovers from installed driver)
 
 ### Step-by-Step Migration
@@ -166,33 +166,33 @@ kubectl get pv pvc-2cf78549-3392-457e-9119-6a7be7da6707
 # STATUS: Released
 ```
 
-#### Step 4: Import Dataset into tns-csi
+#### Step 4: Import Dataset into nasty-csi
 
-Now use the tns-csi plugin to mark the dataset as managed by tns-csi:
+Now use the nasty-csi plugin to mark the dataset as managed by nasty-csi:
 
 ```bash
 # Dry run first to see what will happen
-kubectl tns-csi import storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 \
+kubectl nasty-csi import storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 \
   --protocol iscsi \
   --dry-run
 
 # If everything looks good, run for real
-kubectl tns-csi import storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 \
+kubectl nasty-csi import storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 \
   --protocol iscsi
 ```
 
 This sets ZFS properties on the dataset:
 - `nasty-csi:managed_by` = "nasty-csi"
-- `tns-csi:protocol` = "iscsi"
-- `tns-csi:adoptable` = "true"
+- `nasty-csi:protocol` = "iscsi"
+- `nasty-csi:adoptable` = "true"
 - And other metadata properties
 
 #### Step 5: Generate New PV/PVC Manifests
 
-Generate Kubernetes manifests for the tns-csi managed volume:
+Generate Kubernetes manifests for the nasty-csi managed volume:
 
 ```bash
-kubectl tns-csi adopt storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 \
+kubectl nasty-csi adopt storage/iscsi/v/pvc-2cf78549-3392-457e-9119-6a7be7da6707 \
   --pvc-name config-qbittorrent-0 \
   --namespace media \
   --storage-class tns-iscsi \
@@ -243,16 +243,16 @@ kubectl logs -n media qbittorrent-0
 #### NFS Migration
 
 ```bash
-kubectl tns-csi import storage/nfs/pvc-xxx --protocol nfs
+kubectl nasty-csi import storage/nfs/pvc-xxx --protocol nfs
 
 # If NFS share doesn't exist, create it:
-kubectl tns-csi import storage/nfs/pvc-xxx --protocol nfs --create-share
+kubectl nasty-csi import storage/nfs/pvc-xxx --protocol nfs --create-share
 ```
 
 #### NVMe-oF Migration
 
 ```bash
-kubectl tns-csi import storage/nvmeof/v/pvc-xxx --protocol nvmeof
+kubectl nasty-csi import storage/nvmeof/v/pvc-xxx --protocol nvmeof
 ```
 
 Note: NVMe-oF requires the NVMe-oF port to be configured in NASty.
@@ -260,14 +260,14 @@ Note: NVMe-oF requires the NVMe-oF port to be configured in NASty.
 #### iSCSI Migration
 
 ```bash
-kubectl tns-csi import storage/iscsi/v/pvc-xxx --protocol iscsi
+kubectl nasty-csi import storage/iscsi/v/pvc-xxx --protocol iscsi
 ```
 
 Note: iSCSI requires the iSCSI portal to be configured in NASty.
 
-## Migrating from Older tns-csi Versions
+## Migrating from Older nasty-csi Versions
 
-Older versions of tns-csi (pre-0.8) used base64-encoded JSON volumeHandles instead of plain volume IDs. These volumes work correctly but won't appear in `kubectl tns-csi list`.
+Older versions of nasty-csi (pre-0.8) used base64-encoded JSON volumeHandles instead of plain volume IDs. These volumes work correctly but won't appear in `kubectl nasty-csi list`.
 
 ### Identifying Old-Format Volumes
 
@@ -275,7 +275,7 @@ Older versions of tns-csi (pre-0.8) used base64-encoded JSON volumeHandles inste
 # Check volumeHandle length (old format is ~316 chars, new is ~40 chars)
 kubectl get pv -o json | jq -r '
   .items[] |
-  select(.spec.csi.driver == "tns.csi.io") |
+  select(.spec.csi.driver == "nasty.csi.io") |
   "\(.metadata.name): \(.spec.csi.volumeHandle | length) chars"'
 ```
 
@@ -289,7 +289,7 @@ The `volumeHandle` field is immutable, so you must recreate the PV/PVC:
 4. **Delete old PV**
 5. **Create new PV with plain volumeHandle**
 6. **Create new PVC**
-7. **Import dataset** (to set ZFS properties so it shows in `tns-csi list`)
+7. **Import dataset** (to set ZFS properties so it shows in `nasty-csi list`)
 8. **Scale up workload**
 
 ```bash
@@ -302,7 +302,7 @@ kubectl get pv <pv-name> -o jsonpath='{.spec.csi.volumeHandle}' | base64 -d | jq
 
 # 2. Recreate PV with that plain name as volumeHandle
 # 3. Import dataset to set ZFS properties:
-kubectl tns-csi import <dataset-path> --protocol nfs
+kubectl nasty-csi import <dataset-path> --protocol nfs
 ```
 
 ## Disaster Recovery
@@ -311,16 +311,16 @@ When a Kubernetes cluster is lost but NASty data survives, use this process to r
 
 ### Step 1: List Available Volumes
 
-Find volumes that were managed by tns-csi:
+Find volumes that were managed by nasty-csi:
 
 ```bash
-kubectl tns-csi list
+kubectl nasty-csi list
 ```
 
 Or find all orphaned volumes (volumes with no matching PVC):
 
 ```bash
-kubectl tns-csi list-orphaned
+kubectl nasty-csi list-orphaned
 ```
 
 ### Step 2: Generate and Apply Manifests
@@ -328,7 +328,7 @@ kubectl tns-csi list-orphaned
 For each volume to recover:
 
 ```bash
-kubectl tns-csi adopt <dataset-path> \
+kubectl nasty-csi adopt <dataset-path> \
   --pvc-name <desired-pvc-name> \
   --namespace <namespace> \
   -o yaml | kubectl apply -f -
@@ -349,7 +349,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-gitops
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -377,10 +377,10 @@ To import volumes that were never managed by any CSI driver (manually created):
 ### Step 1: Discover Unmanaged Volumes
 
 ```bash
-kubectl tns-csi list-unmanaged --pool storage
+kubectl nasty-csi list-unmanaged --pool storage
 ```
 
-This shows all datasets/ZVOLs not managed by tns-csi, including:
+This shows all datasets/ZVOLs not managed by nasty-csi, including:
 - Manually created datasets
 - Democratic-csi volumes
 - Other CSI driver volumes
@@ -389,10 +389,10 @@ This shows all datasets/ZVOLs not managed by tns-csi, including:
 
 ```bash
 # Import with NFS protocol (creates share if needed)
-kubectl tns-csi import storage/mydata/volume1 --protocol nfs --create-share
+kubectl nasty-csi import storage/mydata/volume1 --protocol nfs --create-share
 
 # Generate manifests
-kubectl tns-csi adopt storage/mydata/volume1 \
+kubectl nasty-csi adopt storage/mydata/volume1 \
   --pvc-name my-volume \
   --namespace default \
   -o yaml > my-volume.yaml
@@ -416,10 +416,10 @@ kubectl describe pv <pv-name>
 kubectl describe pvc <pvc-name> -n <namespace>
 ```
 
-### "Volume already managed by tns-csi" Error
+### "Volume already managed by nasty-csi" Error
 
-The dataset already has tns-csi properties. Either:
-- Use `kubectl tns-csi adopt` directly (skip import)
+The dataset already has nasty-csi properties. Either:
+- Use `kubectl nasty-csi adopt` directly (skip import)
 - Or remove existing properties on NASty:
   ```bash
   zfs inherit -r nasty-csi:managed_by <dataset>
@@ -440,7 +440,7 @@ Ensure `--pvc-name` matches exactly when adopting.
 If the NFS share was deleted but the dataset exists:
 
 ```bash
-kubectl tns-csi import <dataset> --protocol nfs --create-share
+kubectl nasty-csi import <dataset> --protocol nfs --create-share
 ```
 
 ### GitOps Conflicts (Flux/ArgoCD)
@@ -500,13 +500,13 @@ kubectl scale deploy <operator-name> -n <namespace> --replicas=1
 
 | Command | Description |
 |---------|-------------|
-| `kubectl tns-csi list` | List all tns-csi managed volumes |
-| `kubectl tns-csi list-orphaned` | Find volumes without matching PVCs |
-| `kubectl tns-csi list-unmanaged --pool <pool>` | List volumes not managed by tns-csi |
-| `kubectl tns-csi import <dataset> --protocol <proto>` | Import dataset into tns-csi management |
-| `kubectl tns-csi adopt <dataset>` | Generate PV/PVC manifests |
-| `kubectl tns-csi describe <volume>` | Show detailed volume info |
-| `kubectl tns-csi mark-adoptable <volume>` | Mark volume as adoptable |
+| `kubectl nasty-csi list` | List all nasty-csi managed volumes |
+| `kubectl nasty-csi list-orphaned` | Find volumes without matching PVCs |
+| `kubectl nasty-csi list-unmanaged --pool <pool>` | List volumes not managed by nasty-csi |
+| `kubectl nasty-csi import <dataset> --protocol <proto>` | Import dataset into nasty-csi management |
+| `kubectl nasty-csi adopt <dataset>` | Generate PV/PVC manifests |
+| `kubectl nasty-csi describe <volume>` | Show detailed volume info |
+| `kubectl nasty-csi mark-adoptable <volume>` | Mark volume as adoptable |
 
 See [KUBECTL-PLUGIN.md](KUBECTL-PLUGIN.md) for complete CLI documentation.
 

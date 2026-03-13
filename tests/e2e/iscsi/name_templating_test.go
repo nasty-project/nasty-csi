@@ -33,7 +33,7 @@ var _ = Describe("Name Templating", func() {
 
 	It("should create volumes with templated names from StorageClass parameters", func() {
 		ctx := context.Background()
-		scName := "tns-csi-iscsi-name-template"
+		scName := "nasty-csi-iscsi-name-template"
 		podTimeout := 6 * time.Minute
 
 		By("Creating StorageClass with nameTemplate parameter")
@@ -44,7 +44,7 @@ var _ = Describe("Name Templating", func() {
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
 			"fsType":       "ext4",
 		}
-		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
+		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass with nameTemplate")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), scName)
@@ -106,7 +106,7 @@ var _ = Describe("Name Templating", func() {
 
 	It("should create volumes with prefix and suffix from StorageClass parameters", func() {
 		ctx := context.Background()
-		scName := "tns-csi-iscsi-prefix-suffix"
+		scName := "nasty-csi-iscsi-prefix-suffix"
 
 		By("Creating StorageClass with namePrefix and nameSuffix")
 		params := map[string]string{
@@ -117,7 +117,7 @@ var _ = Describe("Name Templating", func() {
 			"nameSuffix": "-data",
 			"fsType":     "ext4",
 		}
-		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
+		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass with prefix/suffix")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), scName)

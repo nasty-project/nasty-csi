@@ -64,7 +64,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/tns-csi
+            ${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi
             ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern=v{{version}}
@@ -108,21 +108,21 @@ jobs:
 
       - name: Render plain manifest for Kustomize users
         run: |
-          helm template tns-csi charts/nasty-csi-driver \
+          helm template nasty-csi charts/nasty-csi-driver \
             --namespace kube-system \
             --set nasty.url="wss://NASTY_IP/api/current" \
             --set truenas.apiKey="REPLACE_WITH_API_KEY" \
-            --set storageClasses[0].name=tns-csi-nfs \
+            --set storageClasses[0].name=nasty-csi-nfs \
             --set storageClasses[0].enabled=true \
             --set storageClasses[0].protocol=nfs \
             --set storageClasses[0].server="NASTY_IP" \
             --set storageClasses[0].pool="tank" \
-            --set storageClasses[1].name=tns-csi-nvmeof \
+            --set storageClasses[1].name=nasty-csi-nvmeof \
             --set storageClasses[1].enabled=true \
             --set storageClasses[1].protocol=nvmeof \
             --set storageClasses[1].server="NASTY_IP" \
             --set storageClasses[1].pool="tank" \
-            --set storageClasses[2].name=tns-csi-iscsi \
+            --set storageClasses[2].name=nasty-csi-iscsi \
             --set storageClasses[2].enabled=true \
             --set storageClasses[2].protocol=iscsi \
             --set storageClasses[2].server="NASTY_IP" \
@@ -164,17 +164,17 @@ jobs:
 
           ### Using Docker
           \`\`\`bash
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/tns-csi:${VERSION}
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi:${VERSION}
           \`\`\`
 
           ### Using Helm (Docker Hub)
           \`\`\`bash
-          helm install tns-csi oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi-driver --version ${VERSION#v}
+          helm install nasty-csi oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi-driver --version ${VERSION#v}
           \`\`\`
 
           ### Using Helm (GitHub Container Registry)
           \`\`\`bash
-          helm install tns-csi oci://ghcr.io/${{ github.repository_owner }}/charts/nasty-csi-driver --version ${VERSION#v}
+          helm install nasty-csi oci://ghcr.io/${{ github.repository_owner }}/charts/nasty-csi-driver --version ${VERSION#v}
           \`\`\`
 
           ### Using Kustomize

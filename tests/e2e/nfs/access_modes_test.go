@@ -43,7 +43,7 @@ var _ = Describe("NFS Access Modes", func() {
 			pvcName := "access-mode-rwx"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nfs",
+				StorageClassName: "nasty-csi-nfs",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
@@ -119,7 +119,7 @@ var _ = Describe("NFS Access Modes", func() {
 			pvcName := "concurrent-rwx"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nfs",
+				StorageClassName: "nasty-csi-nfs",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
@@ -198,7 +198,7 @@ var _ = Describe("NFS Access Modes", func() {
 			pvcName := "access-mode-rwo"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nfs",
+				StorageClassName: "nasty-csi-nfs",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})

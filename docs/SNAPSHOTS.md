@@ -70,7 +70,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-snapclass
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 ```
 
@@ -80,7 +80,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nvmeof-snapclass
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 ```
 
@@ -206,7 +206,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-snapclass
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 EOF
 
@@ -278,7 +278,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nvmeof-snapclass
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 ---
 apiVersion: snapshot.storage.k8s.io/v1
@@ -321,7 +321,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-retain
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Retain  # Keep snapshots on NASty
 ```
 
@@ -336,7 +336,7 @@ metadata:
   name: pre-existing-snapshot
 spec:
   deletionPolicy: Retain
-  driver: tns.csi.io
+  driver: nasty.csi.io
   source:
     snapshotHandle: <base64-encoded-snapshot-metadata>
   volumeSnapshotRef:
@@ -629,7 +629,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-snapshot-detached
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 parameters:
   # Enable detached snapshots via zfs send/receive
@@ -698,7 +698,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nvmeof-snapshot-detached
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 parameters:
   detachedSnapshots: "true"

@@ -120,8 +120,8 @@ var _ = Describe("Shared Encryption", func() {
 
 			for _, proto := range protocols {
 				By(fmt.Sprintf("Testing %s: Creating encrypted StorageClass", proto.name))
-				scName := fmt.Sprintf("tns-csi-%s-encrypted-shared", proto.id)
-				err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", proto.scParams)
+				scName := fmt.Sprintf("nasty-csi-%s-encrypted-shared", proto.id)
+				err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", proto.scParams)
 				Expect(err).NotTo(HaveOccurred())
 				f.Cleanup.Add(func() error {
 					return f.K8s.DeleteStorageClass(ctx, scName)
@@ -183,16 +183,16 @@ var _ = Describe("Shared Encryption", func() {
 			proto := protocols[0] // NFS
 
 			By("Creating encrypted StorageClass")
-			scName := fmt.Sprintf("tns-csi-%s-encrypted-snap-restore", proto.id)
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", proto.scParams)
+			scName := fmt.Sprintf("nasty-csi-%s-encrypted-snap-restore", proto.id)
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", proto.scParams)
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := fmt.Sprintf("tns-csi-%s-encrypted-snap-class", proto.id)
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := fmt.Sprintf("nasty-csi-%s-encrypted-snap-class", proto.id)
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -296,16 +296,16 @@ var _ = Describe("Shared Encryption", func() {
 			proto := protocols[1] // NVMe-oF
 
 			By("Creating encrypted StorageClass")
-			scName := fmt.Sprintf("tns-csi-%s-encrypted-snap-restore", proto.id)
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", proto.scParams)
+			scName := fmt.Sprintf("nasty-csi-%s-encrypted-snap-restore", proto.id)
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", proto.scParams)
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := fmt.Sprintf("tns-csi-%s-encrypted-snap-class", proto.id)
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := fmt.Sprintf("nasty-csi-%s-encrypted-snap-class", proto.id)
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -404,16 +404,16 @@ var _ = Describe("Shared Encryption", func() {
 			proto := protocols[2] // iSCSI
 
 			By("Creating encrypted StorageClass")
-			scName := fmt.Sprintf("tns-csi-%s-encrypted-snap-restore", proto.id)
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", proto.scParams)
+			scName := fmt.Sprintf("nasty-csi-%s-encrypted-snap-restore", proto.id)
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", proto.scParams)
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := fmt.Sprintf("tns-csi-%s-encrypted-snap-class", proto.id)
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := fmt.Sprintf("nasty-csi-%s-encrypted-snap-class", proto.id)
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -515,16 +515,16 @@ var _ = Describe("Shared Encryption", func() {
 			proto := protocols[3] // SMB
 
 			By("Creating encrypted StorageClass")
-			scName := fmt.Sprintf("tns-csi-%s-encrypted-snap-restore", proto.id)
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", proto.scParams)
+			scName := fmt.Sprintf("nasty-csi-%s-encrypted-snap-restore", proto.id)
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", proto.scParams)
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := fmt.Sprintf("tns-csi-%s-encrypted-snap-class", proto.id)
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := fmt.Sprintf("nasty-csi-%s-encrypted-snap-class", proto.id)
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -630,8 +630,8 @@ var _ = Describe("Shared Encryption", func() {
 
 			for _, proto := range protocols {
 				By(fmt.Sprintf("Testing %s: Creating encrypted StorageClass", proto.name))
-				scName := fmt.Sprintf("tns-csi-%s-encrypted-integrity", proto.id)
-				err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", proto.scParams)
+				scName := fmt.Sprintf("nasty-csi-%s-encrypted-integrity", proto.id)
+				err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", proto.scParams)
 				Expect(err).NotTo(HaveOccurred())
 				f.Cleanup.Add(func() error {
 					return f.K8s.DeleteStorageClass(ctx, scName)

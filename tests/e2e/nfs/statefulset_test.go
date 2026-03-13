@@ -24,7 +24,7 @@ var _ = Describe("NFS StatefulSet", func() {
 		volumeName       = "data" // Name in volumeClaimTemplates
 		mountPath        = "/data"
 		storageSize      = "1Gi"
-		storageClassName = "tns-csi-nfs"
+		storageClassName = "nasty-csi-nfs"
 		// NFS binds immediately, so shorter timeouts are fine
 		podTimeout = 120 * time.Second
 	)

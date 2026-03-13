@@ -292,7 +292,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -307,7 +307,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-promoted
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -323,7 +323,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nasty-nfs-detached
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   pool: tank
@@ -339,7 +339,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-snapshot
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 # Default: Regular COW snapshots (depend on source volume)
 ```
@@ -351,7 +351,7 @@ apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
   name: nasty-nfs-snapshot-detached
-driver: tns.csi.io
+driver: nasty.csi.io
 deletionPolicy: Delete
 parameters:
   detachedSnapshots: "true"  # Survives source volume deletion

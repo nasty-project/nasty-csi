@@ -38,8 +38,8 @@ var _ = Describe("NFS ZFS Properties", func() {
 
 	It("should create volume with custom ZFS properties", func() {
 		By("Creating StorageClass with ZFS properties")
-		zfsStorageClass := "tns-csi-nfs-zfsprops"
-		err = f.K8s.CreateStorageClassWithParams(ctx, zfsStorageClass, "tns.csi.io", map[string]string{
+		zfsStorageClass := "nasty-csi-nfs-zfsprops"
+		err = f.K8s.CreateStorageClassWithParams(ctx, zfsStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":        "nfs",
 			"server":          f.Config.NAStyHost,
 			"pool":            f.Config.NAStyPool,

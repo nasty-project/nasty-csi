@@ -34,7 +34,7 @@ type SummaryData struct {
 	UnhealthyVolumes int    `json:"unhealthyVolumes"`
 }
 
-// VolumeInfo represents a tns-csi managed volume.
+// VolumeInfo represents a nasty-csi managed volume.
 //
 //nolint:govet // field alignment not critical for display struct
 type VolumeInfo struct {
@@ -54,7 +54,7 @@ type VolumeInfo struct {
 	Adoptable         bool              `json:"adoptable"         yaml:"adoptable"`
 }
 
-// SnapshotInfo represents a tns-csi managed snapshot.
+// SnapshotInfo represents a nasty-csi managed snapshot.
 type SnapshotInfo struct {
 	Name           string `json:"name"           yaml:"name"`
 	SourceVolume   string `json:"sourceVolume"   yaml:"sourceVolume"`
@@ -64,7 +64,7 @@ type SnapshotInfo struct {
 	DeleteStrategy string `json:"deleteStrategy" yaml:"deleteStrategy"`
 }
 
-// CloneInfo represents a tns-csi managed cloned volume.
+// CloneInfo represents a nasty-csi managed cloned volume.
 type CloneInfo struct {
 	VolumeID       string `json:"volumeId"       yaml:"volumeId"`
 	Dataset        string `json:"dataset"        yaml:"dataset"`
@@ -76,7 +76,7 @@ type CloneInfo struct {
 	DependencyNote string `json:"dependencyNote" yaml:"dependencyNote"`
 }
 
-// UnmanagedVolume represents a volume not managed by tns-csi.
+// UnmanagedVolume represents a volume not managed by nasty-csi.
 //
 //nolint:govet // field alignment not critical for display struct
 type UnmanagedVolume struct {

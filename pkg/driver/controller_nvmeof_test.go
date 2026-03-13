@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -233,10 +233,10 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return nil, tnsapi.ErrDatasetNotFound
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return nil, nastyapi.ErrDatasetNotFound
 				}
-				m.CreateSubvolumeFunc = func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+				m.CreateSubvolumeFunc = func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("insufficient space on pool")
 				}
 			},
@@ -302,11 +302,11 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 				NVMeOFSubsystemUUID: "some-uuid",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Pool:       pool,
 						Name:       name,
-						Properties: map[string]string{tnsapi.PropertyManagedBy: tnsapi.ManagedByValue},
+						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil
 				}
 				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error {
@@ -326,8 +326,8 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 				DatasetID: "tank/csi/missing-volume",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return nil, tnsapi.ErrDatasetNotFound
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return nil, nastyapi.ErrDatasetNotFound
 				}
 			},
 			wantErr: false,
@@ -393,8 +393,8 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			},
 			requiredBytes: 10 * 1024 * 1024 * 1024, // 10GB
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{Pool: pool, Name: name}, nil
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{Pool: pool, Name: name}, nil
 				}
 			},
 			wantErr: false,
@@ -421,7 +421,7 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			},
 			requiredBytes: 10 * 1024 * 1024 * 1024,
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("subvolume not found")
 				}
 			},

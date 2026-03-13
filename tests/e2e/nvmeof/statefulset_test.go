@@ -24,7 +24,7 @@ var _ = Describe("NVMe-oF StatefulSet", func() {
 		volumeName       = "data" // Name in volumeClaimTemplates
 		mountPath        = "/data"
 		storageSize      = "1Gi"
-		storageClassName = "tns-csi-nvmeof"
+		storageClassName = "nasty-csi-nvmeof"
 		// NVMe-oF uses WaitForFirstConsumer, so longer timeouts needed
 		podTimeout = 180 * time.Second
 	)

@@ -39,8 +39,8 @@ var _ = Describe("SMB ZFS Properties", func() {
 
 	It("should create volume with custom ZFS properties", func() {
 		By("Creating StorageClass with ZFS properties")
-		zfsStorageClass := "tns-csi-smb-zfsprops"
-		err = f.K8s.CreateStorageClassWithParams(ctx, zfsStorageClass, "tns.csi.io", map[string]string{
+		zfsStorageClass := "nasty-csi-smb-zfsprops"
+		err = f.K8s.CreateStorageClassWithParams(ctx, zfsStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":        "smb",
 			"server":          f.Config.NAStyHost,
 			"pool":            f.Config.NAStyPool,

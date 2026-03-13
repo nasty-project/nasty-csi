@@ -288,13 +288,13 @@ The easiest way to deploy the CSI driver is using the Helm chart from Docker Hub
 
 **For NFS:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -303,13 +303,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **For NVMe-oF:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nvmeof" \
+  --set storageClasses[0].name="nasty-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -321,13 +321,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **For iSCSI:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-iscsi" \
+  --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -338,13 +338,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **For SMB:**
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-smb" \
+  --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -360,14 +360,14 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 When deploying on OpenShift, enable SecurityContextConstraints support:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set openshift.enabled=true \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -414,7 +414,7 @@ docker push your-registry/nasty-csi-driver:v0.17.3
 
 If using a private registry, ensure your Kubernetes cluster has pull access.
 
-The published image is available at: `bfenski/tns-csi:v0.17.3`
+The published image is available at: `bfenski/nasty-csi:v0.17.3`
 
 ## Step 3: Configure Deployment Manifests (Manual Deployment Only)
 
@@ -539,10 +539,10 @@ kubectl apply -f deploy/storageclass.yaml
 
 ```bash
 # Check controller pod
-kubectl get pods -n kube-system -l app=tns-csi-controller
+kubectl get pods -n kube-system -l app=nasty-csi-controller
 
 # Check node pods (should be one per node)
-kubectl get pods -n kube-system -l app=tns-csi-node
+kubectl get pods -n kube-system -l app=nasty-csi-node
 
 # Check CSIDriver
 kubectl get csidrivers
@@ -554,9 +554,9 @@ kubectl get storageclass
 Expected output:
 ```
 NAME                              READY   STATUS    RESTARTS   AGE
-tns-csi-controller-0          5/5     Running   0          1m
-tns-csi-node-xxxxx            2/2     Running   0          1m
-tns-csi-node-yyyyy            2/2     Running   0          1m
+nasty-csi-controller-0          5/5     Running   0          1m
+nasty-csi-node-xxxxx            2/2     Running   0          1m
+nasty-csi-node-yyyyy            2/2     Running   0          1m
 ```
 
 </details>
@@ -663,7 +663,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kuber
 
 For manual (kubectl) deployments:
 ```bash
-kubectl logs -n kube-system tns-csi-controller-0 -c nasty-csi-plugin
+kubectl logs -n kube-system nasty-csi-controller-0 -c nasty-csi-plugin
 ```
 
 ### Check Node Plugin Logs
@@ -674,16 +674,16 @@ For Helm deployments:
 kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node
 
 # View logs (replace xxxxx with actual pod name)
-kubectl logs -n kube-system tns-csi-node-xxxxx -c nasty-csi-plugin
+kubectl logs -n kube-system nasty-csi-node-xxxxx -c nasty-csi-plugin
 ```
 
 For manual (kubectl) deployments:
 ```bash
 # Get node plugin pod name
-kubectl get pods -n kube-system -l app=tns-csi-node
+kubectl get pods -n kube-system -l app=nasty-csi-node
 
 # View logs
-kubectl logs -n kube-system tns-csi-node-xxxxx -c nasty-csi-plugin
+kubectl logs -n kube-system nasty-csi-node-xxxxx -c nasty-csi-plugin
 ```
 
 ### Common Issues
@@ -751,11 +751,11 @@ kubectl logs -n kube-system tns-csi-node-xxxxx -c nasty-csi-plugin
 
 ### kubectl Plugin for Troubleshooting
 
-The `kubectl tns-csi` plugin provides powerful troubleshooting capabilities:
+The `kubectl nasty-csi` plugin provides powerful troubleshooting capabilities:
 
 ```bash
 # Install via krew (recommended)
-kubectl krew install tns-csi
+kubectl krew install nasty-csi
 
 # Or download from GitHub releases
 ```
@@ -763,31 +763,31 @@ kubectl krew install tns-csi
 **Troubleshooting Commands:**
 ```bash
 # Comprehensive PVC diagnostics
-kubectl tns-csi troubleshoot <pvc-name> -n <namespace> --logs
+kubectl nasty-csi troubleshoot <pvc-name> -n <namespace> --logs
 
 # Check health of all volumes
-kubectl tns-csi health
+kubectl nasty-csi health
 
 # Test NASty connectivity
-kubectl tns-csi connectivity
+kubectl nasty-csi connectivity
 
 # Show detailed volume information
-kubectl tns-csi describe <volume-id>
+kubectl nasty-csi describe <volume-id>
 ```
 
 **Management Commands:**
 ```bash
 # Dashboard overview
-kubectl tns-csi summary
+kubectl nasty-csi summary
 
 # List all managed volumes
-kubectl tns-csi list
+kubectl nasty-csi list
 
 # Find orphaned volumes (exist on NASty but no PVC)
-kubectl tns-csi list-orphaned
+kubectl nasty-csi list-orphaned
 
 # Clean up orphaned volumes
-kubectl tns-csi cleanup --execute
+kubectl nasty-csi cleanup --execute
 ```
 
 See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full command reference.
@@ -814,8 +814,8 @@ kubectl rollout restart daemonset -n kube-system -l app.kubernetes.io/name=nasty
 
 For manual (kubectl) deployments:
 ```bash
-kubectl rollout restart statefulset -n kube-system tns-csi-controller
-kubectl rollout restart daemonset -n kube-system tns-csi-node
+kubectl rollout restart statefulset -n kube-system nasty-csi-controller
+kubectl rollout restart daemonset -n kube-system nasty-csi-node
 ```
 
 ## Uninstall
@@ -829,7 +829,7 @@ To uninstall a Helm deployment:
 kubectl delete pvc test-pvc
 
 # Uninstall the Helm release
-helm uninstall tns-csi -n kube-system
+helm uninstall nasty-csi -n kube-system
 ```
 
 ### Manual Installation
@@ -859,7 +859,7 @@ For minor version upgrades within the same schema version:
 
 ```bash
 # Helm upgrade
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version <NEW_VERSION> \
   --namespace kube-system \
   --reuse-values
@@ -878,12 +878,12 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 
 1. Delete all PVCs using the driver:
    ```bash
-   kubectl delete pvc -l app.kubernetes.io/provisioner=tns.csi.io --all-namespaces
+   kubectl delete pvc -l app.kubernetes.io/provisioner=nasty.csi.io --all-namespaces
    ```
 
 2. Upgrade the driver:
    ```bash
-   helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+   helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
      --version 0.17.3 \
      --namespace kube-system \
      --reuse-values
@@ -911,9 +911,9 @@ Volumes created with earlier versions will **not be recognized** by the new driv
    # SSH to NASty and check properties
    # Path format: {pool}/{parentDataset}/{volume} or {pool}/{volume}
    # Example with parentDataset=csi:
-   zfs get all tank/csi/my-volume | grep tns-csi
+   zfs get all tank/csi/my-volume | grep nasty-csi
    # Example without parentDataset:
-   zfs get all tank/my-volume | grep tns-csi
+   zfs get all tank/my-volume | grep nasty-csi
    ```
 
 5. **If metadata exists**, follow the [Volume Adoption workflow](FEATURES.md#volume-adoption-cross-cluster) to re-import volumes
@@ -921,11 +921,11 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 6. **If metadata is missing**, you'll need to manually set properties:
    ```bash
    # On NASty (example for NFS volume at tank/my-volume)
-   zfs set nasty-csi:managed_by=tns-csi tank/my-volume
+   zfs set nasty-csi:managed_by=nasty-csi tank/my-volume
    zfs set nasty-csi:schema_version=1 tank/my-volume
-   zfs set tns-csi:csi_volume_name=my-volume tank/my-volume
-   zfs set tns-csi:protocol=nfs tank/my-volume
-   zfs set tns-csi:nfs_share_path=/mnt/tank/my-volume tank/my-volume
+   zfs set nasty-csi:csi_volume_name=my-volume tank/my-volume
+   zfs set nasty-csi:protocol=nfs tank/my-volume
+   zfs set nasty-csi:nfs_share_path=/mnt/tank/my-volume tank/my-volume
    # ... set other properties as needed
    ```
 
@@ -935,7 +935,7 @@ After upgrading, verify the new driver is working:
 
 ```bash
 # Check driver version
-kubectl logs -n kube-system deployment/tns-csi-controller 2>&1 | head -1
+kubectl logs -n kube-system deployment/nasty-csi-controller 2>&1 | head -1
 
 # Test creating a new volume
 kubectl apply -f - <<EOF

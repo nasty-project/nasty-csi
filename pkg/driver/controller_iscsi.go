@@ -10,7 +10,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	"github.com/nasty-project/nasty-csi/pkg/retry"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -110,7 +110,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 }
 
 // buildISCSIVolumeResponse constructs a CSI CreateVolumeResponse for an iSCSI volume.
-func buildISCSIVolumeResponse(volumeName, server string, subvol *tnsapi.Subvolume, target *tnsapi.ISCSITarget, capacity int64) *csi.CreateVolumeResponse {
+func buildISCSIVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, target *nastyapi.ISCSITarget, capacity int64) *csi.CreateVolumeResponse {
 	// Volume ID is pool/subvolumeName for O(1) lookups
 	volumeID := subvol.Pool + "/" + subvol.Name
 
@@ -193,7 +193,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	blockDevice := *subvol.BlockDevice
 
 	// Step 2: Create iSCSI target
-	targetParams := tnsapi.ISCSITargetCreateParams{
+	targetParams := nastyapi.ISCSITargetCreateParams{
 		Name: params.volumeName,
 	}
 	target, err := s.apiClient.CreateISCSITarget(ctx, targetParams)
@@ -231,7 +231,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 
 	// Step 4: Store xattr properties for metadata tracking
-	props := tnsapi.ISCSIVolumePropertiesV1(tnsapi.ISCSIVolumeParams{
+	props := nastyapi.ISCSIVolumePropertiesV1(nastyapi.ISCSIVolumeParams{
 		VolumeID:       params.volumeName,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -257,14 +257,14 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 }
 
 // handleExistingISCSISubvolume handles the case when a block subvolume already exists (idempotency).
-func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, params *iscsiVolumeParams, existingSubvol *tnsapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, params *iscsiVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Block subvolume %s already exists, checking idempotency", params.subvolumeName)
 
 	// Check capacity from stored properties
 	existingCapacity := params.requestedCapacity
 	if existingSubvol.Properties != nil {
-		if capStr, ok := existingSubvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-			if cap := tnsapi.StringToInt64(capStr); cap > 0 {
+		if capStr, ok := existingSubvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+			if cap := nastyapi.StringToInt64(capStr); cap > 0 {
 				existingCapacity = cap
 			}
 		}
@@ -281,8 +281,8 @@ func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, pa
 	var storedTargetID string
 	var storedIQN string
 	if existingSubvol.Properties != nil {
-		storedTargetID = existingSubvol.Properties[tnsapi.PropertyISCSITargetID]
-		storedIQN = existingSubvol.Properties[tnsapi.PropertyISCSIIQN]
+		storedTargetID = existingSubvol.Properties[nastyapi.PropertyISCSITargetID]
+		storedIQN = existingSubvol.Properties[nastyapi.PropertyISCSIIQN]
 	}
 
 	if storedTargetID != "" {
@@ -305,7 +305,7 @@ func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, pa
 // verifyISCSIOwnership verifies ownership of an iSCSI volume via xattr properties.
 // Returns the deleteStrategy and a "not found" flag.
 func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *VolumeMetadata) (deleteStrategy string, notFound bool, err error) {
-	deleteStrategy = tnsapi.DeleteStrategyDelete
+	deleteStrategy = nastyapi.DeleteStrategyDelete
 
 	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
@@ -326,12 +326,12 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 		return deleteStrategy, false, nil
 	}
 
-	if managedBy, ok := props[tnsapi.PropertyManagedBy]; ok && managedBy != tnsapi.ManagedByValue {
+	if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
 		return "", false, status.Errorf(codes.FailedPrecondition,
 			"Subvolume %s is not managed by nasty-csi (managed_by=%s)", meta.DatasetID, managedBy)
 	}
 
-	if volumeName, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
+	if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
 		nameMatches := volumeName == meta.Name || (isDatasetPathVolumeID(meta.Name) && strings.HasSuffix(meta.Name, "/"+volumeName))
 		if !nameMatches {
 			return "", false, status.Errorf(codes.FailedPrecondition,
@@ -340,14 +340,14 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 	}
 
 	// Update metadata with stored target UUID (handles ID changes across clusters)
-	if storedTargetID, ok := props[tnsapi.PropertyISCSITargetID]; ok && storedTargetID != "" {
+	if storedTargetID, ok := props[nastyapi.PropertyISCSITargetID]; ok && storedTargetID != "" {
 		if meta.ISCSITargetUUID != "" && storedTargetID != meta.ISCSITargetUUID {
 			klog.Warningf("iSCSI target ID mismatch: stored=%s, metadata=%s (using stored ID)", storedTargetID, meta.ISCSITargetUUID)
 		}
 		meta.ISCSITargetUUID = storedTargetID
 	}
 
-	if strategy, ok := props[tnsapi.PropertyDeleteStrategy]; ok && strategy != "" {
+	if strategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && strategy != "" {
 		deleteStrategy = strategy
 	}
 
@@ -376,7 +376,7 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	if deleteStrategy == tnsapi.DeleteStrategyRetain {
+	if deleteStrategy == nastyapi.DeleteStrategyRetain {
 		klog.Infof("Volume %s has delete strategy 'retain', skipping deletion", meta.Name)
 		timer.ObserveSuccess()
 		return &csi.DeleteVolumeResponse{}, nil
@@ -453,7 +453,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 
 	// Update capacity via xattr property
 	props := map[string]string{
-		tnsapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
 	}
 	_, err := s.apiClient.SetSubvolumeProperties(ctx, pool, name, props)
 	if err != nil {
@@ -489,7 +489,7 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 	}
 
 	// Check 1: Verify block subvolume exists
-	var subvol *tnsapi.Subvolume
+	var subvol *nastyapi.Subvolume
 	subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
 	switch {
 	case err != nil && isNotFoundError(err):
@@ -520,8 +520,8 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 
 	// Get capacity from stored properties
 	if subvol != nil && subvol.Properties != nil {
-		if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-			capacityBytes = tnsapi.StringToInt64(capStr)
+		if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+			capacityBytes = nastyapi.StringToInt64(capStr)
 		}
 	}
 
@@ -553,13 +553,13 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 
 // setupISCSIVolumeFromClone sets up iSCSI infrastructure for a cloned volume.
 // TODO: Implement when NASty supports subvolume cloning.
-func (s *ControllerService) setupISCSIVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *tnsapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) setupISCSIVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "iSCSI volume cloning is not yet supported by the NASty backend")
 }
 
 // adoptISCSIVolume adopts an orphaned iSCSI volume by recreating missing NASty resources.
 // This enables GitOps workflows where clusters are recreated and need to adopt existing volumes.
-func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *tnsapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, "adopt")
 	volumeName := req.GetName()
 	klog.Infof("Adopting iSCSI volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
@@ -578,9 +578,9 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	}
 
 	// Try to find existing target by stored IQN in subvolume properties
-	var target *tnsapi.ISCSITarget
+	var target *nastyapi.ISCSITarget
 	if subvol.Properties != nil {
-		if storedIQN := subvol.Properties[tnsapi.PropertyISCSIIQN]; storedIQN != "" {
+		if storedIQN := subvol.Properties[nastyapi.PropertyISCSIIQN]; storedIQN != "" {
 			existingTarget, lookupErr := s.apiClient.GetISCSITargetByIQN(ctx, storedIQN)
 			if lookupErr == nil && existingTarget != nil {
 				target = existingTarget
@@ -615,7 +615,7 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	if target == nil {
 		klog.Infof("Creating new iSCSI target for adopted volume: %s", volumeName)
 
-		newTarget, createErr := s.apiClient.CreateISCSITarget(ctx, tnsapi.ISCSITargetCreateParams{
+		newTarget, createErr := s.apiClient.CreateISCSITarget(ctx, nastyapi.ISCSITargetCreateParams{
 			Name: volumeName,
 		})
 		if createErr != nil {
@@ -639,11 +639,11 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	// Update xattr properties with new IDs
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := tnsapi.ISCSIVolumePropertiesV1(tnsapi.ISCSIVolumeParams{
+	props := nastyapi.ISCSIVolumePropertiesV1(nastyapi.ISCSIVolumeParams{
 		VolumeID:       volumeName,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),

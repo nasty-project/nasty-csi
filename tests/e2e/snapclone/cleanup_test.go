@@ -179,7 +179,7 @@ var _ = Describe("Complex Cleanup", func() {
 							fmt.Fprintf(&diag, "Leaked dataset after cleanup: %s (role: %s)", dsName, role)
 
 							// Query properties for diagnostics
-							for _, prop := range []string{"tns-csi:csi_volume_name", "tns-csi:protocol", "tns-csi:origin_snapshot", "tns-csi:clone_mode", "tns-csi:content_source_type"} {
+							for _, prop := range []string{"nasty-csi:csi_volume_name", "nasty-csi:protocol", "nasty-csi:origin_snapshot", "nasty-csi:clone_mode", "nasty-csi:content_source_type"} {
 								if val, propErr := f.NASty.GetDatasetProperty(ctx, dsName, prop); propErr == nil && val != "" {
 									fmt.Fprintf(&diag, "\n  %s = %s", prop, val)
 								}

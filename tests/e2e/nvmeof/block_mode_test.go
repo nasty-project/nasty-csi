@@ -21,7 +21,7 @@ var _ = Describe("NVMe-oF Block Mode", func() {
 		pvcName          = "test-pvc-block-nvmeof"
 		podName          = "test-pod-block-nvmeof"
 		devicePath       = "/dev/nvme-block"
-		storageClassName = "tns-csi-nvmeof"
+		storageClassName = "nasty-csi-nvmeof"
 		storageSize      = "1Gi"
 		// NVMe-oF block mode may need extra time for device setup
 		podTimeout = 360 * time.Second

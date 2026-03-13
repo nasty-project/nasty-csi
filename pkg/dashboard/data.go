@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 )
 
 // Static errors for data operations.
@@ -22,8 +22,8 @@ var (
 // FindManagedVolumes finds all subvolumes managed by nasty-csi.
 // If clusterID is non-empty, only returns volumes that either match the clusterID
 // or have no cluster_id property (legacy volumes).
-func FindManagedVolumes(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]VolumeInfo, error) {
-	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
+func FindManagedVolumes(ctx context.Context, client nastyapi.ClientInterface, clusterID string) ([]VolumeInfo, error) {
+	subvols, err := client.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
@@ -32,14 +32,14 @@ func FindManagedVolumes(ctx context.Context, client tnsapi.ClientInterface, clus
 }
 
 // FindManagedSnapshots finds all snapshots managed by nasty-csi.
-func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
+func FindManagedSnapshots(ctx context.Context, client nastyapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
 	snaps, err := client.ListSnapshots(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list snapshots: %w", err)
 	}
 
 	// Find managed subvolumes to cross-reference snapshot ownership
-	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
+	subvols, err := client.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to find managed subvolumes: %w", err)
 	}
@@ -52,8 +52,8 @@ func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, cl
 		protocol string
 	})
 	for _, sv := range subvols {
-		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
-		protocol := sv.Properties[tnsapi.PropertyProtocol]
+		volumeID := sv.Properties[nastyapi.PropertyCSIVolumeName]
+		protocol := sv.Properties[nastyapi.PropertyProtocol]
 		if volumeID != "" {
 			key := sv.Pool + "/" + sv.Name
 			managedSubvols[key] = struct {
@@ -83,8 +83,8 @@ func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, cl
 }
 
 // FindClonedVolumes finds all volumes that were cloned from snapshots or other volumes.
-func FindClonedVolumes(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]CloneInfo, error) {
-	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
+func FindClonedVolumes(ctx context.Context, client nastyapi.ClientInterface, clusterID string) ([]CloneInfo, error) {
+	subvols, err := client.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func FindClonedVolumes(ctx context.Context, client tnsapi.ClientInterface, clust
 }
 
 // FindUnmanagedVolumes finds volumes not managed by nasty-csi.
-func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, searchPath string, showAll bool, clusterID string) ([]UnmanagedVolume, error) {
+func FindUnmanagedVolumes(ctx context.Context, client nastyapi.ClientInterface, searchPath string, showAll bool, clusterID string) ([]UnmanagedVolume, error) {
 	allSubvols, err := client.ListAllSubvolumes(ctx, searchPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subvolumes: %w", err)
@@ -115,7 +115,7 @@ func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, se
 	if err != nil {
 		nfsShares = nil
 	}
-	nfsShareByPath := make(map[string]*tnsapi.NFSShare)
+	nfsShareByPath := make(map[string]*nastyapi.NFSShare)
 	for i := range nfsShares {
 		nfsShareByPath[nfsShares[i].Path] = &nfsShares[i]
 	}
@@ -157,14 +157,14 @@ func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, se
 // GetVolumeDetails retrieves detailed information about a volume.
 //
 //nolint:gocyclo // complexity from protocol and property extraction is acceptable
-func GetVolumeDetails(ctx context.Context, client tnsapi.ClientInterface, volumeRef string) (*VolumeDetails, error) {
-	var subvol *tnsapi.Subvolume
+func GetVolumeDetails(ctx context.Context, client nastyapi.ClientInterface, volumeRef string) (*VolumeDetails, error) {
+	var subvol *nastyapi.Subvolume
 
 	sv, err := client.FindSubvolumeByCSIVolumeName(ctx, "", volumeRef)
 	if err == nil && sv != nil {
 		subvol = sv
 	} else {
-		subvols, findErr := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
+		subvols, findErr := client.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, "")
 		if findErr != nil {
 			return nil, fmt.Errorf("failed to query subvolumes: %w", findErr)
 		}
@@ -197,26 +197,26 @@ func GetVolumeDetails(ctx context.Context, client tnsapi.ClientInterface, volume
 		details.Properties[key] = value
 
 		switch key {
-		case tnsapi.PropertyCSIVolumeName:
+		case nastyapi.PropertyCSIVolumeName:
 			details.VolumeID = value
-		case tnsapi.PropertyProtocol:
+		case nastyapi.PropertyProtocol:
 			details.Protocol = value
-		case tnsapi.PropertyCapacityBytes:
-			details.CapacityBytes = tnsapi.StringToInt64(value)
+		case nastyapi.PropertyCapacityBytes:
+			details.CapacityBytes = nastyapi.StringToInt64(value)
 			details.CapacityHuman = FormatBytes(details.CapacityBytes)
-		case tnsapi.PropertyCreatedAt:
+		case nastyapi.PropertyCreatedAt:
 			details.CreatedAt = value
-		case tnsapi.PropertyDeleteStrategy:
+		case nastyapi.PropertyDeleteStrategy:
 			details.DeleteStrategy = value
-		case tnsapi.PropertyAdoptable:
+		case nastyapi.PropertyAdoptable:
 			details.Adoptable = value == valueTrue
-		case tnsapi.PropertyContentSourceType:
+		case nastyapi.PropertyContentSourceType:
 			details.ContentSourceType = value
-		case tnsapi.PropertyContentSourceID:
+		case nastyapi.PropertyContentSourceID:
 			details.ContentSourceID = value
-		case tnsapi.PropertyCloneMode:
+		case nastyapi.PropertyCloneMode:
 			details.CloneMode = value
-		case tnsapi.PropertyOriginSnapshot:
+		case nastyapi.PropertyOriginSnapshot:
 			details.OriginSnapshot = value
 		}
 	}
@@ -243,8 +243,8 @@ func GetVolumeDetails(ctx context.Context, client tnsapi.ClientInterface, volume
 	return details, nil
 }
 
-func getNFSShareDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*NFSShareDetails, error) {
-	sharePath := sv.Properties[tnsapi.PropertyNFSSharePath]
+func getNFSShareDetails(ctx context.Context, client nastyapi.ClientInterface, sv *nastyapi.Subvolume) (*NFSShareDetails, error) {
+	sharePath := sv.Properties[nastyapi.PropertyNFSSharePath]
 	if sharePath == "" {
 		sharePath = sv.Path
 	}
@@ -273,8 +273,8 @@ func getNFSShareDetails(ctx context.Context, client tnsapi.ClientInterface, sv *
 	return nil, fmt.Errorf("%w for path %s", errNoNFSShare, sharePath)
 }
 
-func getNVMeOFSubsystemDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*NVMeOFSubsystemDetails, error) {
-	nqn := sv.Properties[tnsapi.PropertyNVMeSubsystemNQN]
+func getNVMeOFSubsystemDetails(ctx context.Context, client nastyapi.ClientInterface, sv *nastyapi.Subvolume) (*NVMeOFSubsystemDetails, error) {
+	nqn := sv.Properties[nastyapi.PropertyNVMeSubsystemNQN]
 	if nqn == "" {
 		return nil, errNoSubsystemNQN
 	}
@@ -294,9 +294,9 @@ func getNVMeOFSubsystemDetails(ctx context.Context, client tnsapi.ClientInterfac
 	}, nil
 }
 
-func getSMBShareDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*SMBShareDetails, error) {
+func getSMBShareDetails(ctx context.Context, client nastyapi.ClientInterface, sv *nastyapi.Subvolume) (*SMBShareDetails, error) {
 	// Try by stored share ID first
-	if shareID := sv.Properties[tnsapi.PropertySMBShareID]; shareID != "" {
+	if shareID := sv.Properties[nastyapi.PropertySMBShareID]; shareID != "" {
 		share, shareErr := client.GetSMBShare(ctx, shareID)
 		if shareErr == nil {
 			return &SMBShareDetails{
@@ -331,8 +331,8 @@ func getSMBShareDetails(ctx context.Context, client tnsapi.ClientInterface, sv *
 	return nil, fmt.Errorf("%w for path %s", errNoSMBShare, sharePath)
 }
 
-func getISCSITargetDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*ISCSITargetDetails, error) {
-	iqn := sv.Properties[tnsapi.PropertyISCSIIQN]
+func getISCSITargetDetails(ctx context.Context, client nastyapi.ClientInterface, sv *nastyapi.Subvolume) (*ISCSITargetDetails, error) {
+	iqn := sv.Properties[nastyapi.PropertyISCSIIQN]
 	if iqn == "" {
 		return nil, errNoISCSIIQN
 	}
@@ -352,14 +352,14 @@ func getISCSITargetDetails(ctx context.Context, client tnsapi.ClientInterface, s
 }
 
 // extractVolumes extracts VolumeInfo from pre-fetched managed subvolumes (no API calls).
-func extractVolumes(subvols []tnsapi.Subvolume) []VolumeInfo {
+func extractVolumes(subvols []nastyapi.Subvolume) []VolumeInfo {
 	var volumes []VolumeInfo
 	for _, sv := range subvols {
-		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
+		if sv.Properties[nastyapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
 
-		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
+		volumeID := sv.Properties[nastyapi.PropertyCSIVolumeName]
 		if volumeID == "" {
 			continue
 		}
@@ -370,16 +370,16 @@ func extractVolumes(subvols []tnsapi.Subvolume) []VolumeInfo {
 			Type:     sv.SubvolumeType,
 		}
 
-		vol.Protocol = sv.Properties[tnsapi.PropertyProtocol]
-		if v := sv.Properties[tnsapi.PropertyCapacityBytes]; v != "" {
-			vol.CapacityBytes = tnsapi.StringToInt64(v)
+		vol.Protocol = sv.Properties[nastyapi.PropertyProtocol]
+		if v := sv.Properties[nastyapi.PropertyCapacityBytes]; v != "" {
+			vol.CapacityBytes = nastyapi.StringToInt64(v)
 			vol.CapacityHuman = FormatBytes(vol.CapacityBytes)
 		}
-		vol.DeleteStrategy = sv.Properties[tnsapi.PropertyDeleteStrategy]
-		vol.Adoptable = sv.Properties[tnsapi.PropertyAdoptable] == valueTrue
-		vol.ClusterID = sv.Properties[tnsapi.PropertyClusterID]
-		vol.ContentSourceType = sv.Properties[tnsapi.PropertyContentSourceType]
-		vol.ContentSourceID = sv.Properties[tnsapi.PropertyContentSourceID]
+		vol.DeleteStrategy = sv.Properties[nastyapi.PropertyDeleteStrategy]
+		vol.Adoptable = sv.Properties[nastyapi.PropertyAdoptable] == valueTrue
+		vol.ClusterID = sv.Properties[nastyapi.PropertyClusterID]
+		vol.ContentSourceType = sv.Properties[nastyapi.PropertyContentSourceType]
+		vol.ContentSourceID = sv.Properties[nastyapi.PropertyContentSourceID]
 
 		volumes = append(volumes, vol)
 	}
@@ -387,14 +387,14 @@ func extractVolumes(subvols []tnsapi.Subvolume) []VolumeInfo {
 }
 
 // extractClones extracts CloneInfo from pre-fetched managed subvolumes (no API calls).
-func extractClones(subvols []tnsapi.Subvolume) []CloneInfo {
+func extractClones(subvols []nastyapi.Subvolume) []CloneInfo {
 	var clones []CloneInfo
 	for _, sv := range subvols {
-		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
+		if sv.Properties[nastyapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
 
-		sourceType := sv.Properties[tnsapi.PropertyContentSourceType]
+		sourceType := sv.Properties[nastyapi.PropertyContentSourceType]
 		if sourceType == "" {
 			continue
 		}
@@ -404,22 +404,22 @@ func extractClones(subvols []tnsapi.Subvolume) []CloneInfo {
 			SourceType: sourceType,
 		}
 
-		clone.VolumeID = sv.Properties[tnsapi.PropertyCSIVolumeName]
-		clone.Protocol = sv.Properties[tnsapi.PropertyProtocol]
-		clone.SourceID = sv.Properties[tnsapi.PropertyContentSourceID]
-		clone.OriginSnapshot = sv.Properties[tnsapi.PropertyOriginSnapshot]
+		clone.VolumeID = sv.Properties[nastyapi.PropertyCSIVolumeName]
+		clone.Protocol = sv.Properties[nastyapi.PropertyProtocol]
+		clone.SourceID = sv.Properties[nastyapi.PropertyContentSourceID]
+		clone.OriginSnapshot = sv.Properties[nastyapi.PropertyOriginSnapshot]
 
-		clone.CloneMode = sv.Properties[tnsapi.PropertyCloneMode]
+		clone.CloneMode = sv.Properties[nastyapi.PropertyCloneMode]
 		if clone.CloneMode == "" {
-			clone.CloneMode = tnsapi.CloneModeCOW
+			clone.CloneMode = nastyapi.CloneModeCOW
 		}
 
 		switch clone.CloneMode {
-		case tnsapi.CloneModeCOW:
+		case nastyapi.CloneModeCOW:
 			clone.DependencyNote = "Source snapshot CANNOT be deleted"
-		case tnsapi.CloneModePromoted:
+		case nastyapi.CloneModePromoted:
 			clone.DependencyNote = "Source snapshot CAN be deleted"
-		case tnsapi.CloneModeDetached:
+		case nastyapi.CloneModeDetached:
 			clone.DependencyNote = "Fully independent (no dependencies)"
 		default:
 			clone.DependencyNote = "Unknown mode"
@@ -447,13 +447,13 @@ func filterByClusterID(volumes []VolumeInfo, clusterID string) []VolumeInfo {
 
 // filterSubvolumesByClusterID filters subvolumes to only include those matching the cluster ID.
 // Subvolumes with no cluster_id property (legacy) are always included.
-func filterSubvolumesByClusterID(subvols []tnsapi.Subvolume, clusterID string) []tnsapi.Subvolume {
+func filterSubvolumesByClusterID(subvols []nastyapi.Subvolume, clusterID string) []nastyapi.Subvolume {
 	if clusterID == "" {
 		return subvols
 	}
-	filtered := make([]tnsapi.Subvolume, 0, len(subvols))
+	filtered := make([]nastyapi.Subvolume, 0, len(subvols))
 	for i := range subvols {
-		prop := subvols[i].Properties[tnsapi.PropertyClusterID]
+		prop := subvols[i].Properties[nastyapi.PropertyClusterID]
 		if prop == "" || prop == clusterID {
 			filtered = append(filtered, subvols[i])
 		}
@@ -463,7 +463,7 @@ func filterSubvolumesByClusterID(subvols []tnsapi.Subvolume, clusterID string) [
 
 // extractDetachedSnapshots is kept for interface compatibility but returns empty for NASty.
 // Detached snapshots (ZFS send/receive) are a NASty concept not used with bcachefs.
-func extractDetachedSnapshots(_ []tnsapi.Subvolume) []SnapshotInfo {
+func extractDetachedSnapshots(_ []nastyapi.Subvolume) []SnapshotInfo {
 	return nil
 }
 

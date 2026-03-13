@@ -63,8 +63,8 @@ var _ = Describe("SMB Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-smb-encrypted-basic"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", smbParams(f))
+			scName := "nasty-csi-smb-encrypted-basic"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", smbParams(f))
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
@@ -125,8 +125,8 @@ var _ = Describe("SMB Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass with AES-128-CCM")
-			scName := "tns-csi-smb-encrypted-aes128"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", smbParamsWithAlgo(f, "AES-128-CCM"))
+			scName := "nasty-csi-smb-encrypted-aes128"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", smbParamsWithAlgo(f, "AES-128-CCM"))
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
@@ -173,8 +173,8 @@ var _ = Describe("SMB Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-smb-encrypted-expand"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", smbParams(f))
+			scName := "nasty-csi-smb-encrypted-expand"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", smbParams(f))
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
@@ -243,16 +243,16 @@ var _ = Describe("SMB Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-smb-encrypted-snapshot"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", smbParams(f))
+			scName := "nasty-csi-smb-encrypted-snapshot"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", smbParams(f))
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := "tns-csi-smb-encrypted-snapshot-class"
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := "nasty-csi-smb-encrypted-snapshot-class"
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -334,8 +334,8 @@ var _ = Describe("SMB Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-smb-encrypted-clone"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", smbParams(f))
+			scName := "nasty-csi-smb-encrypted-clone"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", smbParams(f))
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)
@@ -416,8 +416,8 @@ var _ = Describe("SMB Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-smb-encrypted-persist"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", smbParams(f))
+			scName := "nasty-csi-smb-encrypted-persist"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", smbParams(f))
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteStorageClass(ctx, scName)

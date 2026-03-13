@@ -39,7 +39,7 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 	It("should create detached snapshot via zfs send/receive and restore from it", func() {
 		ctx := context.Background()
 
-		storageClass := "tns-csi-iscsi"
+		storageClass := "nasty-csi-iscsi"
 		accessMode := corev1.ReadWriteOnce
 		podTimeout := 6 * time.Minute
 
@@ -79,7 +79,7 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 
 		By("Creating VolumeSnapshotClass with detachedSnapshots=true (zfs send/receive)")
 		snapshotClassName := "detached-snapclass-iscsi"
-		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "tns.csi.io", "Delete", map[string]string{
+		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{
 			"detachedSnapshots": "true",
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")
@@ -142,7 +142,7 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 	It("should preserve detached snapshot after source volume deletion", func() {
 		ctx := context.Background()
 
-		storageClass := "tns-csi-iscsi"
+		storageClass := "nasty-csi-iscsi"
 		accessMode := corev1.ReadWriteOnce
 		podTimeout := 6 * time.Minute
 
@@ -182,7 +182,7 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 
 		By("Creating VolumeSnapshotClass with detachedSnapshots=true")
 		snapshotClassName := "detached-dr-snapclass-iscsi"
-		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "tns.csi.io", "Delete", map[string]string{
+		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{
 			"detachedSnapshots": "true",
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")

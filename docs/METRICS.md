@@ -207,7 +207,7 @@ histogram_quantile(0.95,
 
 ## Grafana Dashboard
 
-The Helm chart includes a pre-built Grafana dashboard (`tns-csi-overview.json`) that provides a comprehensive view of driver operations.
+The Helm chart includes a pre-built Grafana dashboard (`nasty-csi-overview.json`) that provides a comprehensive view of driver operations.
 
 ### Enabling the Grafana Dashboard
 
@@ -238,7 +238,7 @@ The dashboard includes:
 
 If you don't use Grafana sidecar discovery, import the dashboard JSON manually:
 
-1. Copy `charts/nasty-csi-driver/dashboards/tns-csi-overview.json`
+1. Copy `charts/nasty-csi-driver/dashboards/nasty-csi-overview.json`
 2. In Grafana: **Dashboards** > **Import** > paste the JSON
 3. Select your Prometheus data source
 
@@ -302,13 +302,13 @@ The kubectl plugin includes a local dashboard that connects directly to NASty:
 
 ```bash
 # Start dashboard (auto-opens browser at http://localhost:2137)
-kubectl tns-csi dashboard
+kubectl nasty-csi dashboard
 
 # Custom port, without auto-open
-kubectl tns-csi dashboard --port 9090 --open=false
+kubectl nasty-csi dashboard --port 9090 --open=false
 
 # With pool for unmanaged volume discovery
-kubectl tns-csi dashboard --pool storage
+kubectl nasty-csi dashboard --pool storage
 ```
 
 The plugin auto-discovers NASty credentials from the installed driver's Secret. Both dashboards (in-cluster and kubectl plugin) share the same UI — the difference is where they run: in-cluster runs inside the controller pod, while the plugin runs locally on your machine.
@@ -355,5 +355,5 @@ The plugin auto-discovers NASty credentials from the installed driver's Secret. 
 Metrics are collected in:
 - `pkg/metrics/metrics.go` - Metric definitions and registration
 - `pkg/driver/driver.go` - CSI operation metrics via gRPC interceptor
-- `pkg/tnsapi/client.go` - WebSocket connection metrics
+- `pkg/nasty-api/client.go` - WebSocket connection metrics
 - `pkg/driver/controller_nfs.go`, `controller_nvmeof.go`, `controller_iscsi.go`, and `controller_smb.go` - Protocol-specific volume operation metrics

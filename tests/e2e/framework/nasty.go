@@ -11,7 +11,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 
 	"github.com/nasty-project/nasty-csi/pkg/retry"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"k8s.io/klog/v2"
 )
 
@@ -29,13 +29,13 @@ var ErrDatasetNotFound = errors.New("dataset not found")
 
 // NAStyVerifier provides methods for verifying NASty backend state.
 type NAStyVerifier struct {
-	client *tnsapi.Client
+	client *nastyapi.Client
 }
 
 // NewNAStyVerifier creates a new NAStyVerifier.
 func NewNAStyVerifier(host, apiKey string) (*NAStyVerifier, error) {
 	url := fmt.Sprintf("wss://%s/api/current", host)
-	client, err := tnsapi.NewClient(url, apiKey, true) // skip TLS verify for tests
+	client, err := nastyapi.NewClient(url, apiKey, true) // skip TLS verify for tests
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NASty: %w", err)
 	}
@@ -50,7 +50,7 @@ func (v *NAStyVerifier) Close() {
 }
 
 // Client returns the underlying NASty API client for advanced queries.
-func (v *NAStyVerifier) Client() *tnsapi.Client {
+func (v *NAStyVerifier) Client() *nastyapi.Client {
 	return v.client
 }
 
@@ -428,8 +428,8 @@ func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string
 		for _, sv := range subvols {
 			info := datasetInfo{}
 			if sv.Properties != nil {
-				info.Protocol = sv.Properties[tnsapi.PropertyProtocol]
-				info.CreatedAt = sv.Properties[tnsapi.PropertyCreatedAt]
+				info.Protocol = sv.Properties[nastyapi.PropertyProtocol]
+				info.CreatedAt = sv.Properties[nastyapi.PropertyCreatedAt]
 			}
 			snap.Datasets[sv.Pool+"/"+sv.Name] = info
 		}

@@ -19,7 +19,7 @@ func TestGetPluginInfo(t *testing.T) {
 	}{
 		{
 			name:       "Valid driver info",
-			driverName: "tns.csi.io",
+			driverName: "nasty.csi.io",
 			version:    "v0.1.0",
 			wantErr:    false,
 		},
@@ -32,7 +32,7 @@ func TestGetPluginInfo(t *testing.T) {
 		},
 		{
 			name:       "Missing version",
-			driverName: "tns.csi.io",
+			driverName: "nasty.csi.io",
 			version:    "",
 			wantErr:    true,
 			wantCode:   codes.Unavailable,
@@ -80,7 +80,7 @@ func TestGetPluginInfo(t *testing.T) {
 }
 
 func TestGetPluginCapabilities(t *testing.T) {
-	service := NewIdentityService("tns.csi.io", "v0.1.0")
+	service := NewIdentityService("nasty.csi.io", "v0.1.0")
 
 	resp, err := service.GetPluginCapabilities(context.Background(), &csi.GetPluginCapabilitiesRequest{})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestGetPluginCapabilities(t *testing.T) {
 }
 
 func TestProbe(t *testing.T) {
-	service := NewIdentityService("tns.csi.io", "v0.1.0")
+	service := NewIdentityService("nasty.csi.io", "v0.1.0")
 
 	resp, err := service.Probe(context.Background(), &csi.ProbeRequest{})
 	if err != nil {

@@ -88,7 +88,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 	switch protocol {
 	case "nfs":
 		args = append(args,
-			"--set", "storageClasses[0].name=tns-csi-nfs",
+			"--set", "storageClasses[0].name=nasty-csi-nfs",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=nfs",
 			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
@@ -96,7 +96,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		)
 	case "nvmeof":
 		args = append(args,
-			"--set", "storageClasses[0].name=tns-csi-nvmeof",
+			"--set", "storageClasses[0].name=nasty-csi-nvmeof",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=nvmeof",
 			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
@@ -106,7 +106,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		)
 	case "iscsi":
 		args = append(args,
-			"--set", "storageClasses[0].name=tns-csi-iscsi",
+			"--set", "storageClasses[0].name=nasty-csi-iscsi",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=iscsi",
 			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
@@ -115,7 +115,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		)
 	case protocolSMB:
 		args = append(args,
-			"--set", "storageClasses[0].name=tns-csi-smb",
+			"--set", "storageClasses[0].name=nasty-csi-smb",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=smb",
 			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
@@ -129,19 +129,19 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		}
 	case protocolBoth, protocolAll:
 		args = append(args,
-			"--set", "storageClasses[0].name=tns-csi-nfs",
+			"--set", "storageClasses[0].name=nasty-csi-nfs",
 			"--set", "storageClasses[0].enabled=true",
 			"--set", "storageClasses[0].protocol=nfs",
 			"--set", "storageClasses[0].pool="+h.config.NAStyPool,
 			"--set", "storageClasses[0].server="+h.config.NAStyHost,
-			"--set", "storageClasses[1].name=tns-csi-nvmeof",
+			"--set", "storageClasses[1].name=nasty-csi-nvmeof",
 			"--set", "storageClasses[1].enabled=true",
 			"--set", "storageClasses[1].protocol=nvmeof",
 			"--set", "storageClasses[1].pool="+h.config.NAStyPool,
 			"--set", "storageClasses[1].server="+h.config.NAStyHost,
 			"--set", "storageClasses[1].transport=tcp",
 			"--set", "storageClasses[1].port=4420",
-			"--set", "storageClasses[2].name=tns-csi-iscsi",
+			"--set", "storageClasses[2].name=nasty-csi-iscsi",
 			"--set", "storageClasses[2].enabled=true",
 			"--set", "storageClasses[2].protocol=iscsi",
 			"--set", "storageClasses[2].pool="+h.config.NAStyPool,
@@ -150,7 +150,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		)
 		if h.config.SMBUsername != "" {
 			args = append(args,
-				"--set", "storageClasses[3].name=tns-csi-smb",
+				"--set", "storageClasses[3].name=nasty-csi-smb",
 				"--set", "storageClasses[3].enabled=true",
 				"--set", "storageClasses[3].protocol=smb",
 				"--set", "storageClasses[3].pool="+h.config.NAStyPool,

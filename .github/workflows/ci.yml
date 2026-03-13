@@ -138,7 +138,7 @@ jobs:
             GIT_COMMIT=${{ steps.version.outputs.commit }}
             BUILD_DATE=${{ steps.version.outputs.date }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/tns-csi:${{ steps.branch.outputs.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi:${{ steps.branch.outputs.tag }}
             ghcr.io/${{ github.repository }}:${{ steps.branch.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -155,7 +155,7 @@ jobs:
             GIT_COMMIT=${{ steps.version.outputs.commit }}
             BUILD_DATE=${{ steps.version.outputs.date }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/tns-csi:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi:latest
             ghcr.io/${{ github.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/klog/v2"
 
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
@@ -105,7 +105,7 @@ func createNoiseData() {
 		noiseParent, actualDatasetCount, actualZvolCount)
 
 	// Parent subvolume
-	_, err = client.CreateSubvolume(ctx, tnsapi.SubvolumeCreateParams{
+	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 		Pool:          noisePool,
 		Name:          parseSubvolName(noiseParent),
 		SubvolumeType: "filesystem",
@@ -114,7 +114,7 @@ func createNoiseData() {
 
 	// Filesystem subvolumes with snapshots
 	fsParentName := parseSubvolName(noiseParent) + "/datasets"
-	_, err = client.CreateSubvolume(ctx, tnsapi.SubvolumeCreateParams{
+	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 		Pool:          noisePool,
 		Name:          fsParentName,
 		SubvolumeType: "filesystem",
@@ -125,7 +125,7 @@ func createNoiseData() {
 		actualDatasetCount, snapshotsPerDataset)
 	for i := 1; i <= actualDatasetCount; i++ {
 		dsSubvolName := fmt.Sprintf("%s/ds-%03d", fsParentName, i)
-		_, dsErr := client.CreateSubvolume(ctx, tnsapi.SubvolumeCreateParams{
+		_, dsErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 			Pool:          noisePool,
 			Name:          dsSubvolName,
 			SubvolumeType: "filesystem",
@@ -133,7 +133,7 @@ func createNoiseData() {
 		Expect(dsErr).NotTo(HaveOccurred(), "Failed to create noise subvolume %s", dsSubvolName)
 
 		for j := 1; j <= snapshotsPerDataset; j++ {
-			_, snapErr := client.CreateSnapshot(ctx, tnsapi.SnapshotCreateParams{
+			_, snapErr := client.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
 				Pool:      noisePool,
 				Subvolume: dsSubvolName,
 				Name:      fmt.Sprintf("snap-%03d", j),
@@ -147,7 +147,7 @@ func createNoiseData() {
 	enabled := true
 	for i := 1; i <= nfsShareCount; i++ {
 		sharePath := fmt.Sprintf("/mnt/%s/%s/ds-%03d", noisePool, fsParentName, i)
-		_, shareErr := client.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
+		_, shareErr := client.CreateNFSShare(ctx, nastyapi.NFSShareCreateParams{
 			Path:    sharePath,
 			Enabled: &enabled,
 			Comment: fmt.Sprintf("e2e-noise-share-%d", i),
@@ -157,7 +157,7 @@ func createNoiseData() {
 
 	// Block subvolumes (zvols) with snapshots
 	zvolParentName := parseSubvolName(noiseParent) + "/zvols"
-	_, err = client.CreateSubvolume(ctx, tnsapi.SubvolumeCreateParams{
+	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 		Pool:          noisePool,
 		Name:          zvolParentName,
 		SubvolumeType: "filesystem",
@@ -168,7 +168,7 @@ func createNoiseData() {
 	volsize := uint64(1073741824) // 1 GiB
 	for i := 1; i <= actualZvolCount; i++ {
 		zvolSubvolName := fmt.Sprintf("%s/zvol-%03d", zvolParentName, i)
-		_, zvolErr := client.CreateSubvolume(ctx, tnsapi.SubvolumeCreateParams{
+		_, zvolErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 			Pool:          noisePool,
 			Name:          zvolSubvolName,
 			SubvolumeType: "block",
@@ -177,7 +177,7 @@ func createNoiseData() {
 		Expect(zvolErr).NotTo(HaveOccurred(), "Failed to create noise block subvolume %s", zvolSubvolName)
 
 		for j := 1; j <= snapshotsPerDataset; j++ {
-			_, snapErr := client.CreateSnapshot(ctx, tnsapi.SnapshotCreateParams{
+			_, snapErr := client.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
 				Pool:      noisePool,
 				Subvolume: zvolSubvolName,
 				Name:      fmt.Sprintf("snap-%03d", j),

@@ -4,25 +4,25 @@ import (
 	"context"
 	"strings"
 
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"k8s.io/klog/v2"
 )
 
 // healthResourceMaps holds bulk-queried resource maps for health checking.
 type healthResourceMaps struct {
-	nfsShareMap    map[string]*tnsapi.NFSShare
-	nvmeSubsysMap  map[string]*tnsapi.NVMeOFSubsystem
-	smbShareMap    map[string]*tnsapi.SMBShare
-	iscsiTargetMap map[string]*tnsapi.ISCSITarget
+	nfsShareMap    map[string]*nastyapi.NFSShare
+	nvmeSubsysMap  map[string]*nastyapi.NVMeOFSubsystem
+	smbShareMap    map[string]*nastyapi.SMBShare
+	iscsiTargetMap map[string]*nastyapi.ISCSITarget
 }
 
 // buildHealthResourceMaps queries all protocol resources in bulk for health checking.
-func buildHealthResourceMaps(ctx context.Context, client tnsapi.ClientInterface) *healthResourceMaps {
+func buildHealthResourceMaps(ctx context.Context, client nastyapi.ClientInterface) *healthResourceMaps {
 	m := &healthResourceMaps{
-		nfsShareMap:    make(map[string]*tnsapi.NFSShare),
-		nvmeSubsysMap:  make(map[string]*tnsapi.NVMeOFSubsystem),
-		smbShareMap:    make(map[string]*tnsapi.SMBShare),
-		iscsiTargetMap: make(map[string]*tnsapi.ISCSITarget),
+		nfsShareMap:    make(map[string]*nastyapi.NFSShare),
+		nvmeSubsysMap:  make(map[string]*nastyapi.NVMeOFSubsystem),
+		smbShareMap:    make(map[string]*nastyapi.SMBShare),
+		iscsiTargetMap: make(map[string]*nastyapi.ISCSITarget),
 	}
 
 	nfsShares, err := client.ListNFSShares(ctx)
@@ -57,8 +57,8 @@ func buildHealthResourceMaps(ctx context.Context, client tnsapi.ClientInterface)
 }
 
 // CheckVolumeHealth checks the health of all managed volumes.
-func CheckVolumeHealth(ctx context.Context, client tnsapi.ClientInterface) (*HealthReport, error) {
-	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
+func CheckVolumeHealth(ctx context.Context, client nastyapi.ClientInterface) (*HealthReport, error) {
+	subvols, err := client.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +73,11 @@ func CheckVolumeHealth(ctx context.Context, client tnsapi.ClientInterface) (*Hea
 	for i := range subvols {
 		sv := &subvols[i]
 
-		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
+		if sv.Properties[nastyapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
 
-		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
+		volumeID := sv.Properties[nastyapi.PropertyCSIVolumeName]
 		if volumeID == "" {
 			continue
 		}
@@ -90,7 +90,7 @@ func CheckVolumeHealth(ctx context.Context, client tnsapi.ClientInterface) (*Hea
 			Issues:    make([]string, 0),
 		}
 
-		health.Protocol = sv.Properties[tnsapi.PropertyProtocol]
+		health.Protocol = sv.Properties[nastyapi.PropertyProtocol]
 
 		switch health.Protocol {
 		case protocolNFS:
@@ -134,8 +134,8 @@ func CheckVolumeHealth(ctx context.Context, client tnsapi.ClientInterface) (*Hea
 }
 
 // CheckNFSHealth checks if the NFS share for a subvolume is healthy.
-func CheckNFSHealth(sv *tnsapi.Subvolume, nfsShareMap map[string]*tnsapi.NFSShare, health *VolumeHealth) {
-	sharePath := sv.Properties[tnsapi.PropertyNFSSharePath]
+func CheckNFSHealth(sv *nastyapi.Subvolume, nfsShareMap map[string]*nastyapi.NFSShare, health *VolumeHealth) {
+	sharePath := sv.Properties[nastyapi.PropertyNFSSharePath]
 	if sharePath == "" {
 		sharePath = sv.Path
 	}
@@ -164,8 +164,8 @@ func CheckNFSHealth(sv *tnsapi.Subvolume, nfsShareMap map[string]*tnsapi.NFSShar
 }
 
 // CheckNVMeOFHealth checks if the NVMe-oF subsystem for a subvolume is healthy.
-func CheckNVMeOFHealth(sv *tnsapi.Subvolume, nvmeSubsysMap map[string]*tnsapi.NVMeOFSubsystem, health *VolumeHealth) {
-	nqn := sv.Properties[tnsapi.PropertyNVMeSubsystemNQN]
+func CheckNVMeOFHealth(sv *nastyapi.Subvolume, nvmeSubsysMap map[string]*nastyapi.NVMeOFSubsystem, health *VolumeHealth) {
+	nqn := sv.Properties[nastyapi.PropertyNVMeSubsystemNQN]
 
 	if nqn == "" {
 		health.Issues = append(health.Issues, "NVMe-oF subsystem NQN not found in properties")
@@ -187,7 +187,7 @@ func CheckNVMeOFHealth(sv *tnsapi.Subvolume, nvmeSubsysMap map[string]*tnsapi.NV
 }
 
 // CheckSMBHealth checks if the SMB share for a subvolume is healthy.
-func CheckSMBHealth(sv *tnsapi.Subvolume, smbShareMap map[string]*tnsapi.SMBShare, health *VolumeHealth) {
+func CheckSMBHealth(sv *nastyapi.Subvolume, smbShareMap map[string]*nastyapi.SMBShare, health *VolumeHealth) {
 	sharePath := sv.Path
 
 	if sharePath == "" {
@@ -214,8 +214,8 @@ func CheckSMBHealth(sv *tnsapi.Subvolume, smbShareMap map[string]*tnsapi.SMBShar
 }
 
 // CheckISCSIHealth checks if the iSCSI target for a subvolume is healthy.
-func CheckISCSIHealth(sv *tnsapi.Subvolume, iscsiTargetMap map[string]*tnsapi.ISCSITarget, health *VolumeHealth) {
-	iqn := sv.Properties[tnsapi.PropertyISCSIIQN]
+func CheckISCSIHealth(sv *nastyapi.Subvolume, iscsiTargetMap map[string]*nastyapi.ISCSITarget, health *VolumeHealth) {
+	iqn := sv.Properties[nastyapi.PropertyISCSIIQN]
 
 	if iqn == "" {
 		health.Issues = append(health.Issues, "iSCSI IQN not found in properties")
@@ -238,16 +238,16 @@ func CheckISCSIHealth(sv *tnsapi.Subvolume, iscsiTargetMap map[string]*tnsapi.IS
 
 // BuildHealthMapsFromData builds health resource maps from pre-fetched data (no API calls).
 func BuildHealthMapsFromData(
-	nfsShares []tnsapi.NFSShare,
-	smbShares []tnsapi.SMBShare,
-	nvmeSubsystems []tnsapi.NVMeOFSubsystem,
-	iscsiTargets []tnsapi.ISCSITarget,
+	nfsShares []nastyapi.NFSShare,
+	smbShares []nastyapi.SMBShare,
+	nvmeSubsystems []nastyapi.NVMeOFSubsystem,
+	iscsiTargets []nastyapi.ISCSITarget,
 ) *healthResourceMaps {
 	m := &healthResourceMaps{
-		nfsShareMap:    make(map[string]*tnsapi.NFSShare, len(nfsShares)),
-		nvmeSubsysMap:  make(map[string]*tnsapi.NVMeOFSubsystem, len(nvmeSubsystems)),
-		smbShareMap:    make(map[string]*tnsapi.SMBShare, len(smbShares)),
-		iscsiTargetMap: make(map[string]*tnsapi.ISCSITarget, len(iscsiTargets)),
+		nfsShareMap:    make(map[string]*nastyapi.NFSShare, len(nfsShares)),
+		nvmeSubsysMap:  make(map[string]*nastyapi.NVMeOFSubsystem, len(nvmeSubsystems)),
+		smbShareMap:    make(map[string]*nastyapi.SMBShare, len(smbShares)),
+		iscsiTargetMap: make(map[string]*nastyapi.ISCSITarget, len(iscsiTargets)),
 	}
 
 	for i := range nfsShares {
@@ -267,14 +267,14 @@ func BuildHealthMapsFromData(
 }
 
 // AnnotateHealthFromMaps annotates volumes with health status using pre-fetched resource maps and subvolumes.
-func AnnotateHealthFromMaps(volumes []VolumeInfo, managedSubvols []tnsapi.Subvolume, resources *healthResourceMaps) {
-	subvolMap := make(map[string]*tnsapi.Subvolume, len(managedSubvols))
+func AnnotateHealthFromMaps(volumes []VolumeInfo, managedSubvols []nastyapi.Subvolume, resources *healthResourceMaps) {
+	subvolMap := make(map[string]*nastyapi.Subvolume, len(managedSubvols))
 	for i := range managedSubvols {
 		sv := &managedSubvols[i]
-		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
+		if sv.Properties[nastyapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
-		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
+		volumeID := sv.Properties[nastyapi.PropertyCSIVolumeName]
 		if volumeID != "" {
 			subvolMap[volumeID] = sv
 		}
@@ -294,7 +294,7 @@ func AnnotateHealthFromMaps(volumes []VolumeInfo, managedSubvols []tnsapi.Subvol
 			Issues:    make([]string, 0),
 		}
 
-		protocol := sv.Properties[tnsapi.PropertyProtocol]
+		protocol := sv.Properties[nastyapi.PropertyProtocol]
 
 		switch protocol {
 		case protocolNFS:
@@ -326,7 +326,7 @@ func AnnotateHealthFromMaps(volumes []VolumeInfo, managedSubvols []tnsapi.Subvol
 }
 
 // AnnotateVolumesWithHealth runs health checks and annotates VolumeInfo slices with health status.
-func AnnotateVolumesWithHealth(ctx context.Context, client tnsapi.ClientInterface, volumes []VolumeInfo) {
+func AnnotateVolumesWithHealth(ctx context.Context, client nastyapi.ClientInterface, volumes []VolumeInfo) {
 	healthReport, err := CheckVolumeHealth(ctx, client)
 	if err != nil {
 		klog.Warningf("Failed to check volume health: %v", err)

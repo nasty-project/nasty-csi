@@ -42,8 +42,8 @@ var _ = Describe("SMB Volume Adoption", func() {
 
 	It("should adopt an orphaned volume with markAdoptable=true when adoptExisting=true", func() {
 		By("Creating StorageClass with markAdoptable=true and deleteStrategy=retain")
-		adoptableStorageClass := "tns-csi-smb-adoptable"
-		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "tns.csi.io", map[string]string{
+		adoptableStorageClass := "nasty-csi-smb-adoptable"
+		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "smb",
 			"server":         f.Config.NAStyHost,
 			"pool":           f.Config.NAStyPool,
@@ -149,8 +149,8 @@ var _ = Describe("SMB Volume Adoption", func() {
 		}
 
 		By("Creating StorageClass with adoptExisting=true for adoption")
-		adoptingStorageClass := "tns-csi-smb-adopting"
-		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "tns.csi.io", map[string]string{
+		adoptingStorageClass := "nasty-csi-smb-adopting"
+		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":      "smb",
 			"server":        f.Config.NAStyHost,
 			"pool":          f.Config.NAStyPool,
@@ -226,8 +226,8 @@ var _ = Describe("SMB Volume Adoption", func() {
 
 	It("should not adopt a volume when adoptExisting=false (default)", func() {
 		By("Creating StorageClass with markAdoptable=true but without adoptExisting")
-		nonAdoptingStorageClass := "tns-csi-smb-nonadopt"
-		err := f.K8s.CreateStorageClassWithParams(ctx, nonAdoptingStorageClass, "tns.csi.io", map[string]string{
+		nonAdoptingStorageClass := "nasty-csi-smb-nonadopt"
+		err := f.K8s.CreateStorageClassWithParams(ctx, nonAdoptingStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":      "smb",
 			"server":        f.Config.NAStyHost,
 			"pool":          f.Config.NAStyPool,
@@ -278,8 +278,8 @@ var _ = Describe("SMB Volume Adoption", func() {
 
 	It("should mark a volume as adoptable when markAdoptable=true", func() {
 		By("Creating StorageClass with markAdoptable=true and deleteStrategy=retain")
-		markAdoptableStorageClass := "tns-csi-smb-mark-adoptable"
-		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "tns.csi.io", map[string]string{
+		markAdoptableStorageClass := "nasty-csi-smb-mark-adoptable"
+		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "smb",
 			"server":         f.Config.NAStyHost,
 			"pool":           f.Config.NAStyPool,
@@ -324,9 +324,9 @@ var _ = Describe("SMB Volume Adoption", func() {
 
 		By("Verifying adoptable property is set on NASty dataset")
 		Expect(f.NASty).NotTo(BeNil())
-		adoptableValue, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "tns-csi:adoptable")
+		adoptableValue, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "nasty-csi:adoptable")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(adoptableValue).To(Equal("true"), "Dataset should have tns-csi:adoptable=true")
+		Expect(adoptableValue).To(Equal("true"), "Dataset should have nasty-csi:adoptable=true")
 		if f.Verbose() {
 			GinkgoWriter.Printf("Dataset %s has adoptable property set to: %s\n", datasetPath, adoptableValue)
 		}

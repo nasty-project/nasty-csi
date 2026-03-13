@@ -19,7 +19,7 @@ async function testDashboard() {
           started_at: '2024-01-01T10:00:00Z',
           completed_at: '2024-01-01T10:30:00Z',
           run_id: 123,
-          html_url: 'https://github.com/fenio/tns-csi/actions/runs/123'
+          html_url: 'https://github.com/fenio/nasty-csi/actions/runs/123'
         },
         {
           name: 'E2E: NVMe-oF',
@@ -27,7 +27,7 @@ async function testDashboard() {
           started_at: '2024-01-01T11:00:00Z',
           completed_at: '2024-01-01T11:45:00Z',
           run_id: 124,
-          html_url: 'https://github.com/fenio/tns-csi/actions/runs/124'
+          html_url: 'https://github.com/fenio/nasty-csi/actions/runs/124'
         },
         {
           name: 'E2E: iSCSI',
@@ -35,7 +35,7 @@ async function testDashboard() {
           started_at: '2024-01-01T11:30:00Z',
           completed_at: '2024-01-01T12:15:00Z',
           run_id: 126,
-          html_url: 'https://github.com/fenio/tns-csi/actions/runs/126'
+          html_url: 'https://github.com/fenio/nasty-csi/actions/runs/126'
         },
         {
           name: 'E2E: SMB',
@@ -43,7 +43,7 @@ async function testDashboard() {
           started_at: '2024-01-01T12:00:00Z',
           completed_at: '2024-01-01T12:30:00Z',
           run_id: 127,
-          html_url: 'https://github.com/fenio/tns-csi/actions/runs/127'
+          html_url: 'https://github.com/fenio/nasty-csi/actions/runs/127'
         },
         {
           name: 'E2E: Shared',
@@ -51,7 +51,7 @@ async function testDashboard() {
           started_at: '2024-01-01T12:30:00Z',
           completed_at: '2024-01-01T13:00:00Z',
           run_id: 125,
-          html_url: 'https://github.com/fenio/tns-csi/actions/runs/125'
+          html_url: 'https://github.com/fenio/nasty-csi/actions/runs/125'
         }
       ];
 

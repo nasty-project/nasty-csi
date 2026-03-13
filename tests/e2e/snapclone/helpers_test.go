@@ -29,7 +29,7 @@ type protocolConfig struct {
 var protocols = []protocolConfig{
 	{
 		name:         "nfs",
-		storageClass: "tns-csi-nfs",
+		storageClass: "nasty-csi-nfs",
 		accessMode:   corev1.ReadWriteMany,
 		isBlock:      false,
 		pvcTimeout:   2 * time.Minute,
@@ -37,7 +37,7 @@ var protocols = []protocolConfig{
 	},
 	{
 		name:         "nvmeof",
-		storageClass: "tns-csi-nvmeof",
+		storageClass: "nasty-csi-nvmeof",
 		accessMode:   corev1.ReadWriteOnce,
 		isBlock:      true,
 		pvcTimeout:   3 * time.Minute,
@@ -45,7 +45,7 @@ var protocols = []protocolConfig{
 	},
 	{
 		name:         "iscsi",
-		storageClass: "tns-csi-iscsi",
+		storageClass: "nasty-csi-iscsi",
 		accessMode:   corev1.ReadWriteOnce,
 		isBlock:      true,
 		pvcTimeout:   3 * time.Minute,
@@ -53,7 +53,7 @@ var protocols = []protocolConfig{
 	},
 	{
 		name:         "smb",
-		storageClass: "tns-csi-smb",
+		storageClass: "nasty-csi-smb",
 		accessMode:   corev1.ReadWriteMany,
 		isBlock:      false,
 		pvcTimeout:   2 * time.Minute,
@@ -63,7 +63,7 @@ var protocols = []protocolConfig{
 
 // createSnapshotClass creates a VolumeSnapshotClass and registers cleanup.
 func createSnapshotClass(ctx context.Context, f *framework.Framework, name string) {
-	err := f.K8s.CreateVolumeSnapshotClass(ctx, name, "tns.csi.io", "Delete")
+	err := f.K8s.CreateVolumeSnapshotClass(ctx, name, "nasty.csi.io", "Delete")
 	Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass %s", name)
 	f.Cleanup.Add(func() error { //nolint:contextcheck // Cleanup uses fresh context
 		return f.K8s.DeleteVolumeSnapshotClass(context.Background(), name)

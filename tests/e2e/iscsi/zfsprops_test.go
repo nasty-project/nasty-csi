@@ -38,8 +38,8 @@ var _ = Describe("iSCSI ZFS Properties", func() {
 
 	It("should create ZVOL with custom ZFS properties", func() {
 		By("Creating StorageClass with ZFS properties for iSCSI")
-		zfsStorageClass := "tns-csi-iscsi-zfsprops"
-		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, zfsStorageClass, "tns.csi.io", map[string]string{
+		zfsStorageClass := "nasty-csi-iscsi-zfsprops"
+		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, zfsStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":         "iscsi",
 			"server":           f.Config.NAStyHost,
 			"pool":             f.Config.NAStyPool,

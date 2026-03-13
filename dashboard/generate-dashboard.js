@@ -10,7 +10,7 @@ const octokit = new Octokit({
 });
 
 const OWNER = 'fenio';
-const REPO = 'tns-csi';
+const REPO = 'nasty-csi';
 const WORKFLOW_ID = 'integration.yml';
 
 async function getWorkflowRuns(days = 30) {

@@ -20,7 +20,7 @@ var _ = Describe("NFS Concurrent Operations", func() {
 
 	const (
 		numVolumes       = 3
-		storageClassName = "tns-csi-nfs"
+		storageClassName = "nasty-csi-nfs"
 		storageSize      = "1Gi"
 		pvcTimeout       = 180 * time.Second
 		podTimeout       = 120 * time.Second

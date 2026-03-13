@@ -37,13 +37,13 @@ docker exec nasty-csi-test-worker apt-get install -y nfs-common
 
 ```bash
 # Install from OCI registry
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -128,10 +128,10 @@ docker exec nasty-csi-test-worker apt-get install -y nfs-common
 
 ```bash
 # Build
-docker build -t bfenski/tns-csi:v0.17.3 .
+docker build -t bfenski/nasty-csi:v0.17.3 .
 
 # Load into Kind
-kind load docker-image bfenski/tns-csi:v0.17.3 --name nasty-csi-test
+kind load docker-image bfenski/nasty-csi:v0.17.3 --name nasty-csi-test
 ```
 
 ### 4. Create Kubernetes Secret
@@ -161,11 +161,11 @@ kubectl apply -f deploy/storageclass.yaml
 
 ```bash
 # Check pods
-kubectl get pods -n kube-system -l 'app in (tns-csi-controller,tns-csi-node)'
+kubectl get pods -n kube-system -l 'app in (nasty-csi-controller,nasty-csi-node)'
 
 # Check logs
-kubectl logs -n kube-system -l app=tns-csi-controller -c nasty-csi-plugin
-kubectl logs -n kube-system -l app=tns-csi-node -c nasty-csi-plugin
+kubectl logs -n kube-system -l app=nasty-csi-controller -c nasty-csi-plugin
+kubectl logs -n kube-system -l app=nasty-csi-node -c nasty-csi-plugin
 ```
 
 </details>
@@ -208,7 +208,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kuber
 
 For manual/script deployments:
 ```bash
-kubectl logs -n kube-system -l app=tns-csi-node -c nasty-csi-plugin --tail=100
+kubectl logs -n kube-system -l app=nasty-csi-node -c nasty-csi-plugin --tail=100
 ```
 
 Common issues:
@@ -227,7 +227,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kuber
 
 For manual/script deployments:
 ```bash
-kubectl logs -n kube-system -l app=tns-csi-controller -c nasty-csi-plugin --tail=100
+kubectl logs -n kube-system -l app=nasty-csi-controller -c nasty-csi-plugin --tail=100
 ```
 
 Common issues:
@@ -255,8 +255,8 @@ kubectl rollout restart daemonset -n kube-system -l app.kubernetes.io/name=nasty
 
 For manual/script deployments:
 ```bash
-kubectl rollout restart statefulset -n kube-system tns-csi-controller
-kubectl rollout restart daemonset -n kube-system tns-csi-node
+kubectl rollout restart statefulset -n kube-system nasty-csi-controller
+kubectl rollout restart daemonset -n kube-system nasty-csi-node
 ```
 
 ## Testing Scenarios
@@ -319,7 +319,7 @@ kubectl delete pod test-pod
 
 For Helm installations:
 ```bash
-helm uninstall tns-csi -n kube-system
+helm uninstall nasty-csi -n kube-system
 ```
 
 For manual/script deployments:

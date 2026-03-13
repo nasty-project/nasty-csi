@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -62,50 +62,50 @@ func requireNotNilController(t *testing.T, v any, msg string) {
 	}
 }
 
-// mockAPIClient is the primary mock implementation of tnsapi.ClientInterface for testing.
+// mockAPIClient is the primary mock implementation of nastyapi.ClientInterface for testing.
 // All methods have optional Func fields; if nil, a sensible default is returned.
 type mockAPIClient struct {
-	QueryPoolFunc                  func(ctx context.Context, poolName string) (*tnsapi.Pool, error)
-	CreateSubvolumeFunc            func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error)
+	QueryPoolFunc                  func(ctx context.Context, poolName string) (*nastyapi.Pool, error)
+	CreateSubvolumeFunc            func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error)
 	DeleteSubvolumeFunc            func(ctx context.Context, pool, name string) error
-	GetSubvolumeFunc               func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error)
-	ListAllSubvolumesFunc          func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error)
-	SetSubvolumePropertiesFunc     func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error)
-	RemoveSubvolumePropertiesFunc  func(ctx context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error)
-	FindSubvolumesByPropertyFunc   func(ctx context.Context, key, value, pool string) ([]tnsapi.Subvolume, error)
-	FindManagedSubvolumesFunc      func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error)
-	FindSubvolumeByCSIVolumeNameFunc func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error)
-	CreateSnapshotFunc             func(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error)
+	GetSubvolumeFunc               func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error)
+	ListAllSubvolumesFunc          func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error)
+	SetSubvolumePropertiesFunc     func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error)
+	RemoveSubvolumePropertiesFunc  func(ctx context.Context, pool, name string, keys []string) (*nastyapi.Subvolume, error)
+	FindSubvolumesByPropertyFunc   func(ctx context.Context, key, value, pool string) ([]nastyapi.Subvolume, error)
+	FindManagedSubvolumesFunc      func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error)
+	FindSubvolumeByCSIVolumeNameFunc func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error)
+	CreateSnapshotFunc             func(ctx context.Context, params nastyapi.SnapshotCreateParams) (*nastyapi.Snapshot, error)
 	DeleteSnapshotFunc             func(ctx context.Context, pool, subvolume, name string) error
-	ListSnapshotsFunc              func(ctx context.Context, pool string) ([]tnsapi.Snapshot, error)
-	CreateNFSShareFunc             func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error)
+	ListSnapshotsFunc              func(ctx context.Context, pool string) ([]nastyapi.Snapshot, error)
+	CreateNFSShareFunc             func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error)
 	DeleteNFSShareFunc             func(ctx context.Context, id string) error
-	ListNFSSharesFunc              func(ctx context.Context) ([]tnsapi.NFSShare, error)
-	GetNFSShareFunc                func(ctx context.Context, id string) (*tnsapi.NFSShare, error)
-	CreateSMBShareFunc             func(ctx context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error)
+	ListNFSSharesFunc              func(ctx context.Context) ([]nastyapi.NFSShare, error)
+	GetNFSShareFunc                func(ctx context.Context, id string) (*nastyapi.NFSShare, error)
+	CreateSMBShareFunc             func(ctx context.Context, params nastyapi.SMBShareCreateParams) (*nastyapi.SMBShare, error)
 	DeleteSMBShareFunc             func(ctx context.Context, id string) error
-	ListSMBSharesFunc              func(ctx context.Context) ([]tnsapi.SMBShare, error)
-	GetSMBShareFunc                func(ctx context.Context, id string) (*tnsapi.SMBShare, error)
-	CreateISCSITargetFunc          func(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error)
-	AddISCSILunFunc                func(ctx context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error)
-	AddISCSIACLFunc                func(ctx context.Context, targetID, initiatorIQN string) (*tnsapi.ISCSITarget, error)
+	ListSMBSharesFunc              func(ctx context.Context) ([]nastyapi.SMBShare, error)
+	GetSMBShareFunc                func(ctx context.Context, id string) (*nastyapi.SMBShare, error)
+	CreateISCSITargetFunc          func(ctx context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error)
+	AddISCSILunFunc                func(ctx context.Context, targetID, backstorePath string) (*nastyapi.ISCSITarget, error)
+	AddISCSIACLFunc                func(ctx context.Context, targetID, initiatorIQN string) (*nastyapi.ISCSITarget, error)
 	DeleteISCSITargetFunc          func(ctx context.Context, id string) error
-	ListISCSITargetsFunc           func(ctx context.Context) ([]tnsapi.ISCSITarget, error)
-	GetISCSITargetByIQNFunc        func(ctx context.Context, iqn string) (*tnsapi.ISCSITarget, error)
-	CreateNVMeOFSubsystemFunc      func(ctx context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error)
+	ListISCSITargetsFunc           func(ctx context.Context) ([]nastyapi.ISCSITarget, error)
+	GetISCSITargetByIQNFunc        func(ctx context.Context, iqn string) (*nastyapi.ISCSITarget, error)
+	CreateNVMeOFSubsystemFunc      func(ctx context.Context, params nastyapi.NVMeOFCreateParams) (*nastyapi.NVMeOFSubsystem, error)
 	DeleteNVMeOFSubsystemFunc      func(ctx context.Context, id string) error
-	ListNVMeOFSubsystemsFunc       func(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error)
-	GetNVMeOFSubsystemByNQNFunc    func(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error)
+	ListNVMeOFSubsystemsFunc       func(ctx context.Context) ([]nastyapi.NVMeOFSubsystem, error)
+	GetNVMeOFSubsystemByNQNFunc    func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error)
 }
 
 var errNotImplemented = errors.New("mock method not implemented")
 
 // Verify mockAPIClient implements ClientInterface at compile time.
-var _ tnsapi.ClientInterface = (*mockAPIClient)(nil)
+var _ nastyapi.ClientInterface = (*mockAPIClient)(nil)
 
 // Pool methods
 
-func (m *mockAPIClient) QueryPool(ctx context.Context, poolName string) (*tnsapi.Pool, error) {
+func (m *mockAPIClient) QueryPool(ctx context.Context, poolName string) (*nastyapi.Pool, error) {
 	if m.QueryPoolFunc != nil {
 		return m.QueryPoolFunc(ctx, poolName)
 	}
@@ -114,7 +114,7 @@ func (m *mockAPIClient) QueryPool(ctx context.Context, poolName string) (*tnsapi
 
 // Subvolume methods
 
-func (m *mockAPIClient) CreateSubvolume(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+func (m *mockAPIClient) CreateSubvolume(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
 	if m.CreateSubvolumeFunc != nil {
 		return m.CreateSubvolumeFunc(ctx, params)
 	}
@@ -128,51 +128,51 @@ func (m *mockAPIClient) DeleteSubvolume(ctx context.Context, pool, name string) 
 	return nil
 }
 
-func (m *mockAPIClient) GetSubvolume(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+func (m *mockAPIClient) GetSubvolume(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 	if m.GetSubvolumeFunc != nil {
 		return m.GetSubvolumeFunc(ctx, pool, name)
 	}
 	return nil, errors.New("subvolume not found")
 }
 
-func (m *mockAPIClient) ListAllSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
+func (m *mockAPIClient) ListAllSubvolumes(ctx context.Context, pool string) ([]nastyapi.Subvolume, error) {
 	if m.ListAllSubvolumesFunc != nil {
 		return m.ListAllSubvolumesFunc(ctx, pool)
 	}
-	return []tnsapi.Subvolume{}, nil
+	return []nastyapi.Subvolume{}, nil
 }
 
 // Property methods
 
-func (m *mockAPIClient) SetSubvolumeProperties(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+func (m *mockAPIClient) SetSubvolumeProperties(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 	if m.SetSubvolumePropertiesFunc != nil {
 		return m.SetSubvolumePropertiesFunc(ctx, pool, name, props)
 	}
-	return &tnsapi.Subvolume{Name: name, Pool: pool, Properties: props}, nil
+	return &nastyapi.Subvolume{Name: name, Pool: pool, Properties: props}, nil
 }
 
-func (m *mockAPIClient) RemoveSubvolumeProperties(ctx context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error) {
+func (m *mockAPIClient) RemoveSubvolumeProperties(ctx context.Context, pool, name string, keys []string) (*nastyapi.Subvolume, error) {
 	if m.RemoveSubvolumePropertiesFunc != nil {
 		return m.RemoveSubvolumePropertiesFunc(ctx, pool, name, keys)
 	}
-	return &tnsapi.Subvolume{Name: name, Pool: pool}, nil
+	return &nastyapi.Subvolume{Name: name, Pool: pool}, nil
 }
 
-func (m *mockAPIClient) FindSubvolumesByProperty(ctx context.Context, key, value, pool string) ([]tnsapi.Subvolume, error) {
+func (m *mockAPIClient) FindSubvolumesByProperty(ctx context.Context, key, value, pool string) ([]nastyapi.Subvolume, error) {
 	if m.FindSubvolumesByPropertyFunc != nil {
 		return m.FindSubvolumesByPropertyFunc(ctx, key, value, pool)
 	}
-	return []tnsapi.Subvolume{}, nil
+	return []nastyapi.Subvolume{}, nil
 }
 
-func (m *mockAPIClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
+func (m *mockAPIClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]nastyapi.Subvolume, error) {
 	if m.FindManagedSubvolumesFunc != nil {
 		return m.FindManagedSubvolumesFunc(ctx, pool)
 	}
-	return []tnsapi.Subvolume{}, nil
+	return []nastyapi.Subvolume{}, nil
 }
 
-func (m *mockAPIClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+func (m *mockAPIClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
 	if m.FindSubvolumeByCSIVolumeNameFunc != nil {
 		return m.FindSubvolumeByCSIVolumeNameFunc(ctx, pool, volumeName)
 	}
@@ -181,7 +181,7 @@ func (m *mockAPIClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, 
 
 // Snapshot methods
 
-func (m *mockAPIClient) CreateSnapshot(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error) {
+func (m *mockAPIClient) CreateSnapshot(ctx context.Context, params nastyapi.SnapshotCreateParams) (*nastyapi.Snapshot, error) {
 	if m.CreateSnapshotFunc != nil {
 		return m.CreateSnapshotFunc(ctx, params)
 	}
@@ -195,16 +195,16 @@ func (m *mockAPIClient) DeleteSnapshot(ctx context.Context, pool, subvolume, nam
 	return nil
 }
 
-func (m *mockAPIClient) ListSnapshots(ctx context.Context, pool string) ([]tnsapi.Snapshot, error) {
+func (m *mockAPIClient) ListSnapshots(ctx context.Context, pool string) ([]nastyapi.Snapshot, error) {
 	if m.ListSnapshotsFunc != nil {
 		return m.ListSnapshotsFunc(ctx, pool)
 	}
-	return []tnsapi.Snapshot{}, nil
+	return []nastyapi.Snapshot{}, nil
 }
 
 // NFS methods
 
-func (m *mockAPIClient) CreateNFSShare(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
+func (m *mockAPIClient) CreateNFSShare(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
 	if m.CreateNFSShareFunc != nil {
 		return m.CreateNFSShareFunc(ctx, params)
 	}
@@ -218,14 +218,14 @@ func (m *mockAPIClient) DeleteNFSShare(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockAPIClient) ListNFSShares(ctx context.Context) ([]tnsapi.NFSShare, error) {
+func (m *mockAPIClient) ListNFSShares(ctx context.Context) ([]nastyapi.NFSShare, error) {
 	if m.ListNFSSharesFunc != nil {
 		return m.ListNFSSharesFunc(ctx)
 	}
-	return []tnsapi.NFSShare{}, nil
+	return []nastyapi.NFSShare{}, nil
 }
 
-func (m *mockAPIClient) GetNFSShare(ctx context.Context, id string) (*tnsapi.NFSShare, error) {
+func (m *mockAPIClient) GetNFSShare(ctx context.Context, id string) (*nastyapi.NFSShare, error) {
 	if m.GetNFSShareFunc != nil {
 		return m.GetNFSShareFunc(ctx, id)
 	}
@@ -234,7 +234,7 @@ func (m *mockAPIClient) GetNFSShare(ctx context.Context, id string) (*tnsapi.NFS
 
 // SMB methods
 
-func (m *mockAPIClient) CreateSMBShare(ctx context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error) {
+func (m *mockAPIClient) CreateSMBShare(ctx context.Context, params nastyapi.SMBShareCreateParams) (*nastyapi.SMBShare, error) {
 	if m.CreateSMBShareFunc != nil {
 		return m.CreateSMBShareFunc(ctx, params)
 	}
@@ -248,14 +248,14 @@ func (m *mockAPIClient) DeleteSMBShare(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockAPIClient) ListSMBShares(ctx context.Context) ([]tnsapi.SMBShare, error) {
+func (m *mockAPIClient) ListSMBShares(ctx context.Context) ([]nastyapi.SMBShare, error) {
 	if m.ListSMBSharesFunc != nil {
 		return m.ListSMBSharesFunc(ctx)
 	}
-	return []tnsapi.SMBShare{}, nil
+	return []nastyapi.SMBShare{}, nil
 }
 
-func (m *mockAPIClient) GetSMBShare(ctx context.Context, id string) (*tnsapi.SMBShare, error) {
+func (m *mockAPIClient) GetSMBShare(ctx context.Context, id string) (*nastyapi.SMBShare, error) {
 	if m.GetSMBShareFunc != nil {
 		return m.GetSMBShareFunc(ctx, id)
 	}
@@ -264,21 +264,21 @@ func (m *mockAPIClient) GetSMBShare(ctx context.Context, id string) (*tnsapi.SMB
 
 // iSCSI methods
 
-func (m *mockAPIClient) CreateISCSITarget(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error) {
+func (m *mockAPIClient) CreateISCSITarget(ctx context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error) {
 	if m.CreateISCSITargetFunc != nil {
 		return m.CreateISCSITargetFunc(ctx, params)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockAPIClient) AddISCSILun(ctx context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error) {
+func (m *mockAPIClient) AddISCSILun(ctx context.Context, targetID, backstorePath string) (*nastyapi.ISCSITarget, error) {
 	if m.AddISCSILunFunc != nil {
 		return m.AddISCSILunFunc(ctx, targetID, backstorePath)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockAPIClient) AddISCSIACL(ctx context.Context, targetID, initiatorIQN string) (*tnsapi.ISCSITarget, error) {
+func (m *mockAPIClient) AddISCSIACL(ctx context.Context, targetID, initiatorIQN string) (*nastyapi.ISCSITarget, error) {
 	if m.AddISCSIACLFunc != nil {
 		return m.AddISCSIACLFunc(ctx, targetID, initiatorIQN)
 	}
@@ -292,14 +292,14 @@ func (m *mockAPIClient) DeleteISCSITarget(ctx context.Context, id string) error 
 	return nil
 }
 
-func (m *mockAPIClient) ListISCSITargets(ctx context.Context) ([]tnsapi.ISCSITarget, error) {
+func (m *mockAPIClient) ListISCSITargets(ctx context.Context) ([]nastyapi.ISCSITarget, error) {
 	if m.ListISCSITargetsFunc != nil {
 		return m.ListISCSITargetsFunc(ctx)
 	}
-	return []tnsapi.ISCSITarget{}, nil
+	return []nastyapi.ISCSITarget{}, nil
 }
 
-func (m *mockAPIClient) GetISCSITargetByIQN(ctx context.Context, iqn string) (*tnsapi.ISCSITarget, error) {
+func (m *mockAPIClient) GetISCSITargetByIQN(ctx context.Context, iqn string) (*nastyapi.ISCSITarget, error) {
 	if m.GetISCSITargetByIQNFunc != nil {
 		return m.GetISCSITargetByIQNFunc(ctx, iqn)
 	}
@@ -308,7 +308,7 @@ func (m *mockAPIClient) GetISCSITargetByIQN(ctx context.Context, iqn string) (*t
 
 // NVMe-oF methods
 
-func (m *mockAPIClient) CreateNVMeOFSubsystem(ctx context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error) {
+func (m *mockAPIClient) CreateNVMeOFSubsystem(ctx context.Context, params nastyapi.NVMeOFCreateParams) (*nastyapi.NVMeOFSubsystem, error) {
 	if m.CreateNVMeOFSubsystemFunc != nil {
 		return m.CreateNVMeOFSubsystemFunc(ctx, params)
 	}
@@ -322,14 +322,14 @@ func (m *mockAPIClient) DeleteNVMeOFSubsystem(ctx context.Context, id string) er
 	return nil
 }
 
-func (m *mockAPIClient) ListNVMeOFSubsystems(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
+func (m *mockAPIClient) ListNVMeOFSubsystems(ctx context.Context) ([]nastyapi.NVMeOFSubsystem, error) {
 	if m.ListNVMeOFSubsystemsFunc != nil {
 		return m.ListNVMeOFSubsystemsFunc(ctx)
 	}
-	return []tnsapi.NVMeOFSubsystem{}, nil
+	return []nastyapi.NVMeOFSubsystem{}, nil
 }
 
-func (m *mockAPIClient) GetNVMeOFSubsystemByNQN(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error) {
+func (m *mockAPIClient) GetNVMeOFSubsystemByNQN(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error) {
 	if m.GetNVMeOFSubsystemByNQNFunc != nil {
 		return m.GetNVMeOFSubsystemByNQNFunc(ctx, nqn)
 	}
@@ -389,7 +389,7 @@ func TestValidateCreateVolumeRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Call CreateVolume to trigger validation; supply a minimal client that returns not-found
 			client := &mockAPIClient{
-				GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+				GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				},
 			}
@@ -613,13 +613,13 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Name: name,
 						Pool: pool,
 						Properties: map[string]string{
-							tnsapi.PropertyManagedBy: tnsapi.ManagedByValue,
-							tnsapi.PropertyProtocol:  ProtocolNFS,
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
 						},
 					}, nil
 				}
@@ -639,10 +639,10 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				}
-				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
 					return nil, nil //nolint:nilnil // not found
 				}
 			},
@@ -774,17 +774,17 @@ func TestControllerExpandVolume(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Name: name, Pool: pool,
 						Properties: map[string]string{
-							tnsapi.PropertyManagedBy: tnsapi.ManagedByValue,
-							tnsapi.PropertyProtocol:  ProtocolNFS,
-							tnsapi.PropertyNFSShareID: "uuid-nfs-share",
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
+							nastyapi.PropertyNFSShareID: "uuid-nfs-share",
 						},
 					}, nil
 				}
-				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
 					return nil, nil //nolint:nilnil
 				}
 			},
@@ -806,10 +806,10 @@ func TestControllerExpandVolume(t *testing.T) {
 				CapacityRange: &csi.CapacityRange{RequiredBytes: 5 * 1024 * 1024 * 1024},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				}
-				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
 					return nil, nil //nolint:nilnil
 				}
 			},
@@ -852,7 +852,7 @@ func TestControllerExpandVolume(t *testing.T) {
 func TestGetCapacity(t *testing.T) {
 	tests := []struct {
 		params            map[string]string
-		mockQueryPool     func(ctx context.Context, poolName string) (*tnsapi.Pool, error)
+		mockQueryPool     func(ctx context.Context, poolName string) (*nastyapi.Pool, error)
 		name              string
 		wantCapacity      int64
 		wantErrCode       codes.Code
@@ -864,8 +864,8 @@ func TestGetCapacity(t *testing.T) {
 			params: map[string]string{
 				"pool": "tank",
 			},
-			mockQueryPool: func(ctx context.Context, poolName string) (*tnsapi.Pool, error) {
-				return &tnsapi.Pool{
+			mockQueryPool: func(ctx context.Context, poolName string) (*nastyapi.Pool, error) {
+				return &nastyapi.Pool{
 					Name:           "tank",
 					TotalBytes:     1000000000000,
 					UsedBytes:      400000000000,
@@ -892,7 +892,7 @@ func TestGetCapacity(t *testing.T) {
 			params: map[string]string{
 				"pool": "nonexistent",
 			},
-			mockQueryPool: func(ctx context.Context, poolName string) (*tnsapi.Pool, error) {
+			mockQueryPool: func(ctx context.Context, poolName string) (*nastyapi.Pool, error) {
 				return nil, errors.New("pool not found")
 			},
 			wantErr:     true,
@@ -1066,10 +1066,10 @@ func TestCreateVolumeRPC(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				}
-				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
 					return nil, nil //nolint:nilnil
 				}
 			},
@@ -1100,14 +1100,14 @@ func TestCreateVolumeRPC(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				}
-				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
 					return nil, nil //nolint:nilnil
 				}
-				m.CreateSubvolumeFunc = func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.CreateSubvolumeFunc = func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Name:          params.Name,
 						Pool:          params.Pool,
 						SubvolumeType: "filesystem",
@@ -1115,11 +1115,11 @@ func TestCreateVolumeRPC(t *testing.T) {
 						Properties:    map[string]string{},
 					}, nil
 				}
-				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{Name: name, Pool: pool, Properties: props}, nil
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{Name: name, Pool: pool, Properties: props}, nil
 				}
-				m.CreateNFSShareFunc = func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
-					return &tnsapi.NFSShare{
+				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
+					return &nastyapi.NFSShare{
 						ID:      "uuid-share-1",
 						Path:    params.Path,
 						Enabled: true,
@@ -1208,18 +1208,18 @@ func TestDeleteVolumeRPC(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Name: name, Pool: pool,
 						Properties: map[string]string{
-							tnsapi.PropertyManagedBy:  tnsapi.ManagedByValue,
-							tnsapi.PropertyProtocol:   ProtocolNFS,
-							tnsapi.PropertyNFSShareID: "uuid-nfs-share",
+							nastyapi.PropertyManagedBy:  nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:   ProtocolNFS,
+							nastyapi.PropertyNFSShareID: "uuid-nfs-share",
 						},
 					}, nil
 				}
-				m.ListSnapshotsFunc = func(ctx context.Context, pool string) ([]tnsapi.Snapshot, error) {
-					return []tnsapi.Snapshot{}, nil
+				m.ListSnapshotsFunc = func(ctx context.Context, pool string) ([]nastyapi.Snapshot, error) {
+					return []nastyapi.Snapshot{}, nil
 				}
 				m.DeleteNFSShareFunc = func(ctx context.Context, id string) error { return nil }
 				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error { return nil }
@@ -1260,8 +1260,8 @@ func TestListVolumes(t *testing.T) {
 
 	t.Run("empty managed subvolumes - returns empty list", func(t *testing.T) {
 		mockClient := &mockAPIClient{
-			FindManagedSubvolumesFunc: func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
-				return []tnsapi.Subvolume{}, nil
+			FindManagedSubvolumesFunc: func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error) {
+				return []nastyapi.Subvolume{}, nil
 			},
 		}
 		service := NewControllerService(mockClient, NewNodeRegistry(), "")
@@ -1284,84 +1284,84 @@ func TestIsVolumeAdoptable(t *testing.T) {
 		{
 			name: "valid NFS volume with all properties",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy:      tnsapi.ManagedByValue,
-				tnsapi.PropertySchemaVersion:  tnsapi.SchemaVersionV1,
-				tnsapi.PropertyProtocol:       tnsapi.ProtocolNFS,
-				tnsapi.PropertyNFSSharePath:   "/mnt/tank/csi/pvc-123",
-				tnsapi.PropertyCSIVolumeName:  "pvc-123",
-				tnsapi.PropertyCapacityBytes:  "1073741824",
-				tnsapi.PropertyDeleteStrategy: tnsapi.DeleteStrategyDelete,
+				nastyapi.PropertyManagedBy:      nastyapi.ManagedByValue,
+				nastyapi.PropertySchemaVersion:  nastyapi.SchemaVersionV1,
+				nastyapi.PropertyProtocol:       nastyapi.ProtocolNFS,
+				nastyapi.PropertyNFSSharePath:   "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyCSIVolumeName:  "pvc-123",
+				nastyapi.PropertyCapacityBytes:  "1073741824",
+				nastyapi.PropertyDeleteStrategy: nastyapi.DeleteStrategyDelete,
 			},
 			want: true,
 		},
 		{
 			name: "valid NVMe-oF volume with all properties",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy:        tnsapi.ManagedByValue,
-				tnsapi.PropertySchemaVersion:    tnsapi.SchemaVersionV1,
-				tnsapi.PropertyProtocol:         tnsapi.ProtocolNVMeOF,
-				tnsapi.PropertyNVMeSubsystemNQN: "nqn.2024.io.nasty:nvme:pvc-123",
-				tnsapi.PropertyCSIVolumeName:    "pvc-123",
+				nastyapi.PropertyManagedBy:        nastyapi.ManagedByValue,
+				nastyapi.PropertySchemaVersion:    nastyapi.SchemaVersionV1,
+				nastyapi.PropertyProtocol:         nastyapi.ProtocolNVMeOF,
+				nastyapi.PropertyNVMeSubsystemNQN: "nqn.2024.io.nasty:nvme:pvc-123",
+				nastyapi.PropertyCSIVolumeName:    "pvc-123",
 			},
 			want: true,
 		},
 		{
 			name: "NFS volume without schema version (still valid)",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy:    tnsapi.ManagedByValue,
-				tnsapi.PropertyProtocol:     tnsapi.ProtocolNFS,
-				tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy:    nastyapi.ManagedByValue,
+				nastyapi.PropertyProtocol:     nastyapi.ProtocolNFS,
+				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
 			},
 			want: true,
 		},
 		{
 			name: "missing managed_by property",
 			props: map[string]string{
-				tnsapi.PropertyProtocol:     tnsapi.ProtocolNFS,
-				tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyProtocol:     nastyapi.ProtocolNFS,
+				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
 			},
 			want: false,
 		},
 		{
 			name: "wrong managed_by value",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy:    "other-csi-driver",
-				tnsapi.PropertyProtocol:     tnsapi.ProtocolNFS,
-				tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy:    "other-csi-driver",
+				nastyapi.PropertyProtocol:     nastyapi.ProtocolNFS,
+				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
 			},
 			want: false,
 		},
 		{
 			name: "unknown schema version",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy:     tnsapi.ManagedByValue,
-				tnsapi.PropertySchemaVersion: "99",
-				tnsapi.PropertyProtocol:      tnsapi.ProtocolNFS,
-				tnsapi.PropertyNFSSharePath:  "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+				nastyapi.PropertySchemaVersion: "99",
+				nastyapi.PropertyProtocol:      nastyapi.ProtocolNFS,
+				nastyapi.PropertyNFSSharePath:  "/mnt/tank/csi/pvc-123",
 			},
 			want: false,
 		},
 		{
 			name: "missing protocol",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy:    tnsapi.ManagedByValue,
-				tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy:    nastyapi.ManagedByValue,
+				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
 			},
 			want: false,
 		},
 		{
 			name: "NFS volume missing share path",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy: tnsapi.ManagedByValue,
-				tnsapi.PropertyProtocol:  tnsapi.ProtocolNFS,
+				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+				nastyapi.PropertyProtocol:  nastyapi.ProtocolNFS,
 			},
 			want: false,
 		},
 		{
 			name: "NVMe-oF volume missing NQN",
 			props: map[string]string{
-				tnsapi.PropertyManagedBy: tnsapi.ManagedByValue,
-				tnsapi.PropertyProtocol:  tnsapi.ProtocolNVMeOF,
+				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+				nastyapi.PropertyProtocol:  nastyapi.ProtocolNVMeOF,
 			},
 			want: false,
 		},
@@ -1384,15 +1384,15 @@ func TestIsVolumeAdoptable(t *testing.T) {
 
 func TestGetAdoptionInfo(t *testing.T) {
 	props := map[string]string{
-		tnsapi.PropertyCSIVolumeName:    "pvc-12345678",
-		tnsapi.PropertyProtocol:         tnsapi.ProtocolNFS,
-		tnsapi.PropertyCapacityBytes:    "10737418240",
-		tnsapi.PropertyDeleteStrategy:   tnsapi.DeleteStrategyRetain,
-		tnsapi.PropertyPVCName:          "my-data",
-		tnsapi.PropertyPVCNamespace:     "production",
-		tnsapi.PropertyStorageClass:     "nasty-nfs",
-		tnsapi.PropertyNFSSharePath:     "/mnt/tank/csi/pvc-12345678",
-		tnsapi.PropertyNVMeSubsystemNQN: "nqn.test",
+		nastyapi.PropertyCSIVolumeName:    "pvc-12345678",
+		nastyapi.PropertyProtocol:         nastyapi.ProtocolNFS,
+		nastyapi.PropertyCapacityBytes:    "10737418240",
+		nastyapi.PropertyDeleteStrategy:   nastyapi.DeleteStrategyRetain,
+		nastyapi.PropertyPVCName:          "my-data",
+		nastyapi.PropertyPVCNamespace:     "production",
+		nastyapi.PropertyStorageClass:     "nasty-nfs",
+		nastyapi.PropertyNFSSharePath:     "/mnt/tank/csi/pvc-12345678",
+		nastyapi.PropertyNVMeSubsystemNQN: "nqn.test",
 	}
 
 	info := GetAdoptionInfo(props)
@@ -1418,8 +1418,8 @@ func TestGetAdoptionInfo(t *testing.T) {
 
 func TestGetAdoptionInfo_Partial(t *testing.T) {
 	props := map[string]string{
-		tnsapi.PropertyCSIVolumeName: "minimal-volume",
-		tnsapi.PropertyProtocol:      tnsapi.ProtocolNVMeOF,
+		nastyapi.PropertyCSIVolumeName: "minimal-volume",
+		nastyapi.PropertyProtocol:      nastyapi.ProtocolNVMeOF,
 	}
 
 	info := GetAdoptionInfo(props)

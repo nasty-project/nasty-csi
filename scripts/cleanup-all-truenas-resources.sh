@@ -102,7 +102,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fenio/tns-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 )
 
 func main() {
@@ -122,7 +122,7 @@ func main() {
 	
 	fmt.Printf("Connecting to TrueNAS at %s...\n", url)
 	
-	client, err := tnsapi.NewClient(url, apiKey, true)
+	client, err := nastyapi.NewClient(url, apiKey, true)
 	if err != nil {
 		fmt.Printf("Failed to create client: %v\n", err)
 		os.Exit(1)
@@ -313,7 +313,7 @@ func main() {
 	// List NVMe-oF namespaces
 	fmt.Println("\n=== Listing NVMe-oF namespaces ===")
 	namespaces, err := client.QueryAllNVMeOFNamespaces(ctx)
-	targetNamespaces := []tnsapi.NVMeOFNamespace{}
+	targetNamespaces := []nastyapi.NVMeOFNamespace{}
 	if err != nil {
 		fmt.Printf("Warning: Failed to query NVMe-oF namespaces: %v\n", err)
 	} else {
@@ -347,7 +347,7 @@ func main() {
 	// List NVMe-oF subsystems
 	fmt.Println("\n=== Listing NVMe-oF subsystems ===")
 	subsystems, err := client.ListAllNVMeOFSubsystems(ctx)
-	targetSubsystems := []tnsapi.NVMeOFSubsystem{}
+	targetSubsystems := []nastyapi.NVMeOFSubsystem{}
 	if err != nil {
 		fmt.Printf("Warning: Failed to query NVMe-oF subsystems: %v\n", err)
 	} else {
@@ -895,7 +895,7 @@ cd "$CLEANUP_DIR"
 
 # Initialize Go module with proper replace directive
 go mod init cleanup
-go mod edit -replace github.com/fenio/tns-csi="$SCRIPT_DIR"
+go mod edit -replace github.com/fenio/nasty-csi="$SCRIPT_DIR"
 go mod tidy
 
 echo -e "${YELLOW}Running cleanup...${NC}"

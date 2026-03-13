@@ -1,10 +1,10 @@
 # Versioning
 
-This document describes the versioning strategy for tns-csi.
+This document describes the versioning strategy for nasty-csi.
 
 ## Version Format
 
-tns-csi follows [Semantic Versioning](https://semver.org/) (SemVer):
+nasty-csi follows [Semantic Versioning](https://semver.org/) (SemVer):
 
 - **MAJOR.MINOR.PATCH** (e.g., `v0.17.3`)
 - Tags are prefixed with `v` (e.g., `v0.17.3`, `v1.0.0`)
@@ -39,7 +39,7 @@ nasty-csi-driver --show-version
 
 Output:
 ```
-tns.csi.io version: v0.17.3
+nasty.csi.io version: v0.17.3
   Git commit: abc1234
   Build date: 2025-12-21T10:30:00Z
   Go version: go1.26.0
@@ -52,7 +52,7 @@ The driver exposes version info via HTTP:
 
 ```bash
 # Port-forward to the controller pod
-kubectl port-forward -n kube-system deployment/tns-csi-controller 8080:8080
+kubectl port-forward -n kube-system deployment/nasty-csi-controller 8080:8080
 
 # Query version endpoint
 curl http://localhost:8080/version
@@ -126,14 +126,14 @@ The Helm chart resolves the image tag in this order:
 
 ```bash
 # Install specific chart version (uses matching image tag automatically)
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   ...
 ```
 
 Or explicitly set the image tag:
 ```bash
-helm install tns-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./charts/nasty-csi-driver \
   --set image.tag=v0.17.3 \
   ...
 ```
@@ -143,7 +143,7 @@ helm install tns-csi ./charts/nasty-csi-driver \
 The `latest` tag and `main` branch builds are fine for development and testing:
 
 ```bash
-helm install tns-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./charts/nasty-csi-driver \
   --set image.tag=latest \
   --set image.pullPolicy=Always \
   ...
@@ -154,12 +154,12 @@ helm install tns-csi ./charts/nasty-csi-driver \
 Check current version before upgrading:
 ```bash
 helm list -n kube-system
-kubectl logs -n kube-system deployment/tns-csi-controller | head -1
+kubectl logs -n kube-system deployment/nasty-csi-controller | head -1
 ```
 
 Upgrade to a new version:
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --reuse-values
 ```
@@ -170,10 +170,10 @@ When reporting issues, always include the full version information:
 
 ```bash
 # Get version from logs
-kubectl logs -n kube-system deployment/tns-csi-controller 2>&1 | head -5
+kubectl logs -n kube-system deployment/nasty-csi-controller 2>&1 | head -5
 
 # Or from the API
-kubectl exec -n kube-system deployment/tns-csi-controller -- \
+kubectl exec -n kube-system deployment/nasty-csi-controller -- \
   /usr/local/bin/nasty-csi-driver --show-version
 ```
 

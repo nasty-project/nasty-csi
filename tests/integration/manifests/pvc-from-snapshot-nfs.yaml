@@ -8,7 +8,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-nfs
+  storageClassName: nasty-csi-nfs
   dataSource:
     name: test-snapshot-nfs
     kind: VolumeSnapshot

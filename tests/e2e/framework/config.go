@@ -48,7 +48,7 @@ func NewConfig() (*Config, error) {
 		NAStyHost:        os.Getenv("NASTY_HOST"),
 		NAStyAPIKey:      os.Getenv("NASTY_API_KEY"),
 		NAStyPool:        getEnvOrDefault("NASTY_POOL", "csi"),
-		CSIImageRepo:       getEnvOrDefault("CSI_IMAGE_REPO", "ghcr.io/fenio/tns-csi"),
+		CSIImageRepo:       getEnvOrDefault("CSI_IMAGE_REPO", "ghcr.io/fenio/nasty-csi"),
 		CSIImageTag:        getEnvOrDefault("CSI_IMAGE_TAG", "latest"),
 		CSIImagePullPolicy: getEnvOrDefault("CSI_IMAGE_PULL_POLICY", "Always"),
 		Kubeconfig:         getEnvOrDefault("KUBECONFIG", defaultKubeconfig()),

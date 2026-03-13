@@ -3,8 +3,8 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: tns-csi-nfs-zfsprops-full
-provisioner: tns.csi.io
+  name: nasty-csi-nfs-zfsprops-full
+provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   server: "${TRUENAS_HOST}"

@@ -13,7 +13,7 @@ The dashboard displays:
 
 ## Viewing the Dashboard
 
-The dashboard is available at: https://fenio.github.io/tns-csi/dashboard/
+The dashboard is available at: https://fenio.github.io/nasty-csi/dashboard/
 
 ## How It Works
 

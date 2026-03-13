@@ -70,7 +70,7 @@ This enables the workflow to deploy to GitHub Pages automatically. Without this 
 
 ### Viewing the Dashboard
 
-The dashboard is available at: `https://fenio.github.io/tns-csi/dashboard/`
+The dashboard is available at: `https://fenio.github.io/nasty-csi/dashboard/`
 
 ### Adding to README
 
@@ -78,7 +78,7 @@ Include this badge in your main README:
 
 ```markdown
 [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
-[![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/tns-csi/dashboard/)
+[![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/nasty-csi/dashboard/)
 ```
 
 ## Customization

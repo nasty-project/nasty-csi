@@ -8,4 +8,4 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-nfs-zfsprops
+  storageClassName: nasty-csi-nfs-zfsprops

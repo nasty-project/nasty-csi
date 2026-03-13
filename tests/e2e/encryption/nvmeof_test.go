@@ -41,8 +41,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-basic"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-basic"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -112,8 +112,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass with AES-128-CCM")
-			scName := "tns-csi-nvmeof-encrypted-aes128"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-aes128"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -170,8 +170,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-expand"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-expand"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -267,8 +267,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-expand-inline"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-expand-inline"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -346,8 +346,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-snapshot"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-snapshot"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -363,8 +363,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := "tns-csi-nvmeof-encrypted-snapshot-class"
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := "nasty-csi-nvmeof-encrypted-snapshot-class"
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -452,8 +452,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-clone"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-clone"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -538,8 +538,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-persist"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-persist"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -613,8 +613,8 @@ var _ = Describe("NVMe-oF Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-nvmeof-encrypted-block"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-nvmeof-encrypted-block"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "nvmeof",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,

@@ -179,11 +179,11 @@ ssh <user>@<vm-ip> 'sudo k3s ctr images import nasty-csi-driver.tar.gz'
 
 # Deploy with Helm
 export KUBECONFIG=~/.kube/utm-nvmeof-test
-helm install tns-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --set nasty.host=YOUR-NASTY-IP \
   --set nasty.apiKey=<your-api-key> \
-  --set storageClasses[0].name=tns-csi-nvmeof \
+  --set storageClasses[0].name=nasty-csi-nvmeof \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nvmeof \
   --set storageClasses[0].pool=<your-pool-name> \
@@ -241,14 +241,14 @@ NFS testing is much simpler since it works in containers:
 
 ```bash
 # Create Kind cluster
-kind create cluster --name tns-csi-test
+kind create cluster --name nasty-csi-test
 
 # Build and load image
 make build-image
-kind load docker-image nasty-csi-driver:latest --name tns-csi-test
+kind load docker-image nasty-csi-driver:latest --name nasty-csi-test
 
 # Deploy CSI driver
-helm install tns-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --set nasty.host=YOUR-NASTY-IP \
   --set nasty.apiKey=<your-api-key>
@@ -278,7 +278,7 @@ ssh <user>@<vm-ip> 'sudo k3s ctr images import nasty-csi-driver.tar.gz'
 
 # 3. Restart CSI driver pods
 export KUBECONFIG=~/.kube/utm-nvmeof-test
-kubectl rollout restart -n kube-system daemonset/tns-csi-node
+kubectl rollout restart -n kube-system daemonset/nasty-csi-node
 
 # 4. View logs
 kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin -f
@@ -292,10 +292,10 @@ vim pkg/driver/controller.go
 
 # 2. Build and load to Kind
 make build-image
-kind load docker-image nasty-csi-driver:latest --name tns-csi-test
+kind load docker-image nasty-csi-driver:latest --name nasty-csi-test
 
 # 3. Restart pods
-kubectl rollout restart -n kube-system deployment/tns-csi-controller
+kubectl rollout restart -n kube-system deployment/nasty-csi-controller
 
 # 4. Test
 kubectl apply -f deploy/example-pvc.yaml

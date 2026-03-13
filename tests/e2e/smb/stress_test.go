@@ -36,13 +36,13 @@ var _ = Describe("Snapshot Stress", func() {
 		ctx := context.Background()
 		numSnapshots := 3
 
-		storageClass := "tns-csi-smb"
-		snapshotClass := "tns-csi-smb-snapshot-stress"
+		storageClass := "nasty-csi-smb"
+		snapshotClass := "nasty-csi-smb-snapshot-stress"
 		accessMode := corev1.ReadWriteMany
 		podTimeout := 2 * time.Minute
 
 		By("Creating VolumeSnapshotClass")
-		err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+		err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -199,7 +199,7 @@ var _ = Describe("Volume Stress", func() {
 		ctx := context.Background()
 		numVolumes := 3
 
-		storageClass := "tns-csi-smb"
+		storageClass := "nasty-csi-smb"
 		accessMode := corev1.ReadWriteMany
 		podTimeout := 2 * time.Minute
 

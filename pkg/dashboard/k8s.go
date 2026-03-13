@@ -46,7 +46,7 @@ func FetchK8sVolumes(ctx context.Context) ([]VolumeInfo, *K8sEnrichmentResult) {
 	for i := range pvList.Items {
 		pv := &pvList.Items[i]
 
-		if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != "tns.csi.io" {
+		if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != "nasty.csi.io" {
 			continue
 		}
 
@@ -141,7 +141,7 @@ func EnrichWithK8sData(ctx context.Context, includePods bool) *K8sEnrichmentResu
 		pv := &pvList.Items[i]
 
 		// Only include PVs from our driver
-		if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != "tns.csi.io" {
+		if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != "nasty.csi.io" {
 			continue
 		}
 

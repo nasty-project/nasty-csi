@@ -13,7 +13,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
@@ -42,7 +42,7 @@ type Driver struct {
 	srv          *grpc.Server
 	metricsSrv   *http.Server
 	dashboardSrv *dashboard.Server
-	apiClient    tnsapi.ClientInterface
+	apiClient    nastyapi.ClientInterface
 	controller   *ControllerService
 	node         *NodeService
 	identity     *IdentityService
@@ -56,7 +56,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 		cfg.DriverName, cfg.NodeID, cfg.Endpoint, cfg.APIURL, cfg.MetricsAddr, cfg.TestMode, cfg.SkipTLSVerify)
 
 	// Create API client
-	apiClient, err := tnsapi.NewClient(cfg.APIURL, cfg.APIKey, cfg.SkipTLSVerify)
+	apiClient, err := nastyapi.NewClient(cfg.APIURL, cfg.APIKey, cfg.SkipTLSVerify)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 
 // NewDriverWithClient creates a new driver instance with a custom client.
 // This is primarily used for testing with mock clients.
-func NewDriverWithClient(cfg Config, client tnsapi.ClientInterface) (*Driver, error) {
+func NewDriverWithClient(cfg Config, client nastyapi.ClientInterface) (*Driver, error) {
 	klog.V(4).Infof("Creating new driver with custom client")
 
 	d := &Driver{

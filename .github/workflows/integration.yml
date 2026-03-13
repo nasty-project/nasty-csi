@@ -131,7 +131,7 @@ jobs:
         if: inputs.pr != ''
         run: |
           PR_TAG="pr-${{ inputs.pr }}"
-          IMAGE="ghcr.io/fenio/tns-csi:${PR_TAG}"
+          IMAGE="ghcr.io/fenio/nasty-csi:${PR_TAG}"
           echo "=== Building image from PR #${{ inputs.pr }} ==="
           docker buildx build \
             --load \
@@ -139,15 +139,15 @@ jobs:
             --build-arg GIT_COMMIT="$(git rev-parse --short HEAD)" \
             --build-arg BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -t "${IMAGE}" .
-          docker save "${IMAGE}" -o /tmp/tns-csi-pr-image.tar
-          echo "Image saved to /tmp/tns-csi-pr-image.tar"
+          docker save "${IMAGE}" -o /tmp/nasty-csi-pr-image.tar
+          echo "Image saved to /tmp/nasty-csi-pr-image.tar"
 
       - name: Upload PR image artifact
         if: inputs.pr != ''
         uses: actions/upload-artifact@v6
         with:
           name: pr-image
-          path: /tmp/tns-csi-pr-image.tar
+          path: /tmp/nasty-csi-pr-image.tar
           retention-days: 1
 
       - name: Compute image tag from ref
@@ -230,9 +230,9 @@ jobs:
       - name: Import PR image into k3s
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/tns-csi-pr-image.tar
+          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep tns-csi || true
+          sudo k3s crictl images | grep nasty-csi || true
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NFS E2E Tests
@@ -282,9 +282,9 @@ jobs:
       - name: Import PR image into k3s
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/tns-csi-pr-image.tar
+          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep tns-csi || true
+          sudo k3s crictl images | grep nasty-csi || true
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NVMe-oF E2E Tests
@@ -334,9 +334,9 @@ jobs:
       - name: Import PR image into k3s
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/tns-csi-pr-image.tar
+          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep tns-csi || true
+          sudo k3s crictl images | grep nasty-csi || true
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run iSCSI E2E Tests
@@ -386,9 +386,9 @@ jobs:
       - name: Import PR image into k3s
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/tns-csi-pr-image.tar
+          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep tns-csi || true
+          sudo k3s crictl images | grep nasty-csi || true
       - name: Install Ginkgo and smbclient
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo@latest
@@ -466,9 +466,9 @@ jobs:
       - name: Import PR image into k3s
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/tns-csi-pr-image.tar
+          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep tns-csi || true
+          sudo k3s crictl images | grep nasty-csi || true
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run Shared E2E Tests

@@ -10,7 +10,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	"github.com/nasty-project/nasty-csi/pkg/retry"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -18,7 +18,7 @@ import (
 
 // nfsVolumeParams holds validated parameters for NFS volume creation.
 type nfsVolumeParams struct {
-	nfsClients        []tnsapi.NFSClient
+	nfsClients        []nastyapi.NFSClient
 	pool              string
 	volumeName        string
 	subvolumeName     string // short name within pool (e.g., "pvc-xxx")
@@ -37,17 +37,17 @@ type nfsVolumeParams struct {
 // parseNFSClients parses the nfsClients StorageClass parameter into NFSClient slice.
 // Format: "host1:options1,host2:options2" or "*:rw,no_root_squash" for wildcard.
 // If empty, defaults to a wildcard client with rw,no_root_squash.
-func parseNFSClients(clientsParam string) []tnsapi.NFSClient {
+func parseNFSClients(clientsParam string) []nastyapi.NFSClient {
 	if clientsParam == "" {
-		return []tnsapi.NFSClient{
+		return []nastyapi.NFSClient{
 			{Host: "*", Options: "rw,no_root_squash"},
 		}
 	}
 
-	var clients []tnsapi.NFSClient
+	var clients []nastyapi.NFSClient
 	for _, entry := range strings.Split(clientsParam, ",") {
 		parts := strings.SplitN(strings.TrimSpace(entry), ":", 2)
-		client := tnsapi.NFSClient{Host: parts[0]}
+		client := nastyapi.NFSClient{Host: parts[0]}
 		if len(parts) == 2 {
 			client.Options = parts[1]
 		} else {
@@ -97,7 +97,7 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	// Parse deleteStrategy from StorageClass parameters (default: "delete")
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 
 	// Parse markAdoptable from StorageClass parameters (default: false)
@@ -144,7 +144,7 @@ func parseCapacityFromComment(comment string) int64 {
 }
 
 // buildNFSVolumeResponseFromSubvolume builds the CreateVolumeResponse for an NFS volume.
-func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *tnsapi.Subvolume, nfsShare *tnsapi.NFSShare, capacity int64) *csi.CreateVolumeResponse {
+func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *nastyapi.Subvolume, nfsShare *nastyapi.NFSShare, capacity int64) *csi.CreateVolumeResponse {
 	volumeID := subvol.Pool + "/" + subvol.Name
 
 	meta := VolumeMetadata{
@@ -173,7 +173,7 @@ func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *tnsa
 
 // nfsPropertiesV1 builds xattr property map for an NFS subvolume.
 func nfsPropertiesV1(params *nfsVolumeParams, shareID, sharePath string, clusterID string) map[string]string {
-	return tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
+	return nastyapi.NFSVolumePropertiesV1(nastyapi.NFSVolumeParams{
 		VolumeID:       params.volumeName,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -189,7 +189,7 @@ func nfsPropertiesV1(params *nfsVolumeParams, shareID, sharePath string, cluster
 }
 
 // handleExistingNFSSubvolume handles idempotency when a subvolume already exists.
-func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, params *nfsVolumeParams, existingSubvol *tnsapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, params *nfsVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Subvolume %s already exists, checking idempotency", existingSubvol.Name)
 
 	// Check existing NFS shares to find one for this subvolume path
@@ -199,7 +199,7 @@ func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, para
 		return nil, false, status.Errorf(codes.Internal, "Failed to list NFS shares: %v", err)
 	}
 
-	var existingShare *tnsapi.NFSShare
+	var existingShare *nastyapi.NFSShare
 	for i := range shares {
 		if shares[i].Path == existingSubvol.Path {
 			existingShare = &shares[i]
@@ -245,7 +245,7 @@ func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, para
 }
 
 // ensureNFSSubvolumeProperties checks if xattr properties are set and sets them if missing.
-func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *tnsapi.Subvolume, share *tnsapi.NFSShare) {
+func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *nastyapi.Subvolume, share *nastyapi.NFSShare) {
 	// Read current properties from subvolume
 	existing, err := s.apiClient.GetSubvolume(ctx, subvol.Pool, subvol.Name)
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, pa
 		return
 	}
 	if existing.Properties != nil {
-		if existing.Properties[tnsapi.PropertyManagedBy] == tnsapi.ManagedByValue {
+		if existing.Properties[nastyapi.PropertyManagedBy] == nastyapi.ManagedByValue {
 			return // Properties already set
 		}
 	}
@@ -269,10 +269,10 @@ func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, pa
 
 // createNFSShareForSubvolume creates an NFS share for a subvolume and stores xattr metadata for tracking.
 // subvolumeIsNew indicates whether the subvolume was just created — if false, do NOT delete on failure.
-func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subvol *tnsapi.Subvolume, params *nfsVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*tnsapi.NFSShare, error) {
+func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *nfsVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*nastyapi.NFSShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	enabled := true
-	nfsShare, err := s.apiClient.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
+	nfsShare, err := s.apiClient.CreateNFSShare(ctx, nastyapi.NFSShareCreateParams{
 		Path:    subvol.Path,
 		Comment: comment,
 		Clients: params.nfsClients,
@@ -337,7 +337,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no NFS share - continue with share creation below
 	} else {
 		// Create new subvolume
-		createParams := tnsapi.SubvolumeCreateParams{
+		createParams := nastyapi.SubvolumeCreateParams{
 			Pool:          params.pool,
 			Name:          params.subvolumeName,
 			SubvolumeType: "filesystem",
@@ -391,7 +391,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	// Step 0: Verify ownership and read metadata from xattr properties
-	deleteStrategy := tnsapi.DeleteStrategyDelete // Default
+	deleteStrategy := nastyapi.DeleteStrategyDelete // Default
 	shareUUID := meta.NFSShareUUID
 
 	if pool != "" && subvolName != "" {
@@ -407,15 +407,15 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 			props := subvol.Properties
 
 			// Verify ownership if properties exist
-			if managedBy, ok := props[tnsapi.PropertyManagedBy]; ok && managedBy != tnsapi.ManagedByValue {
-				klog.Errorf("Subvolume %s/%s is not managed by tns-csi (managed_by=%s), refusing to delete", pool, subvolName, managedBy)
+			if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
+				klog.Errorf("Subvolume %s/%s is not managed by nasty-csi (managed_by=%s), refusing to delete", pool, subvolName, managedBy)
 				timer.ObserveError()
 				return nil, status.Errorf(codes.FailedPrecondition,
-					"Subvolume %s/%s is not managed by tns-csi (managed_by=%s)", pool, subvolName, managedBy)
+					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", pool, subvolName, managedBy)
 			}
 
 			// Verify volume name matches
-			if volumeName, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
+			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
 				if volumeName != meta.Name {
 					klog.Errorf("Subvolume %s/%s volume name mismatch: property=%s, requested=%s", pool, subvolName, volumeName, meta.Name)
 					timer.ObserveError()
@@ -425,7 +425,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 			}
 
 			// Read stored share UUID (may differ from metadata if share was re-created)
-			if storedShareID, ok := props[tnsapi.PropertyNFSShareID]; ok && storedShareID != "" {
+			if storedShareID, ok := props[nastyapi.PropertyNFSShareID]; ok && storedShareID != "" {
 				if shareUUID == "" {
 					shareUUID = storedShareID
 				} else if storedShareID != shareUUID {
@@ -435,7 +435,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 			}
 
 			// Check deleteStrategy
-			if strategy, ok := props[tnsapi.PropertyDeleteStrategy]; ok && strategy != "" {
+			if strategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && strategy != "" {
 				deleteStrategy = strategy
 			}
 
@@ -444,7 +444,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	// Check if we should retain the volume instead of deleting
-	if deleteStrategy == tnsapi.DeleteStrategyRetain {
+	if deleteStrategy == nastyapi.DeleteStrategyRetain {
 		klog.Infof("Volume %s has deleteStrategy=retain, skipping actual deletion (subvolume: %s, shareUUID: %s will be kept)",
 			meta.Name, meta.DatasetID, shareUUID)
 		timer.ObserveSuccess()
@@ -507,12 +507,12 @@ func splitSubvolumeID(subvolumeID string) (string, string, error) {
 
 // setupNFSVolumeFromClone sets up an NFS share for a cloned subvolume.
 // TODO: Clone-from-snapshot operations are not yet supported by the NASty API.
-func (s *ControllerService) setupNFSVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *tnsapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) setupNFSVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "TODO: clone-from-snapshot not yet supported by NASty API")
 }
 
 // adoptNFSVolume adopts an orphaned NFS volume by re-creating its NFS share.
-func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *tnsapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "adopt")
 	volumeName := req.GetName()
 	klog.Infof("Adopting NFS volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
@@ -539,7 +539,7 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		klog.Warningf("Failed to list NFS shares for %s: %v", subvol.Path, err)
 	}
 
-	var nfsShare *tnsapi.NFSShare
+	var nfsShare *nastyapi.NFSShare
 	for i := range existingShares {
 		if existingShares[i].Path == subvol.Path {
 			nfsShare = &existingShares[i]
@@ -553,10 +553,10 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		klog.Infof("Creating NFS share for adopted volume: %s", subvol.Path)
 		comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", volumeName, requestedCapacity)
 		enabled := true
-		newShare, createErr := s.apiClient.CreateNFSShare(ctx, tnsapi.NFSShareCreateParams{
+		newShare, createErr := s.apiClient.CreateNFSShare(ctx, nastyapi.NFSShareCreateParams{
 			Path:    subvol.Path,
 			Comment: comment,
-			Clients: []tnsapi.NFSClient{
+			Clients: []nastyapi.NFSClient{
 				{Host: "*", Options: "rw,no_root_squash"},
 			},
 			Enabled: &enabled,
@@ -572,11 +572,11 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 	// Update xattr properties with new share ID
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := tnsapi.NFSVolumePropertiesV1(tnsapi.NFSVolumeParams{
+	props := nastyapi.NFSVolumePropertiesV1(nastyapi.NFSVolumeParams{
 		VolumeID:       volumeName,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -643,7 +643,7 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 	// Update capacity via xattr property (NASty handles quota enforcement via xattr)
 	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
-		tnsapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
 	})
 	if err != nil {
 		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)
@@ -661,7 +661,7 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 // getOrCreateSubvolume gets an existing subvolume or creates a new one.
 // Returns (subvolume, isNewlyCreated, error).
-func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, pool, name, subvolumeType, comment, compression string, requestedCapacity int64, timer *metrics.OperationTimer) (*tnsapi.Subvolume, bool, error) {
+func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, pool, name, subvolumeType, comment, compression string, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
 	// Try to get existing subvolume
 	existing, err := s.apiClient.GetSubvolume(ctx, pool, name)
 	if err == nil && existing != nil {
@@ -674,7 +674,7 @@ func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, pool, name
 	}
 
 	// Build creation parameters
-	createParams := tnsapi.SubvolumeCreateParams{
+	createParams := nastyapi.SubvolumeCreateParams{
 		Pool:          pool,
 		Name:          name,
 		SubvolumeType: subvolumeType,

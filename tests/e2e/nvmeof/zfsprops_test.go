@@ -38,8 +38,8 @@ var _ = Describe("NVMe-oF ZFS Properties", func() {
 
 	It("should create ZVOL with custom ZFS properties", func() {
 		By("Creating StorageClass with ZFS properties for NVMe-oF")
-		zfsStorageClass := "tns-csi-nvmeof-zfsprops"
-		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, zfsStorageClass, "tns.csi.io", map[string]string{
+		zfsStorageClass := "nasty-csi-nvmeof-zfsprops"
+		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, zfsStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":         "nvmeof",
 			"server":           f.Config.NAStyHost,
 			"pool":             f.Config.NAStyPool,

@@ -43,7 +43,7 @@ var _ = Describe("NVMe-oF Access Modes", func() {
 			pvcName := "nvmeof-rwo"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nvmeof",
+				StorageClassName: "nasty-csi-nvmeof",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
@@ -93,7 +93,7 @@ var _ = Describe("NVMe-oF Access Modes", func() {
 			pvcName := "nvmeof-rwop"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nvmeof",
+				StorageClassName: "nasty-csi-nvmeof",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
 			})
@@ -170,7 +170,7 @@ var _ = Describe("NVMe-oF Access Modes", func() {
 			pvcName := "nvmeof-rwop-succession"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nvmeof",
+				StorageClassName: "nasty-csi-nvmeof",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
 			})

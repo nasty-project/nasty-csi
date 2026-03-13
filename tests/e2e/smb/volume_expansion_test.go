@@ -37,7 +37,7 @@ var _ = Describe("SMB Volume Expansion", func() {
 		pvcName := "expand-smb"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-smb",
+			StorageClassName: "nasty-csi-smb",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -110,7 +110,7 @@ var _ = Describe("SMB Volume Expansion", func() {
 		pvcName := "expand-pv-check-smb"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-smb",
+			StorageClassName: "nasty-csi-smb",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})

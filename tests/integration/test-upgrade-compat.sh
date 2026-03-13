@@ -12,9 +12,9 @@
 #
 # Optional environment variables:
 #   PREV_VERSION         - Previous release tag for display (e.g., "v0.8.0")
-#   CSI_IMAGE_REPOSITORY - Image repository (default: ghcr.io/fenio/tns-csi)
+#   CSI_IMAGE_REPOSITORY - Image repository (default: ghcr.io/fenio/nasty-csi)
 #   KUBELET_PATH         - Kubelet data directory (default: /var/lib/kubelet)
-#   OCI_CHART_REPO       - OCI chart repository (default: oci://registry-1.docker.io/bfenski/tns-csi-driver)
+#   OCI_CHART_REPO       - OCI chart repository (default: oci://registry-1.docker.io/bfenski/nasty-csi-driver)
 
 set -euo pipefail
 
@@ -49,22 +49,22 @@ print_driver_info() {
     # Image reference
     local image
     image=$(kubectl get pods -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
-        -o jsonpath='{.items[0].spec.containers[?(@.name=="tns-csi-driver")].image}' 2>/dev/null || echo "unknown")
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
+        -o jsonpath='{.items[0].spec.containers[?(@.name=="nasty-csi-driver")].image}' 2>/dev/null || echo "unknown")
     echo -e "${CYAN}  │${NC} Image:   ${image}"
 
     # Image ID (includes digest after pull)
     local image_id
     image_id=$(kubectl get pods -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
-        -o jsonpath='{.items[0].status.containerStatuses[?(@.name=="tns-csi-driver")].imageID}' 2>/dev/null || echo "unknown")
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
+        -o jsonpath='{.items[0].status.containerStatuses[?(@.name=="nasty-csi-driver")].imageID}' 2>/dev/null || echo "unknown")
     echo -e "${CYAN}  │${NC} ImageID: ${image_id}"
 
     # Version/commit/date from driver startup log
     local version_line
     version_line=$(kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
-        -c tns-csi-plugin --tail=50 2>/dev/null \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
+        -c nasty-csi-plugin --tail=50 2>/dev/null \
         | grep -m1 "Starting TNS CSI Driver" || echo "")
     if [[ -n "$version_line" ]]; then
         # Extract just the version info: "v0.9.3 (commit: abc1234, built: 2026-01-15T...)"
@@ -75,7 +75,7 @@ print_driver_info() {
 
     # Helm chart version
     local chart_version
-    chart_version=$(helm list -n kube-system -f tns-csi -o json 2>/dev/null \
+    chart_version=$(helm list -n kube-system -f nasty-csi -o json 2>/dev/null \
         | jq -r '.[0] | "\(.chart) (app: \(.app_version))"' 2>/dev/null || echo "unknown")
     echo -e "${CYAN}  │${NC} Chart:   ${chart_version}"
 
@@ -88,9 +88,9 @@ print_driver_info() {
 # ─────────────────────────────────────────────────
 NAMESPACE="upgrade-compat-$(date +%s)-${RANDOM}"
 TRUENAS_URL="wss://${TRUENAS_HOST}/api/current"
-OCI_CHART_REPO="${OCI_CHART_REPO:-oci://registry-1.docker.io/bfenski/tns-csi-driver}"
+OCI_CHART_REPO="${OCI_CHART_REPO:-oci://registry-1.docker.io/bfenski/nasty-csi-driver}"
 IMAGE_TAG="${CSI_IMAGE_TAG:-latest}"
-IMAGE_REPO="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/tns-csi}"
+IMAGE_REPO="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
 KUBELET_PATH="${KUBELET_PATH:-/var/lib/kubelet}"
 
 # Validate required environment
@@ -123,16 +123,16 @@ dump_diagnostics() {
     echo "════════════════════════════════════════"
     echo ""
     echo "=== CSI Driver Pods ==="
-    kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver -o wide 2>/dev/null || true
+    kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver -o wide 2>/dev/null || true
     echo ""
     echo "=== Controller Logs (last 100 lines) ==="
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
-        -c tns-csi-plugin --tail=100 2>/dev/null || true
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
+        -c nasty-csi-plugin --tail=100 2>/dev/null || true
     echo ""
     echo "=== Node Logs (last 100 lines) ==="
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node \
         --tail=100 2>/dev/null || true
     echo ""
     echo "=== Test Namespace Events ==="
@@ -148,10 +148,10 @@ dump_diagnostics() {
     # Save to /tmp/test-logs/ for artifact upload
     mkdir -p /tmp/test-logs
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
-        -c tns-csi-plugin --tail=500 > /tmp/test-logs/controller.log 2>&1 || true
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
+        -c nasty-csi-plugin --tail=500 > /tmp/test-logs/controller.log 2>&1 || true
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node \
         --tail=500 > /tmp/test-logs/node.log 2>&1 || true
     kubectl get events -n "${NAMESPACE}" --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
 }
@@ -180,7 +180,7 @@ cleanup() {
     done
 
     info "Uninstalling Helm release..."
-    helm uninstall tns-csi --namespace kube-system 2>/dev/null || true
+    helm uninstall nasty-csi --namespace kube-system 2>/dev/null || true
     pass "Cleanup complete"
 }
 
@@ -213,19 +213,19 @@ kubectl create namespace "${NAMESPACE}"
 phase "Phase 1: Deploy previous release (${PREV_VERSION:-v${PREV_CHART_VERSION}})"
 
 info "Installing previous release from OCI registry..."
-helm install tns-csi "${OCI_CHART_REPO}" \
+helm install nasty-csi "${OCI_CHART_REPO}" \
     --version "${PREV_CHART_VERSION}" \
     --namespace kube-system \
     --set truenas.url="${TRUENAS_URL}" \
     --set truenas.apiKey="${TRUENAS_API_KEY}" \
     --set truenas.skipTLSVerify=true \
     --set node.kubeletPath="${KUBELET_PATH}" \
-    --set storageClasses[0].name=tns-csi-nfs \
+    --set storageClasses[0].name=nasty-csi-nfs \
     --set storageClasses[0].enabled=true \
     --set storageClasses[0].protocol=nfs \
     --set storageClasses[0].pool="${TRUENAS_POOL}" \
     --set storageClasses[0].server="${TRUENAS_HOST}" \
-    --set storageClasses[1].name=tns-csi-iscsi \
+    --set storageClasses[1].name=nasty-csi-iscsi \
     --set storageClasses[1].enabled=true \
     --set storageClasses[1].protocol=iscsi \
     --set storageClasses[1].pool="${TRUENAS_POOL}" \
@@ -234,7 +234,7 @@ helm install tns-csi "${OCI_CHART_REPO}" \
 
 info "Waiting for driver pods to be ready..."
 kubectl wait --for=condition=Ready pod \
-    -l app.kubernetes.io/name=tns-csi-driver \
+    -l app.kubernetes.io/name=nasty-csi-driver \
     -n kube-system --timeout=120s
 
 pass "Previous release deployed"
@@ -253,7 +253,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-nfs
+  storageClassName: nasty-csi-nfs
 EOF
 
 kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/compat-nfs-pvc -n "${NAMESPACE}" --timeout=120s
@@ -294,7 +294,7 @@ pass "NFS writer pod deleted (PVC retained)"
 
 # --- iSCSI volume with old driver (if StorageClass exists) ---
 ISCSI_OLD_AVAILABLE=false
-if kubectl get storageclass tns-csi-iscsi &>/dev/null; then
+if kubectl get storageclass nasty-csi-iscsi &>/dev/null; then
     info "Creating iSCSI volume with old driver..."
     kubectl apply -n "${NAMESPACE}" -f - <<'EOF'
 apiVersion: v1
@@ -308,7 +308,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-iscsi
+  storageClassName: nasty-csi-iscsi
 EOF
 
     kubectl apply -n "${NAMESPACE}" -f - <<'EOF'
@@ -355,7 +355,7 @@ record_phase "Create volumes (old driver)" "PASS"
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 phase "Phase 2: Upgrade to current build (${IMAGE_REPO}:${IMAGE_TAG})"
 
-helm upgrade tns-csi ./charts/tns-csi-driver \
+helm upgrade nasty-csi ./charts/nasty-csi-driver \
     --namespace kube-system \
     --reuse-values \
     --set image.repository="${IMAGE_REPO}" \
@@ -364,10 +364,10 @@ helm upgrade tns-csi ./charts/tns-csi-driver \
     --wait --timeout 5m
 
 info "Waiting for controller rollout..."
-kubectl rollout status deployment/tns-csi-controller -n kube-system --timeout=120s
+kubectl rollout status deployment/nasty-csi-controller -n kube-system --timeout=120s
 
 info "Waiting for node daemonset rollout..."
-kubectl rollout status daemonset/tns-csi-node -n kube-system --timeout=120s
+kubectl rollout status daemonset/nasty-csi-node -n kube-system --timeout=120s
 
 pass "Driver upgraded"
 print_driver_info "New"
@@ -471,7 +471,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-nfs
+  storageClassName: nasty-csi-nfs
 EOF
 
 kubectl wait --for=jsonpath='{.status.phase}'=Bound pvc/new-nfs-pvc -n "${NAMESPACE}" --timeout=120s
@@ -509,7 +509,7 @@ else
 fi
 
 # --- New iSCSI volume ---
-if kubectl get storageclass tns-csi-iscsi &>/dev/null; then
+if kubectl get storageclass nasty-csi-iscsi &>/dev/null; then
     info "Creating new iSCSI volume with upgraded driver..."
     kubectl apply -n "${NAMESPACE}" -f - <<'EOF'
 apiVersion: v1
@@ -523,7 +523,7 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  storageClassName: tns-csi-iscsi
+  storageClassName: nasty-csi-iscsi
 EOF
 
     kubectl apply -n "${NAMESPACE}" -f - <<'EOF'

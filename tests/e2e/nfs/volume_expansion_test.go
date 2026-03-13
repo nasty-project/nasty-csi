@@ -37,7 +37,7 @@ var _ = Describe("NFS Volume Expansion", func() {
 		pvcName := "expand-nfs"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -110,7 +110,7 @@ var _ = Describe("NFS Volume Expansion", func() {
 		pvcName := "expand-pv-check-nfs"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})

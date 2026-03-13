@@ -41,8 +41,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-basic"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-basic"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -111,8 +111,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass with AES-128-CCM")
-			scName := "tns-csi-iscsi-encrypted-aes128"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-aes128"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -168,8 +168,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-expand"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-expand"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -264,8 +264,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-expand-inline"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-expand-inline"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -342,8 +342,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-snapshot"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-snapshot"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -358,8 +358,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			})
 
 			By("Creating VolumeSnapshotClass")
-			snapshotClass := "tns-csi-iscsi-encrypted-snapshot-class"
-			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			snapshotClass := "nasty-csi-iscsi-encrypted-snapshot-class"
+			err = f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.Cleanup.Add(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -447,8 +447,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-clone"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-clone"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -532,8 +532,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-persist"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-persist"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,
@@ -606,8 +606,8 @@ var _ = Describe("iSCSI Encryption", func() {
 			ctx := context.Background()
 
 			By("Creating encrypted StorageClass")
-			scName := "tns-csi-iscsi-encrypted-block"
-			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", map[string]string{
+			scName := "nasty-csi-iscsi-encrypted-block"
+			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
 				"pool":                      f.Config.NAStyPool,

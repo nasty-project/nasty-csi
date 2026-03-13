@@ -95,13 +95,13 @@ That's it! Unlike NVMe-oF, iSCSI doesn't require pre-configured portals or targe
 ### Quick Install with Helm
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-iscsi" \
+  --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -120,7 +120,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 
 # Check storage class was created
-kubectl get storageclass tns-csi-iscsi
+kubectl get storageclass nasty-csi-iscsi
 
 # View controller logs
 kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
@@ -141,7 +141,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: tns-csi-iscsi
+  storageClassName: nasty-csi-iscsi
 ```
 
 Apply:
@@ -186,7 +186,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: tns-csi-iscsi
+  storageClassName: nasty-csi-iscsi
 ---
 apiVersion: v1
 kind: Pod
@@ -234,7 +234,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: iscsi-fast
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: iscsi
   server: YOUR-NASTY-IP
@@ -254,12 +254,12 @@ volumeBindingMode: WaitForFirstConsumer
 To keep volumes on NASty when PVCs are deleted:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-iscsi" \
+  --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -276,7 +276,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: iscsi-encrypted
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: iscsi
   server: YOUR-NASTY-IP
@@ -296,8 +296,8 @@ allowVolumeExpansion: true
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: tns-csi-iscsi-snapclass
-driver: tns.csi.io
+  name: nasty-csi-iscsi-snapclass
+driver: nasty.csi.io
 deletionPolicy: Delete
 ```
 
@@ -309,7 +309,7 @@ kind: VolumeSnapshot
 metadata:
   name: my-snapshot
 spec:
-  volumeSnapshotClassName: tns-csi-iscsi-snapclass
+  volumeSnapshotClassName: nasty-csi-iscsi-snapclass
   source:
     persistentVolumeClaimName: my-iscsi-volume
 ```
@@ -322,7 +322,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: restored-volume
 spec:
-  storageClassName: tns-csi-iscsi
+  storageClassName: nasty-csi-iscsi
   dataSource:
     name: my-snapshot
     kind: VolumeSnapshot

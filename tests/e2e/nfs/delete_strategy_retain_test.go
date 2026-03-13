@@ -41,8 +41,8 @@ var _ = Describe("NFS Delete Strategy Retain", func() {
 
 	It("should retain NASty resources when deleteStrategy=retain is set", func() {
 		By("Creating StorageClass with deleteStrategy=retain")
-		retainStorageClass := "tns-csi-nfs-retain"
-		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "tns.csi.io", map[string]string{
+		retainStorageClass := "nasty-csi-nfs-retain"
+		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "nfs",
 			"server":         f.Config.NAStyHost,
 			"pool":           f.Config.NAStyPool,

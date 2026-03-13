@@ -35,10 +35,10 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 
 		It("should create a volume with snapshot and delete both cleanly", func() {
 			ctx := context.Background()
-			snapshotClass := "tns-csi-nfs-snapshot-scale-del"
+			snapshotClass := "nasty-csi-nfs-snapshot-scale-del"
 
 			By("Creating VolumeSnapshotClass")
-			err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.DeferCleanup(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -47,7 +47,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			By("Creating a PVC amid noise data")
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             "scale-snapdel-pvc",
-				StorageClassName: "tns-csi-nfs",
+				StorageClassName: "nasty-csi-nfs",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
@@ -126,11 +126,11 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 
 		It("should create multiple volumes with snapshots and delete them all", func() {
 			ctx := context.Background()
-			snapshotClass := "tns-csi-nfs-snapshot-scale-multi"
+			snapshotClass := "nasty-csi-nfs-snapshot-scale-multi"
 			volumeCount := 3
 
 			By("Creating VolumeSnapshotClass")
-			err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.DeferCleanup(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -155,7 +155,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 				// Create PVC
 				_, err := f.CreatePVC(ctx, framework.PVCOptions{
 					Name:             vi.pvcName,
-					StorageClassName: "tns-csi-nfs",
+					StorageClassName: "nasty-csi-nfs",
 					Size:             "1Gi",
 					AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 				})
@@ -247,10 +247,10 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 
 		It("should create a volume, snapshot, restore, delete restored, then delete original", func() {
 			ctx := context.Background()
-			snapshotClass := "tns-csi-nfs-snapshot-scale-restore"
+			snapshotClass := "nasty-csi-nfs-snapshot-scale-restore"
 
 			By("Creating VolumeSnapshotClass")
-			err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "tns.csi.io", "Delete")
+			err := f.K8s.CreateVolumeSnapshotClass(ctx, snapshotClass, "nasty.csi.io", "Delete")
 			Expect(err).NotTo(HaveOccurred())
 			f.DeferCleanup(func() error {
 				return f.K8s.DeleteVolumeSnapshotClass(context.Background(), snapshotClass)
@@ -259,7 +259,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			By("Creating source PVC")
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             "scale-restore-src-pvc",
-				StorageClassName: "tns-csi-nfs",
+				StorageClassName: "nasty-csi-nfs",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
@@ -294,7 +294,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 
 			By("Restoring a new PVC from snapshot")
 			restorePVCName := "scale-restore-dst-pvc"
-			err = f.K8s.CreatePVCFromSnapshot(ctx, restorePVCName, snapshotName, "tns-csi-nfs", "1Gi",
+			err = f.K8s.CreatePVCFromSnapshot(ctx, restorePVCName, snapshotName, "nasty-csi-nfs", "1Gi",
 				[]corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany})
 			Expect(err).NotTo(HaveOccurred())
 			err = f.K8s.WaitForPVCBound(ctx, restorePVCName, 2*time.Minute)

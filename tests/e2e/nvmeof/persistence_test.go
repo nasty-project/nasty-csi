@@ -40,7 +40,7 @@ var _ = Describe("NVMe-oF Crash Simulation", func() {
 		By("Creating PVC for crash simulation test")
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             fmt.Sprintf("crash-pvc-nvmeof-%d", timestamp),
-			StorageClassName: "tns-csi-nvmeof",
+			StorageClassName: "nasty-csi-nvmeof",
 			Size:             "2Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})

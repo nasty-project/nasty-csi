@@ -36,7 +36,7 @@ var _ = Describe("NFS Volume Clone", func() {
 		By("Creating source PVC")
 		sourcePVC, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             "clone-source-pvc-nfs",
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -69,7 +69,7 @@ var _ = Describe("NFS Volume Clone", func() {
 
 		By("Creating clone PVC from source PVC")
 		clonePVCName := "clone-pvc-nfs"
-		err = f.K8s.CreatePVCFromPVC(ctx, clonePVCName, sourcePVC.Name, "tns-csi-nfs", "1Gi",
+		err = f.K8s.CreatePVCFromPVC(ctx, clonePVCName, sourcePVC.Name, "nasty-csi-nfs", "1Gi",
 			[]corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create clone PVC")
 		// Register cleanup with PV wait (clone must be fully deleted before source)

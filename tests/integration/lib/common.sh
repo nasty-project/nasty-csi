@@ -128,7 +128,7 @@ show_node_mounts() {
     echo ""
     echo "=== CSI Node Driver Logs (mount operations) ==="
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node \
         --tail=50 2>&1 | grep -E "NodeStageVolume|NodePublishVolume|mount|Mount" || echo "No mount-related logs found"
 }
 
@@ -184,7 +184,7 @@ check_nvmeof_configured() {
     done
     
     local logs=$(kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
         --tail=20 2>/dev/null || true)
     
     if grep -q "No TCP NVMe-oF port" <<< "$logs"; then
@@ -226,7 +226,7 @@ check_iscsi_configured() {
     done
 
     local logs=$(kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
         --tail=20 2>/dev/null || true)
 
     if grep -q "No iSCSI portal configured" <<< "$logs"; then
@@ -390,7 +390,7 @@ deploy_driver() {
     test_info "TrueNAS URL: ${truenas_url}"
     
     local image_tag="${CSI_IMAGE_TAG:-latest}"
-    local image_repo="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/tns-csi}"
+    local image_repo="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
     local kubelet_path="${KUBELET_PATH:-/var/lib/kubelet}"
     
     local base_args=(
@@ -408,7 +408,7 @@ deploy_driver() {
     case "${protocol}" in
         nfs)
             base_args+=(
-                --set storageClasses[0].name=tns-csi-nfs
+                --set storageClasses[0].name=nasty-csi-nfs
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=nfs
                 --set storageClasses[0].pool="${TRUENAS_POOL}"
@@ -417,7 +417,7 @@ deploy_driver() {
             ;;
         nvmeof)
             base_args+=(
-                --set storageClasses[0].name=tns-csi-nvmeof
+                --set storageClasses[0].name=nasty-csi-nvmeof
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=nvmeof
                 --set storageClasses[0].pool="${TRUENAS_POOL}"
@@ -428,7 +428,7 @@ deploy_driver() {
             ;;
         iscsi)
             base_args+=(
-                --set storageClasses[0].name=tns-csi-iscsi
+                --set storageClasses[0].name=nasty-csi-iscsi
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=iscsi
                 --set storageClasses[0].pool="${TRUENAS_POOL}"
@@ -443,7 +443,7 @@ deploy_driver() {
     esac
     
     test_info "Executing Helm deployment..."
-    if ! helm upgrade --install tns-csi ./charts/tns-csi-driver \
+    if ! helm upgrade --install nasty-csi ./charts/nasty-csi-driver \
         "${base_args[@]}" \
         "${helm_args[@]}" \
         --wait --timeout 10m; then
@@ -452,10 +452,10 @@ deploy_driver() {
         
         echo ""
         echo "=== Pod Status ==="
-        kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver -o wide || true
+        kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver -o wide || true
         echo ""
         echo "=== Controller Logs ==="
-        kubectl logs -n kube-system -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller --all-containers --tail=50 || true
+        kubectl logs -n kube-system -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller --all-containers --tail=50 || true
         false
     fi
     
@@ -471,7 +471,7 @@ wait_for_driver() {
     test_step "Waiting for CSI driver to be ready"
     
     if ! kubectl wait --for=condition=Ready pod \
-        -l app.kubernetes.io/name=tns-csi-driver \
+        -l app.kubernetes.io/name=nasty-csi-driver \
         -n kube-system \
         --timeout="${TIMEOUT_DRIVER}"; then
         stop_test_timer "wait_for_driver" "FAILED"
@@ -480,8 +480,8 @@ wait_for_driver() {
     fi
     
     local image_version
-    image_version=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver \
-        -o jsonpath='{.items[0].spec.containers[?(@.name=="tns-csi-driver")].image}' 2>/dev/null | sed 's/.*://' || echo "unknown")
+    image_version=$(kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver \
+        -o jsonpath='{.items[0].spec.containers[?(@.name=="nasty-csi-driver")].image}' 2>/dev/null | sed 's/.*://' || echo "unknown")
     test_success "CSI driver is ready (image=${image_version})"
     
     # Wait for StorageClasses
@@ -490,7 +490,7 @@ wait_for_driver() {
     local elapsed=0
     
     while [[ $elapsed -lt $timeout ]]; do
-        local scs=$(kubectl get storageclass -o jsonpath='{.items[?(@.provisioner=="tns.csi.io")].metadata.name}' 2>/dev/null || echo "")
+        local scs=$(kubectl get storageclass -o jsonpath='{.items[?(@.provisioner=="nasty.csi.io")].metadata.name}' 2>/dev/null || echo "")
         if [[ -n "${scs}" ]]; then
             test_success "StorageClasses verified: ${scs}"
             break
@@ -575,7 +575,7 @@ create_test_pod() {
         kubectl describe pod "${pod_name}" -n "${TEST_NAMESPACE}" || true
         echo ""
         kubectl logs -n kube-system \
-            -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node \
+            -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node \
             --tail=200 || true
         false
     fi
@@ -685,14 +685,14 @@ show_diagnostic_logs() {
     echo ""
     echo "=== Controller Logs (last 200 lines) ==="
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=controller \
-        -c tns-csi-plugin \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller \
+        -c nasty-csi-plugin \
         --tail=200 || true
     
     echo ""
     echo "=== Node Logs (last 200 lines) ==="
     kubectl logs -n kube-system \
-        -l app.kubernetes.io/name=tns-csi-driver,app.kubernetes.io/component=node \
+        -l app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node \
         --tail=200 || true
     
     if [[ -n "${pvc_name}" ]]; then
@@ -713,7 +713,7 @@ show_diagnostic_logs() {
     
     echo ""
     echo "=== CSI Driver Pods ==="
-    kubectl get pods -n kube-system -l app.kubernetes.io/name=tns-csi-driver -o wide || true
+    kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver -o wide || true
     
     echo "========================================"
 }

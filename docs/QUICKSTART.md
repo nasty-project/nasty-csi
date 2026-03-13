@@ -21,13 +21,13 @@ This driver is in early development phase. Use only for testing and evaluation e
 The fastest way to get started is using Helm from the OCI registry:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -48,7 +48,7 @@ That's it! The driver is now installed and ready to use.
 kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 
 # Check storage class created
-kubectl get storageclass tns-csi-nfs
+kubectl get storageclass nasty-csi-nfs
 
 # View controller logs
 kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
@@ -59,11 +59,11 @@ kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-c
 If you've cloned the repository:
 
 ```bash
-helm install tns-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -151,7 +151,7 @@ spec:
       name: data
     spec:
       accessModes: [ "ReadWriteOnce" ]
-      storageClassName: tns-csi-nfs
+      storageClassName: nasty-csi-nfs
       resources:
         requests:
           storage: 10Gi
@@ -162,13 +162,13 @@ spec:
 ### Check Driver Status
 ```bash
 # Check controller pod
-kubectl get pods -n kube-system | grep tns-csi-controller
+kubectl get pods -n kube-system | grep nasty-csi-controller
 
 # Check node pods
-kubectl get pods -n kube-system | grep tns-csi-node
+kubectl get pods -n kube-system | grep nasty-csi-node
 
 # View controller logs
-kubectl logs -n kube-system tns-csi-controller-0 -c nasty-csi-plugin
+kubectl logs -n kube-system nasty-csi-controller-0 -c nasty-csi-plugin
 
 # View node logs
 kubectl logs -n kube-system <node-pod-name> -c nasty-csi-plugin
@@ -257,7 +257,7 @@ kubectl describe pvc <pvc-name>
 
 ### Enable Debug Logging
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --reuse-values \
@@ -292,7 +292,7 @@ nasty:
   apiKey: "1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 storageClasses:
-  - name: tns-csi-nfs
+  - name: nasty-csi-nfs
     enabled: true
     protocol: nfs
     pool: "tank"
@@ -315,7 +315,7 @@ storageClasses:
 
 Install with values file:
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
@@ -327,13 +327,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 To keep volumes on NASty even when PVCs are deleted (useful for data protection):
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nfs" \
+  --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -357,13 +357,13 @@ The driver will automatically resize the dataset on NASty.
 To use NVMe-oF instead of NFS:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-nvmeof" \
+  --set storageClasses[0].name="nasty-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -385,13 +385,13 @@ See [QUICKSTART-NVMEOF.md](QUICKSTART-NVMEOF.md) for detailed NVMe-oF setup inst
 To use SMB instead of NFS (requires credentials Secret):
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-smb" \
+  --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -455,7 +455,7 @@ The driver exposes standard CSI metrics that can be scraped by Prometheus:
 To upgrade to a newer version:
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --reuse-values
@@ -470,7 +470,7 @@ To remove the driver (this will NOT delete existing PVs):
 kubectl delete pvc --all -A
 
 # Uninstall the driver
-helm uninstall tns-csi --namespace kube-system
+helm uninstall nasty-csi --namespace kube-system
 ```
 
 ## Snapshots and Cloning

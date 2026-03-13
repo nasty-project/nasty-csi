@@ -9,7 +9,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -123,7 +123,7 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		return nil, status.Errorf(codes.NotFound, "Source volume %s not found: %v", sourceVolumeID, err)
 	}
 
-	protocol := subvol.Properties[tnsapi.PropertyProtocol]
+	protocol := subvol.Properties[nastyapi.PropertyProtocol]
 	if protocol == "" {
 		protocol = ProtocolNFS
 	}
@@ -144,8 +144,8 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 				return nil, status.Errorf(codes.Internal, "Failed to encode snapshot ID: %v", encodeErr)
 			}
 			var sizeBytes int64
-			if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-				sizeBytes = tnsapi.StringToInt64(capStr)
+			if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+				sizeBytes = nastyapi.StringToInt64(capStr)
 			}
 			timer.ObserveSuccess()
 			return &csi.CreateSnapshotResponse{
@@ -161,7 +161,7 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	// Create snapshot
-	snap, err := s.apiClient.CreateSnapshot(ctx, tnsapi.SnapshotCreateParams{
+	snap, err := s.apiClient.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
 		Pool:      pool,
 		Subvolume: subvolumeName,
 		Name:      snapshotName,
@@ -187,8 +187,8 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	}
 
 	var sizeBytes int64
-	if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-		sizeBytes = tnsapi.StringToInt64(capStr)
+	if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+		sizeBytes = nastyapi.StringToInt64(capStr)
 	}
 
 	timer.ObserveSuccess()

@@ -46,21 +46,21 @@ var _ = Describe("PVC Metadata", func() {
 		{
 			name:         "NFS",
 			id:           "nfs",
-			storageClass: "tns-csi-nfs",
+			storageClass: "nasty-csi-nfs",
 			accessMode:   corev1.ReadWriteMany,
 			podTimeout:   2 * time.Minute,
 		},
 		{
 			name:         "NVMe-oF",
 			id:           "nvmeof",
-			storageClass: "tns-csi-nvmeof",
+			storageClass: "nasty-csi-nvmeof",
 			accessMode:   corev1.ReadWriteOnce,
 			podTimeout:   6 * time.Minute,
 		},
 		{
 			name:         "iSCSI",
 			id:           "iscsi",
-			storageClass: "tns-csi-iscsi",
+			storageClass: "nasty-csi-iscsi",
 			accessMode:   corev1.ReadWriteOnce,
 			podTimeout:   6 * time.Minute,
 		},
@@ -70,7 +70,7 @@ var _ = Describe("PVC Metadata", func() {
 		protocols = append(protocols, protocolConfig{
 			name:         "SMB",
 			id:           "smb",
-			storageClass: "tns-csi-smb",
+			storageClass: "nasty-csi-smb",
 			accessMode:   corev1.ReadWriteMany,
 			podTimeout:   2 * time.Minute,
 		})
@@ -133,8 +133,8 @@ var _ = Describe("PVC Metadata", func() {
 			// CSI provisioner adds these annotations
 			Expect(pv.Annotations).To(HaveKey("pv.kubernetes.io/provisioned-by"),
 				"PV should have provisioner annotation")
-			Expect(pv.Annotations["pv.kubernetes.io/provisioned-by"]).To(Equal("tns.csi.io"),
-				"PV should be provisioned by tns.csi.io")
+			Expect(pv.Annotations["pv.kubernetes.io/provisioned-by"]).To(Equal("nasty.csi.io"),
+				"PV should be provisioned by nasty.csi.io")
 
 			if f.Verbose() {
 				GinkgoWriter.Printf("[%s] PVC labels preserved, PV annotations correct\n", proto.name)
@@ -234,7 +234,7 @@ var _ = Describe("PVC Metadata", func() {
 
 			// Verify CSI volume source is set
 			Expect(pv.Spec.CSI).NotTo(BeNil(), "PV should have CSI volume source")
-			Expect(pv.Spec.CSI.Driver).To(Equal("tns.csi.io"), "CSI driver should be tns.csi.io")
+			Expect(pv.Spec.CSI.Driver).To(Equal("nasty.csi.io"), "CSI driver should be nasty.csi.io")
 			Expect(pv.Spec.CSI.VolumeHandle).NotTo(BeEmpty(), "Volume handle should not be empty")
 
 			// Volume attributes should contain protocol-specific info

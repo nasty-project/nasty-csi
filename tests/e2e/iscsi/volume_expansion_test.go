@@ -37,7 +37,7 @@ var _ = Describe("iSCSI Volume Expansion", func() {
 		pvcName := "expand-iscsi"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-iscsi",
+			StorageClassName: "nasty-csi-iscsi",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
@@ -110,7 +110,7 @@ var _ = Describe("iSCSI Volume Expansion", func() {
 		pvcName := "expand-pv-check-iscsi"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-iscsi",
+			StorageClassName: "nasty-csi-iscsi",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})

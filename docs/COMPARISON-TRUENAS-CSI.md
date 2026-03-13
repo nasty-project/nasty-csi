@@ -45,18 +45,18 @@ The [official NASty CSI driver](https://github.com/nasty/nasty-csi) was released
 
 ## Unique to TNS-CSI
 
-### 1. kubectl Plugin (`kubectl tns-csi`)
+### 1. kubectl Plugin (`kubectl nasty-csi`)
 
 A comprehensive command-line tool for volume management:
 
-- `kubectl tns-csi summary` - Dashboard overview of all resources
-- `kubectl tns-csi list` - List all managed volumes
-- `kubectl tns-csi list-orphaned` - Find volumes with no matching PVC
-- `kubectl tns-csi list-unmanaged` - Discover datasets not managed by tns-csi
-- `kubectl tns-csi import` - Import existing datasets into management
-- `kubectl tns-csi adopt` - Generate manifests for volume adoption
-- `kubectl tns-csi health` - Check health of all volumes
-- `kubectl tns-csi troubleshoot` - Diagnose PVC issues
+- `kubectl nasty-csi summary` - Dashboard overview of all resources
+- `kubectl nasty-csi list` - List all managed volumes
+- `kubectl nasty-csi list-orphaned` - Find volumes with no matching PVC
+- `kubectl nasty-csi list-unmanaged` - Discover datasets not managed by nasty-csi
+- `kubectl nasty-csi import` - Import existing datasets into management
+- `kubectl nasty-csi adopt` - Generate manifests for volume adoption
+- `kubectl nasty-csi health` - Check health of all volumes
+- `kubectl nasty-csi troubleshoot` - Diagnose PVC issues
 
 ### 2. Detached Snapshots
 
@@ -68,7 +68,7 @@ A comprehensive command-line tool for volume management:
 ### 3. Volume Adoption/Migration
 
 - Mark volumes as "adoptable" for cluster migration
-- Import existing datasets into tns-csi management
+- Import existing datasets into nasty-csi management
 - Re-adopt volumes after cluster rebuild
 - Migration assistance from democratic-csi
 
@@ -144,10 +144,10 @@ Built-in observability:
 ## Migration Between Drivers
 
 Both drivers store metadata in ZFS user properties, but with different property prefixes:
-- TNS-CSI: `tns-csi:*` properties
+- TNS-CSI: `nasty-csi:*` properties
 - nasty-csi: Different property schema
 
-Direct migration between the two would require re-importing volumes. TNS-CSI's `kubectl tns-csi import` command can help adopt datasets created by other tools.
+Direct migration between the two would require re-importing volumes. TNS-CSI's `kubectl nasty-csi import` command can help adopt datasets created by other tools.
 
 ## Related Links
 

@@ -40,7 +40,7 @@ var _ = Describe("iSCSI Crash Simulation", func() {
 		By("Creating PVC for crash simulation test")
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             fmt.Sprintf("crash-pvc-iscsi-%d", timestamp),
-			StorageClassName: "tns-csi-iscsi",
+			StorageClassName: "nasty-csi-iscsi",
 			Size:             "2Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})

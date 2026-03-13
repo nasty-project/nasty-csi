@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -119,19 +119,19 @@ func TestCreateSnapshot(t *testing.T) {
 				SourceVolumeId: volumeID,
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Name:      name,
 						Pool:      pool,
 						Snapshots: []string{},
 						Properties: map[string]string{
-							tnsapi.PropertyProtocol:      ProtocolNFS,
-							tnsapi.PropertyCapacityBytes: "1073741824",
+							nastyapi.PropertyProtocol:      ProtocolNFS,
+							nastyapi.PropertyCapacityBytes: "1073741824",
 						},
 					}, nil
 				}
-				m.CreateSnapshotFunc = func(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error) {
-					return &tnsapi.Snapshot{
+				m.CreateSnapshotFunc = func(ctx context.Context, params nastyapi.SnapshotCreateParams) (*nastyapi.Snapshot, error) {
+					return &nastyapi.Snapshot{
 						Name:      params.Name,
 						Subvolume: params.Subvolume,
 						Pool:      params.Pool,
@@ -163,13 +163,13 @@ func TestCreateSnapshot(t *testing.T) {
 				SourceVolumeId: volumeID,
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-					return &tnsapi.Subvolume{
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
 						Name:      name,
 						Pool:      pool,
 						Snapshots: []string{"existing-snap"},
 						Properties: map[string]string{
-							tnsapi.PropertyProtocol: ProtocolNFS,
+							nastyapi.PropertyProtocol: ProtocolNFS,
 						},
 					}, nil
 				}
@@ -219,7 +219,7 @@ func TestCreateSnapshot(t *testing.T) {
 				SourceVolumeId: "tank/csi/nonexistent",
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				}
 			},
@@ -343,13 +343,13 @@ func TestListSnapshots(t *testing.T) {
 	t.Run("list by snapshot ID - found", func(t *testing.T) {
 		snapshotID := "nfs:tank/csi/test-volume@my-snap"
 		mockClient := &mockAPIClient{
-			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-				return &tnsapi.Subvolume{
+			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				return &nastyapi.Subvolume{
 					Name:      name,
 					Pool:      pool,
 					Snapshots: []string{"my-snap"},
 					Properties: map[string]string{
-						tnsapi.PropertyCapacityBytes: "1073741824",
+						nastyapi.PropertyCapacityBytes: "1073741824",
 					},
 				}, nil
 			},
@@ -369,8 +369,8 @@ func TestListSnapshots(t *testing.T) {
 	t.Run("list by snapshot ID - not found", func(t *testing.T) {
 		snapshotID := "nfs:tank/csi/test-volume@nonexistent"
 		mockClient := &mockAPIClient{
-			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-				return &tnsapi.Subvolume{
+			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				return &nastyapi.Subvolume{
 					Name:      name,
 					Pool:      pool,
 					Snapshots: []string{"other-snap"},
@@ -392,14 +392,14 @@ func TestListSnapshots(t *testing.T) {
 	t.Run("list by source volume ID", func(t *testing.T) {
 		volumeID := "tank/csi/test-volume"
 		mockClient := &mockAPIClient{
-			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
-				return &tnsapi.Subvolume{
+			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				return &nastyapi.Subvolume{
 					Name:      name,
 					Pool:      pool,
 					Snapshots: []string{"snap1", "snap2"},
 					Properties: map[string]string{
-						tnsapi.PropertyProtocol:      ProtocolNFS,
-						tnsapi.PropertyCapacityBytes: "1073741824",
+						nastyapi.PropertyProtocol:      ProtocolNFS,
+						nastyapi.PropertyCapacityBytes: "1073741824",
 					},
 				}, nil
 			},

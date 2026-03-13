@@ -56,8 +56,8 @@ Enhancement suggestions are welcome! Please:
 
 ```bash
 # Clone your fork
-git clone https://github.com/yourusername/tns-csi.git
-cd tns-csi
+git clone https://github.com/yourusername/nasty-csi.git
+cd nasty-csi
 
 # Install dependencies
 make deps
@@ -90,12 +90,12 @@ See [docs/KIND.md](docs/KIND.md) for instructions on setting up a local developm
 ### Project Structure
 
 ```
-tns-csi/
+nasty-csi/
 ├── cmd/                    # Main applications
 │   └── nasty-csi-driver/    # Driver entry point
 ├── pkg/                    # Library code
 │   ├── driver/            # CSI driver implementation
-│   └── tnsapi/            # TrueNAS API client
+│   └── nastyapi/            # TrueNAS API client
 ├── tests/                  # Test files
 │   ├── e2e/               # End-to-end tests
 │   └── integration/       # Integration tests
@@ -106,7 +106,7 @@ tns-csi/
 
 ### Important Guidelines
 
-1. **DO NOT modify WebSocket connection logic** in `pkg/tnsapi/client.go` without proven need
+1. **DO NOT modify WebSocket connection logic** in `pkg/nasty-api/client.go` without proven need
    - The ping/pong system is working correctly
    - Connection handling has been thoroughly tested
 

@@ -51,8 +51,8 @@ _output/
 .tmp/
 
 # Plugin binaries
-/kubectl-tns-csi
-/kubectl-tns_csi
+/kubectl-nasty-csi
+/kubectl-nasty-csi
 
 # Node.js
 node_modules/

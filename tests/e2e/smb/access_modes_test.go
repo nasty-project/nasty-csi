@@ -44,7 +44,7 @@ var _ = Describe("SMB Access Modes", func() {
 			pvcName := "access-mode-rwx"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-smb",
+				StorageClassName: "nasty-csi-smb",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
@@ -120,7 +120,7 @@ var _ = Describe("SMB Access Modes", func() {
 			pvcName := "concurrent-rwx"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-smb",
+				StorageClassName: "nasty-csi-smb",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
@@ -199,7 +199,7 @@ var _ = Describe("SMB Access Modes", func() {
 			pvcName := "access-mode-rwo"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-smb",
+				StorageClassName: "nasty-csi-smb",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})

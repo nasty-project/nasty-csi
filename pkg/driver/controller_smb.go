@@ -9,7 +9,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -63,7 +63,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
@@ -86,7 +86,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 }
 
 // buildSMBVolumeResponse builds the CreateVolumeResponse for an SMB volume.
-func buildSMBVolumeResponse(volumeName, server string, subvol *tnsapi.Subvolume, smbShare *tnsapi.SMBShare, capacity int64) *csi.CreateVolumeResponse {
+func buildSMBVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, smbShare *nastyapi.SMBShare, capacity int64) *csi.CreateVolumeResponse {
 	volumeID := subvol.Pool + "/" + subvol.Name
 	meta := VolumeMetadata{
 		Name:         volumeName,
@@ -112,7 +112,7 @@ func buildSMBVolumeResponse(volumeName, server string, subvol *tnsapi.Subvolume,
 }
 
 // handleExistingSMBSubvolume handles the case when a subvolume already exists (idempotency).
-func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, params *smbVolumeParams, existingSubvol *tnsapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, params *smbVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Subvolume %s/%s already exists, checking idempotency for SMB", existingSubvol.Pool, existingSubvol.Name)
 
 	shares, err := s.apiClient.ListSMBShares(ctx)
@@ -121,7 +121,7 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 		return nil, false, status.Errorf(codes.Internal, "Failed to list SMB shares: %v", err)
 	}
 
-	var existingShare *tnsapi.SMBShare
+	var existingShare *nastyapi.SMBShare
 	for i := range shares {
 		if shares[i].Path == existingSubvol.Path {
 			existingShare = &shares[i]
@@ -140,9 +140,9 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 }
 
 // createSMBShareForSubvolume creates an SMB share for a subvolume and stores xattr properties.
-func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subvol *tnsapi.Subvolume, params *smbVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*tnsapi.SMBShare, error) {
+func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *smbVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*nastyapi.SMBShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
-	smbShare, err := s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
+	smbShare, err := s.apiClient.CreateSMBShare(ctx, nastyapi.SMBShareCreateParams{
 		Name:    params.volumeName,
 		Path:    subvol.Path,
 		Comment: comment,
@@ -162,7 +162,7 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 
 	klog.V(4).Infof("Created SMB share %q with ID: %s for path: %s", smbShare.Name, smbShare.ID, smbShare.Path)
 
-	props := tnsapi.SMBVolumePropertiesV1(tnsapi.SMBVolumeParams{
+	props := nastyapi.SMBVolumePropertiesV1(nastyapi.SMBVolumeParams{
 		VolumeID:       params.volumeName,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -239,7 +239,7 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "delete")
 	klog.V(4).Infof("Deleting SMB volume: %s (dataset: %s, share UUID: %s)", meta.Name, meta.DatasetName, meta.SMBShareUUID)
 
-	deleteStrategy := tnsapi.DeleteStrategyDelete
+	deleteStrategy := nastyapi.DeleteStrategyDelete
 	shareUUID := meta.SMBShareUUID
 
 	pool, subvolName, parseErr := splitSubvolumeID(meta.DatasetID)
@@ -255,13 +255,13 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 		} else if subvol.Properties != nil {
 			props := subvol.Properties
 
-			if managedBy, ok := props[tnsapi.PropertyManagedBy]; ok && managedBy != tnsapi.ManagedByValue {
+			if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
 				timer.ObserveError()
 				return nil, status.Errorf(codes.FailedPrecondition,
-					"Subvolume %s/%s is not managed by tns-csi (managed_by=%s)", pool, subvolName, managedBy)
+					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", pool, subvolName, managedBy)
 			}
 
-			if volumeName, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
+			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
 				nameMatches := volumeName == meta.Name || (isDatasetPathVolumeID(meta.Name) && strings.HasSuffix(meta.Name, "/"+volumeName))
 				if !nameMatches {
 					timer.ObserveError()
@@ -270,7 +270,7 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 				}
 			}
 
-			if storedShareID, ok := props[tnsapi.PropertySMBShareID]; ok && storedShareID != "" {
+			if storedShareID, ok := props[nastyapi.PropertySMBShareID]; ok && storedShareID != "" {
 				if shareUUID == "" {
 					shareUUID = storedShareID
 				} else if storedShareID != shareUUID {
@@ -279,13 +279,13 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 				}
 			}
 
-			if strategy, ok := props[tnsapi.PropertyDeleteStrategy]; ok && strategy != "" {
+			if strategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && strategy != "" {
 				deleteStrategy = strategy
 			}
 		}
 	}
 
-	if deleteStrategy == tnsapi.DeleteStrategyRetain {
+	if deleteStrategy == nastyapi.DeleteStrategyRetain {
 		klog.Infof("Volume %s has deleteStrategy=retain, skipping actual deletion", meta.Name)
 		timer.ObserveSuccess()
 		return &csi.DeleteVolumeResponse{}, nil
@@ -324,12 +324,12 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 
 // setupSMBVolumeFromClone sets up an SMB share for a cloned subvolume.
 // TODO: Clone-from-snapshot operations are not yet supported by the NASty API.
-func (s *ControllerService) setupSMBVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *tnsapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) setupSMBVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "TODO: clone-from-snapshot not yet supported by NASty API")
 }
 
 // adoptSMBVolume adopts an orphaned SMB volume by re-creating its SMB share.
-func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *tnsapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "adopt")
 	volumeName := req.GetName()
 	klog.Infof("Adopting SMB volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
@@ -354,7 +354,7 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 		klog.Warningf("Failed to list SMB shares for %s/%s: %v", subvol.Pool, subvol.Name, err)
 	}
 
-	var smbShare *tnsapi.SMBShare
+	var smbShare *nastyapi.SMBShare
 	for i := range existingShares {
 		if existingShares[i].Path == subvol.Path {
 			smbShare = &existingShares[i]
@@ -366,7 +366,7 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 	if smbShare == nil {
 		klog.Infof("Creating SMB share for adopted volume: %s", subvol.Path)
 		comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", volumeName, requestedCapacity)
-		newShare, createErr := s.apiClient.CreateSMBShare(ctx, tnsapi.SMBShareCreateParams{
+		newShare, createErr := s.apiClient.CreateSMBShare(ctx, nastyapi.SMBShareCreateParams{
 			Name:    volumeName,
 			Path:    subvol.Path,
 			Comment: comment,
@@ -380,11 +380,11 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := tnsapi.SMBVolumePropertiesV1(tnsapi.SMBVolumeParams{
+	props := nastyapi.SMBVolumePropertiesV1(nastyapi.SMBVolumeParams{
 		VolumeID:       volumeName,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -445,7 +445,7 @@ func (s *ControllerService) expandSMBVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
-		tnsapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
 	})
 	if err != nil {
 		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)

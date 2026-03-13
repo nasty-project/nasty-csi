@@ -21,7 +21,7 @@ var _ = Describe("iSCSI Block Mode", func() {
 		pvcName          = "test-pvc-block-iscsi"
 		podName          = "test-pod-block-iscsi"
 		devicePath       = "/dev/iscsi-block"
-		storageClassName = "tns-csi-iscsi"
+		storageClassName = "nasty-csi-iscsi"
 		storageSize      = "1Gi"
 		// iSCSI block mode may need extra time for device setup
 		podTimeout = 360 * time.Second

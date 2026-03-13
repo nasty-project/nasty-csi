@@ -172,20 +172,20 @@ echo "========================================"
 
 echo ""
 echo "=== StorageClasses ==="
-kubectl get sc | grep tns-csi || {
-    echo "ERROR: No tns-csi StorageClasses found"
+kubectl get sc | grep nasty-csi || {
+    echo "ERROR: No nasty-csi StorageClasses found"
     exit 1
 }
 
 create_namespace
 
-test_protocol "nfs"    "tns-csi-nfs"
-test_protocol "iscsi"  "tns-csi-iscsi"
-test_protocol "nvmeof" "tns-csi-nvmeof"
+test_protocol "nfs"    "nasty-csi-nfs"
+test_protocol "iscsi"  "nasty-csi-iscsi"
+test_protocol "nvmeof" "nasty-csi-nvmeof"
 
 # SMB is optional (requires secrets)
 if [ -n "${SMB_USERNAME:-}" ]; then
-    test_protocol "smb" "tns-csi-smb"
+    test_protocol "smb" "nasty-csi-smb"
 else
     echo ""
     echo "  SKIPPED: SMB (no SMB_USERNAME set)"

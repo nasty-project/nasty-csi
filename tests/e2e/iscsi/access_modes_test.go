@@ -43,7 +43,7 @@ var _ = Describe("iSCSI Access Modes", func() {
 			pvcName := "iscsi-rwo"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-iscsi",
+				StorageClassName: "nasty-csi-iscsi",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 			})
@@ -93,7 +93,7 @@ var _ = Describe("iSCSI Access Modes", func() {
 			pvcName := "iscsi-rwop"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-iscsi",
+				StorageClassName: "nasty-csi-iscsi",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
 			})
@@ -170,7 +170,7 @@ var _ = Describe("iSCSI Access Modes", func() {
 			pvcName := "iscsi-rwop-succession"
 			pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-iscsi",
+				StorageClassName: "nasty-csi-iscsi",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
 			})

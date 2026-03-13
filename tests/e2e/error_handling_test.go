@@ -36,7 +36,7 @@ var _ = Describe("Error Handling", func() {
 	// PVCs with invalid parameters should stay in Pending state with appropriate error events.
 	It("should handle invalid pool name gracefully", func() {
 		ctx := context.Background()
-		scName := "tns-csi-invalid-pool"
+		scName := "nasty-csi-invalid-pool"
 
 		By("Creating StorageClass with non-existent pool")
 		params := map[string]string{
@@ -44,7 +44,7 @@ var _ = Describe("Error Handling", func() {
 			"server":   f.Config.NAStyHost,
 			"pool":     "nonexistent-pool-xyz-12345",
 		}
-		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
+		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), scName)
@@ -94,7 +94,7 @@ var _ = Describe("Error Handling", func() {
 
 	It("should handle missing server parameter gracefully", func() {
 		ctx := context.Background()
-		scName := "tns-csi-missing-server"
+		scName := "nasty-csi-missing-server"
 
 		By("Creating StorageClass without server parameter")
 		params := map[string]string{
@@ -102,7 +102,7 @@ var _ = Describe("Error Handling", func() {
 			"pool":     f.Config.NAStyPool,
 			// server parameter intentionally omitted
 		}
-		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
+		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), scName)
@@ -157,7 +157,7 @@ var _ = Describe("Error Handling", func() {
 
 	It("should handle invalid protocol parameter gracefully", func() {
 		ctx := context.Background()
-		scName := "tns-csi-invalid-protocol"
+		scName := "nasty-csi-invalid-protocol"
 
 		By("Creating StorageClass with invalid protocol (foobar)")
 		params := map[string]string{
@@ -165,7 +165,7 @@ var _ = Describe("Error Handling", func() {
 			"server":   f.Config.NAStyHost,
 			"pool":     f.Config.NAStyPool,
 		}
-		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "tns.csi.io", params)
+		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), scName)
@@ -214,13 +214,13 @@ var _ = Describe("Error Handling", func() {
 		ctx := context.Background()
 
 		By("First creating invalid StorageClass to trigger errors")
-		invalidSCName := "tns-csi-recovery-invalid"
+		invalidSCName := "nasty-csi-recovery-invalid"
 		invalidParams := map[string]string{
 			"protocol": "nfs",
 			"server":   f.Config.NAStyHost,
 			"pool":     "nonexistent-pool-recovery",
 		}
-		err := f.K8s.CreateStorageClassWithParams(ctx, invalidSCName, "tns.csi.io", invalidParams)
+		err := f.K8s.CreateStorageClassWithParams(ctx, invalidSCName, "nasty.csi.io", invalidParams)
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), invalidSCName)
@@ -243,13 +243,13 @@ var _ = Describe("Error Handling", func() {
 		time.Sleep(10 * time.Second)
 
 		By("Creating valid StorageClass to verify driver still works")
-		validSCName := "tns-csi-recovery-valid"
+		validSCName := "nasty-csi-recovery-valid"
 		validParams := map[string]string{
 			"protocol": "nfs",
 			"server":   f.Config.NAStyHost,
 			"pool":     f.Config.NAStyPool,
 		}
-		err = f.K8s.CreateStorageClassWithParams(ctx, validSCName, "tns.csi.io", validParams)
+		err = f.K8s.CreateStorageClassWithParams(ctx, validSCName, "nasty.csi.io", validParams)
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(context.Background(), validSCName)

@@ -10,7 +10,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	"github.com/nasty-project/nasty-csi/pkg/retry"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -99,7 +99,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	// Parse deleteStrategy from StorageClass parameters (default: "delete")
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 
 	// Parse markAdoptable from StorageClass parameters (default: false)
@@ -133,7 +133,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 }
 
 // buildNVMeOFVolumeResponse builds the CreateVolumeResponse for an NVMe-oF volume.
-func buildNVMeOFVolumeResponse(volumeName, server string, subvol *tnsapi.Subvolume, subsystem *tnsapi.NVMeOFSubsystem, capacity int64) *csi.CreateVolumeResponse {
+func buildNVMeOFVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, subsystem *nastyapi.NVMeOFSubsystem, capacity int64) *csi.CreateVolumeResponse {
 	// Volume ID is pool/subvolumeName for O(1) lookups
 	volumeID := subvol.Pool + "/" + subvol.Name
 
@@ -219,7 +219,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	blockDevice := *subvol.BlockDevice
 
 	// Step 2: Create NVMe-oF subsystem with namespace (NASty quick-create API)
-	subsystemParams := tnsapi.NVMeOFCreateParams{
+	subsystemParams := nastyapi.NVMeOFCreateParams{
 		Name:       params.volumeName,
 		DevicePath: blockDevice,
 	}
@@ -245,7 +245,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	time.Sleep(namespaceInitDelay)
 
 	// Step 3: Store xattr properties for metadata tracking
-	props := tnsapi.NVMeOFVolumePropertiesV1(tnsapi.NVMeOFVolumeParams{
+	props := nastyapi.NVMeOFVolumePropertiesV1(nastyapi.NVMeOFVolumeParams{
 		VolumeID:        params.volumeName,
 		CapacityBytes:   params.requestedCapacity,
 		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
@@ -273,14 +273,14 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 }
 
 // handleExistingNVMeOFSubvolume handles the case when a block subvolume already exists (idempotency).
-func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, params *nvmeofVolumeParams, existingSubvol *tnsapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, params *nvmeofVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Block subvolume %s already exists, checking idempotency", params.subvolumeName)
 
 	// Check capacity from stored properties
 	existingCapacity := params.requestedCapacity
 	if existingSubvol.Properties != nil {
-		if capStr, ok := existingSubvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-			if cap := tnsapi.StringToInt64(capStr); cap > 0 {
+		if capStr, ok := existingSubvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+			if cap := nastyapi.StringToInt64(capStr); cap > 0 {
 				existingCapacity = cap
 			}
 		}
@@ -296,7 +296,7 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 	// Check if subsystem exists by stored NQN
 	var storedNQN string
 	if existingSubvol.Properties != nil {
-		storedNQN = existingSubvol.Properties[tnsapi.PropertyNVMeSubsystemNQN]
+		storedNQN = existingSubvol.Properties[nastyapi.PropertyNVMeSubsystemNQN]
 	}
 
 	if storedNQN != "" {
@@ -344,25 +344,25 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 
 	if subvol != nil && subvol.Properties != nil {
 		props := subvol.Properties
-		if managedBy, ok := props[tnsapi.PropertyManagedBy]; ok && managedBy != tnsapi.ManagedByValue {
+		if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
 			timer.ObserveError()
 			return nil, status.Errorf(codes.FailedPrecondition,
 				"Subvolume %s is not managed by nasty-csi (managed_by=%s)", meta.DatasetID, managedBy)
 		}
 
-		if deleteStrategy, ok := props[tnsapi.PropertyDeleteStrategy]; ok && deleteStrategy == tnsapi.DeleteStrategyRetain {
+		if deleteStrategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && deleteStrategy == nastyapi.DeleteStrategyRetain {
 			klog.Infof("Volume %s has delete strategy 'retain', skipping deletion", meta.Name)
 			timer.ObserveSuccess()
 			return &csi.DeleteVolumeResponse{}, nil
 		}
 
 		// Update metadata with stored subsystem UUID
-		if storedSubsystemID, ok := props[tnsapi.PropertyNVMeSubsystemID]; ok && storedSubsystemID != "" {
+		if storedSubsystemID, ok := props[nastyapi.PropertyNVMeSubsystemID]; ok && storedSubsystemID != "" {
 			if meta.NVMeOFSubsystemUUID == "" {
 				meta.NVMeOFSubsystemUUID = storedSubsystemID
 			}
 		}
-		if storedNQN, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok && storedNQN != "" {
+		if storedNQN, ok := props[nastyapi.PropertyNVMeSubsystemNQN]; ok && storedNQN != "" {
 			if meta.NVMeOFNQN == "" {
 				meta.NVMeOFNQN = storedNQN
 			}
@@ -443,7 +443,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 
 	// Update capacity via xattr property
 	props := map[string]string{
-		tnsapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
 	}
 	_, err := s.apiClient.SetSubvolumeProperties(ctx, pool, name, props)
 	if err != nil {
@@ -467,13 +467,13 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 
 // setupNVMeOFVolumeFromClone sets up NVMe-oF infrastructure for a cloned volume.
 // TODO: Implement when NASty supports subvolume cloning.
-func (s *ControllerService) setupNVMeOFVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *tnsapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) setupNVMeOFVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "NVMe-oF volume cloning is not yet supported by the NASty backend")
 }
 
 // adoptNVMeOFVolume adopts an orphaned NVMe-oF volume by recreating missing NASty resources.
 // This enables GitOps workflows where clusters are recreated and need to adopt existing volumes.
-func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *tnsapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "adopt")
 	volumeName := req.GetName()
 	klog.Infof("Adopting NVMe-oF volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
@@ -492,9 +492,9 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	}
 
 	// Try to find existing subsystem by stored NQN in subvolume properties
-	var subsystem *tnsapi.NVMeOFSubsystem
+	var subsystem *nastyapi.NVMeOFSubsystem
 	if subvol.Properties != nil {
-		if storedNQN := subvol.Properties[tnsapi.PropertyNVMeSubsystemNQN]; storedNQN != "" {
+		if storedNQN := subvol.Properties[nastyapi.PropertyNVMeSubsystemNQN]; storedNQN != "" {
 			existingSubsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, storedNQN)
 			if lookupErr == nil && existingSubsystem != nil {
 				subsystem = existingSubsystem
@@ -520,7 +520,7 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 		}
 		subsystemNQN := generateNQN(nqnPrefix, volumeName)
 
-		newSubsystem, createErr := s.apiClient.CreateNVMeOFSubsystem(ctx, tnsapi.NVMeOFCreateParams{
+		newSubsystem, createErr := s.apiClient.CreateNVMeOFSubsystem(ctx, nastyapi.NVMeOFCreateParams{
 			Name:       volumeName,
 			DevicePath: blockDevice,
 		})
@@ -535,11 +535,11 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	// Update xattr properties with new IDs
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = tnsapi.DeleteStrategyDelete
+		deleteStrategy = nastyapi.DeleteStrategyDelete
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := tnsapi.NVMeOFVolumePropertiesV1(tnsapi.NVMeOFVolumeParams{
+	props := nastyapi.NVMeOFVolumePropertiesV1(nastyapi.NVMeOFVolumeParams{
 		VolumeID:        volumeName,
 		CapacityBytes:   requestedCapacity,
 		CreatedAt:       time.Now().UTC().Format(time.RFC3339),

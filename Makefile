@@ -1,8 +1,8 @@
 .PHONY: all build build-plugin clean test docker-build docker-push lint lint-fix test-coverage test-e2e test-e2e-nfs test-e2e-nvmeof test-e2e-iscsi test-e2e-smb test-e2e-scale test-e2e-snapclone changelog
 
 DRIVER_NAME=nasty-csi-driver
-PLUGIN_NAME=kubectl-tns_csi
-IMAGE_NAME=bfenski/tns-csi
+PLUGIN_NAME=kubectl-nasty-csi
+IMAGE_NAME=bfenski/nasty-csi
 REGISTRY?=docker.io
 
 # Version information - derived from git tags

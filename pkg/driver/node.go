@@ -11,7 +11,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	"github.com/nasty-project/nasty-csi/pkg/mount"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -36,7 +36,7 @@ const (
 // NodeService implements the CSI Node service.
 type NodeService struct {
 	csi.UnimplementedNodeServer
-	apiClient       tnsapi.ClientInterface
+	apiClient       nastyapi.ClientInterface
 	nodeRegistry    *NodeRegistry
 	nvmeConnectSem  chan struct{}
 	nodeID          string
@@ -45,7 +45,7 @@ type NodeService struct {
 }
 
 // NewNodeService creates a new node service.
-func NewNodeService(nodeID string, apiClient tnsapi.ClientInterface, testMode bool, nodeRegistry *NodeRegistry, enableDiscovery bool, maxConcurrentNVMeConnects int) *NodeService {
+func NewNodeService(nodeID string, apiClient nastyapi.ClientInterface, testMode bool, nodeRegistry *NodeRegistry, enableDiscovery bool, maxConcurrentNVMeConnects int) *NodeService {
 	if maxConcurrentNVMeConnects <= 0 {
 		maxConcurrentNVMeConnects = 5
 	}

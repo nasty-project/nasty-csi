@@ -1,17 +1,17 @@
-# Memory Usage Comparison: tns-csi vs democratic-csi
+# Memory Usage Comparison: nasty-csi vs democratic-csi
 
-This document compares memory usage between tns-csi and democratic-csi drivers based on real-world measurements from a 3-node Kubernetes cluster running both drivers simultaneously.
+This document compares memory usage between nasty-csi and democratic-csi drivers based on real-world measurements from a 3-node Kubernetes cluster running both drivers simultaneously.
 
 ## Test Environment
 
 - **Cluster**: 3-node k3s cluster
 - **NASty**: NASty Scale 25.10
 - **democratic-csi**: Separate deployments for NFS and iSCSI protocols
-- **tns-csi**: Single unified deployment handling all protocols
+- **nasty-csi**: Single unified deployment handling all protocols
 
 ## Total Memory Usage
 
-| Component | democratic-csi | tns-csi | Reduction |
+| Component | democratic-csi | nasty-csi | Reduction |
 |-----------|----------------|---------|-----------|
 | Controller | 238 Mi | 190 Mi | 1.3x |
 | Node (×3) | 677 Mi | 138 Mi | 4.9x |
@@ -30,7 +30,7 @@ When comparing just the driver containers (excluding standard CSI sidecars like 
 | democratic-csi (iSCSI) | csi-driver + csi-proxy | 69 Mi |
 | democratic-csi (NFS) | csi-driver + csi-proxy | 68 Mi |
 | **democratic-csi total** | | **137 Mi** |
-| **tns-csi** | nasty-csi-plugin | **4 Mi** |
+| **nasty-csi** | nasty-csi-plugin | **4 Mi** |
 
 **Controller driver reduction: 34x**
 
@@ -41,13 +41,13 @@ When comparing just the driver containers (excluding standard CSI sidecars like 
 | democratic-csi (iSCSI) | csi-driver + csi-proxy | ~72 Mi |
 | democratic-csi (NFS) | csi-driver + csi-proxy | ~126 Mi |
 | **democratic-csi total** | | **~198 Mi** |
-| **tns-csi** | nasty-csi-plugin | **~25 Mi** |
+| **nasty-csi** | nasty-csi-plugin | **~25 Mi** |
 
 **Node driver reduction: 8x**
 
 ### Driver-Only Summary
 
-| | democratic-csi | tns-csi | Reduction |
+| | democratic-csi | nasty-csi | Reduction |
 |--|----------------|---------|-----------|
 | Controller | 137 Mi | 4 Mi | 34x |
 | Nodes (3 total) | 594 Mi | 75 Mi | 8x |
@@ -55,19 +55,19 @@ When comparing just the driver containers (excluding standard CSI sidecars like 
 
 ## Container Count
 
-| Component | democratic-csi | tns-csi |
+| Component | democratic-csi | nasty-csi |
 |-----------|----------------|---------|
 | Controller containers | 6 per protocol | 4 total |
 | Node containers | 4 per protocol | 2 total |
 | Protocols requiring separate deployment | Yes (NFS, iSCSI) | No (unified) |
 
-democratic-csi requires a `csi-proxy` sidecar because the Node.js driver cannot directly expose a gRPC socket. tns-csi's Go binary handles this natively.
+democratic-csi requires a `csi-proxy` sidecar because the Node.js driver cannot directly expose a gRPC socket. nasty-csi's Go binary handles this natively.
 
 ## Why the Difference?
 
 ### Runtime Overhead
 
-| Aspect | democratic-csi | tns-csi |
+| Aspect | democratic-csi | nasty-csi |
 |--------|----------------|---------|
 | Language | Node.js | Go |
 | Runtime | V8 JavaScript engine | Native binary |
@@ -83,7 +83,7 @@ Go compiles to a native binary with minimal runtime overhead.
 
 ### Architecture
 
-| Aspect | democratic-csi | tns-csi |
+| Aspect | democratic-csi | nasty-csi |
 |--------|----------------|---------|
 | Protocol handling | Separate deployment per protocol | Single unified deployment |
 | gRPC exposure | Requires csi-proxy sidecar | Native gRPC support |
@@ -93,7 +93,7 @@ Go compiles to a native binary with minimal runtime overhead.
 
 Memory savings scale with cluster size:
 
-| Cluster Size | democratic-csi | tns-csi | Savings |
+| Cluster Size | democratic-csi | nasty-csi | Savings |
 |--------------|----------------|---------|---------|
 | 3 nodes | 915 Mi | 328 Mi | 587 Mi |
 | 10 nodes | 2,218 Mi | 488 Mi | 1,730 Mi |
@@ -103,7 +103,7 @@ Memory savings scale with cluster size:
 
 ## Conclusion
 
-tns-csi provides significant memory savings compared to democratic-csi:
+nasty-csi provides significant memory savings compared to democratic-csi:
 
 - **9x less memory** for driver components alone
 - **2.8x less memory** including all CSI sidecars

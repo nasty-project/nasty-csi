@@ -67,7 +67,7 @@ The release process is fully automated via GitHub Actions.
      - Attach Helm chart tarball to release
 
 5. **Verify release artifacts**
-   - Docker Hub: https://hub.docker.com/r/bfenski/tns-csi
+   - Docker Hub: https://hub.docker.com/r/bfenski/nasty-csi
    - GitHub Releases: https://github.com/nasty-project/nasty-csi/releases
    - GHCR: https://github.com/fenio?tab=packages
 
@@ -76,8 +76,8 @@ The release process is fully automated via GitHub Actions.
 Each release creates the following artifacts:
 
 ### Docker Images
-- **Docker Hub**: `bfenski/tns-csi:v1.0.0`, `bfenski/tns-csi:1.0`, `bfenski/tns-csi:1`, `bfenski/tns-csi:latest`
-- **GHCR**: `ghcr.io/fenio/tns-csi:v1.0.0`, etc.
+- **Docker Hub**: `bfenski/nasty-csi:v1.0.0`, `bfenski/nasty-csi:1.0`, `bfenski/nasty-csi:1`, `bfenski/nasty-csi:latest`
+- **GHCR**: `ghcr.io/fenio/nasty-csi:v1.0.0`, etc.
 - **Architectures**: linux/amd64, linux/arm64
 
 ### Helm Charts
@@ -123,8 +123,8 @@ git push origin v2.0.0
 
 The CI workflow automatically builds and pushes development images on every push to `main`:
 
-- **Docker Hub**: `bfenski/tns-csi:latest`
-- **GHCR**: `ghcr.io/fenio/tns-csi:latest`
+- **Docker Hub**: `bfenski/nasty-csi:latest`
+- **GHCR**: `ghcr.io/fenio/nasty-csi:latest`
 
 These are useful for testing but should **not** be used in production.
 
@@ -142,11 +142,11 @@ After publishing a release, test it:
 
 ```bash
 # Test Docker image
-docker pull bfenski/tns-csi:v1.0.0
-docker run --rm bfenski/tns-csi:v1.0.0 --version
+docker pull bfenski/nasty-csi:v1.0.0
+docker run --rm bfenski/nasty-csi:v1.0.0 --version
 
 # Test Helm chart
-helm install tns-csi-test oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi-test oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 1.0.0 \
   --namespace test \
   --create-namespace \
@@ -207,8 +207,8 @@ VERSION=v1.0.0
 
 # 2. Build and push Docker image
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t bfenski/tns-csi:${VERSION} \
-  -t bfenski/tns-csi:latest \
+  -t bfenski/nasty-csi:${VERSION} \
+  -t bfenski/nasty-csi:latest \
   --push .
 
 # 3. Update Helm chart versions

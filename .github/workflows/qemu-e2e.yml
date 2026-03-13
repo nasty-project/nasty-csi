@@ -259,14 +259,14 @@ jobs:
       # ── Phase 5: Build and deploy CSI driver ─────────────────────
       - name: Build CSI image
         run: |
-          docker build -t ghcr.io/fenio/tns-csi:qemu-test .
-          docker save ghcr.io/fenio/tns-csi:qemu-test -o /tmp/csi-image.tar
+          docker build -t ghcr.io/fenio/nasty-csi:qemu-test .
+          docker save ghcr.io/fenio/nasty-csi:qemu-test -o /tmp/csi-image.tar
 
       - name: Import CSI image into k3s
         run: |
           scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
-          ssh $SSH_OPTS ci@localhost "sudo k3s crictl images | grep tns-csi"
+          ssh $SSH_OPTS ci@localhost "sudo k3s crictl images | grep nasty-csi"
 
       - name: Fetch kubeconfig from VM
         run: |
@@ -311,24 +311,24 @@ jobs:
             --set "truenas.apiKey=${NASTY_API_KEY}"
             --set "truenas.pool=${NASTY_POOL}"
             --set "truenas.skipTLSVerify=true"
-            --set "image.repository=ghcr.io/fenio/tns-csi"
+            --set "image.repository=ghcr.io/fenio/nasty-csi"
             --set "image.tag=qemu-test"
             --set "image.pullPolicy=Never"
             --set "snapshots.enabled=true"
-            --set "storageClasses[0].name=tns-csi-nfs"
+            --set "storageClasses[0].name=nasty-csi-nfs"
             --set "storageClasses[0].enabled=true"
             --set "storageClasses[0].protocol=nfs"
             --set "storageClasses[0].pool=${NASTY_POOL}"
             --set "storageClasses[0].server=${NASTY_HOST}"
 
-            --set "storageClasses[1].name=tns-csi-nvmeof"
+            --set "storageClasses[1].name=nasty-csi-nvmeof"
             --set "storageClasses[1].enabled=true"
             --set "storageClasses[1].protocol=nvmeof"
             --set "storageClasses[1].pool=${NASTY_POOL}"
             --set "storageClasses[1].server=${NASTY_HOST}"
             --set "storageClasses[1].transport=tcp"
             --set "storageClasses[1].port=4420"
-            --set "storageClasses[2].name=tns-csi-iscsi"
+            --set "storageClasses[2].name=nasty-csi-iscsi"
             --set "storageClasses[2].enabled=true"
             --set "storageClasses[2].protocol=iscsi"
             --set "storageClasses[2].pool=${NASTY_POOL}"
@@ -339,7 +339,7 @@ jobs:
           # Add SMB storage class if credentials are available
           if [ -n "$SMB_USERNAME" ] && [ -n "$SMB_PASSWORD" ]; then
             HELM_ARGS+=(
-              --set "storageClasses[3].name=tns-csi-smb"
+              --set "storageClasses[3].name=nasty-csi-smb"
               --set "storageClasses[3].enabled=true"
               --set "storageClasses[3].protocol=smb"
               --set "storageClasses[3].pool=${NASTY_POOL}"
@@ -361,7 +361,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_POOL: ${{ secrets.NASTY_POOL }}
-          CSI_IMAGE_REPO: ghcr.io/fenio/tns-csi
+          CSI_IMAGE_REPO: ghcr.io/fenio/nasty-csi
           CSI_IMAGE_TAG: qemu-test
           CSI_IMAGE_PULL_POLICY: Never
         run: |

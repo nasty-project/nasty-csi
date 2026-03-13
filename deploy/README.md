@@ -2,18 +2,18 @@
 
 ## Standard Installation (Helm)
 
-Helm is the recommended way to install tns-csi. The raw Kubernetes manifests that were previously in this directory have been removed in favor of the Helm chart.
+Helm is the recommended way to install nasty-csi. The raw Kubernetes manifests that were previously in this directory have been removed in favor of the Helm chart.
 
 ### Quick Start
 
 ```bash
 # Add the OCI registry (Docker Hub)
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=tns-csi-nfs \
+  --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -23,12 +23,12 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 Or using GitHub Container Registry:
 
 ```bash
-helm install tns-csi oci://ghcr.io/fenio/charts/nasty-csi-driver \
+helm install nasty-csi oci://ghcr.io/fenio/charts/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=tns-csi-nfs \
+  --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -55,18 +55,18 @@ See the [Helm chart documentation](../charts/nasty-csi-driver/README.md) for ful
 Common configuration:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
   --set truenas.apiKey="YOUR-API-KEY" \
   --set truenas.skipTLSVerify=true \
-  --set storageClasses[0].name=tns-csi-nfs \
+  --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
   --set storageClasses[0].pool="tank" \
   --set storageClasses[0].server="YOUR-TRUENAS-IP" \
-  --set storageClasses[1].name=tns-csi-nvmeof \
+  --set storageClasses[1].name=nasty-csi-nvmeof \
   --set storageClasses[1].enabled=true \
   --set storageClasses[1].protocol=nvmeof \
   --set storageClasses[1].pool="tank" \
@@ -76,7 +76,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ### Upgrading
 
 ```bash
-helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
   --reuse-values
@@ -85,7 +85,7 @@ helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ### Uninstalling
 
 ```bash
-helm uninstall tns-csi --namespace kube-system
+helm uninstall nasty-csi --namespace kube-system
 ```
 
 ## Why Helm?

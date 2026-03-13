@@ -116,13 +116,13 @@ kubectl apply -f smb-credentials.yaml
 ### Step 2: Install with Helm
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-smb" \
+  --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -143,7 +143,7 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
 
 # Check storage class was created
-kubectl get storageclass tns-csi-smb
+kubectl get storageclass nasty-csi-smb
 
 # View controller logs
 kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-driver
@@ -164,7 +164,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: tns-csi-smb
+  storageClassName: nasty-csi-smb
 ```
 
 Apply:
@@ -221,7 +221,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: smb-custom
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: smb
   server: YOUR-NASTY-IP
@@ -243,12 +243,12 @@ mountOptions:
 To keep volumes on NASty when PVCs are deleted:
 
 ```bash
-helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name="tns-csi-smb" \
+  --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
@@ -267,7 +267,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: smb-encrypted
-provisioner: tns.csi.io
+provisioner: nasty.csi.io
 parameters:
   protocol: smb
   server: YOUR-NASTY-IP
@@ -301,8 +301,8 @@ SMB mount options can be customized via the StorageClass:
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: tns-csi-smb-snapclass
-driver: tns.csi.io
+  name: nasty-csi-smb-snapclass
+driver: nasty.csi.io
 deletionPolicy: Delete
 ```
 
@@ -314,7 +314,7 @@ kind: VolumeSnapshot
 metadata:
   name: my-snapshot
 spec:
-  volumeSnapshotClassName: tns-csi-smb-snapclass
+  volumeSnapshotClassName: nasty-csi-smb-snapclass
   source:
     persistentVolumeClaimName: my-smb-volume
 ```
@@ -327,7 +327,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: restored-volume
 spec:
-  storageClassName: tns-csi-smb
+  storageClassName: nasty-csi-smb
   dataSource:
     name: my-snapshot
     kind: VolumeSnapshot

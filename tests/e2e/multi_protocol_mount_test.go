@@ -40,7 +40,7 @@ var _ = Describe("Multi-Protocol Mount", func() {
 		By("Creating an NFS PVC")
 		pvcNFS, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             "multi-mount-nfs",
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -56,7 +56,7 @@ var _ = Describe("Multi-Protocol Mount", func() {
 		By("Creating an NVMe-oF PVC")
 		pvcNVMe, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             "multi-mount-nvmeof",
-			StorageClassName: "tns-csi-nvmeof",
+			StorageClassName: "nasty-csi-nvmeof",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
@@ -68,7 +68,7 @@ var _ = Describe("Multi-Protocol Mount", func() {
 		By("Creating an iSCSI PVC")
 		pvcISCSI, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             "multi-mount-iscsi",
-			StorageClassName: "tns-csi-iscsi",
+			StorageClassName: "nasty-csi-iscsi",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
@@ -82,7 +82,7 @@ var _ = Describe("Multi-Protocol Mount", func() {
 			By("Creating an SMB PVC")
 			pvcSMB, smbErr := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 				Name:             "multi-mount-smb",
-				StorageClassName: "tns-csi-smb",
+				StorageClassName: "nasty-csi-smb",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})

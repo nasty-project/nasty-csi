@@ -24,7 +24,7 @@ var _ = Describe("iSCSI StatefulSet", func() {
 		volumeName       = "data" // Name in volumeClaimTemplates
 		mountPath        = "/data"
 		storageSize      = "1Gi"
-		storageClassName = "tns-csi-iscsi"
+		storageClassName = "nasty-csi-iscsi"
 		// iSCSI uses WaitForFirstConsumer, so longer timeouts needed
 		podTimeout = 180 * time.Second
 	)

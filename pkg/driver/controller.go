@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
@@ -180,7 +180,7 @@ func getProtocolFromVolumeContext(ctx map[string]string) string {
 // ControllerService implements the CSI Controller service.
 type ControllerService struct {
 	csi.UnimplementedControllerServer
-	apiClient    tnsapi.ClientInterface
+	apiClient    nastyapi.ClientInterface
 	nodeRegistry *NodeRegistry
 	// publishedVolumes tracks volumes published to nodes with their readonly state.
 	// Key format: "volumeID:nodeID", value: readonly state.
@@ -191,7 +191,7 @@ type ControllerService struct {
 }
 
 // NewControllerService creates a new controller service.
-func NewControllerService(apiClient tnsapi.ClientInterface, nodeRegistry *NodeRegistry, clusterID string) *ControllerService {
+func NewControllerService(apiClient nastyapi.ClientInterface, nodeRegistry *NodeRegistry, clusterID string) *ControllerService {
 	return &ControllerService{
 		apiClient:        apiClient,
 		nodeRegistry:     nodeRegistry,
@@ -268,7 +268,7 @@ func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, pool
 // extractVolumeMetadataFromSubvolume builds VolumeMetadata from a Subvolume.
 // Verifies ownership and extracts all protocol-specific metadata from xattr properties.
 // Returns nil, nil if the subvolume is not managed by nasty-csi.
-func extractVolumeMetadataFromSubvolume(volumeID string, subvol *tnsapi.Subvolume) (*VolumeMetadata, error) {
+func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvolume) (*VolumeMetadata, error) {
 	props := subvol.Properties
 	if props == nil {
 		klog.Warningf("Subvolume %s/%s has no properties, may not be managed by nasty-csi", subvol.Pool, subvol.Name)
@@ -276,7 +276,7 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *tnsapi.Subvolum
 	}
 
 	// Verify ownership
-	if managedBy, ok := props[tnsapi.PropertyManagedBy]; !ok || managedBy != tnsapi.ManagedByValue {
+	if managedBy, ok := props[nastyapi.PropertyManagedBy]; !ok || managedBy != nastyapi.ManagedByValue {
 		klog.Warningf("Subvolume %s/%s not managed by nasty-csi (managed_by=%s)", subvol.Pool, subvol.Name, managedBy)
 		return nil, nil //nolint:nilnil // Not our volume - treat as not found
 	}
@@ -291,27 +291,27 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *tnsapi.Subvolum
 	}
 
 	// Extract protocol
-	if protocol, ok := props[tnsapi.PropertyProtocol]; ok {
+	if protocol, ok := props[nastyapi.PropertyProtocol]; ok {
 		meta.Protocol = protocol
 	}
 
 	// Extract protocol-specific IDs
-	if nfsShareID, ok := props[tnsapi.PropertyNFSShareID]; ok && nfsShareID != "" {
+	if nfsShareID, ok := props[nastyapi.PropertyNFSShareID]; ok && nfsShareID != "" {
 		meta.NFSShareUUID = nfsShareID
 	}
-	if nvmeSubsystemID, ok := props[tnsapi.PropertyNVMeSubsystemID]; ok && nvmeSubsystemID != "" {
+	if nvmeSubsystemID, ok := props[nastyapi.PropertyNVMeSubsystemID]; ok && nvmeSubsystemID != "" {
 		meta.NVMeOFSubsystemUUID = nvmeSubsystemID
 	}
-	if nvmeNQN, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok {
+	if nvmeNQN, ok := props[nastyapi.PropertyNVMeSubsystemNQN]; ok {
 		meta.NVMeOFNQN = nvmeNQN
 	}
-	if iscsiTargetID, ok := props[tnsapi.PropertyISCSITargetID]; ok && iscsiTargetID != "" {
+	if iscsiTargetID, ok := props[nastyapi.PropertyISCSITargetID]; ok && iscsiTargetID != "" {
 		meta.ISCSITargetUUID = iscsiTargetID
 	}
-	if iscsiIQN, ok := props[tnsapi.PropertyISCSIIQN]; ok {
+	if iscsiIQN, ok := props[nastyapi.PropertyISCSIIQN]; ok {
 		meta.ISCSIIQN = iscsiIQN
 	}
-	if smbShareID, ok := props[tnsapi.PropertySMBShareID]; ok && smbShareID != "" {
+	if smbShareID, ok := props[nastyapi.PropertySMBShareID]; ok && smbShareID != "" {
 		meta.SMBShareUUID = smbShareID
 	}
 
@@ -827,10 +827,10 @@ func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.List
 		}
 
 		// Skip detached snapshots — they are not volumes
-		if detached, ok := props[tnsapi.PropertyDetachedSnapshot]; ok && detached == "true" {
+		if detached, ok := props[nastyapi.PropertyDetachedSnapshot]; ok && detached == "true" {
 			continue
 		}
-		if _, ok := props[tnsapi.PropertySnapshotID]; ok {
+		if _, ok := props[nastyapi.PropertySnapshotID]; ok {
 			continue
 		}
 
@@ -846,8 +846,8 @@ func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.List
 
 		// Get capacity from stored property
 		var capacityBytes int64
-		if capStr, ok := props[tnsapi.PropertyCapacityBytes]; ok {
-			capacityBytes = tnsapi.StringToInt64(capStr)
+		if capStr, ok := props[nastyapi.PropertyCapacityBytes]; ok {
+			capacityBytes = nastyapi.StringToInt64(capStr)
 		}
 
 		entries = append(entries, &csi.ListVolumesResponse_Entry{
@@ -904,7 +904,7 @@ func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacit
 // Volume Adoption Foundation
 // ========================================
 // These functions provide the foundation for cross-cluster volume adoption.
-// A volume is "adoptable" if it has tns-csi metadata but its NASty resources
+// A volume is "adoptable" if it has nasty-csi metadata but its NASty resources
 // (NFS share or NVMe-oF namespace) no longer exist.
 
 // IsVolumeAdoptable checks if a volume can be adopted based on its xattr properties.
@@ -915,40 +915,40 @@ func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacit
 // Returns false if the volume doesn't have proper nasty-csi metadata.
 func IsVolumeAdoptable(props map[string]string) bool {
 	// Check managed_by property
-	managedBy, ok := props[tnsapi.PropertyManagedBy]
-	if !ok || managedBy != tnsapi.ManagedByValue {
+	managedBy, ok := props[nastyapi.PropertyManagedBy]
+	if !ok || managedBy != nastyapi.ManagedByValue {
 		return false
 	}
 
 	// Check schema version (optional for v1, but good practice)
-	schemaVersion, hasSchema := props[tnsapi.PropertySchemaVersion]
-	if hasSchema && schemaVersion != tnsapi.SchemaVersionV1 {
+	schemaVersion, hasSchema := props[nastyapi.PropertySchemaVersion]
+	if hasSchema && schemaVersion != nastyapi.SchemaVersionV1 {
 		// Unknown schema version - don't adopt
 		return false
 	}
 
 	// Check protocol is set
-	protocol, ok := props[tnsapi.PropertyProtocol]
+	protocol, ok := props[nastyapi.PropertyProtocol]
 	if !ok || protocol == "" {
 		return false
 	}
 
 	// Verify protocol-specific required properties exist
 	switch protocol {
-	case tnsapi.ProtocolNFS:
-		if _, ok := props[tnsapi.PropertyNFSSharePath]; !ok {
+	case nastyapi.ProtocolNFS:
+		if _, ok := props[nastyapi.PropertyNFSSharePath]; !ok {
 			return false
 		}
-	case tnsapi.ProtocolNVMeOF:
-		if _, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; !ok {
+	case nastyapi.ProtocolNVMeOF:
+		if _, ok := props[nastyapi.PropertyNVMeSubsystemNQN]; !ok {
 			return false
 		}
-	case tnsapi.ProtocolISCSI:
-		if _, ok := props[tnsapi.PropertyISCSIIQN]; !ok {
+	case nastyapi.ProtocolISCSI:
+		if _, ok := props[nastyapi.PropertyISCSIIQN]; !ok {
 			return false
 		}
-	case tnsapi.ProtocolSMB:
-		if _, ok := props[tnsapi.PropertySMBShareName]; !ok {
+	case nastyapi.ProtocolSMB:
+		if _, ok := props[nastyapi.PropertySMBShareName]; !ok {
 			return false
 		}
 	default:
@@ -969,17 +969,17 @@ func GetAdoptionInfo(props map[string]string) map[string]string {
 		}
 	}
 
-	extract(tnsapi.PropertyCSIVolumeName, "volumeID")
-	extract(tnsapi.PropertyProtocol, "protocol")
-	extract(tnsapi.PropertyCapacityBytes, "capacityBytes")
-	extract(tnsapi.PropertyDeleteStrategy, "deleteStrategy")
-	extract(tnsapi.PropertyPVCName, "pvcName")
-	extract(tnsapi.PropertyPVCNamespace, "pvcNamespace")
-	extract(tnsapi.PropertyStorageClass, "storageClass")
-	extract(tnsapi.PropertyNFSSharePath, "nfsSharePath")
-	extract(tnsapi.PropertyNVMeSubsystemNQN, "nvmeofNQN")
-	extract(tnsapi.PropertyISCSIIQN, "iscsiIQN")
-	extract(tnsapi.PropertyISCSITargetID, "iscsiTargetID")
+	extract(nastyapi.PropertyCSIVolumeName, "volumeID")
+	extract(nastyapi.PropertyProtocol, "protocol")
+	extract(nastyapi.PropertyCapacityBytes, "capacityBytes")
+	extract(nastyapi.PropertyDeleteStrategy, "deleteStrategy")
+	extract(nastyapi.PropertyPVCName, "pvcName")
+	extract(nastyapi.PropertyPVCNamespace, "pvcNamespace")
+	extract(nastyapi.PropertyStorageClass, "storageClass")
+	extract(nastyapi.PropertyNFSSharePath, "nfsSharePath")
+	extract(nastyapi.PropertyNVMeSubsystemNQN, "nvmeofNQN")
+	extract(nastyapi.PropertyISCSIIQN, "iscsiIQN")
+	extract(nastyapi.PropertyISCSITargetID, "iscsiTargetID")
 
 	return info
 }
@@ -1020,7 +1020,7 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	}
 
 	// Check if adoption is allowed: either volume has adoptable=true OR StorageClass has adoptExisting=true
-	volumeAdoptable := props[tnsapi.PropertyAdoptable] == VolumeContextValueTrue
+	volumeAdoptable := props[nastyapi.PropertyAdoptable] == VolumeContextValueTrue
 	if !volumeAdoptable && !adoptExisting {
 		klog.V(4).Infof("Volume %s found but adoption not allowed (adoptable=%v, adoptExisting=%v)",
 			volumeName, volumeAdoptable, adoptExisting)
@@ -1028,7 +1028,7 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	}
 
 	// Verify protocol matches
-	volumeProtocol := props[tnsapi.PropertyProtocol]
+	volumeProtocol := props[nastyapi.PropertyProtocol]
 	if volumeProtocol != protocol {
 		klog.Warningf("Cannot adopt volume %s: protocol mismatch (volume=%s, requested=%s)",
 			volumeName, volumeProtocol, protocol)
@@ -1297,8 +1297,8 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 		default:
 			klog.V(4).Infof("Subvolume %s/%s exists", pool, name)
 			if subvol.Properties != nil {
-				if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-					capacityBytes = tnsapi.StringToInt64(capStr)
+				if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+					capacityBytes = nastyapi.StringToInt64(capStr)
 				}
 			}
 		}
@@ -1369,8 +1369,8 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 		default:
 			klog.V(4).Infof("Block subvolume %s/%s exists", pool, name)
 			if subvol.Properties != nil {
-				if capStr, ok := subvol.Properties[tnsapi.PropertyCapacityBytes]; ok {
-					capacityBytes = tnsapi.StringToInt64(capStr)
+				if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+					capacityBytes = nastyapi.StringToInt64(capStr)
 				}
 			}
 		}

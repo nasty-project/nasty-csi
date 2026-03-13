@@ -121,7 +121,7 @@ var _ = Describe("Metrics and Observability", func() {
 		pvcName := "metrics-test-pvc"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -169,7 +169,7 @@ var _ = Describe("Metrics and Observability", func() {
 		pvcName := "metrics-events-pvc"
 		pvc, err := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})

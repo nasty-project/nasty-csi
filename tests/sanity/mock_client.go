@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
+	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
 )
 
 var (
@@ -33,24 +33,24 @@ var (
 // MockClient is a mock implementation of the NASty API client for sanity testing.
 type MockClient struct {
 	mu         sync.Mutex
-	subvolumes map[string]*tnsapi.Subvolume  // key: "pool/name"
-	snapshots  map[string]*tnsapi.Snapshot   // key: "pool/subvolume@name"
-	nfsShares  map[string]*tnsapi.NFSShare   // key: UUID
-	smbShares  map[string]*tnsapi.SMBShare   // key: UUID
-	iscsiTargets map[string]*tnsapi.ISCSITarget // key: UUID
-	nvmeofSubsystems map[string]*tnsapi.NVMeOFSubsystem // key: UUID
+	subvolumes map[string]*nastyapi.Subvolume  // key: "pool/name"
+	snapshots  map[string]*nastyapi.Snapshot   // key: "pool/subvolume@name"
+	nfsShares  map[string]*nastyapi.NFSShare   // key: UUID
+	smbShares  map[string]*nastyapi.SMBShare   // key: UUID
+	iscsiTargets map[string]*nastyapi.ISCSITarget // key: UUID
+	nvmeofSubsystems map[string]*nastyapi.NVMeOFSubsystem // key: UUID
 	nextID     uint64
 }
 
 // NewMockClient creates a new mock client for testing.
 func NewMockClient() *MockClient {
 	return &MockClient{
-		subvolumes:       make(map[string]*tnsapi.Subvolume),
-		snapshots:        make(map[string]*tnsapi.Snapshot),
-		nfsShares:        make(map[string]*tnsapi.NFSShare),
-		smbShares:        make(map[string]*tnsapi.SMBShare),
-		iscsiTargets:     make(map[string]*tnsapi.ISCSITarget),
-		nvmeofSubsystems: make(map[string]*tnsapi.NVMeOFSubsystem),
+		subvolumes:       make(map[string]*nastyapi.Subvolume),
+		snapshots:        make(map[string]*nastyapi.Snapshot),
+		nfsShares:        make(map[string]*nastyapi.NFSShare),
+		smbShares:        make(map[string]*nastyapi.SMBShare),
+		iscsiTargets:     make(map[string]*nastyapi.ISCSITarget),
+		nvmeofSubsystems: make(map[string]*nastyapi.NVMeOFSubsystem),
 	}
 }
 
@@ -62,10 +62,10 @@ func (m *MockClient) genID() string {
 func (m *MockClient) Close() {}
 
 // QueryPool returns a fake pool for testing.
-func (m *MockClient) QueryPool(_ context.Context, poolName string) (*tnsapi.Pool, error) {
+func (m *MockClient) QueryPool(_ context.Context, poolName string) (*nastyapi.Pool, error) {
 	total := uint64(10 * 1024 * 1024 * 1024)
 	used := uint64(1 * 1024 * 1024 * 1024)
-	return &tnsapi.Pool{
+	return &nastyapi.Pool{
 		Name:           poolName,
 		Mounted:        true,
 		TotalBytes:     total,
@@ -75,7 +75,7 @@ func (m *MockClient) QueryPool(_ context.Context, poolName string) (*tnsapi.Pool
 }
 
 // CreateSubvolume creates a subvolume in the mock.
-func (m *MockClient) CreateSubvolume(_ context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+func (m *MockClient) CreateSubvolume(_ context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -84,7 +84,7 @@ func (m *MockClient) CreateSubvolume(_ context.Context, params tnsapi.SubvolumeC
 		return nil, ErrDatasetExists
 	}
 
-	sv := &tnsapi.Subvolume{
+	sv := &nastyapi.Subvolume{
 		Name:          params.Name,
 		Pool:          params.Pool,
 		SubvolumeType: params.SubvolumeType,
@@ -118,7 +118,7 @@ func (m *MockClient) DeleteSubvolume(_ context.Context, pool, name string) error
 }
 
 // GetSubvolume retrieves a subvolume by pool and name.
-func (m *MockClient) GetSubvolume(_ context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+func (m *MockClient) GetSubvolume(_ context.Context, pool, name string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -132,11 +132,11 @@ func (m *MockClient) GetSubvolume(_ context.Context, pool, name string) (*tnsapi
 }
 
 // ListAllSubvolumes lists all subvolumes in a pool.
-func (m *MockClient) ListAllSubvolumes(_ context.Context, pool string) ([]tnsapi.Subvolume, error) {
+func (m *MockClient) ListAllSubvolumes(_ context.Context, pool string) ([]nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []tnsapi.Subvolume
+	var result []nastyapi.Subvolume
 	for key, sv := range m.subvolumes {
 		if pool == "" || sv.Pool == pool {
 			_ = key
@@ -147,7 +147,7 @@ func (m *MockClient) ListAllSubvolumes(_ context.Context, pool string) ([]tnsapi
 }
 
 // SetSubvolumeProperties sets xattr properties on a subvolume.
-func (m *MockClient) SetSubvolumeProperties(_ context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+func (m *MockClient) SetSubvolumeProperties(_ context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -167,7 +167,7 @@ func (m *MockClient) SetSubvolumeProperties(_ context.Context, pool, name string
 }
 
 // RemoveSubvolumeProperties removes xattr properties from a subvolume.
-func (m *MockClient) RemoveSubvolumeProperties(_ context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error) {
+func (m *MockClient) RemoveSubvolumeProperties(_ context.Context, pool, name string, keys []string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -184,11 +184,11 @@ func (m *MockClient) RemoveSubvolumeProperties(_ context.Context, pool, name str
 }
 
 // FindSubvolumesByProperty finds subvolumes by xattr property key/value pair.
-func (m *MockClient) FindSubvolumesByProperty(_ context.Context, propKey, propValue, pool string) ([]tnsapi.Subvolume, error) {
+func (m *MockClient) FindSubvolumesByProperty(_ context.Context, propKey, propValue, pool string) ([]nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []tnsapi.Subvolume
+	var result []nastyapi.Subvolume
 	for _, sv := range m.subvolumes {
 		if pool != "" && sv.Pool != pool {
 			continue
@@ -201,24 +201,24 @@ func (m *MockClient) FindSubvolumesByProperty(_ context.Context, propKey, propVa
 }
 
 // FindManagedSubvolumes finds all subvolumes managed by nasty-csi.
-func (m *MockClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
-	return m.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, pool)
+func (m *MockClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]nastyapi.Subvolume, error) {
+	return m.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, pool)
 }
 
 // FindSubvolumeByCSIVolumeName finds a subvolume by its CSI volume name xattr.
-func (m *MockClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
-	subvols, err := m.FindSubvolumesByProperty(ctx, tnsapi.PropertyCSIVolumeName, volumeName, pool)
+func (m *MockClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
+	subvols, err := m.FindSubvolumesByProperty(ctx, nastyapi.PropertyCSIVolumeName, volumeName, pool)
 	if err != nil {
 		return nil, err
 	}
 	if len(subvols) == 0 {
-		return nil, tnsapi.ErrDatasetNotFound
+		return nil, nastyapi.ErrDatasetNotFound
 	}
 	return &subvols[0], nil
 }
 
 // CreateSnapshot creates a snapshot.
-func (m *MockClient) CreateSnapshot(_ context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error) {
+func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotCreateParams) (*nastyapi.Snapshot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -232,7 +232,7 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params tnsapi.SnapshotCre
 		return nil, errors.New("snapshot already exists")
 	}
 
-	snap := &tnsapi.Snapshot{
+	snap := &nastyapi.Snapshot{
 		Name:      params.Name,
 		Subvolume: params.Subvolume,
 		Pool:      params.Pool,
@@ -257,11 +257,11 @@ func (m *MockClient) DeleteSnapshot(_ context.Context, pool, subvolume, name str
 }
 
 // ListSnapshots lists all snapshots in a pool.
-func (m *MockClient) ListSnapshots(_ context.Context, pool string) ([]tnsapi.Snapshot, error) {
+func (m *MockClient) ListSnapshots(_ context.Context, pool string) ([]nastyapi.Snapshot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []tnsapi.Snapshot
+	var result []nastyapi.Snapshot
 	for _, snap := range m.snapshots {
 		if pool == "" || snap.Pool == pool {
 			result = append(result, *snap)
@@ -271,7 +271,7 @@ func (m *MockClient) ListSnapshots(_ context.Context, pool string) ([]tnsapi.Sna
 }
 
 // CreateNFSShare creates an NFS share.
-func (m *MockClient) CreateNFSShare(_ context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error) {
+func (m *MockClient) CreateNFSShare(_ context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -281,7 +281,7 @@ func (m *MockClient) CreateNFSShare(_ context.Context, params tnsapi.NFSShareCre
 		enabled = *params.Enabled
 	}
 	comment := params.Comment
-	share := &tnsapi.NFSShare{
+	share := &nastyapi.NFSShare{
 		ID:      id,
 		Path:    params.Path,
 		Comment: &comment,
@@ -305,11 +305,11 @@ func (m *MockClient) DeleteNFSShare(_ context.Context, id string) error {
 }
 
 // ListNFSShares lists all NFS shares.
-func (m *MockClient) ListNFSShares(_ context.Context) ([]tnsapi.NFSShare, error) {
+func (m *MockClient) ListNFSShares(_ context.Context) ([]nastyapi.NFSShare, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	result := make([]tnsapi.NFSShare, 0, len(m.nfsShares))
+	result := make([]nastyapi.NFSShare, 0, len(m.nfsShares))
 	for _, share := range m.nfsShares {
 		result = append(result, *share)
 	}
@@ -317,7 +317,7 @@ func (m *MockClient) ListNFSShares(_ context.Context) ([]tnsapi.NFSShare, error)
 }
 
 // GetNFSShare retrieves an NFS share by UUID.
-func (m *MockClient) GetNFSShare(_ context.Context, id string) (*tnsapi.NFSShare, error) {
+func (m *MockClient) GetNFSShare(_ context.Context, id string) (*nastyapi.NFSShare, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -330,13 +330,13 @@ func (m *MockClient) GetNFSShare(_ context.Context, id string) (*tnsapi.NFSShare
 }
 
 // CreateSMBShare creates an SMB share.
-func (m *MockClient) CreateSMBShare(_ context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error) {
+func (m *MockClient) CreateSMBShare(_ context.Context, params nastyapi.SMBShareCreateParams) (*nastyapi.SMBShare, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	id := m.genID()
 	comment := params.Comment
-	share := &tnsapi.SMBShare{
+	share := &nastyapi.SMBShare{
 		ID:      id,
 		Name:    params.Name,
 		Path:    params.Path,
@@ -360,11 +360,11 @@ func (m *MockClient) DeleteSMBShare(_ context.Context, id string) error {
 }
 
 // ListSMBShares lists all SMB shares.
-func (m *MockClient) ListSMBShares(_ context.Context) ([]tnsapi.SMBShare, error) {
+func (m *MockClient) ListSMBShares(_ context.Context) ([]nastyapi.SMBShare, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	result := make([]tnsapi.SMBShare, 0, len(m.smbShares))
+	result := make([]nastyapi.SMBShare, 0, len(m.smbShares))
 	for _, share := range m.smbShares {
 		result = append(result, *share)
 	}
@@ -372,7 +372,7 @@ func (m *MockClient) ListSMBShares(_ context.Context) ([]tnsapi.SMBShare, error)
 }
 
 // GetSMBShare retrieves an SMB share by UUID.
-func (m *MockClient) GetSMBShare(_ context.Context, id string) (*tnsapi.SMBShare, error) {
+func (m *MockClient) GetSMBShare(_ context.Context, id string) (*nastyapi.SMBShare, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -385,17 +385,17 @@ func (m *MockClient) GetSMBShare(_ context.Context, id string) (*tnsapi.SMBShare
 }
 
 // CreateISCSITarget creates an iSCSI target.
-func (m *MockClient) CreateISCSITarget(_ context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error) {
+func (m *MockClient) CreateISCSITarget(_ context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	id := m.genID()
 	iqn := "iqn.2024-01.io.nasty:" + params.Name
-	target := &tnsapi.ISCSITarget{
+	target := &nastyapi.ISCSITarget{
 		ID:      id,
 		IQN:     iqn,
-		Portals: []tnsapi.ISCSIPortal{{IP: "0.0.0.0", Port: 3260}},
-		Luns:    []tnsapi.ISCSILun{},
+		Portals: []nastyapi.ISCSIPortal{{IP: "0.0.0.0", Port: 3260}},
+		Luns:    []nastyapi.ISCSILun{},
 		Enabled: true,
 	}
 	m.iscsiTargets[id] = target
@@ -403,7 +403,7 @@ func (m *MockClient) CreateISCSITarget(_ context.Context, params tnsapi.ISCSITar
 }
 
 // AddISCSILun adds a LUN to an iSCSI target.
-func (m *MockClient) AddISCSILun(_ context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error) {
+func (m *MockClient) AddISCSILun(_ context.Context, targetID, backstorePath string) (*nastyapi.ISCSITarget, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -411,7 +411,7 @@ func (m *MockClient) AddISCSILun(_ context.Context, targetID, backstorePath stri
 	if !exists {
 		return nil, ErrISCSITargetNotFound
 	}
-	lun := tnsapi.ISCSILun{
+	lun := nastyapi.ISCSILun{
 		LunID:         uint32(len(target.Luns)),
 		BackstorePath: backstorePath,
 	}
@@ -421,7 +421,7 @@ func (m *MockClient) AddISCSILun(_ context.Context, targetID, backstorePath stri
 }
 
 // AddISCSIACL adds an initiator ACL to an iSCSI target.
-func (m *MockClient) AddISCSIACL(_ context.Context, targetID, _ string) (*tnsapi.ISCSITarget, error) {
+func (m *MockClient) AddISCSIACL(_ context.Context, targetID, _ string) (*nastyapi.ISCSITarget, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -446,11 +446,11 @@ func (m *MockClient) DeleteISCSITarget(_ context.Context, id string) error {
 }
 
 // ListISCSITargets lists all iSCSI targets.
-func (m *MockClient) ListISCSITargets(_ context.Context) ([]tnsapi.ISCSITarget, error) {
+func (m *MockClient) ListISCSITargets(_ context.Context) ([]nastyapi.ISCSITarget, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	result := make([]tnsapi.ISCSITarget, 0, len(m.iscsiTargets))
+	result := make([]nastyapi.ISCSITarget, 0, len(m.iscsiTargets))
 	for _, t := range m.iscsiTargets {
 		result = append(result, *t)
 	}
@@ -458,7 +458,7 @@ func (m *MockClient) ListISCSITargets(_ context.Context) ([]tnsapi.ISCSITarget, 
 }
 
 // GetISCSITargetByIQN finds an iSCSI target by IQN.
-func (m *MockClient) GetISCSITargetByIQN(_ context.Context, iqn string) (*tnsapi.ISCSITarget, error) {
+func (m *MockClient) GetISCSITargetByIQN(_ context.Context, iqn string) (*nastyapi.ISCSITarget, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -472,16 +472,16 @@ func (m *MockClient) GetISCSITargetByIQN(_ context.Context, iqn string) (*tnsapi
 }
 
 // CreateNVMeOFSubsystem creates an NVMe-oF subsystem.
-func (m *MockClient) CreateNVMeOFSubsystem(_ context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error) {
+func (m *MockClient) CreateNVMeOFSubsystem(_ context.Context, params nastyapi.NVMeOFCreateParams) (*nastyapi.NVMeOFSubsystem, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	id := m.genID()
-	subsystem := &tnsapi.NVMeOFSubsystem{
+	subsystem := &nastyapi.NVMeOFSubsystem{
 		ID:           id,
 		NQN:          "nqn.2024-01.io.nasty:" + params.Name,
-		Namespaces:   []tnsapi.NVMeOFNamespace{{NSID: 1, DevicePath: params.DevicePath, Enabled: true}},
-		Ports:        []tnsapi.NVMeOFPort{{PortID: 1, Transport: "tcp", Addr: params.Addr}},
+		Namespaces:   []nastyapi.NVMeOFNamespace{{NSID: 1, DevicePath: params.DevicePath, Enabled: true}},
+		Ports:        []nastyapi.NVMeOFPort{{PortID: 1, Transport: "tcp", Addr: params.Addr}},
 		AllowedHosts: params.Hosts,
 		AllowAnyHost: len(params.Hosts) == 0,
 		Enabled:      true,
@@ -503,11 +503,11 @@ func (m *MockClient) DeleteNVMeOFSubsystem(_ context.Context, id string) error {
 }
 
 // ListNVMeOFSubsystems lists all NVMe-oF subsystems.
-func (m *MockClient) ListNVMeOFSubsystems(_ context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
+func (m *MockClient) ListNVMeOFSubsystems(_ context.Context) ([]nastyapi.NVMeOFSubsystem, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	result := make([]tnsapi.NVMeOFSubsystem, 0, len(m.nvmeofSubsystems))
+	result := make([]nastyapi.NVMeOFSubsystem, 0, len(m.nvmeofSubsystems))
 	for _, s := range m.nvmeofSubsystems {
 		result = append(result, *s)
 	}
@@ -515,7 +515,7 @@ func (m *MockClient) ListNVMeOFSubsystems(_ context.Context) ([]tnsapi.NVMeOFSub
 }
 
 // GetNVMeOFSubsystemByNQN finds an NVMe-oF subsystem by NQN.
-func (m *MockClient) GetNVMeOFSubsystemByNQN(_ context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error) {
+func (m *MockClient) GetNVMeOFSubsystemByNQN(_ context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

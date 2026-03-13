@@ -50,7 +50,7 @@ var _ = Describe("Connection Resilience", func() {
 		By("Creating first volume during normal operation")
 		pvc1, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             "resilience-pvc-1",
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -74,7 +74,7 @@ var _ = Describe("Connection Resilience", func() {
 		By("Creating second volume to verify connection stability under load")
 		pvc2, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             "resilience-pvc-2",
-			StorageClassName: "tns-csi-nfs",
+			StorageClassName: "nasty-csi-nfs",
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -158,7 +158,7 @@ var _ = Describe("Connection Resilience", func() {
 
 			_, createErr := f.K8s.CreatePVC(ctx, framework.PVCOptions{
 				Name:             pvcName,
-				StorageClassName: "tns-csi-nfs",
+				StorageClassName: "nasty-csi-nfs",
 				Size:             "1Gi",
 				AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 			})
