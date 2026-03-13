@@ -4,7 +4,7 @@
 
 This driver is in early development phase. Use only for testing and evaluation environments. Use at your own risk.
 
-This guide explains how to set up and use SMB/CIFS file storage with the TrueNAS CSI driver.
+This guide explains how to set up and use SMB/CIFS file storage with the NASty CSI driver.
 
 ## Overview
 
@@ -27,9 +27,9 @@ SMB (Server Message Block) provides network file sharing with authentication sup
 
 ## Prerequisites
 
-### TrueNAS Requirements
+### NASty Requirements
 
-- **TrueNAS Scale 25.10 or later**
+- **NASty Scale 25.10 or later**
 - SMB service enabled (System > Services > SMB)
 - Storage pool available for volume provisioning
 - SMB user account created (Credentials > Local Users)
@@ -55,7 +55,7 @@ sudo dnf install -y cifs-utils
 which mount.cifs
 ```
 
-## TrueNAS Setup
+## NASty Setup
 
 ### Step 1: Enable SMB Service
 
@@ -82,7 +82,7 @@ The CSI driver automatically creates and deletes SMB shares for each volume. You
 
 ```
 +-------------------------------------------------------------+
-|                    TrueNAS SMB                               |
+|                    NASty SMB                               |
 +-------------------------------------------------------------+
 |  Dataset (per volume)     <- CSI driver creates/deletes     |
 |    +-- SMB Share          <- CSI driver creates/deletes     |
@@ -120,20 +120,20 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system"
 ```
 
 **Replace these values:**
-- `YOUR-TRUENAS-IP` - Your TrueNAS server IP address
-- `YOUR-API-KEY` - API key from TrueNAS (Settings > API Keys)
+- `YOUR-NASTY-IP` - Your NASty server IP address
+- `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
 - `YOUR-POOL-NAME` - ZFS pool name (e.g., `tank`, `storage`)
 
 ### Verify Installation
@@ -224,7 +224,7 @@ metadata:
 provisioner: tns.csi.io
 parameters:
   protocol: smb
-  server: YOUR-TRUENAS-IP
+  server: YOUR-NASTY-IP
   pool: tank
   csi.storage.k8s.io/node-stage-secret-name: smb-credentials
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
@@ -240,19 +240,19 @@ mountOptions:
 
 ### Volume Retention
 
-To keep volumes on TrueNAS when PVCs are deleted:
+To keep volumes on NASty when PVCs are deleted:
 
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system" \
   --set "storageClasses[0].parameters.deleteStrategy=retain"
@@ -270,7 +270,7 @@ metadata:
 provisioner: tns.csi.io
 parameters:
   protocol: smb
-  server: YOUR-TRUENAS-IP
+  server: YOUR-NASTY-IP
   pool: tank
   csi.storage.k8s.io/node-stage-secret-name: smb-credentials
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
@@ -381,11 +381,11 @@ ssh <node> which mount.cifs
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| PVC pending | SMB service not enabled | Enable SMB in TrueNAS (System > Services) |
+| PVC pending | SMB service not enabled | Enable SMB in NASty (System > Services) |
 | Mount failed | cifs-utils not installed | `sudo apt-get install cifs-utils` on nodes |
-| Permission denied | Wrong credentials | Verify Secret contents and SMB user in TrueNAS |
-| Connection refused | Firewall blocking port 445 | Open port 445 between nodes and TrueNAS |
-| Share not found | Share creation failed | Check controller logs for TrueNAS API errors |
+| Permission denied | Wrong credentials | Verify Secret contents and SMB user in NASty |
+| Connection refused | Firewall blocking port 445 | Open port 445 between nodes and NASty |
+| Share not found | Share creation failed | Check controller logs for NASty API errors |
 
 ### Verify Connectivity
 
@@ -393,10 +393,10 @@ From a Kubernetes node:
 
 ```bash
 # Check port is open
-nc -zv YOUR-TRUENAS-IP 445
+nc -zv YOUR-NASTY-IP 445
 
 # Test SMB access (requires smbclient)
-smbclient -L //YOUR-TRUENAS-IP -U csi-smb
+smbclient -L //YOUR-NASTY-IP -U csi-smb
 ```
 
 ## Next Steps

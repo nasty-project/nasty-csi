@@ -53,9 +53,9 @@ Each distribution runs basic tests for NFS, NVMe-oF, and iSCSI protocols:
 
 ```bash
 # Set environment variables
-export TRUENAS_HOST="your-truenas-host"
-export TRUENAS_API_KEY="your-api-key"
-export TRUENAS_POOL="your-pool"
+export NASTY_HOST="your-nasty-host"
+export NASTY_API_KEY="your-api-key"
+export NASTY_POOL="your-pool"
 export CSI_IMAGE_TAG="latest"
 
 # Choose protocol
@@ -107,13 +107,13 @@ Test results are available in:
 ### NVMe-oF Tests Skipped
 
 This is expected if:
-- NVMe-oF ports are not configured in TrueNAS
+- NVMe-oF ports are not configured in NASty
 - The test automatically detects this and skips gracefully
 
 ### All Tests Failing
 
 Check:
-1. TrueNAS connectivity from runner
+1. NASty connectivity from runner
 2. API key validity
 3. Storage pool availability
 
@@ -138,9 +138,9 @@ distro-name-basic:
     - uses: your-org/setup-distro@v1
     - name: Run Basic Test
       env:
-        TRUENAS_HOST: ${{ secrets.TRUENAS_HOST }}
-        TRUENAS_API_KEY: ${{ secrets.TRUENAS_API_KEY }}
-        TRUENAS_POOL: ${{ secrets.TRUENAS_POOL }}
+        NASTY_HOST: ${{ secrets.NASTY_HOST }}
+        NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+        NASTY_POOL: ${{ secrets.NASTY_POOL }}
         CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
         TEST_PROTOCOL: ${{ matrix.protocol }}
       run: ./tests/integration/test-distro-basic.sh

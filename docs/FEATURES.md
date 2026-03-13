@@ -6,7 +6,7 @@ This document provides a comprehensive overview of currently implemented and tes
 
 ## Overview
 
-The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that enables dynamic provisioning and management of persistent storage volumes on TrueNAS systems. This driver is in active development with core features implemented and undergoing testing.
+The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that enables dynamic provisioning and management of persistent storage volumes on NASty systems. This driver is in active development with core features implemented and undergoing testing.
 
 ## Supported Storage Protocols
 
@@ -15,8 +15,8 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 - **Access Modes**: ReadWriteMany (RWX), ReadWriteOnce (RWO), ReadWriteOncePod (RWOP)
 - **Use Case**: Shared filesystem storage, multi-pod access
 - **Mount Protocol**: NFSv4.2 with nolock option
-- **TrueNAS Requirements**: 
-  - TrueNAS Scale 25.10+
+- **NASty Requirements**: 
+  - NASty Scale 25.10+
   - NFS service enabled
   - Accessible NFS ports (111, 2049)
 
@@ -25,8 +25,8 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 - **Access Modes**: ReadWriteOnce (RWO), ReadWriteOncePod (RWOP)
 - **Use Case**: High-performance block storage, low-latency workloads
 - **Transport**: TCP (nvme-tcp)
-- **TrueNAS Requirements**:
-  - TrueNAS Scale 25.10+ (NVMe-oF feature introduced in this version)
+- **NASty Requirements**:
+  - NASty Scale 25.10+ (NVMe-oF feature introduced in this version)
   - Static IP address configured (DHCP not supported)
   - Pre-configured NVMe-oF port with TCP transport (default: 4420)
 - **Architecture**: Dedicated subsystem model (1 subsystem per volume)
@@ -36,8 +36,8 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 - **Access Modes**: ReadWriteOnce (RWO), ReadWriteOncePod (RWOP)
 - **Use Case**: Traditional block storage, broad compatibility
 - **Transport**: TCP (default port: 3260)
-- **TrueNAS Requirements**:
-  - TrueNAS Scale 25.10+
+- **NASty Requirements**:
+  - NASty Scale 25.10+
   - iSCSI service enabled
   - Pre-configured iSCSI portal
 - **Architecture**: Dedicated target model (1 target per volume with 1 extent)
@@ -48,8 +48,8 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 - **Access Modes**: ReadWriteMany (RWX), ReadWriteOnce (RWO), ReadWriteOncePod (RWOP)
 - **Use Case**: Authenticated file sharing, Windows-compatible storage
 - **Mount Protocol**: CIFS (SMB 3.0 default)
-- **TrueNAS Requirements**:
-  - TrueNAS Scale 25.10+
+- **NASty Requirements**:
+  - NASty Scale 25.10+
   - SMB service enabled
   - SMB user account configured
 - **Node Requirements**: `cifs-utils` package installed on Kubernetes nodes
@@ -81,7 +81,7 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 - **Parameters**:
   - `protocol`: nfs, nvmeof, iscsi, or smb
   - `pool`: ZFS pool name
-  - `server`: TrueNAS IP/hostname
+  - `server`: NASty IP/hostname
   - `port`: (NVMe-oF/iSCSI) Target port number
 
 #### Volume Deletion
@@ -103,7 +103,7 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 - **Parameter**: `deleteStrategy` in StorageClass parameters
 - **Values**:
   - `delete` (default): Volume is deleted when PVC is deleted
-  - `retain`: Volume is kept on TrueNAS when PVC is deleted (useful for data protection)
+  - `retain`: Volume is kept on NASty when PVC is deleted (useful for data protection)
 - **Use Case**: Protect important data from accidental deletion while still using `reclaimPolicy: Delete`
 
 **Example StorageClass with Delete Strategy:**
@@ -111,13 +111,13 @@ The TNS CSI Driver is a Kubernetes Container Storage Interface (CSI) driver that
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-retained
+  name: nasty-nfs-retained
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
-  deleteStrategy: "retain"  # Volumes kept on TrueNAS when PVC deleted
+  server: nasty.local
+  deleteStrategy: "retain"  # Volumes kept on NASty when PVC deleted
 allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
@@ -163,12 +163,12 @@ reclaimPolicy: Delete
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-custom
+  name: nasty-nfs-custom
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
 mountOptions:
   - hard
   - nointr
@@ -183,13 +183,13 @@ reclaimPolicy: Delete
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nvmeof-custom
+  name: nasty-nvmeof-custom
 provisioner: tns.csi.io
 parameters:
   protocol: nvmeof
   pool: tank
-  server: truenas.local
-  subsystemNQN: nqn.2025-01.com.truenas:csi
+  server: nasty.local
+  subsystemNQN: nqn.2025-01.com.nasty:csi
 mountOptions:
   - discard
   - data=ordered
@@ -269,12 +269,12 @@ kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-detached
+  name: nasty-nfs-detached
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   detached: "true"  # Clones will be promoted to break parent dependency
 allowVolumeExpansion: true
 reclaimPolicy: Delete
@@ -303,7 +303,7 @@ reclaimPolicy: Delete
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-snapshot-detached
+  name: nasty-nfs-snapshot-detached
 driver: tns.csi.io
 deletionPolicy: Delete
 parameters:
@@ -320,7 +320,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: restored-pvc
 spec:
-  storageClassName: truenas-nfs
+  storageClassName: nasty-nfs
   dataSource:
     name: my-snapshot
     kind: VolumeSnapshot
@@ -415,7 +415,7 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 
 ### WebSocket API Client
 - **Status**: ✅ Stable and functional
-- **Description**: Resilient WebSocket client for TrueNAS API communication
+- **Description**: Resilient WebSocket client for NASty API communication
 - **Features**:
   - Automatic reconnection with exponential backoff
   - Ping/pong heartbeat (30-second intervals)
@@ -497,7 +497,7 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 - **Status**: ✅ Fully implemented
 - **Port**: 2137 (default, configurable via `--port`)
 - **Command**: `kubectl tns-csi dashboard`
-- **Description**: Local dashboard that connects directly to TrueNAS via WebSocket. Same UI as the in-cluster dashboard but runs on your machine. Auto-discovers credentials from installed driver.
+- **Description**: Local dashboard that connects directly to NASty via WebSocket. Same UI as the in-cluster dashboard but runs on your machine. Auto-discovers credentials from installed driver.
 
 ### Grafana Dashboard
 - **Status**: ✅ Fully implemented
@@ -569,12 +569,12 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-compressed
+  name: nasty-nfs-compressed
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   # ZFS properties
   zfs.compression: "lz4"
   zfs.atime: "off"
@@ -588,12 +588,12 @@ reclaimPolicy: Delete
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nvmeof-compressed
+  name: nasty-nvmeof-compressed
 provisioner: tns.csi.io
 parameters:
   protocol: nvmeof
   pool: tank
-  server: truenas.local
+  server: nasty.local
   transport: tcp
   port: "4420"
   # ZFS properties
@@ -629,7 +629,7 @@ ZFS native encryption provides transparent, at-rest encryption for your volumes.
 
 #### Key Management Options
 
-1. **Auto-generate Key** (simplest): TrueNAS generates and manages the encryption key
+1. **Auto-generate Key** (simplest): NASty generates and manages the encryption key
    ```yaml
    encryption: "true"
    encryptionGenerateKey: "true"
@@ -678,12 +678,12 @@ ZFS native encryption provides transparent, at-rest encryption for your volumes.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-encrypted
+  name: nasty-nfs-encrypted
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   encryption: "true"
   encryptionGenerateKey: "true"
 allowVolumeExpansion: true
@@ -695,12 +695,12 @@ reclaimPolicy: Delete
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nvmeof-encrypted
+  name: nasty-nvmeof-encrypted
 provisioner: tns.csi.io
 parameters:
   protocol: nvmeof
   pool: tank
-  server: truenas.local
+  server: nasty.local
   transport: tcp
   port: "4420"
   encryption: "true"
@@ -723,7 +723,7 @@ stringData:
 #### Important Notes
 
 - **Key Recovery**: If using passphrase or hex key, you are responsible for key backup. Losing the key means losing access to encrypted data.
-- **Auto-Generated Keys**: When using `encryptionGenerateKey: "true"`, TrueNAS manages the key. The key is stored on TrueNAS and is accessible to TrueNAS administrators.
+- **Auto-Generated Keys**: When using `encryptionGenerateKey: "true"`, NASty manages the key. The key is stored on NASty and is accessible to NASty administrators.
 - **Existing Volumes**: Encryption can only be set at volume creation time. Existing unencrypted volumes cannot be encrypted.
 - **Snapshots**: Snapshots of encrypted volumes inherit the encryption settings.
 - **Performance**: Encryption has minimal performance impact with modern CPUs (AES-NI acceleration).
@@ -757,7 +757,7 @@ The driver stores metadata as ZFS user properties on each volume's dataset/ZVOL.
 |----------|-------------|---------|
 | `tns-csi:pvc_name` | Original PVC name | `"my-data"` |
 | `tns-csi:pvc_namespace` | Original namespace | `"default"` |
-| `tns-csi:storage_class` | Original StorageClass | `"truenas-nfs"` |
+| `tns-csi:storage_class` | Original StorageClass | `"nasty-nfs"` |
 
 #### Protocol-Specific Properties
 
@@ -765,21 +765,21 @@ The driver stores metadata as ZFS user properties on each volume's dataset/ZVOL.
 | Property | Description | Mutable? |
 |----------|-------------|----------|
 | `tns-csi:nfs_share_path` | NFS export path (stable) | No |
-| `tns-csi:nfs_share_id` | TrueNAS share ID | Yes (on re-share) |
+| `tns-csi:nfs_share_id` | NASty share ID | Yes (on re-share) |
 
 **NVMe-oF Volumes:**
 | Property | Description | Mutable? |
 |----------|-------------|----------|
 | `tns-csi:nvmeof_subsystem_nqn` | Subsystem NQN (stable) | No |
-| `tns-csi:nvmeof_subsystem_id` | TrueNAS subsystem ID | Yes |
-| `tns-csi:nvmeof_namespace_id` | TrueNAS namespace ID | Yes |
+| `tns-csi:nvmeof_subsystem_id` | NASty subsystem ID | Yes |
+| `tns-csi:nvmeof_namespace_id` | NASty namespace ID | Yes |
 
 **iSCSI Volumes:**
 | Property | Description | Mutable? |
 |----------|-------------|----------|
 | `tns-csi:iscsi_iqn` | Target IQN (stable) | No |
-| `tns-csi:iscsi_target_id` | TrueNAS target ID | Yes |
-| `tns-csi:iscsi_extent_id` | TrueNAS extent ID | Yes |
+| `tns-csi:iscsi_target_id` | NASty target ID | Yes |
+| `tns-csi:iscsi_extent_id` | NASty extent ID | Yes |
 
 **Clone/Content Source Properties (set automatically when cloning):**
 | Property | Description | Values |
@@ -796,7 +796,7 @@ Clone modes determine dependency relationships:
 
 **Viewing Volume Properties:**
 ```bash
-# On TrueNAS, view all properties for a volume
+# On NASty, view all properties for a volume
 zfs get all tank/csi/pvc-12345678 | grep tns-csi
 ```
 
@@ -837,13 +837,13 @@ zfs get all tank/csi/pvc-12345678 | grep tns-csi
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-gitops
+  name: nasty-nfs-gitops
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
   parentDataset: csi
-  server: truenas.local
+  server: nasty.local
   markAdoptable: "true"    # New volumes can be adopted by future clusters
   adoptExisting: "true"    # Adopt existing volumes with matching names
 reclaimPolicy: Retain      # Keep volumes on PVC deletion
@@ -853,7 +853,7 @@ allowVolumeExpansion: true
 **Adoption Process:**
 1. When `CreateVolume` is called, the driver searches for an existing volume by CSI name
 2. If found, it checks adoption eligibility (adoptable property or adoptExisting parameter)
-3. If eligible, it re-creates any missing TrueNAS resources (NFS share, NVMe-oF subsystem/namespace, or iSCSI target/extent)
+3. If eligible, it re-creates any missing NASty resources (NFS share, NVMe-oF subsystem/namespace, or iSCSI target/extent)
 4. Volume capacity is expanded if requested size is larger than existing size
 5. Volume is returned as if newly created, but data is preserved
 
@@ -880,7 +880,7 @@ Your actual paths depend on StorageClass configuration:
 - `parentDataset` parameter sets an optional parent dataset (e.g., `csi`)
 - If `parentDataset` is not set, volumes are created directly under the pool
 
-1. **Identify adoptable volumes** on TrueNAS:
+1. **Identify adoptable volumes** on NASty:
    ```bash
    # List all tns-csi managed datasets (adjust path to match your pool/parentDataset)
    zfs list -o name,nasty-csi:managed_by,tns-csi:csi_volume_name,tns-csi:protocol -r tank
@@ -892,7 +892,7 @@ Your actual paths depend on StorageClass configuration:
    zfs get all tank/my-volume | grep tns-csi
    ```
 
-3. **Re-create NFS share or NVMe-oF namespace** if missing (TrueNAS UI or API)
+3. **Re-create NFS share or NVMe-oF namespace** if missing (NASty UI or API)
 
 4. **Create static PV** in Kubernetes referencing the existing volume:
    ```yaml
@@ -906,13 +906,13 @@ Your actual paths depend on StorageClass configuration:
      accessModes:
        - ReadWriteMany
      persistentVolumeReclaimPolicy: Retain
-     storageClassName: truenas-nfs
+     storageClassName: nasty-nfs
      csi:
        driver: tns.csi.io
        volumeHandle: my-volume  # Must match tns-csi:csi_volume_name
        volumeAttributes:
          protocol: nfs
-         server: truenas.local
+         server: nasty.local
          share: /mnt/tank/my-volume  # Must match tns-csi:nfs_share_path
    ```
 
@@ -928,7 +928,7 @@ Your actual paths depend on StorageClass configuration:
      resources:
        requests:
          storage: 10Gi
-     storageClassName: truenas-nfs
+     storageClassName: nasty-nfs
      volumeName: adopted-volume  # Bind to static PV
    ```
 
@@ -936,7 +936,7 @@ Your actual paths depend on StorageClass configuration:
 
 The kubectl plugin provides CLI tooling for volume discovery and adoption:
 ```bash
-# Discover orphaned volumes (volumes on TrueNAS without matching PVCs)
+# Discover orphaned volumes (volumes on NASty without matching PVCs)
 kubectl tns-csi list-orphaned
 
 # Generate PV manifest to adopt a specific volume
@@ -951,7 +951,7 @@ See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full details on adopti
 
 ### Volume Name Templating
 - **Status**: ✅ Implemented
-- **Description**: Customize volume/dataset names on TrueNAS using Go templates
+- **Description**: Customize volume/dataset names on NASty using Go templates
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
 - **Use Cases**:
   - Use meaningful names instead of auto-generated PV UUIDs
@@ -971,7 +971,7 @@ See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full details on adopti
 | `nameTemplate` | Go template for full name | `{{ .PVCNamespace }}-{{ .PVCName }}` |
 | `namePrefix` | Simple prefix | `prod-` |
 | `nameSuffix` | Simple suffix | `-data` |
-| `commentTemplate` | Go template for dataset comment (visible in TrueNAS UI) | `{{ .PVCNamespace }}/{{ .PVCName }}` |
+| `commentTemplate` | Go template for dataset comment (visible in NASty UI) | `{{ .PVCNamespace }}/{{ .PVCName }}` |
 
 **Note**: `nameTemplate` takes precedence over `namePrefix`/`nameSuffix` if both are specified.
 
@@ -987,12 +987,12 @@ Volume names are automatically sanitized for ZFS compatibility:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-named
+  name: nasty-nfs-named
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   # Volume name templating
   nameTemplate: "{{ .PVCNamespace }}-{{ .PVCName }}"
 allowVolumeExpansion: true
@@ -1006,31 +1006,31 @@ With this StorageClass, a PVC named `postgres-data` in namespace `production` wo
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-commented
+  name: nasty-nfs-commented
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
-  # Dataset comment visible in TrueNAS UI
+  server: nasty.local
+  # Dataset comment visible in NASty UI
   commentTemplate: "{{ .PVCNamespace }}/{{ .PVCName }}"
 allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
 
-With this StorageClass, datasets will have a comment like `production/postgres-data` visible in the TrueNAS web UI, making it easy to identify which PVC a dataset belongs to. Unlike volume names, comments are free-form text — no sanitization or length limits are applied.
+With this StorageClass, datasets will have a comment like `production/postgres-data` visible in the NASty web UI, making it easy to identify which PVC a dataset belongs to. Unlike volume names, comments are free-form text — no sanitization or length limits are applied.
 
 **Example with Simple Prefix/Suffix:**
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-prefixed
+  name: nasty-nfs-prefixed
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   namePrefix: "k8s-"
   nameSuffix: "-vol"
 allowVolumeExpansion: true
@@ -1057,7 +1057,7 @@ reclaimPolicy: Delete
 
 ### Integration Tests
 - **Status**: ✅ Comprehensive test suite
-- **Infrastructure**: Self-hosted (k3s + real TrueNAS)
+- **Infrastructure**: Self-hosted (k3s + real NASty)
 - **Test Scenarios**:
   - Basic volume provisioning and deletion (NFS, NVMe-oF, iSCSI, SMB)
   - Volume expansion (NFS, NVMe-oF, iSCSI, SMB)
@@ -1085,7 +1085,7 @@ reclaimPolicy: Delete
 ### API Authentication
 - **Status**: ✅ Secure API key authentication
 - **Storage**: Kubernetes Secrets
-- **Support**: TrueNAS API key authentication
+- **Support**: NASty API key authentication
 
 ### TLS Support
 - **Status**: ✅ Supported
@@ -1120,7 +1120,7 @@ reclaimPolicy: Delete
 
 ### Reclaim Policies
 - ✅ Delete - Volume deleted when PVC removed (default)
-- ✅ Retain - Volume kept on TrueNAS after PVC deletion
+- ✅ Retain - Volume kept on NASty after PVC deletion
 
 ### Storage Classes
 - ✅ Multiple storage classes per driver
@@ -1155,17 +1155,17 @@ reclaimPolicy: Delete
 - ✅ CRI-O
 - ⚠️ Docker (should work, not extensively tested)
 
-## TrueNAS Version Support
+## NASty Version Support
 
 ### Minimum Versions
-- **NFS Support**: TrueNAS Scale 25.10+
-- **NVMe-oF Support**: TrueNAS Scale 25.10+ (feature introduced in this version)
+- **NFS Support**: NASty Scale 25.10+
+- **NVMe-oF Support**: NASty Scale 25.10+ (feature introduced in this version)
 
 ### API Compatibility
 - **WebSocket API**: v2.0 (current endpoint: `/api/current`)
 - **Authentication**: API key-based
 
-### Required TrueNAS Configuration
+### Required NASty Configuration
 
 #### For NFS
 - NFS service enabled
@@ -1201,7 +1201,7 @@ reclaimPolicy: Delete
 - Firewall rules must allow NFS ports
 
 #### NVMe-oF
-- Requires TrueNAS Scale 25.10+ (not available on TrueNAS CORE)
+- Requires NASty Scale 25.10+ (not available on NASty CORE)
 - Static IP mandatory (DHCP interfaces not shown in configuration)
 - Subsystem must be pre-configured (driver doesn't create subsystems)
 - Block storage only (ReadWriteOnce access mode)
@@ -1219,7 +1219,7 @@ reclaimPolicy: Delete
 ## Roadmap / Future Considerations
 
 ### Under Consideration (Not Committed)
-- **Multi-pool Support**: Advanced scheduling across multiple TrueNAS pools
+- **Multi-pool Support**: Advanced scheduling across multiple NASty pools
 - **Topology Awareness**: Multi-zone deployments
 - **Volume Migration**: Move volumes between protocols/pools
 - **Quota Management**: Advanced quota and reservation features
@@ -1277,7 +1277,7 @@ All features are tested on **real infrastructure** - not mocks or simulators:
 **Test Environment:**
 - ✅ Self-hosted GitHub Actions runner (dedicated Akamai/Linode infrastructure)
 - ✅ Real Kubernetes clusters (k3s) provisioned for each test run
-- ✅ Real TrueNAS Scale 25.10+ server with actual storage pools
+- ✅ Real NASty Scale 25.10+ server with actual storage pools
 - ✅ Real protocol operations (NFS mounts, NVMe-oF connections, SMB shares, actual I/O)
 
 **CSI Specification Compliance:**
@@ -1305,8 +1305,8 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 
 ### Minimum Requirements
 1. Kubernetes cluster 1.27+
-2. TrueNAS Scale 25.10+
-3. TrueNAS API key
+2. NASty Scale 25.10+
+3. NASty API key
 4. Helm 3.0+
 5. Protocol-specific tools on nodes: NFS client (NFS), nvme-cli (NVMe-oF), open-iscsi (iSCSI), or cifs-utils (SMB)
 
@@ -1315,50 +1315,50 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 ### Quick Install (NVMe-oF)
 ```bash
-# Pre-requisite: Configure NVMe-oF port in TrueNAS first!
+# Pre-requisite: Configure NVMe-oF port in NASty first!
 helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 ### Quick Install (iSCSI)
 ```bash
-# Pre-requisite: Configure iSCSI portal in TrueNAS and install open-iscsi on nodes!
+# Pre-requisite: Configure iSCSI portal in NASty and install open-iscsi on nodes!
 helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 ## Support and Community
 
 ### Reporting Issues
 - GitHub Issues: https://github.com/nasty-project/nasty-csi/issues
-- Include: Kubernetes version, TrueNAS version, logs, reproduction steps
+- Include: Kubernetes version, NASty version, logs, reproduction steps
 
 ### Contributing
 - See CONTRIBUTING.md for guidelines

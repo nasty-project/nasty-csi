@@ -1,6 +1,6 @@
-# TrueNAS CSI Test Results Dashboard
+# NASty CSI Test Results Dashboard
 
-The test results dashboard provides real-time visualization of integration test results for the TrueNAS CSI driver.
+The test results dashboard provides real-time visualization of integration test results for the NASty CSI driver.
 
 ## Overview
 

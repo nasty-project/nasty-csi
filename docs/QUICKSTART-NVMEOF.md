@@ -4,7 +4,7 @@
 
 This driver is in early development phase. Use only for testing and evaluation environments. Use at your own risk.
 
-This guide explains the testing setup for the TrueNAS CSI driver with both NVMe-oF and NFS protocols.
+This guide explains the testing setup for the NASty CSI driver with both NVMe-oF and NFS protocols.
 
 ## Testing Environments
 
@@ -13,12 +13,12 @@ This guide explains the testing setup for the TrueNAS CSI driver with both NVMe-
 NVMe-oF requires real kernel modules and block device support that isn't available in containers.
 
 **Prerequisites:**
-- **TrueNAS Scale 25.10 or later** (NVMe-oF feature introduced in 25.10)
+- **NASty Scale 25.10 or later** (NVMe-oF feature introduced in 25.10)
 
 **Why UTM VM?**
 - ✅ Full NVMe-oF kernel module support (`nvme-tcp`, `nvme-fabrics`)
 - ✅ Real block device operations
-- ✅ Network access to TrueNAS
+- ✅ Network access to NASty
 - ✅ Runs Kubernetes (k3s)
 - ✅ Native performance on Apple Silicon
 
@@ -52,27 +52,27 @@ NFS works perfectly in containers and doesn't require special kernel modules.
    - **CPU:** 4 cores
    - **RAM:** 4 GB
    - **Disk:** 50 GB
-   - **Network:** Bridged (to access TrueNAS)
-3. **TrueNAS Scale 25.10 or later** server with:
+   - **Network:** Bridged (to access NASty)
+3. **NASty Scale 25.10 or later** server with:
    - NVMe-oF service enabled
    - **⚠️ IMPORTANT: At least one NVMe-oF TCP port configured** (see below)
 4. **Docker Desktop** for building images
 
-#### ⚠️ Required: Configure NVMe-oF Port on TrueNAS
+#### ⚠️ Required: Configure NVMe-oF Port on NASty
 
-**Before provisioning NVMe-oF volumes**, you must configure an NVMe-oF TCP port on TrueNAS 25.10+.
+**Before provisioning NVMe-oF volumes**, you must configure an NVMe-oF TCP port on NASty 25.10+.
 
 The CSI driver uses an **independent subsystem architecture** where each volume gets its own dedicated NVMe-oF subsystem (1 subsystem per volume). The driver automatically creates and deletes subsystems, but **ports must be pre-configured** by the administrator.
 
 ##### Step 1: Configure Static IP Address (REQUIRED)
 
-TrueNAS requires a static IP - DHCP interfaces won't appear in NVMe-oF configuration:
+NASty requires a static IP - DHCP interfaces won't appear in NVMe-oF configuration:
 
 1. **Navigate to:** Network → Interfaces
 2. **Edit** your active network interface
 3. **Configure:**
    - **DHCP:** Disable
-   - **IP Address:** Your static IP (e.g., `YOUR-TRUENAS-IP/24`)
+   - **IP Address:** Your static IP (e.g., `YOUR-NASTY-IP/24`)
    - **Gateway:** Your network gateway
    - **DNS:** DNS servers (e.g., `8.8.8.8`)
 4. **Test Changes** and **Save Changes**
@@ -95,14 +95,14 @@ That's it! The CSI driver will automatically:
 
 **Why only a port is required?**
 
-- **Static IP:** TrueNAS only allows NVMe-oF on interfaces with static IPs (prevents storage outages from IP changes)
+- **Static IP:** NASty only allows NVMe-oF on interfaces with static IPs (prevents storage outages from IP changes)
 - **Port:** The CSI driver cannot create ports - they must be pre-configured infrastructure
 - **Subsystems/Namespaces:** Automatically managed by the CSI driver (one subsystem per volume)
 
 **Architecture:**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    TrueNAS NVMe-oF                              │
+│                    NASty NVMe-oF                              │
 ├─────────────────────────────────────────────────────────────────┤
 │  Port (pre-configured)          ← Admin creates once            │
 │    └── Subsystem (per volume)   ← CSI driver creates/deletes   │
@@ -115,7 +115,7 @@ That's it! The CSI driver will automatically:
 
 Volume provisioning will fail with:
 ```
-No NVMe-oF ports configured. Create a port in TrueNAS (Shares > NVMe-oF Targets > Ports) first.
+No NVMe-oF ports configured. Create a port in NASty (Shares > NVMe-oF Targets > Ports) first.
 ```
 
 ### VM Setup
@@ -181,13 +181,13 @@ ssh <user>@<vm-ip> 'sudo k3s ctr images import nasty-csi-driver.tar.gz'
 export KUBECONFIG=~/.kube/utm-nvmeof-test
 helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
-  --set truenas.host=YOUR-TRUENAS-IP \
-  --set truenas.apiKey=<your-api-key> \
+  --set nasty.host=YOUR-NASTY-IP \
+  --set nasty.apiKey=<your-api-key> \
   --set storageClasses[0].name=tns-csi-nvmeof \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nvmeof \
   --set storageClasses[0].pool=<your-pool-name> \
-  --set storageClasses[0].server=YOUR-TRUENAS-IP
+  --set storageClasses[0].server=YOUR-NASTY-IP
 ```
 
 ### Test NVMe-oF Volume
@@ -235,7 +235,7 @@ NFS testing is much simpler since it works in containers:
 
 1. **Kind** installed: `brew install kind`
 2. **Docker Desktop** running
-3. **TrueNAS Scale** server accessible
+3. **NASty Scale** server accessible
 
 ### Setup and Test
 
@@ -250,8 +250,8 @@ kind load docker-image nasty-csi-driver:latest --name tns-csi-test
 # Deploy CSI driver
 helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
-  --set truenas.host=YOUR-TRUENAS-IP \
-  --set truenas.apiKey=<your-api-key>
+  --set nasty.host=YOUR-NASTY-IP \
+  --set nasty.apiKey=<your-api-key>
 
 # Test NFS volume
 kubectl apply -f deploy/example-pvc.yaml
@@ -323,7 +323,7 @@ kubectl apply -f deploy/example-pvc.yaml
               └────────────┬──────────────┘
                            │
                   ┌────────▼─────────┐
-                  │   TrueNAS Scale  │
+                  │   NASty Scale  │
                   │  - NVMe-oF Target│
                   │  - NFS Server    │
                   │  - ZFS Pools     │
@@ -348,7 +348,7 @@ kubectl apply -f deploy/example-pvc.yaml
 
 ### UTM VM Issues
 - Ensure bridged networking is configured
-- Verify VM can reach TrueNAS: `ping YOUR-TRUENAS-IP`
+- Verify VM can reach NASty: `ping YOUR-NASTY-IP`
 - Check NVMe modules: `lsmod | grep nvme`
 
 ### Kind Cluster Issues
@@ -357,9 +357,9 @@ kubectl apply -f deploy/example-pvc.yaml
 - Check logs: `kubectl logs -n kube-system <pod-name>`
 
 ### NVMe-oF Volume Issues
-- Verify port exists: Check TrueNAS UI → Shares → NVMe-oF Targets → Ports
+- Verify port exists: Check NASty UI → Shares → NVMe-oF Targets → Ports
 - Check controller logs: `kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin`
-- Verify connectivity: `nvme discover -t tcp -a YOUR-TRUENAS-IP -s 4420`
+- Verify connectivity: `nvme discover -t tcp -a YOUR-NASTY-IP -s 4420`
 
 ---
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
@@ -20,87 +19,61 @@ var (
 	errNoISCSIIQN     = errors.New("no iSCSI IQN found")
 )
 
-// FindManagedVolumes finds all datasets managed by tns-csi.
+// FindManagedVolumes finds all subvolumes managed by nasty-csi.
 // If clusterID is non-empty, only returns volumes that either match the clusterID
 // or have no cluster_id property (legacy volumes).
 func FindManagedVolumes(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]VolumeInfo, error) {
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
+	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
-	volumes := extractVolumes(datasets)
+	volumes := extractVolumes(subvols)
 	return filterByClusterID(volumes, clusterID), nil
 }
 
-// FindManagedSnapshots finds all snapshots managed by tns-csi.
-// clusterID filtering is applied at the volume level (snapshots inherit from their source volume).
+// FindManagedSnapshots finds all snapshots managed by nasty-csi.
 func FindManagedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
-	var snapshots []SnapshotInfo
-
-	attached, err := findAttachedSnapshots(ctx, client, clusterID)
+	snaps, err := client.ListSnapshots(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to find attached snapshots: %w", err)
+		return nil, fmt.Errorf("failed to list snapshots: %w", err)
 	}
-	snapshots = append(snapshots, attached...)
 
-	detached, err := findDetachedSnapshots(ctx, client, clusterID)
+	// Find managed subvolumes to cross-reference snapshot ownership
+	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to find detached snapshots: %w", err)
-	}
-	snapshots = append(snapshots, detached...)
-
-	return snapshots, nil
-}
-
-func findAttachedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find managed subvolumes: %w", err)
 	}
 	if clusterID != "" {
-		datasets = filterDatasetsByClusterID(datasets, clusterID)
+		subvols = filterSubvolumesByClusterID(subvols, clusterID)
 	}
 
-	managedDatasets := make(map[string]struct {
+	managedSubvols := make(map[string]struct {
 		volumeID string
 		protocol string
 	})
-	for _, ds := range datasets {
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && prop.Value == valueTrue {
-			continue
-		}
-		volumeID := ""
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-			volumeID = prop.Value
-		}
-		protocol := ""
-		if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-			protocol = prop.Value
-		}
+	for _, sv := range subvols {
+		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
+		protocol := sv.Properties[tnsapi.PropertyProtocol]
 		if volumeID != "" {
-			managedDatasets[ds.ID] = struct {
+			key := sv.Pool + "/" + sv.Name
+			managedSubvols[key] = struct {
 				volumeID string
 				protocol string
 			}{volumeID: volumeID, protocol: protocol}
 		}
 	}
 
-	// Query all snapshots in a single API call instead of per-dataset
-	allSnaps, err := client.QuerySnapshots(ctx, []interface{}{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to query snapshots: %w", err)
-	}
-
 	var snapshots []SnapshotInfo
-	for _, snap := range allSnaps {
-		meta, ok := managedDatasets[snap.Dataset]
+	for _, snap := range snaps {
+		subvolKey := snap.Pool + "/" + snap.Subvolume
+		meta, ok := managedSubvols[subvolKey]
 		if !ok {
 			continue
 		}
 		snapshots = append(snapshots, SnapshotInfo{
 			Name:          snap.Name,
 			SourceVolume:  meta.volumeID,
-			SourceDataset: snap.Dataset,
+			SourceDataset: subvolKey,
 			Protocol:      meta.protocol,
 			Type:          "attached",
 		})
@@ -109,49 +82,36 @@ func findAttachedSnapshots(ctx context.Context, client tnsapi.ClientInterface, c
 	return snapshots, nil
 }
 
-func findDetachedSnapshots(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]SnapshotInfo, error) {
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyDetachedSnapshot, valueTrue)
-	if err != nil {
-		return nil, err
-	}
-	if clusterID != "" {
-		datasets = filterDatasetsByClusterID(datasets, clusterID)
-	}
-	return extractDetachedSnapshots(datasets), nil
-}
-
 // FindClonedVolumes finds all volumes that were cloned from snapshots or other volumes.
 func FindClonedVolumes(ctx context.Context, client tnsapi.ClientInterface, clusterID string) ([]CloneInfo, error) {
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
+	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
 	if clusterID != "" {
-		datasets = filterDatasetsByClusterID(datasets, clusterID)
+		subvols = filterSubvolumesByClusterID(subvols, clusterID)
 	}
-	return extractClones(datasets), nil
+	return extractClones(subvols), nil
 }
 
-// FindUnmanagedVolumes finds volumes not managed by tns-csi.
-// If clusterID is non-empty, also excludes datasets that have a different cluster_id
-// (they belong to another cluster's managed set).
+// FindUnmanagedVolumes finds volumes not managed by nasty-csi.
 func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, searchPath string, showAll bool, clusterID string) ([]UnmanagedVolume, error) {
-	allDatasets, err := client.QueryAllDatasets(ctx, searchPath)
+	allSubvols, err := client.ListAllSubvolumes(ctx, searchPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query datasets: %w", err)
+		return nil, fmt.Errorf("failed to list subvolumes: %w", err)
 	}
 
-	managedDatasets, err := client.FindManagedDatasets(ctx, searchPath)
+	managedSubvols, err := client.FindManagedSubvolumes(ctx, searchPath)
 	if err != nil {
-		managedDatasets = nil
+		managedSubvols = nil
 	}
 
 	managedIDs := make(map[string]bool)
-	for i := range managedDatasets {
-		managedIDs[managedDatasets[i].ID] = true
+	for i := range managedSubvols {
+		managedIDs[managedSubvols[i].Pool+"/"+managedSubvols[i].Name] = true
 	}
 
-	nfsShares, err := client.QueryAllNFSShares(ctx, "")
+	nfsShares, err := client.ListNFSShares(ctx)
 	if err != nil {
 		nfsShares = nil
 	}
@@ -160,66 +120,32 @@ func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, se
 		nfsShareByPath[nfsShares[i].Path] = &nfsShares[i]
 	}
 
-	//nolint:errcheck // non-fatal if this fails
-	democraticDatasets, _ := client.FindDatasetsByProperty(ctx, searchPath, "democratic-csi:csi_share_volume_context", "")
-	democraticIDs := make(map[string]string)
-	for i := range democraticDatasets {
-		democraticIDs[democraticDatasets[i].ID] = "democratic-csi"
-	}
-
-	allDatasetIDs := make(map[string]bool)
-	for i := range allDatasets {
-		allDatasetIDs[allDatasets[i].ID] = true
-	}
-
-	hasChildren := func(datasetID string) bool {
-		prefix := datasetID + "/"
-		for id := range allDatasetIDs {
-			if strings.HasPrefix(id, prefix) {
-				return true
-			}
-		}
-		return false
-	}
-
 	var volumes []UnmanagedVolume
-	for i := range allDatasets {
-		ds := &allDatasets[i]
+	for i := range allSubvols {
+		sv := &allSubvols[i]
+		svID := sv.Pool + "/" + sv.Name
 
-		if ds.ID == searchPath {
-			continue
-		}
-		if managedIDs[ds.ID] {
-			continue
-		}
-		if !showAll && isSystemDataset(ds.ID, searchPath) {
+		if managedIDs[svID] {
 			continue
 		}
 
 		vol := UnmanagedVolume{
-			Dataset:     ds.ID,
-			Name:        extractDatasetName(ds.ID),
-			Type:        ds.Type,
-			IsContainer: hasChildren(ds.ID),
+			Dataset: svID,
+			Name:    sv.Name,
+			Type:    sv.SubvolumeType,
 		}
 
-		if ds.Used != nil {
-			if val, ok := ds.Used["parsed"].(float64); ok {
-				vol.SizeBytes = int64(val)
-				vol.Size = FormatBytes(vol.SizeBytes)
-			}
+		if sv.UsedBytes != nil {
+			vol.SizeBytes = int64(*sv.UsedBytes)
+			vol.Size = FormatBytes(vol.SizeBytes)
 		}
 
-		if share, ok := nfsShareByPath[ds.Mountpoint]; ok {
+		if share, ok := nfsShareByPath[sv.Path]; ok {
 			vol.Protocol = protocolNFS
 			vol.NFSShareID = share.ID
 			vol.NFSSharePath = share.Path
-		} else if ds.Type == datasetTypeVolume {
+		} else if sv.SubvolumeType == "block" {
 			vol.Protocol = "block"
-		}
-
-		if manager, ok := democraticIDs[ds.ID]; ok {
-			vol.ManagedBy = manager
 		}
 
 		volumes = append(volumes, vol)
@@ -232,87 +158,84 @@ func FindUnmanagedVolumes(ctx context.Context, client tnsapi.ClientInterface, se
 //
 //nolint:gocyclo // complexity from protocol and property extraction is acceptable
 func GetVolumeDetails(ctx context.Context, client tnsapi.ClientInterface, volumeRef string) (*VolumeDetails, error) {
-	var dataset *tnsapi.DatasetWithProperties
+	var subvol *tnsapi.Subvolume
 
-	ds, err := client.FindDatasetByCSIVolumeName(ctx, "", volumeRef)
-	if err == nil && ds != nil {
-		dataset = ds
+	sv, err := client.FindSubvolumeByCSIVolumeName(ctx, "", volumeRef)
+	if err == nil && sv != nil {
+		subvol = sv
 	} else {
-		datasets, findErr := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
+		subvols, findErr := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
 		if findErr != nil {
-			return nil, fmt.Errorf("failed to query datasets: %w", findErr)
+			return nil, fmt.Errorf("failed to query subvolumes: %w", findErr)
 		}
-		for i := range datasets {
-			if datasets[i].ID == volumeRef {
-				dataset = &datasets[i]
+		for i := range subvols {
+			if subvols[i].Pool+"/"+subvols[i].Name == volumeRef {
+				subvol = &subvols[i]
 				break
 			}
 		}
 	}
 
-	if dataset == nil {
+	if subvol == nil {
 		return nil, fmt.Errorf("%w: %s", errVolumeNotFound, volumeRef)
 	}
 
+	svID := subvol.Pool + "/" + subvol.Name
 	details := &VolumeDetails{
-		Dataset:    dataset.ID,
-		Type:       dataset.Type,
+		Dataset:    svID,
+		Type:       subvol.SubvolumeType,
+		MountPath:  subvol.Path,
 		Properties: make(map[string]string),
 	}
 
-	if dataset.Mountpoint != "" {
-		details.MountPath = dataset.Mountpoint
-	}
-	if dataset.Used != nil {
-		if val, ok := dataset.Used["parsed"].(float64); ok {
-			details.UsedBytes = int64(val)
-			details.UsedHuman = FormatBytes(details.UsedBytes)
-		}
+	if subvol.UsedBytes != nil {
+		details.UsedBytes = int64(*subvol.UsedBytes)
+		details.UsedHuman = FormatBytes(details.UsedBytes)
 	}
 
-	for key, prop := range dataset.UserProperties {
-		details.Properties[key] = prop.Value
+	for key, value := range subvol.Properties {
+		details.Properties[key] = value
 
 		switch key {
 		case tnsapi.PropertyCSIVolumeName:
-			details.VolumeID = prop.Value
+			details.VolumeID = value
 		case tnsapi.PropertyProtocol:
-			details.Protocol = prop.Value
+			details.Protocol = value
 		case tnsapi.PropertyCapacityBytes:
-			details.CapacityBytes = tnsapi.StringToInt64(prop.Value)
+			details.CapacityBytes = tnsapi.StringToInt64(value)
 			details.CapacityHuman = FormatBytes(details.CapacityBytes)
 		case tnsapi.PropertyCreatedAt:
-			details.CreatedAt = prop.Value
+			details.CreatedAt = value
 		case tnsapi.PropertyDeleteStrategy:
-			details.DeleteStrategy = prop.Value
+			details.DeleteStrategy = value
 		case tnsapi.PropertyAdoptable:
-			details.Adoptable = prop.Value == valueTrue
+			details.Adoptable = value == valueTrue
 		case tnsapi.PropertyContentSourceType:
-			details.ContentSourceType = prop.Value
+			details.ContentSourceType = value
 		case tnsapi.PropertyContentSourceID:
-			details.ContentSourceID = prop.Value
+			details.ContentSourceID = value
 		case tnsapi.PropertyCloneMode:
-			details.CloneMode = prop.Value
+			details.CloneMode = value
 		case tnsapi.PropertyOriginSnapshot:
-			details.OriginSnapshot = prop.Value
+			details.OriginSnapshot = value
 		}
 	}
 
 	switch details.Protocol {
 	case protocolNFS:
-		if shareDetails, shareErr := getNFSShareDetails(ctx, client, dataset); shareErr == nil {
+		if shareDetails, shareErr := getNFSShareDetails(ctx, client, subvol); shareErr == nil {
 			details.NFSShare = shareDetails
 		}
 	case protocolNVMeOF:
-		if subsysDetails, subsysErr := getNVMeOFSubsystemDetails(ctx, client, dataset); subsysErr == nil {
+		if subsysDetails, subsysErr := getNVMeOFSubsystemDetails(ctx, client, subvol); subsysErr == nil {
 			details.NVMeOFSubsystem = subsysDetails
 		}
 	case protocolSMB:
-		if smbDetails, smbErr := getSMBShareDetails(ctx, client, dataset); smbErr == nil {
+		if smbDetails, smbErr := getSMBShareDetails(ctx, client, subvol); smbErr == nil {
 			details.SMBShare = smbDetails
 		}
 	case protocolISCSI:
-		if iscsiDetails, iscsiErr := getISCSITargetDetails(ctx, client, dataset); iscsiErr == nil {
+		if iscsiDetails, iscsiErr := getISCSITargetDetails(ctx, client, subvol); iscsiErr == nil {
 			details.ISCSITarget = iscsiDetails
 		}
 	}
@@ -320,65 +243,62 @@ func GetVolumeDetails(ctx context.Context, client tnsapi.ClientInterface, volume
 	return details, nil
 }
 
-func getNFSShareDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*NFSShareDetails, error) {
-	sharePath := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyNFSSharePath]; ok {
-		sharePath = prop.Value
-	} else if dataset.Mountpoint != "" {
-		sharePath = dataset.Mountpoint
+func getNFSShareDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*NFSShareDetails, error) {
+	sharePath := sv.Properties[tnsapi.PropertyNFSSharePath]
+	if sharePath == "" {
+		sharePath = sv.Path
 	}
 	if sharePath == "" {
 		return nil, errNoSharePath
 	}
 
-	shares, err := client.QueryNFSShare(ctx, sharePath)
+	shares, err := client.ListNFSShares(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if len(shares) == 0 {
-		return nil, fmt.Errorf("%w for path %s", errNoNFSShare, sharePath)
+	for _, share := range shares {
+		if share.Path == sharePath {
+			clients := make([]string, 0, len(share.Clients))
+			for _, c := range share.Clients {
+				clients = append(clients, c.Host)
+			}
+			return &NFSShareDetails{
+				ID:      share.ID,
+				Path:    share.Path,
+				Clients: clients,
+				Enabled: share.Enabled,
+			}, nil
+		}
 	}
-
-	share := shares[0]
-	return &NFSShareDetails{
-		ID:      share.ID,
-		Path:    share.Path,
-		Hosts:   share.Hosts,
-		Enabled: share.Enabled,
-	}, nil
+	return nil, fmt.Errorf("%w for path %s", errNoNFSShare, sharePath)
 }
 
-func getNVMeOFSubsystemDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*NVMeOFSubsystemDetails, error) {
-	nqn := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		nqn = prop.Value
-	}
+func getNVMeOFSubsystemDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*NVMeOFSubsystemDetails, error) {
+	nqn := sv.Properties[tnsapi.PropertyNVMeSubsystemNQN]
 	if nqn == "" {
 		return nil, errNoSubsystemNQN
 	}
 
-	subsystem, err := client.NVMeOFSubsystemByNQN(ctx, nqn)
+	subsystem, err := client.GetNVMeOFSubsystemByNQN(ctx, nqn)
 	if err != nil {
 		return nil, err
+	}
+	if subsystem == nil {
+		return nil, fmt.Errorf("NVMe-oF subsystem not found: %s", nqn)
 	}
 
 	return &NVMeOFSubsystemDetails{
 		ID:      subsystem.ID,
-		Name:    subsystem.Name,
 		NQN:     subsystem.NQN,
-		Serial:  subsystem.Serial,
 		Enabled: subsystem.Enabled,
 	}, nil
 }
 
-func getSMBShareDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*SMBShareDetails, error) {
-	if prop, ok := dataset.UserProperties[tnsapi.PropertySMBShareID]; ok && prop.Value != "" {
-		shareID, err := strconv.Atoi(prop.Value)
-		if err == nil && shareID > 0 {
-			share, shareErr := client.QuerySMBShareByID(ctx, shareID)
-			if shareErr != nil {
-				return nil, shareErr
-			}
+func getSMBShareDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*SMBShareDetails, error) {
+	// Try by stored share ID first
+	if shareID := sv.Properties[tnsapi.PropertySMBShareID]; shareID != "" {
+		share, shareErr := client.GetSMBShare(ctx, shareID)
+		if shareErr == nil {
 			return &SMBShareDetails{
 				ID:      share.ID,
 				Name:    share.Name,
@@ -388,162 +308,110 @@ func getSMBShareDetails(ctx context.Context, client tnsapi.ClientInterface, data
 		}
 	}
 
-	sharePath := ""
-	if dataset.Mountpoint != "" {
-		sharePath = dataset.Mountpoint
-	}
+	// Fall back to searching by path
+	sharePath := sv.Path
 	if sharePath == "" {
 		return nil, errNoSharePath
 	}
 
-	shares, err := client.QuerySMBShare(ctx, sharePath)
-	if err != nil || len(shares) == 0 {
-		return nil, fmt.Errorf("%w for path %s", errNoSMBShare, sharePath)
+	shares, err := client.ListSMBShares(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	share := shares[0]
-	return &SMBShareDetails{
-		ID:      share.ID,
-		Name:    share.Name,
-		Path:    share.Path,
-		Enabled: share.Enabled,
-	}, nil
+	for _, share := range shares {
+		if share.Path == sharePath {
+			return &SMBShareDetails{
+				ID:      share.ID,
+				Name:    share.Name,
+				Path:    share.Path,
+				Enabled: share.Enabled,
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("%w for path %s", errNoSMBShare, sharePath)
 }
 
-func getISCSITargetDetails(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties) (*ISCSITargetDetails, error) {
-	iqn := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyISCSIIQN]; ok {
-		iqn = prop.Value
-	}
+func getISCSITargetDetails(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) (*ISCSITargetDetails, error) {
+	iqn := sv.Properties[tnsapi.PropertyISCSIIQN]
 	if iqn == "" {
 		return nil, errNoISCSIIQN
 	}
 
-	targetName := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-		targetName = prop.Value
-	}
-
-	target, err := client.ISCSITargetByName(ctx, targetName)
+	target, err := client.GetISCSITargetByIQN(ctx, iqn)
 	if err != nil {
 		return nil, err
 	}
+	if target == nil {
+		return nil, fmt.Errorf("iSCSI target not found: %s", iqn)
+	}
 
 	return &ISCSITargetDetails{
-		ID:   target.ID,
-		Name: target.Name,
-		IQN:  iqn,
+		ID:  target.ID,
+		IQN: target.IQN,
 	}, nil
 }
 
-func isSystemDataset(datasetID, searchPath string) bool {
-	relPath := strings.TrimPrefix(datasetID, searchPath+"/")
-	systemPrefixes := []string{
-		"ix-applications",
-		"ix-",
-		".system",
-		"iocage",
-	}
-	for _, prefix := range systemPrefixes {
-		if strings.HasPrefix(relPath, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-func extractDatasetName(datasetID string) string {
-	parts := strings.Split(datasetID, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
-	}
-	return datasetID
-}
-
-// extractVolumes extracts VolumeInfo from pre-fetched managed datasets (no API calls).
-func extractVolumes(datasets []tnsapi.DatasetWithProperties) []VolumeInfo {
+// extractVolumes extracts VolumeInfo from pre-fetched managed subvolumes (no API calls).
+func extractVolumes(subvols []tnsapi.Subvolume) []VolumeInfo {
 	var volumes []VolumeInfo
-	for _, ds := range datasets {
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && prop.Value == valueTrue {
+	for _, sv := range subvols {
+		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
 
-		volumeID := ""
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-			volumeID = prop.Value
-		}
+		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
 		if volumeID == "" {
 			continue
 		}
 
 		vol := VolumeInfo{
-			Dataset:  ds.ID,
+			Dataset:  sv.Pool + "/" + sv.Name,
 			VolumeID: volumeID,
-			Type:     ds.Type,
+			Type:     sv.SubvolumeType,
 		}
 
-		if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-			vol.Protocol = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCapacityBytes]; ok {
-			vol.CapacityBytes = tnsapi.StringToInt64(prop.Value)
+		vol.Protocol = sv.Properties[tnsapi.PropertyProtocol]
+		if v := sv.Properties[tnsapi.PropertyCapacityBytes]; v != "" {
+			vol.CapacityBytes = tnsapi.StringToInt64(v)
 			vol.CapacityHuman = FormatBytes(vol.CapacityBytes)
 		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDeleteStrategy]; ok {
-			vol.DeleteStrategy = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyAdoptable]; ok {
-			vol.Adoptable = prop.Value == valueTrue
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyClusterID]; ok {
-			vol.ClusterID = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceType]; ok {
-			vol.ContentSourceType = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceID]; ok {
-			vol.ContentSourceID = prop.Value
-		}
+		vol.DeleteStrategy = sv.Properties[tnsapi.PropertyDeleteStrategy]
+		vol.Adoptable = sv.Properties[tnsapi.PropertyAdoptable] == valueTrue
+		vol.ClusterID = sv.Properties[tnsapi.PropertyClusterID]
+		vol.ContentSourceType = sv.Properties[tnsapi.PropertyContentSourceType]
+		vol.ContentSourceID = sv.Properties[tnsapi.PropertyContentSourceID]
 
 		volumes = append(volumes, vol)
 	}
 	return volumes
 }
 
-// extractClones extracts CloneInfo from pre-fetched managed datasets (no API calls).
-func extractClones(datasets []tnsapi.DatasetWithProperties) []CloneInfo {
+// extractClones extracts CloneInfo from pre-fetched managed subvolumes (no API calls).
+func extractClones(subvols []tnsapi.Subvolume) []CloneInfo {
 	var clones []CloneInfo
-	for _, ds := range datasets {
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && prop.Value == valueTrue {
+	for _, sv := range subvols {
+		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
 
-		sourceTypeProp, hasSourceType := ds.UserProperties[tnsapi.PropertyContentSourceType]
-		if !hasSourceType || sourceTypeProp.Value == "" {
+		sourceType := sv.Properties[tnsapi.PropertyContentSourceType]
+		if sourceType == "" {
 			continue
 		}
 
 		clone := CloneInfo{
-			Dataset:    ds.ID,
-			SourceType: sourceTypeProp.Value,
+			Dataset:    sv.Pool + "/" + sv.Name,
+			SourceType: sourceType,
 		}
 
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-			clone.VolumeID = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-			clone.Protocol = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceID]; ok {
-			clone.SourceID = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCloneMode]; ok {
-			clone.CloneMode = prop.Value
-		} else {
+		clone.VolumeID = sv.Properties[tnsapi.PropertyCSIVolumeName]
+		clone.Protocol = sv.Properties[tnsapi.PropertyProtocol]
+		clone.SourceID = sv.Properties[tnsapi.PropertyContentSourceID]
+		clone.OriginSnapshot = sv.Properties[tnsapi.PropertyOriginSnapshot]
+
+		clone.CloneMode = sv.Properties[tnsapi.PropertyCloneMode]
+		if clone.CloneMode == "" {
 			clone.CloneMode = tnsapi.CloneModeCOW
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyOriginSnapshot]; ok {
-			clone.OriginSnapshot = prop.Value
 		}
 
 		switch clone.CloneMode {
@@ -562,44 +430,7 @@ func extractClones(datasets []tnsapi.DatasetWithProperties) []CloneInfo {
 	return clones
 }
 
-// extractDetachedSnapshots extracts SnapshotInfo from pre-fetched detached datasets (no API calls).
-func extractDetachedSnapshots(detachedDatasets []tnsapi.DatasetWithProperties) []SnapshotInfo {
-	var snapshots []SnapshotInfo
-	for _, ds := range detachedDatasets {
-		if prop, ok := ds.UserProperties[tnsapi.PropertyManagedBy]; !ok || prop.Value != tnsapi.ManagedByValue {
-			continue
-		}
-
-		snap := SnapshotInfo{
-			Type: "detached",
-		}
-
-		if prop, ok := ds.UserProperties[tnsapi.PropertySnapshotID]; ok {
-			snap.Name = prop.Value
-		} else {
-			parts := strings.Split(ds.ID, "/")
-			snap.Name = parts[len(parts)-1]
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertySourceVolumeID]; ok {
-			snap.SourceVolume = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertySourceDataset]; ok {
-			snap.SourceDataset = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-			snap.Protocol = prop.Value
-		}
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDeleteStrategy]; ok {
-			snap.DeleteStrategy = prop.Value
-		}
-
-		snapshots = append(snapshots, snap)
-	}
-	return snapshots
-}
-
 // filterByClusterID filters volumes to only include those matching the cluster ID.
-// If clusterID is empty, all volumes are returned (no filtering).
 // Volumes with no ClusterID (legacy) are always included.
 func filterByClusterID(volumes []VolumeInfo, clusterID string) []VolumeInfo {
 	if clusterID == "" {
@@ -614,20 +445,26 @@ func filterByClusterID(volumes []VolumeInfo, clusterID string) []VolumeInfo {
 	return filtered
 }
 
-// filterDatasetsByClusterID filters datasets to only include those matching the cluster ID.
-// Datasets with no cluster_id property (legacy) are always included.
-func filterDatasetsByClusterID(datasets []tnsapi.DatasetWithProperties, clusterID string) []tnsapi.DatasetWithProperties {
+// filterSubvolumesByClusterID filters subvolumes to only include those matching the cluster ID.
+// Subvolumes with no cluster_id property (legacy) are always included.
+func filterSubvolumesByClusterID(subvols []tnsapi.Subvolume, clusterID string) []tnsapi.Subvolume {
 	if clusterID == "" {
-		return datasets
+		return subvols
 	}
-	filtered := make([]tnsapi.DatasetWithProperties, 0, len(datasets))
-	for i := range datasets {
-		prop, ok := datasets[i].UserProperties[tnsapi.PropertyClusterID]
-		if !ok || prop.Value == "" || prop.Value == clusterID {
-			filtered = append(filtered, datasets[i])
+	filtered := make([]tnsapi.Subvolume, 0, len(subvols))
+	for i := range subvols {
+		prop := subvols[i].Properties[tnsapi.PropertyClusterID]
+		if prop == "" || prop == clusterID {
+			filtered = append(filtered, subvols[i])
 		}
 	}
 	return filtered
+}
+
+// extractDetachedSnapshots is kept for interface compatibility but returns empty for NASty.
+// Detached snapshots (ZFS send/receive) are a NASty concept not used with bcachefs.
+func extractDetachedSnapshots(_ []tnsapi.Subvolume) []SnapshotInfo {
+	return nil
 }
 
 // FormatBytes converts bytes to human-readable format.
@@ -651,4 +488,15 @@ func FormatBytes(bytes int64) string {
 	default:
 		return fmt.Sprintf("%dB", bytes)
 	}
+}
+
+// isSystemDataset is kept for compatibility — checks if a path looks like a system path.
+func isSystemDataset(name, _ string) bool {
+	systemPrefixes := []string{"ix-applications", "ix-", ".system", "iocage"}
+	for _, prefix := range systemPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }

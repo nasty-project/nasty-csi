@@ -1,4 +1,4 @@
-# TrueNAS CSI Driver - Quick Start Guide
+# NASty CSI Driver - Quick Start Guide
 
 **⚠️ EARLY DEVELOPMENT - NOT PRODUCTION READY**
 
@@ -7,9 +7,9 @@ This driver is in early development phase. Use only for testing and evaluation e
 ## Prerequisites
 - Kubernetes cluster (1.27+) (earlier versions may work but are not tested)
 - Helm 3.0+
-- **TrueNAS Scale 25.10 or later** (required for full feature support including NVMe-oF)
-- TrueNAS API key (create in TrueNAS UI: Settings > API Keys)
-- Storage pool available on TrueNAS
+- **NASty Scale 25.10 or later** (required for full feature support including NVMe-oF)
+- NASty API key (create in NASty UI: Settings > API Keys)
+- Storage pool available on NASty
 - For NFS: `nfs-common` package on all nodes (Debian/Ubuntu)
 
 **OpenShift users:** Add `--set openshift.enabled=true` to all Helm commands below. This creates the required SecurityContextConstraints for the node DaemonSet. See [DEPLOYMENT.md](DEPLOYMENT.md#openshift) for details.
@@ -25,18 +25,18 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **Replace these values:**
-- `YOUR-TRUENAS-IP` - Your TrueNAS server IP address
-- `YOUR-API-KEY` - API key from TrueNAS (Settings > API Keys)
+- `YOUR-NASTY-IP` - Your NASty server IP address
+- `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
 - `YOUR-POOL-NAME` - ZFS pool name (e.g., `tank`, `storage`)
 
 That's it! The driver is now installed and ready to use.
@@ -61,13 +61,13 @@ If you've cloned the repository:
 ```bash
 helm install tns-csi ./charts/nasty-csi-driver \
   --namespace kube-system \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 For more Helm configuration options, see the [Helm Chart README](../charts/nasty-csi-driver/README.md).
@@ -223,10 +223,10 @@ kubectl get storageclass
 ### Common Issues
 
 #### Connection Failed
-- Verify TrueNAS URL format: `wss://YOUR-IP:443/api/current`
-- Check API key has proper permissions (Settings > API Keys in TrueNAS UI)
-- Verify network connectivity from cluster to TrueNAS
-- Check TrueNAS API service is running
+- Verify NASty URL format: `wss://YOUR-IP:443/api/current`
+- Check API key has proper permissions (Settings > API Keys in NASty UI)
+- Verify network connectivity from cluster to NASty
+- Check NASty API service is running
 - For self-signed certificates, WebSocket URL must use `wss://` protocol
 
 #### PVC Stuck in Pending
@@ -242,7 +242,7 @@ kubectl describe pvc <pvc-name>
 ```
 
 #### Volume Mount Failed (NFS)
-- Verify NFS service is enabled on TrueNAS
+- Verify NFS service is enabled on NASty
 - Check firewall rules allow NFS traffic (ports 111, 2049)
 - Verify `nfs-common` package is installed on nodes: `dpkg -l | grep nfs-common`
 - Check node driver logs:
@@ -251,8 +251,8 @@ kubectl describe pvc <pvc-name>
   ```
 
 #### "zpool (parentDataset) does not exist" Error
-- If using `parentDataset` parameter, it must exist on TrueNAS
-- Create it first: `zfs create tank/k8s-volumes` (via TrueNAS shell or API)
+- If using `parentDataset` parameter, it must exist on NASty
+- Create it first: `zfs create tank/k8s-volumes` (via NASty shell or API)
 - Or omit `parentDataset` to create volumes directly in the pool
 
 ### Enable Debug Logging
@@ -278,7 +278,7 @@ helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 - **Access Modes**: ReadWriteOnce (RWO)
 - **Use Case**: High-performance block storage
 - **Volume Expansion**: ✅ Implemented and functional
-- **Status**: Functional, requires TrueNAS Scale 25.10+, testing in progress
+- **Status**: Functional, requires NASty Scale 25.10+, testing in progress
 
 ## Advanced Configuration
 
@@ -287,8 +287,8 @@ helm upgrade tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 For more complex configurations, create a `my-values.yaml` file:
 
 ```yaml
-truenas:
-  url: "wss://YOUR-TRUENAS-IP:443/api/current"
+nasty:
+  url: "wss://YOUR-NASTY-IP:443/api/current"
   apiKey: "1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 storageClasses:
@@ -296,8 +296,8 @@ storageClasses:
     enabled: true
     protocol: nfs
     pool: "tank"
-    server: "YOUR-TRUENAS-IP"
-    # Optional: specify parent dataset (must exist on TrueNAS)
+    server: "YOUR-NASTY-IP"
+    # Optional: specify parent dataset (must exist on NASty)
     # parentDataset: "k8s-volumes"
     mountOptions:
       - hard
@@ -306,7 +306,7 @@ storageClasses:
     isDefault: true  # Set as default storage class
     # Optional: Additional parameters
     parameters:
-      # Keep volumes on TrueNAS when PVC is deleted (useful for data protection)
+      # Keep volumes on NASty when PVC is deleted (useful for data protection)
       # deleteStrategy: "retain"
       # ZFS properties
       # zfs.compression: "lz4"
@@ -324,20 +324,20 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 ### Volume Retention (Delete Strategy)
 
-To keep volumes on TrueNAS even when PVCs are deleted (useful for data protection):
+To keep volumes on NASty even when PVCs are deleted (useful for data protection):
 
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set "storageClasses[0].parameters.deleteStrategy=retain"
 ```
 
@@ -350,7 +350,7 @@ To expand a volume (enabled by default with Helm):
 kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
 ```
 
-The driver will automatically resize the dataset on TrueNAS.
+The driver will automatically resize the dataset on NASty.
 
 ### NVMe-oF Configuration
 
@@ -361,22 +361,22 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **Requirements:**
-- TrueNAS Scale 25.10+ (NVMe-oF feature introduced in 25.10)
-- Pre-configured NVMe-oF subsystem in TrueNAS (Shares > NVMe-oF Subsystems)
+- NASty Scale 25.10+ (NVMe-oF feature introduced in 25.10)
+- Pre-configured NVMe-oF subsystem in NASty (Shares > NVMe-oF Subsystems)
   - The `subsystemNQN` parameter must match the subsystem you created
 - Linux kernel with `nvme-tcp` module support
 - Load module: `sudo modprobe nvme-tcp`
-- TrueNAS NVMe-oF service configured and running
+- NASty NVMe-oF service configured and running
 
 See [QUICKSTART-NVMEOF.md](QUICKSTART-NVMEOF.md) for detailed NVMe-oF setup instructions.
 
@@ -389,19 +389,19 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system"
 ```
 
 **Requirements:**
-- SMB service enabled in TrueNAS
+- SMB service enabled in NASty
 - SMB user account created
 - Kubernetes Secret with credentials (`username`, `password` keys)
 - `cifs-utils` installed on all nodes
@@ -416,7 +416,7 @@ See [QUICKSTART-SMB.md](QUICKSTART-SMB.md) for detailed SMB setup instructions.
 - Suitable for most workloads including databases (with proper configuration)
 
 ### Network
-- Ensure low-latency network between Kubernetes nodes and TrueNAS
+- Ensure low-latency network between Kubernetes nodes and NASty
 - Consider using dedicated storage network
 - Monitor NFS mount statistics: `nfsstat -m`
 
@@ -426,7 +426,7 @@ See [QUICKSTART-SMB.md](QUICKSTART-SMB.md) for detailed SMB setup instructions.
 - Store API key in Kubernetes Secret
 - Use RBAC to restrict secret access
 - Rotate API keys regularly
-- Use TrueNAS read-only API keys where possible (for future implementations)
+- Use NASty read-only API keys where possible (for future implementations)
 
 ### Network Security
 - Use TLS for WebSocket connections (default: wss://)
@@ -487,7 +487,7 @@ kind: VolumeSnapshot
 metadata:
   name: my-app-snapshot
 spec:
-  volumeSnapshotClassName: truenas-nfs-snapclass
+  volumeSnapshotClassName: nasty-nfs-snapclass
   source:
     persistentVolumeClaimName: my-app-data
 EOF
@@ -528,7 +528,7 @@ For issues or questions:
 2. Review [TESTING.md](TESTING.md) for testing procedures and known working configurations
 3. Create an issue with:
    - Kubernetes version
-   - TrueNAS version
+   - NASty version
    - Driver logs
    - Steps to reproduce
 
@@ -536,5 +536,5 @@ For issues or questions:
 
 - [Helm Chart README](charts/nasty-csi-driver/README.md) - Complete Helm configuration reference
 - [CSI Specification](https://github.com/container-storage-interface/spec)
-- [TrueNAS API Documentation](https://www.truenas.com/docs/api/)
+- [NASty API Documentation](https://www.nasty.com/docs/api/)
 - [Kubernetes Storage Documentation](https://kubernetes.io/docs/concepts/storage/)

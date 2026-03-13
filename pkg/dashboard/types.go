@@ -1,5 +1,5 @@
 // Package dashboard provides an in-cluster web dashboard for the TNS CSI driver.
-// It reuses the controller's persistent TrueNAS WebSocket connection and reads
+// It reuses the controller's persistent NASty WebSocket connection and reads
 // metrics directly from prometheus.DefaultGatherer.
 package dashboard
 
@@ -87,7 +87,7 @@ type UnmanagedVolume struct {
 	Protocol     string `json:"protocol"               yaml:"protocol"`
 	Size         string `json:"size"                   yaml:"size"`
 	SizeBytes    int64  `json:"sizeBytes"              yaml:"sizeBytes"`
-	NFSShareID   int    `json:"nfsShareId,omitempty"   yaml:"nfsShareId,omitempty"`
+	NFSShareID   string `json:"nfsShareId,omitempty"   yaml:"nfsShareId,omitempty"`
 	NFSSharePath string `json:"nfsSharePath,omitempty" yaml:"nfsSharePath,omitempty"`
 	ManagedBy    string `json:"managedBy,omitempty"    yaml:"managedBy,omitempty"`
 }
@@ -183,9 +183,9 @@ type VolumeDetails struct {
 //
 //nolint:govet // field alignment not critical for display struct
 type NFSShareDetails struct {
-	ID      int      `json:"id"      yaml:"id"`
+	ID      string   `json:"id"      yaml:"id"`
 	Path    string   `json:"path"    yaml:"path"`
-	Hosts   []string `json:"hosts"   yaml:"hosts"`
+	Clients []string `json:"clients" yaml:"clients"`
 	Enabled bool     `json:"enabled" yaml:"enabled"`
 }
 
@@ -193,10 +193,8 @@ type NFSShareDetails struct {
 //
 //nolint:govet // field alignment not critical for display struct
 type NVMeOFSubsystemDetails struct {
-	ID      int    `json:"id"      yaml:"id"`
-	Name    string `json:"name"    yaml:"name"`
+	ID      string `json:"id"      yaml:"id"`
 	NQN     string `json:"nqn"     yaml:"nqn"`
-	Serial  string `json:"serial"  yaml:"serial"`
 	Enabled bool   `json:"enabled" yaml:"enabled"`
 }
 
@@ -204,7 +202,7 @@ type NVMeOFSubsystemDetails struct {
 //
 //nolint:govet // field alignment not critical for display struct
 type SMBShareDetails struct {
-	ID      int    `json:"id"      yaml:"id"`
+	ID      string `json:"id"      yaml:"id"`
 	Name    string `json:"name"    yaml:"name"`
 	Path    string `json:"path"    yaml:"path"`
 	Enabled bool   `json:"enabled" yaml:"enabled"`
@@ -214,9 +212,8 @@ type SMBShareDetails struct {
 //
 //nolint:govet // field alignment not critical for display struct
 type ISCSITargetDetails struct {
-	ID   int    `json:"id"   yaml:"id"`
-	Name string `json:"name" yaml:"name"`
-	IQN  string `json:"iqn"  yaml:"iqn"`
+	ID  string `json:"id"  yaml:"id"`
+	IQN string `json:"iqn" yaml:"iqn"`
 }
 
 // MetricsSummary contains parsed metrics for dashboard display.

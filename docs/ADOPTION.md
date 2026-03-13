@@ -1,15 +1,15 @@
 # Volume Adoption Guide
 
-This guide covers importing existing TrueNAS volumes into tns-csi management and adopting them into Kubernetes clusters.
+This guide covers importing existing NASty volumes into tns-csi management and adopting them into Kubernetes clusters.
 
 ## Overview
 
-**Adoption** is the process of taking an existing TrueNAS dataset/ZVOL and making it available as a Kubernetes PersistentVolume managed by tns-csi. This is useful for:
+**Adoption** is the process of taking an existing NASty dataset/ZVOL and making it available as a Kubernetes PersistentVolume managed by tns-csi. This is useful for:
 
 - **Migration from democratic-csi** - Move volumes to tns-csi without data loss
 - **Disaster recovery** - Restore volumes to a new cluster after failure
 - **Cluster recreation** - Re-attach volumes after rebuilding a cluster
-- **Manual volume import** - Bring manually-created TrueNAS volumes into Kubernetes
+- **Manual volume import** - Bring manually-created NASty volumes into Kubernetes
 
 ## Important Safety Warnings
 
@@ -72,7 +72,7 @@ kubectl patch pvc <pvc-name> -n <namespace> -p '{"metadata":{"finalizers":null}}
 
 ## Adoption Workflow Overview
 
-The full adoption process involves both **TrueNAS-side** and **Kubernetes-side** steps:
+The full adoption process involves both **NASty-side** and **Kubernetes-side** steps:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -85,7 +85,7 @@ The full adoption process involves both **TrueNAS-side** and **Kubernetes-side**
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    TRUENAS SIDE (tns-csi)                       │
+│                    NASTY SIDE (tns-csi)                       │
 │  5. Import dataset into tns-csi (sets ZFS properties)           │
 │  6. Generate PV/PVC manifests                                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -106,7 +106,7 @@ This is the most common adoption scenario. Follow these steps carefully.
 
 - kubectl access to the cluster
 - kubectl tns-csi plugin installed ([installation guide](KUBECTL-PLUGIN.md))
-- TrueNAS credentials configured (plugin auto-discovers from installed driver)
+- NASty credentials configured (plugin auto-discovers from installed driver)
 
 ### Step-by-Step Migration
 
@@ -255,7 +255,7 @@ kubectl tns-csi import storage/nfs/pvc-xxx --protocol nfs --create-share
 kubectl tns-csi import storage/nvmeof/v/pvc-xxx --protocol nvmeof
 ```
 
-Note: NVMe-oF requires the NVMe-oF port to be configured in TrueNAS.
+Note: NVMe-oF requires the NVMe-oF port to be configured in NASty.
 
 #### iSCSI Migration
 
@@ -263,7 +263,7 @@ Note: NVMe-oF requires the NVMe-oF port to be configured in TrueNAS.
 kubectl tns-csi import storage/iscsi/v/pvc-xxx --protocol iscsi
 ```
 
-Note: iSCSI requires the iSCSI portal to be configured in TrueNAS.
+Note: iSCSI requires the iSCSI portal to be configured in NASty.
 
 ## Migrating from Older tns-csi Versions
 
@@ -307,7 +307,7 @@ kubectl tns-csi import <dataset-path> --protocol nfs
 
 ## Disaster Recovery
 
-When a Kubernetes cluster is lost but TrueNAS data survives, use this process to recover volumes.
+When a Kubernetes cluster is lost but NASty data survives, use this process to recover volumes.
 
 ### Step 1: List Available Volumes
 
@@ -348,13 +348,13 @@ For GitOps workflows, configure StorageClasses to automatically adopt existing v
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-gitops
+  name: nasty-nfs-gitops
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
   parentDataset: csi
-  server: truenas.local
+  server: nasty.local
   markAdoptable: "true"    # New volumes can be adopted later
   adoptExisting: "true"    # Auto-adopt volumes with matching names
 reclaimPolicy: Retain      # Keep volumes on PVC deletion
@@ -365,7 +365,7 @@ allowVolumeExpansion: true
 
 1. When a PVC is created, the driver searches for an existing volume by name
 2. If found and adoptable, the existing volume is used instead of creating new
-3. Missing TrueNAS resources (NFS shares, iSCSI targets) are recreated automatically
+3. Missing NASty resources (NFS shares, iSCSI targets) are recreated automatically
 4. The volume is returned as if newly provisioned, but with existing data
 
 See [FEATURES.md](FEATURES.md#volume-adoption-cross-cluster) for detailed adoption behavior.
@@ -420,7 +420,7 @@ kubectl describe pvc <pvc-name> -n <namespace>
 
 The dataset already has tns-csi properties. Either:
 - Use `kubectl tns-csi adopt` directly (skip import)
-- Or remove existing properties on TrueNAS:
+- Or remove existing properties on NASty:
   ```bash
   zfs inherit -r nasty-csi:managed_by <dataset>
   ```

@@ -1,6 +1,6 @@
 # Clone and Snapshot Operations Guide
 
-This document explains the snapshot and clone operations available in the TrueNAS CSI driver, their underlying ZFS mechanisms, and when to use each approach.
+This document explains the snapshot and clone operations available in the NASty CSI driver, their underlying ZFS mechanisms, and when to use each approach.
 
 ## Table of Contents
 
@@ -112,7 +112,7 @@ This clones an existing PVC to a new PVC. Internally, a temporary snapshot is cr
 
 ## Volume Clone Modes
 
-The TrueNAS CSI driver supports three clone modes, controlled by StorageClass parameters:
+The NASty CSI driver supports three clone modes, controlled by StorageClass parameters:
 
 ### 1. COW Clone (Default)
 
@@ -291,12 +291,12 @@ With **Detached clones**:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs
+  name: nasty-nfs
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
 # Default: COW clones for space efficiency
 ```
 
@@ -306,12 +306,12 @@ parameters:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-promoted
+  name: nasty-nfs-promoted
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   promotedVolumesFromSnapshots: "true"  # Allows snapshot deletion
   promotedVolumesFromVolumes: "true"    # Cleans up temp snapshots
 ```
@@ -322,12 +322,12 @@ parameters:
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: truenas-nfs-detached
+  name: nasty-nfs-detached
 provisioner: tns.csi.io
 parameters:
   protocol: nfs
   pool: tank
-  server: truenas.local
+  server: nasty.local
   detachedVolumesFromSnapshots: "true"  # Full independence via send/receive
   detachedVolumesFromVolumes: "true"    # Full independence via send/receive
 ```
@@ -338,7 +338,7 @@ parameters:
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-snapshot
+  name: nasty-nfs-snapshot
 driver: tns.csi.io
 deletionPolicy: Delete
 # Default: Regular COW snapshots (depend on source volume)
@@ -350,7 +350,7 @@ deletionPolicy: Delete
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-snapshot-detached
+  name: nasty-nfs-snapshot-detached
 driver: tns.csi.io
 deletionPolicy: Delete
 parameters:
@@ -369,7 +369,7 @@ kind: VolumeSnapshot
 metadata:
   name: my-snapshot-v1
 spec:
-  volumeSnapshotClassName: truenas-nfs-snapshot
+  volumeSnapshotClassName: nasty-nfs-snapshot
   source:
     persistentVolumeClaimName: my-data
 
@@ -380,7 +380,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: my-data-restored
 spec:
-  storageClassName: truenas-nfs-promoted  # Uses promoted clones
+  storageClassName: nasty-nfs-promoted  # Uses promoted clones
   dataSource:
     kind: VolumeSnapshot
     name: my-snapshot-v1

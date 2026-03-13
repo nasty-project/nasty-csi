@@ -1,22 +1,22 @@
-# TNS-CSI vs truenas-csi (Official TrueNAS CSI Driver)
+# TNS-CSI vs nasty-csi (Official NASty CSI Driver)
 
-The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was released by iXsystems in December 2025.
+The [official NASty CSI driver](https://github.com/nasty/nasty-csi) was released by iXsystems in December 2025.
 
 **Last Updated**: January 2026
 
 ## Overview
 
-| Aspect | TNS-CSI | truenas-csi (Official) |
+| Aspect | TNS-CSI | nasty-csi (Official) |
 |--------|---------|------------------------|
 | **Maintainer** | Community (fenio) | iXsystems |
 | **License** | GPL-3.0 | GPL-3.0 |
-| **TrueNAS Version** | Scale 25.10+ | Scale 25.10+ |
+| **NASty Version** | Scale 25.10+ | Scale 25.10+ |
 | **API Communication** | WebSocket API | WebSocket API |
 | **Language** | Go | Go |
 
 ## Protocol Support
 
-| Protocol | TNS-CSI | truenas-csi |
+| Protocol | TNS-CSI | nasty-csi |
 |----------|---------|-------------|
 | **NFS** | Yes | Yes |
 | **iSCSI** | Yes | Yes |
@@ -26,7 +26,7 @@ The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was re
 
 ## Feature Comparison
 
-| Feature | TNS-CSI | truenas-csi |
+| Feature | TNS-CSI | nasty-csi |
 |---------|---------|-------------|
 | **Dynamic Provisioning** | Yes | Yes |
 | **Volume Expansion** | Yes | Yes |
@@ -87,7 +87,7 @@ Built-in observability:
 - Lower CPU overhead
 - Native multipath support
 
-## Unique to truenas-csi (Official)
+## Unique to nasty-csi (Official)
 
 ### 1. Automatic Snapshot Scheduling
 
@@ -105,9 +105,9 @@ Built-in observability:
 
 ### 3. Official Support
 
-- Maintained by iXsystems (TrueNAS developers)
+- Maintained by iXsystems (NASty developers)
 - Likely to have better long-term support
-- Integration with TrueNAS roadmap
+- Integration with NASty roadmap
 - Official documentation and support channels
 
 ## When to Choose Each
@@ -123,7 +123,7 @@ Built-in observability:
 - You want **detached snapshots** for backup/DR
 - You need **dataset encryption** with flexible key management options
 
-### Choose truenas-csi (Official) if:
+### Choose nasty-csi (Official) if:
 
 - You need **automatic snapshot scheduling** without external tools
 - You need **CHAP authentication** for iSCSI
@@ -132,24 +132,24 @@ Built-in observability:
 
 ## Maturity
 
-| Aspect | TNS-CSI | truenas-csi |
+| Aspect | TNS-CSI | nasty-csi |
 |--------|---------|-------------|
 | **Project Age** | ~6 months | ~1 month (Dec 2025) |
 | **Production Use** | Homelab tested | Unknown |
 | **Test Coverage** | Unit + E2E tests | Unknown |
 | **Documentation** | Comprehensive | Good |
 
-**Note**: The official truenas-csi is very new (created December 2025). While it has iXsystems backing, it may still have early-stage issues. TNS-CSI has been in development longer but lacks official vendor support.
+**Note**: The official nasty-csi is very new (created December 2025). While it has iXsystems backing, it may still have early-stage issues. TNS-CSI has been in development longer but lacks official vendor support.
 
 ## Migration Between Drivers
 
 Both drivers store metadata in ZFS user properties, but with different property prefixes:
 - TNS-CSI: `tns-csi:*` properties
-- truenas-csi: Different property schema
+- nasty-csi: Different property schema
 
 Direct migration between the two would require re-importing volumes. TNS-CSI's `kubectl tns-csi import` command can help adopt datasets created by other tools.
 
 ## Related Links
 
 - [TNS-CSI GitHub](https://github.com/nasty-project/nasty-csi)
-- [truenas-csi GitHub](https://github.com/truenas/truenas-csi) (Official)
+- [nasty-csi GitHub](https://github.com/nasty/nasty-csi) (Official)

@@ -49,7 +49,7 @@ Protocol-specific volume operations (NFS, NVMe-oF, iSCSI, and SMB):
 
 ### WebSocket Connection Metrics
 
-Metrics for the TrueNAS API WebSocket connection:
+Metrics for the NASty API WebSocket connection:
 
 - **`tns_websocket_connected`** (gauge)
   - WebSocket connection status (1 = connected, 0 = disconnected)
@@ -63,7 +63,7 @@ Metrics for the TrueNAS API WebSocket connection:
 
 - **`tns_websocket_message_duration_seconds`** (histogram)
   - Duration of WebSocket RPC calls in seconds
-  - Labels: `method` (TrueNAS API method name)
+  - Labels: `method` (NASty API method name)
   - Buckets: 0.1s, 0.25s, 0.5s, 1s, 2s, 5s, 10s, 30s
 
 - **`tns_websocket_connection_duration_seconds`** (gauge)
@@ -298,7 +298,7 @@ The dashboard exposes JSON API endpoints at `/dashboard/api/`:
 
 ### kubectl Plugin Dashboard
 
-The kubectl plugin includes a local dashboard that connects directly to TrueNAS:
+The kubectl plugin includes a local dashboard that connects directly to NASty:
 
 ```bash
 # Start dashboard (auto-opens browser at http://localhost:2137)
@@ -311,7 +311,7 @@ kubectl tns-csi dashboard --port 9090 --open=false
 kubectl tns-csi dashboard --pool storage
 ```
 
-The plugin auto-discovers TrueNAS credentials from the installed driver's Secret. Both dashboards (in-cluster and kubectl plugin) share the same UI — the difference is where they run: in-cluster runs inside the controller pod, while the plugin runs locally on your machine.
+The plugin auto-discovers NASty credentials from the installed driver's Secret. Both dashboards (in-cluster and kubectl plugin) share the same UI — the difference is where they run: in-cluster runs inside the controller pod, while the plugin runs locally on your machine.
 
 ## Troubleshooting
 

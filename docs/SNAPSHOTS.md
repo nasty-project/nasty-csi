@@ -4,11 +4,11 @@
 
 This driver is in early development phase. Snapshot functionality is implemented but requires thorough testing. Use only for testing and evaluation.
 
-This guide explains how to use volume snapshots with the TrueNAS CSI driver.
+This guide explains how to use volume snapshots with the NASty CSI driver.
 
 ## Overview
 
-The TrueNAS CSI driver supports creating, deleting, and restoring from volume snapshots for NFS, NVMe-oF, and iSCSI protocols. Snapshots leverage ZFS snapshot capabilities on TrueNAS, providing instant, space-efficient point-in-time copies of your data.
+The NASty CSI driver supports creating, deleting, and restoring from volume snapshots for NFS, NVMe-oF, and iSCSI protocols. Snapshots leverage ZFS snapshot capabilities on NASty, providing instant, space-efficient point-in-time copies of your data.
 
 ## Features (Implementation Status)
 
@@ -41,7 +41,7 @@ The TrueNAS CSI driver supports creating, deleting, and restoring from volume sn
    kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.0/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml
    ```
 
-3. **CSI Snapshotter Sidecar** - Already included in the TrueNAS CSI driver Helm chart
+3. **CSI Snapshotter Sidecar** - Already included in the NASty CSI driver Helm chart
 
 ### Verify Prerequisites
 
@@ -69,7 +69,7 @@ Create a VolumeSnapshotClass for your storage protocol:
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-snapclass
+  name: nasty-nfs-snapclass
 driver: tns.csi.io
 deletionPolicy: Delete
 ```
@@ -79,7 +79,7 @@ deletionPolicy: Delete
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nvmeof-snapclass
+  name: nasty-nvmeof-snapclass
 driver: tns.csi.io
 deletionPolicy: Delete
 ```
@@ -100,7 +100,7 @@ metadata:
   name: my-snapshot
   namespace: default
 spec:
-  volumeSnapshotClassName: truenas-nfs-snapclass
+  volumeSnapshotClassName: nasty-nfs-snapclass
   source:
     persistentVolumeClaimName: my-pvc
 ```
@@ -118,7 +118,7 @@ kubectl get volumesnapshot my-snapshot
 
 # Expected output:
 # NAME          READYTOUSE   SOURCEPVC   SOURCESNAPSHOTCONTENT   RESTORESIZE   SNAPSHOTCLASS              SNAPSHOTCONTENT                                    CREATIONTIME   AGE
-# my-snapshot   true         my-pvc                              10Gi          truenas-nfs-snapclass      snapcontent-xxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx      5s             5s
+# my-snapshot   true         my-pvc                              10Gi          nasty-nfs-snapclass      snapcontent-xxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx      5s             5s
 
 # Get detailed information
 kubectl describe volumesnapshot my-snapshot
@@ -135,7 +135,7 @@ metadata:
   name: restored-pvc
   namespace: default
 spec:
-  storageClassName: truenas-nfs  # Must match original PVC's storage class
+  storageClassName: nasty-nfs  # Must match original PVC's storage class
   dataSource:
     name: my-snapshot
     kind: VolumeSnapshot
@@ -166,7 +166,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: source-pvc
 spec:
-  storageClassName: truenas-nfs
+  storageClassName: nasty-nfs
   accessModes:
     - ReadWriteMany
   resources:
@@ -205,7 +205,7 @@ kubectl apply -f - <<EOF
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-snapclass
+  name: nasty-nfs-snapclass
 driver: tns.csi.io
 deletionPolicy: Delete
 EOF
@@ -217,7 +217,7 @@ kind: VolumeSnapshot
 metadata:
   name: backup-snapshot
 spec:
-  volumeSnapshotClassName: truenas-nfs-snapclass
+  volumeSnapshotClassName: nasty-nfs-snapclass
   source:
     persistentVolumeClaimName: source-pvc
 EOF
@@ -232,7 +232,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: restored-pvc
 spec:
-  storageClassName: truenas-nfs
+  storageClassName: nasty-nfs
   dataSource:
     name: backup-snapshot
     kind: VolumeSnapshot
@@ -277,7 +277,7 @@ The process is identical for NVMe-oF and iSCSI volumes, just use the appropriate
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nvmeof-snapclass
+  name: nasty-nvmeof-snapclass
 driver: tns.csi.io
 deletionPolicy: Delete
 ---
@@ -286,7 +286,7 @@ kind: VolumeSnapshot
 metadata:
   name: nvmeof-snapshot
 spec:
-  volumeSnapshotClassName: truenas-nvmeof-snapclass
+  volumeSnapshotClassName: nasty-nvmeof-snapclass
   source:
     persistentVolumeClaimName: nvmeof-pvc
 ---
@@ -295,7 +295,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: restored-nvmeof-pvc
 spec:
-  storageClassName: truenas-nvmeof
+  storageClassName: nasty-nvmeof
   dataSource:
     name: nvmeof-snapshot
     kind: VolumeSnapshot
@@ -313,16 +313,16 @@ spec:
 
 The `deletionPolicy` field in VolumeSnapshotClass controls what happens when a VolumeSnapshot is deleted:
 
-- **Delete** (default): Snapshot is deleted from TrueNAS when VolumeSnapshot is deleted
-- **Retain**: Snapshot is kept on TrueNAS even after VolumeSnapshot is deleted
+- **Delete** (default): Snapshot is deleted from NASty when VolumeSnapshot is deleted
+- **Retain**: Snapshot is kept on NASty even after VolumeSnapshot is deleted
 
 ```yaml
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-retain
+  name: nasty-nfs-retain
 driver: tns.csi.io
-deletionPolicy: Retain  # Keep snapshots on TrueNAS
+deletionPolicy: Retain  # Keep snapshots on NASty
 ```
 
 ### Pre-Provisioned Snapshots
@@ -362,7 +362,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-c
 - Snapshot CRDs not installed
 - Snapshot controller not running
 - Source PVC doesn't exist
-- TrueNAS API connection issues
+- NASty API connection issues
 
 ### Restore from Snapshot Fails
 
@@ -374,10 +374,10 @@ kubectl describe pvc restored-pvc
 **Common causes:**
 - VolumeSnapshot not ready (check with `kubectl get volumesnapshot`)
 - StorageClass doesn't match original PVC
-- Insufficient space on TrueNAS
+- Insufficient space on NASty
 - Protocol mismatch (trying to restore NFS snapshot to NVMe-oF PVC)
 
-### Snapshot Not Deleted from TrueNAS
+### Snapshot Not Deleted from NASty
 
 **Check if VolumeSnapshotContent still exists:**
 ```bash
@@ -389,9 +389,9 @@ kubectl get volumesnapshotcontent
 kubectl delete volumesnapshotcontent <content-name> --force --grace-period=0
 ```
 
-**Verify on TrueNAS:**
+**Verify on NASty:**
 ```bash
-# SSH into TrueNAS or use the UI to check:
+# SSH into NASty or use the UI to check:
 # Storage > Snapshots
 # Look for snapshots with names like: tank/k8s-volumes/pvc-xxxxx@snapshot-name
 ```
@@ -403,7 +403,7 @@ kubectl delete volumesnapshotcontent <content-name> --force --grace-period=0
 1. User creates a VolumeSnapshot resource
 2. Snapshot controller creates VolumeSnapshotContent
 3. CSI external-snapshotter sidecar calls `CreateSnapshot` RPC
-4. TrueNAS CSI driver calls TrueNAS API: `zfs.snapshot.create`
+4. NASty CSI driver calls NASty API: `zfs.snapshot.create`
 5. ZFS creates instant snapshot (copy-on-write, no data duplication)
 6. Driver returns snapshot metadata (encoded in snapshot ID)
 7. VolumeSnapshot becomes `ReadyToUse: true`
@@ -414,7 +414,7 @@ kubectl delete volumesnapshotcontent <content-name> --force --grace-period=0
 2. CSI external-provisioner detects snapshot dataSource
 3. Driver's `CreateVolume` is called with snapshot parameter
 4. Driver decodes snapshot metadata to get ZFS snapshot name
-5. Driver calls TrueNAS API: `zfs.snapshot.clone`
+5. Driver calls NASty API: `zfs.snapshot.clone`
 6. ZFS creates clone (instant, copy-on-write)
 7. For NFS: Driver creates NFS share for the clone
 8. For NVMe-oF: Driver creates namespace and target for the clone
@@ -425,7 +425,7 @@ kubectl delete volumesnapshotcontent <content-name> --force --grace-period=0
 1. User deletes VolumeSnapshot resource
 2. Snapshot controller handles VolumeSnapshotContent deletion
 3. CSI external-snapshotter calls `DeleteSnapshot` RPC
-4. Driver calls TrueNAS API: `zfs.snapshot.delete`
+4. Driver calls NASty API: `zfs.snapshot.delete`
 5. ZFS removes snapshot (space reclaimed based on references)
 6. VolumeSnapshotContent is removed
 
@@ -493,7 +493,7 @@ spec:
               metadata:
                 name: daily-backup-$(date +%Y%m%d-%H%M%S)
               spec:
-                volumeSnapshotClassName: truenas-nfs-snapclass
+                volumeSnapshotClassName: nasty-nfs-snapclass
                 source:
                   persistentVolumeClaimName: production-data
               EOF
@@ -571,7 +571,7 @@ subjects:
 
 ### Snapshot Encryption
 
-Snapshots inherit the encryption settings of the parent ZFS dataset. If your TrueNAS pool uses ZFS encryption, snapshots are automatically encrypted.
+Snapshots inherit the encryption settings of the parent ZFS dataset. If your NASty pool uses ZFS encryption, snapshots are automatically encrypted.
 
 ## Detached Snapshots
 
@@ -628,7 +628,7 @@ Create a VolumeSnapshotClass with `detachedSnapshots: "true"`:
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nfs-snapshot-detached
+  name: nasty-nfs-snapshot-detached
 driver: tns.csi.io
 deletionPolicy: Delete
 parameters:
@@ -647,7 +647,7 @@ kind: VolumeSnapshot
 metadata:
   name: my-detached-snapshot
 spec:
-  volumeSnapshotClassName: truenas-nfs-snapshot-detached
+  volumeSnapshotClassName: nasty-nfs-snapshot-detached
   source:
     persistentVolumeClaimName: my-pvc
 ```
@@ -697,7 +697,7 @@ Detached snapshots also work with NVMe-oF volumes:
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: truenas-nvmeof-snapshot-detached
+  name: nasty-nvmeof-snapshot-detached
 driver: tns.csi.io
 deletionPolicy: Delete
 parameters:
@@ -717,4 +717,4 @@ parameters:
 - [Kubernetes Volume Snapshots Documentation](https://kubernetes.io/docs/concepts/storage/volume-snapshots/)
 - [CSI Snapshotter Documentation](https://github.com/kubernetes-csi/external-snapshotter)
 - [ZFS Snapshot Documentation](https://openzfs.github.io/openzfs-docs/man/8/zfs-snapshot.8.html)
-- [TrueNAS API Documentation](https://www.truenas.com/docs/api/)
+- [NASty API Documentation](https://www.nasty.com/docs/api/)

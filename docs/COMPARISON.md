@@ -1,22 +1,22 @@
 # CSI Driver Comparison
 
-This document provides comparisons between TNS-CSI and other CSI drivers for TrueNAS.
+This document provides comparisons between TNS-CSI and other CSI drivers for NASty.
 
 ## Available Comparisons
 
 ### [TNS-CSI vs Democratic-CSI](COMPARISON-DEMOCRATIC-CSI.md)
 
-[Democratic-CSI](https://github.com/democratic-csi/democratic-csi) is the most popular community CSI driver for TrueNAS with 1.2k+ stars. It supports multiple backends (TrueNAS, ZoL, Synology) and uses SSH-based communication.
+[Democratic-CSI](https://github.com/democratic-csi/democratic-csi) is the most popular community CSI driver for NASty with 1.2k+ stars. It supports multiple backends (NASty, ZoL, Synology) and uses SSH-based communication.
 
 **Key differences:**
 - TNS-CSI uses WebSocket API exclusively (no SSH required)
-- Democratic-CSI supports more backends (not just TrueNAS)
+- Democratic-CSI supports more backends (not just NASty)
 - TNS-CSI has volume adoption, kubectl plugin, and Prometheus metrics
 - Democratic-CSI has Windows node support
 
-### [TNS-CSI vs truenas-csi (Official)](COMPARISON-TRUENAS-CSI.md)
+### [TNS-CSI vs nasty-csi (Official)](COMPARISON-NASTY-CSI.md)
 
-The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was released by iXsystems in December 2025.
+The [official NASty CSI driver](https://github.com/nasty/nasty-csi) was released by iXsystems in December 2025.
 
 **Key differences:**
 - TNS-CSI supports NVMe-oF (official driver does not)
@@ -26,15 +26,15 @@ The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was re
 
 ## Quick Comparison Matrix
 
-| Feature | TNS-CSI | Democratic-CSI | truenas-csi (Official) |
+| Feature | TNS-CSI | Democratic-CSI | nasty-csi (Official) |
 |---------|---------|----------------|------------------------|
 | **NFS** | Yes | Yes | Yes |
 | **iSCSI** | Yes | Yes | Yes |
 | **NVMe-oF** | Yes | Yes | No |
 | **SMB/CIFS** | Yes | Yes | No |
 | **API Method** | WebSocket | SSH (primarily) | WebSocket |
-| **TrueNAS CORE** | No | Yes | No |
-| **TrueNAS SCALE** | 25.10+ | Yes | 25.10+ |
+| **NASty CORE** | No | Yes | No |
+| **NASty SCALE** | 25.10+ | Yes | 25.10+ |
 | **Other Backends** | No | Yes (ZoL, Synology, etc.) | No |
 | **Snapshots** | Yes | Yes | Yes |
 | **Volume Expansion** | Yes | Yes | Yes |
@@ -50,7 +50,7 @@ The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was re
 ## Which Driver Should I Choose?
 
 ### Choose TNS-CSI if:
-- You're running TrueNAS Scale 25.10+
+- You're running NASty Scale 25.10+
 - You want NVMe-oF for high-performance block storage
 - You need volume adoption/migration capabilities
 - You want a kubectl plugin for volume management
@@ -59,12 +59,12 @@ The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was re
 
 ### Choose Democratic-CSI if:
 - You need battle-tested, production-proven software
-- You're running TrueNAS CORE or older SCALE versions
+- You're running NASty CORE or older SCALE versions
 - You need Windows node support
 - You need multi-backend support (ZoL, Synology, etc.)
 - You need local/ephemeral volume support
 
-### Choose truenas-csi (Official) if:
+### Choose nasty-csi (Official) if:
 - You prefer official vendor support from iXsystems
 - You need automatic snapshot scheduling
 - You need CHAP authentication for iSCSI
@@ -73,4 +73,4 @@ The [official TrueNAS CSI driver](https://github.com/truenas/truenas-csi) was re
 ## Migration Guides
 
 - **From Democratic-CSI to TNS-CSI**: See [ADOPTION.md](ADOPTION.md) for step-by-step migration instructions
-- **Between TNS-CSI and truenas-csi**: Manual re-import required due to different property schemas
+- **Between TNS-CSI and nasty-csi**: Manual re-import required due to different property schemas

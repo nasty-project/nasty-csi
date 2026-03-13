@@ -1,6 +1,6 @@
 # kubectl tns-csi Plugin
 
-A kubectl plugin for managing TrueNAS CSI driver volumes from the command line.
+A kubectl plugin for managing NASty CSI driver volumes from the command line.
 
 ## Installation
 
@@ -40,14 +40,14 @@ kubectl tns-csi --version
 
 ## Configuration
 
-The plugin automatically discovers TrueNAS credentials from the installed driver, so it **works out of the box** on clusters with tns-csi installed.
+The plugin automatically discovers NASty credentials from the installed driver, so it **works out of the box** on clusters with tns-csi installed.
 
 ### Credential Discovery Priority
 
 1. **Explicit flags**: `--url` and `--api-key`
 2. **Explicit secret**: `--secret namespace/name`
 3. **Auto-discovery**: Searches `kube-system` for driver secrets
-4. **Environment variables**: `TRUENAS_URL` and `TRUENAS_API_KEY`
+4. **Environment variables**: `NASTY_URL` and `NASTY_API_KEY`
 
 ### Examples
 
@@ -56,14 +56,14 @@ The plugin automatically discovers TrueNAS credentials from the installed driver
 kubectl tns-csi list
 
 # Explicit credentials via flags
-kubectl tns-csi list --url wss://truenas:443/api/current --api-key YOUR-API-KEY
+kubectl tns-csi list --url wss://nasty:443/api/current --api-key YOUR-API-KEY
 
 # Using a specific secret
-kubectl tns-csi list --secret kube-system/my-truenas-secret
+kubectl tns-csi list --secret kube-system/my-nasty-secret
 
 # Via environment variables
-export TRUENAS_URL=wss://truenas:443/api/current
-export TRUENAS_API_KEY=YOUR-API-KEY
+export NASTY_URL=wss://nasty:443/api/current
+export NASTY_API_KEY=YOUR-API-KEY
 kubectl tns-csi list
 ```
 
@@ -120,7 +120,7 @@ kubectl tns-csi list-snapshots
 Shows: Snapshot name, Source volume, Protocol, Type (attached/detached)
 
 #### `list-orphaned`
-Find volumes that exist on TrueNAS but have no matching PVC in Kubernetes.
+Find volumes that exist on NASty but have no matching PVC in Kubernetes.
 
 ```bash
 kubectl tns-csi list-orphaned
@@ -185,7 +185,7 @@ kubectl tns-csi health --all     # Show all volumes
 ```
 
 Checks:
-- Dataset exists on TrueNAS
+- Dataset exists on NASty
 - NFS shares are present and enabled
 - NVMe-oF subsystems are present and enabled
 
@@ -200,13 +200,13 @@ kubectl tns-csi troubleshoot my-pvc -n default --logs
 Checks:
 - PVC exists and is bound
 - PV exists and has valid handle
-- TrueNAS connection works
+- NASty connection works
 - Dataset exists
 - NFS share / NVMe subsystem is healthy
 - Recent events and controller logs
 
 #### `connectivity`
-Test connection to TrueNAS.
+Test connection to NASty.
 
 ```bash
 kubectl tns-csi connectivity
@@ -215,7 +215,7 @@ kubectl tns-csi connectivity
 ### Maintenance Commands
 
 #### `cleanup`
-Delete orphaned volumes from TrueNAS.
+Delete orphaned volumes from NASty.
 
 ```bash
 kubectl tns-csi cleanup                    # Dry-run (preview only)
@@ -244,7 +244,7 @@ kubectl tns-csi mark-adoptable --unmark --all        # Remove from all
 
 **For complete adoption workflows including Kubernetes-side steps, see [ADOPTION.md](ADOPTION.md).**
 
-The commands below handle the TrueNAS-side operations. Full adoption also requires Kubernetes-side steps (scaling down workloads, managing PVCs, etc.) which are documented in the adoption guide.
+The commands below handle the NASty-side operations. Full adoption also requires Kubernetes-side steps (scaling down workloads, managing PVCs, etc.) which are documented in the adoption guide.
 
 #### `import`
 Import an existing dataset into tns-csi management.
@@ -288,7 +288,7 @@ kubectl apply -f pv.yaml
 ```
 
 #### `status`
-Show the current status of a volume from TrueNAS.
+Show the current status of a volume from NASty.
 
 ```bash
 kubectl tns-csi status <pvc-name>
@@ -345,8 +345,8 @@ kubectl tns-csi list -o yaml      # YAML
 
 | Flag | Description |
 |------|-------------|
-| `--url` | TrueNAS WebSocket URL (wss://host/api/current) |
-| `--api-key` | TrueNAS API key |
+| `--url` | NASty WebSocket URL (wss://host/api/current) |
+| `--api-key` | NASty API key |
 | `--secret` | Kubernetes secret with credentials (namespace/name) |
 | `-o, --output` | Output format: table, json, yaml |
 | `--insecure-skip-tls-verify` | Skip TLS verification (default: true) |

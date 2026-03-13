@@ -5,7 +5,7 @@ This document compares memory usage between tns-csi and democratic-csi drivers b
 ## Test Environment
 
 - **Cluster**: 3-node k3s cluster
-- **TrueNAS**: TrueNAS Scale 25.10
+- **NASty**: NASty Scale 25.10
 - **democratic-csi**: Separate deployments for NFS and iSCSI protocols
 - **tns-csi**: Single unified deployment handling all protocols
 
@@ -87,7 +87,7 @@ Go compiles to a native binary with minimal runtime overhead.
 |--------|----------------|---------|
 | Protocol handling | Separate deployment per protocol | Single unified deployment |
 | gRPC exposure | Requires csi-proxy sidecar | Native gRPC support |
-| TrueNAS communication | SSH + WebSocket | WebSocket only |
+| NASty communication | SSH + WebSocket | WebSocket only |
 
 ## Scaling Considerations
 

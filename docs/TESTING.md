@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TNS CSI Driver is tested comprehensively using **real infrastructure** - not mocks, simulators, or virtual TrueNAS instances. Every commit triggers automated tests against actual hardware and software.
+The TNS CSI Driver is tested comprehensively using **real infrastructure** - not mocks, simulators, or virtual NASty instances. Every commit triggers automated tests against actual hardware and software.
 
 ## Testing Infrastructure
 
@@ -14,16 +14,16 @@ The TNS CSI Driver is tested comprehensively using **real infrastructure** - not
 - Runs real k3s Kubernetes clusters for each test
 - No Kind clusters, no mocks - actual Kubernetes distribution
 
-**Real TrueNAS Scale Server:**
-- Physical TrueNAS Scale 25.10+ installation
+**Real NASty Scale Server:**
+- Physical NASty Scale 25.10+ installation
 - Real storage pools with ZFS
 - Actual NFS shares and NVMe-oF subsystems
 - Real network I/O and protocol operations
 
 **Real Protocol Testing:**
-- NFS: Actual NFS mounts from TrueNAS to Kubernetes nodes
+- NFS: Actual NFS mounts from NASty to Kubernetes nodes
 - NVMe-oF: Real NVMe-oF TCP connections and block device operations
-- WebSocket: Live API connections to TrueNAS with authentication
+- WebSocket: Live API connections to NASty with authentication
 - Full end-to-end data path testing
 
 ### Why Real Infrastructure?
@@ -31,7 +31,7 @@ The TNS CSI Driver is tested comprehensively using **real infrastructure** - not
 Testing against real infrastructure catches issues that mocks cannot:
 - Network timing and race conditions
 - Actual protocol behavior and error modes
-- TrueNAS API quirks and edge cases
+- NASty API quirks and edge cases
 - Real-world performance characteristics
 - Connection resilience and recovery
 - Cleanup and resource management
@@ -140,7 +140,7 @@ Each test run:
 - Creates test resources (PVCs, pods, snapshots)
 - Validates operations with `Eventually` for robustness
 - Cleans up all resources automatically (LIFO stack)
-- Verifies TrueNAS backend cleanup
+- Verifies NASty backend cleanup
 
 **View test results:** [Test Dashboard](https://fenio.github.io/tns-csi/dashboard/)
 
@@ -165,9 +165,9 @@ Interactive test results dashboard with history and metrics:
 
 - Go 1.21+
 - [Ginkgo CLI](https://onsi.github.io/ginkgo/#getting-started): `go install github.com/onsi/ginkgo/v2/ginkgo@latest`
-- Access to a TrueNAS Scale 25.10+ server
+- Access to a NASty Scale 25.10+ server
 - Kubernetes cluster (k3s recommended)
-- TrueNAS API key with admin privileges
+- NASty API key with admin privileges
 - For NFS: `nfs-common` installed
 - For NVMe-oF: `nvme-cli` installed, kernel modules loaded
 - For iSCSI: `open-iscsi` installed, `iscsid` service running
@@ -175,9 +175,9 @@ Interactive test results dashboard with history and metrics:
 ### Environment Variables
 
 ```bash
-export TRUENAS_HOST="your-truenas-ip"
-export TRUENAS_API_KEY="your-api-key"
-export TRUENAS_POOL="your-pool"
+export NASTY_HOST="your-nasty-ip"
+export NASTY_API_KEY="your-api-key"
+export NASTY_POOL="your-pool"
 export KUBECONFIG="$HOME/.kube/config"
 ```
 
@@ -278,31 +278,31 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for details.
 ### Common Issues
 
 **Test fails with "connection refused":**
-- Verify TRUENAS_HOST is correct and reachable
-- Check TrueNAS API is running (should respond on /api/current)
+- Verify NASTY_HOST is correct and reachable
+- Check NASty API is running (should respond on /api/current)
 
 **Test fails with "unauthorized":**
-- Verify TRUENAS_API_KEY is valid
+- Verify NASTY_API_KEY is valid
 - Check API key has admin privileges
 
 **NFS test fails with "mount failed":**
 - Ensure nfs-common is installed on test node
-- Check TrueNAS NFS service is enabled
+- Check NASty NFS service is enabled
 
 **NVMe-oF test fails with "nvme connect failed":**
 - Ensure nvme-cli is installed on test node
 - Verify kernel modules: `nvme-tcp`, `nvme-fabrics`
-- Check TrueNAS NVMe-oF service is enabled
+- Check NASty NVMe-oF service is enabled
 - Verify port 4420 is accessible
 
 **iSCSI test fails with "login failed":**
 - Ensure open-iscsi is installed on test node
 - Verify iscsid service is running: `systemctl status iscsid`
-- Check TrueNAS iSCSI service is enabled
+- Check NASty iSCSI service is enabled
 - Verify port 3260 is accessible
 
 **Test cleanup fails:**
-- May need to manually delete datasets/shares in TrueNAS UI
+- May need to manually delete datasets/shares in NASty UI
 
 **Ginkgo-specific issues:**
 - Use `-v -vv` for verbose output

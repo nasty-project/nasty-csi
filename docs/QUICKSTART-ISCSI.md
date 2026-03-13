@@ -4,7 +4,7 @@
 
 This driver is in early development phase. Use only for testing and evaluation environments. Use at your own risk.
 
-This guide explains how to set up and use iSCSI block storage with the TrueNAS CSI driver.
+This guide explains how to set up and use iSCSI block storage with the NASty CSI driver.
 
 ## Overview
 
@@ -26,9 +26,9 @@ iSCSI provides traditional block storage over TCP/IP networks. It's a mature pro
 
 ## Prerequisites
 
-### TrueNAS Requirements
+### NASty Requirements
 
-- **TrueNAS Scale 25.10 or later**
+- **NASty Scale 25.10 or later**
 - iSCSI service enabled (System > Services > iSCSI)
 - Storage pool available for volume provisioning
 
@@ -61,7 +61,7 @@ sudo systemctl status iscsid
 cat /etc/iscsi/initiatorname.iscsi
 ```
 
-## TrueNAS Setup
+## NASty Setup
 
 ### Step 1: Enable iSCSI Service
 
@@ -81,7 +81,7 @@ That's it! Unlike NVMe-oF, iSCSI doesn't require pre-configured portals or targe
 
 ```
 +-------------------------------------------------------------+
-|                    TrueNAS iSCSI                             |
+|                    NASty iSCSI                             |
 +-------------------------------------------------------------+
 |  Target (per volume)      <- CSI driver creates/deletes     |
 |    +-- Extent (ZVOL)      <- CSI driver creates/deletes     |
@@ -99,18 +99,18 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **Replace these values:**
-- `YOUR-TRUENAS-IP` - Your TrueNAS server IP address
-- `YOUR-API-KEY` - API key from TrueNAS (Settings > API Keys)
+- `YOUR-NASTY-IP` - Your NASty server IP address
+- `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
 - `YOUR-POOL-NAME` - ZFS pool name (e.g., `tank`, `storage`)
 
 ### Verify Installation
@@ -237,7 +237,7 @@ metadata:
 provisioner: tns.csi.io
 parameters:
   protocol: iscsi
-  server: YOUR-TRUENAS-IP
+  server: YOUR-NASTY-IP
   pool: tank
   port: "3260"
   csi.storage.k8s.io/fstype: ext4
@@ -251,19 +251,19 @@ volumeBindingMode: WaitForFirstConsumer
 
 ### Volume Retention
 
-To keep volumes on TrueNAS when PVCs are deleted:
+To keep volumes on NASty when PVCs are deleted:
 
 ```bash
 helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP" \
+  --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set "storageClasses[0].parameters.deleteStrategy=retain"
 ```
 
@@ -279,7 +279,7 @@ metadata:
 provisioner: tns.csi.io
 parameters:
   protocol: iscsi
-  server: YOUR-TRUENAS-IP
+  server: YOUR-NASTY-IP
   pool: tank
   port: "3260"
   csi.storage.k8s.io/fstype: ext4
@@ -376,9 +376,9 @@ ssh <node> sudo systemctl status iscsid
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| PVC pending | iSCSI service not enabled | Enable iSCSI in TrueNAS (System > Services) |
+| PVC pending | iSCSI service not enabled | Enable iSCSI in NASty (System > Services) |
 | Mount failed | iscsid not running | `sudo systemctl start iscsid` on nodes |
-| Connection refused | Firewall blocking port 3260 | Open port 3260 between nodes and TrueNAS |
+| Connection refused | Firewall blocking port 3260 | Open port 3260 between nodes and NASty |
 | Authentication failed | Initiator not recognized | Check initiator name in `/etc/iscsi/initiatorname.iscsi` |
 
 ### Verify Connectivity
@@ -387,10 +387,10 @@ From a Kubernetes node:
 
 ```bash
 # Check port is open
-nc -zv YOUR-TRUENAS-IP 3260
+nc -zv YOUR-NASTY-IP 3260
 
 # Discover targets (after volume is created)
-sudo iscsiadm -m discovery -t sendtargets -p YOUR-TRUENAS-IP:3260
+sudo iscsiadm -m discovery -t sendtargets -p YOUR-NASTY-IP:3260
 
 # List active sessions
 sudo iscsiadm -m session

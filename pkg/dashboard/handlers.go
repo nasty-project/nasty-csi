@@ -23,7 +23,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// K8s-first: build volumes from PVs only (no TrueNAS calls).
+	// K8s-first: build volumes from PVs only (no NASty calls).
 	// All other data (snapshots, clones, unmanaged, health, summary) loads
 	// via HTMX in the background after the page renders.
 	data := Data{Version: s.version}

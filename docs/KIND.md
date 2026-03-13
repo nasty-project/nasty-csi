@@ -1,22 +1,22 @@
 # Testing with Kind (Kubernetes in Docker)
 
-This guide shows how to test the TrueNAS CSI driver in a local Kind cluster with NFS support.
+This guide shows how to test the NASty CSI driver in a local Kind cluster with NFS support.
 
-> **Note:** This guide is for **local development only**. The project's CI/CD pipeline uses k3s on self-hosted runners for integration testing against real TrueNAS infrastructure. Kind is suitable for NFS development/testing but has limitations for NVMe-oF testing.
+> **Note:** This guide is for **local development only**. The project's CI/CD pipeline uses k3s on self-hosted runners for integration testing against real NASty infrastructure. Kind is suitable for NFS development/testing but has limitations for NVMe-oF testing.
 
 ## Prerequisites
 
 1. **Docker**: Running and accessible
 2. **Kind**: Install from https://kind.sigs.k8s.io/docs/user/quick-start/
 3. **kubectl**: Kubernetes CLI tool
-4. **TrueNAS**: Accessible TrueNAS server with API access
+4. **NASty**: Accessible NASty server with API access
 
 ## Quick Start with Helm (Recommended)
 
 ### 1. Create Kind Cluster
 
 ```bash
-kind create cluster --config kind-config.yaml --name truenas-csi-test
+kind create cluster --config kind-config.yaml --name nasty-csi-test
 ```
 
 ### 2. Install NFS Support
@@ -25,12 +25,12 @@ Install `nfs-common` package on all Kind nodes, which is required for NFS mounts
 
 ```bash
 # For each Kind node (control-plane and workers)
-docker exec truenas-csi-test-control-plane apt-get update
-docker exec truenas-csi-test-control-plane apt-get install -y nfs-common
+docker exec nasty-csi-test-control-plane apt-get update
+docker exec nasty-csi-test-control-plane apt-get install -y nfs-common
 
 # If you have worker nodes
-docker exec truenas-csi-test-worker apt-get update
-docker exec truenas-csi-test-worker apt-get install -y nfs-common
+docker exec nasty-csi-test-worker apt-get update
+docker exec nasty-csi-test-worker apt-get install -y nfs-common
 ```
 
 ### 3. Install CSI Driver via Helm
@@ -41,13 +41,13 @@ helm install tns-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.17.3 \
   --namespace kube-system \
   --create-namespace \
-  --set truenas.url="wss://YOUR-TRUENAS-IP:443/api/current" \
-  --set truenas.apiKey="YOUR-API-KEY" \
+  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name="tns-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
   --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-TRUENAS-IP"
+  --set storageClasses[0].server="YOUR-NASTY-IP"
 
 # Verify deployment
 kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver
@@ -66,7 +66,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
-  storageClassName: truenas-nfs
+  storageClassName: nasty-nfs
   resources:
     requests:
       storage: 1Gi
@@ -116,12 +116,12 @@ Install `nfs-common` package on all Kind nodes:
 
 ```bash
 # For each Kind node (control-plane and workers)
-docker exec truenas-csi-test-control-plane apt-get update
-docker exec truenas-csi-test-control-plane apt-get install -y nfs-common
+docker exec nasty-csi-test-control-plane apt-get update
+docker exec nasty-csi-test-control-plane apt-get install -y nfs-common
 
 # If you have worker nodes
-docker exec truenas-csi-test-worker apt-get update
-docker exec truenas-csi-test-worker apt-get install -y nfs-common
+docker exec nasty-csi-test-worker apt-get update
+docker exec nasty-csi-test-worker apt-get install -y nfs-common
 ```
 
 ### 3. Build and Load Image
@@ -131,7 +131,7 @@ docker exec truenas-csi-test-worker apt-get install -y nfs-common
 docker build -t bfenski/tns-csi:v0.17.3 .
 
 # Load into Kind
-kind load docker-image bfenski/tns-csi:v0.17.3 --name truenas-csi-test
+kind load docker-image bfenski/tns-csi:v0.17.3 --name nasty-csi-test
 ```
 
 ### 4. Create Kubernetes Secret
@@ -143,8 +143,8 @@ source .tns-credentials
 # Create secret
 kubectl create secret generic nasty-csi-secret \
   --namespace=kube-system \
-  --from-literal=url="$TRUENAS_URL" \
-  --from-literal=api-key="$TRUENAS_API_KEY"
+  --from-literal=url="$NASTY_URL" \
+  --from-literal=api-key="$NASTY_API_KEY"
 ```
 
 ### 5. Deploy CSI Driver
@@ -180,8 +180,8 @@ If pods fail to mount NFS volumes:
 
 1. **Check NFS client installation:**
    ```bash
-   docker exec truenas-csi-test-control-plane which mount.nfs
-   docker exec truenas-csi-test-worker which mount.nfs
+   docker exec nasty-csi-test-control-plane which mount.nfs
+   docker exec nasty-csi-test-worker which mount.nfs
    ```
 
 2. **Verify network connectivity:**
@@ -189,11 +189,11 @@ If pods fail to mount NFS volumes:
    # From a pod in the cluster
    kubectl run -it --rm debug --image=alpine --restart=Never -- sh
    apk add nfs-utils
-   showmount -e YOUR-TRUENAS-IP  # Replace with your TrueNAS IP
+   showmount -e YOUR-NASTY-IP  # Replace with your NASty IP
    ```
 
-3. **Check TrueNAS NFS service:**
-   - Ensure NFS service is running in TrueNAS
+3. **Check NASty NFS service:**
+   - Ensure NFS service is running in NASty
    - Verify NFS shares exist
    - Check firewall allows NFS (port 2049)
 
@@ -213,7 +213,7 @@ kubectl logs -n kube-system -l app=tns-csi-node -c nasty-csi-plugin --tail=100
 
 Common issues:
 - NFS client not installed (install nfs-common in Kind nodes)
-- Cannot reach TrueNAS server (check network/firewall)
+- Cannot reach NASty server (check network/firewall)
 - Invalid NFS export path
 
 ### PVC Stuck in Pending
@@ -231,7 +231,7 @@ kubectl logs -n kube-system -l app=tns-csi-controller -c nasty-csi-plugin --tail
 ```
 
 Common issues:
-- Invalid TrueNAS credentials
+- Invalid NASty credentials
 - Pool doesn't exist
 - Network connectivity issues
 
@@ -335,20 +335,20 @@ kubectl delete secret nasty-csi-secret -n kube-system
 ### Delete Kind cluster:
 
 ```bash
-kind delete cluster --name truenas-csi-test
+kind delete cluster --name nasty-csi-test
 ```
 
 ## Network Considerations for Kind
 
-### Accessing TrueNAS from Kind
+### Accessing NASty from Kind
 
-Kind containers run in Docker's network. Ensure Kind can reach your TrueNAS server:
+Kind containers run in Docker's network. Ensure Kind can reach your NASty server:
 
-1. **If TrueNAS is on your local network:**
-   - Use the actual IP address (e.g., YOUR-TRUENAS-IP)
+1. **If NASty is on your local network:**
+   - Use the actual IP address (e.g., YOUR-NASTY-IP)
    - Docker should be able to route to it
 
-2. **If TrueNAS is on localhost:**
+2. **If NASty is on localhost:**
    - Use host.docker.internal instead of 127.0.0.1
    - Or use the host's network IP
 
@@ -356,8 +356,8 @@ Kind containers run in Docker's network. Ensure Kind can reach your TrueNAS serv
    ```bash
    kubectl run -it --rm test --image=alpine --restart=Never -- sh
    # Inside the pod:
-   ping -c 3 YOUR-TRUENAS-IP
-   nc -zv YOUR-TRUENAS-IP 2049  # Test NFS port
+   ping -c 3 YOUR-NASTY-IP
+   nc -zv YOUR-NASTY-IP 2049  # Test NFS port
    ```
 
 ## Performance Notes

@@ -150,8 +150,8 @@ helm install tns-csi-test oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 1.0.0 \
   --namespace test \
   --create-namespace \
-  --set truenas.url="wss://truenas.local/api/current" \
-  --set truenas.apiKey="test-key" \
+  --set nasty.url="wss://nasty.local/api/current" \
+  --set nasty.apiKey="test-key" \
   --dry-run
 ```
 

@@ -1,6 +1,6 @@
 # TNS-CSI vs Democratic-CSI
 
-[Democratic-CSI](https://github.com/democratic-csi/democratic-csi) is the most popular community CSI driver for TrueNAS with 1.2k+ stars.
+[Democratic-CSI](https://github.com/democratic-csi/democratic-csi) is the most popular community CSI driver for NASty with 1.2k+ stars.
 
 **Last Updated**: January 2026
 
@@ -11,7 +11,7 @@
 | **Maturity** | Early development | Mature, established |
 | **Language** | Go | JavaScript (Node.js) |
 | **License** | GPL-3.0 | MIT |
-| **TrueNAS Version** | Scale 25.10+ only | FreeNAS/TrueNAS (multiple versions) |
+| **NASty Version** | Scale 25.10+ only | FreeNAS/NASty (multiple versions) |
 | **API Connection** | WebSocket API only (no SSH) | SSH-based or HTTP API (experimental) |
 
 ## Protocol Support
@@ -30,23 +30,23 @@
 **TNS-CSI:**
 - Supports all four major storage protocols (NFS, iSCSI, NVMe-oF, SMB)
 - WebSocket-based API communication (no SSH required)
-- Single-purpose: TrueNAS Scale 25.10+ only
+- Single-purpose: NASty Scale 25.10+ only
 - Native Go implementation with minimal dependencies
 
 **Democratic-CSI:**
-- Multi-backend support (TrueNAS, ZoL, Synology, ObjectiveFS, etc.)
+- Multi-backend support (NASty, ZoL, Synology, ObjectiveFS, etc.)
 - Primarily SSH-based with experimental API-only drivers (`freenas-api-*`)
-- Broader compatibility with older TrueNAS/FreeNAS versions
+- Broader compatibility with older NASty/FreeNAS versions
 - iSCSI as the primary block storage protocol
 - Node.js implementation with extensive driver ecosystem
 
 ### Backend Support
 
 **TNS-CSI:**
-- TrueNAS Scale 25.10+ (exclusively)
+- NASty Scale 25.10+ (exclusively)
 
 **Democratic-CSI:**
-- FreeNAS / TrueNAS (CORE and SCALE)
+- FreeNAS / NASty (CORE and SCALE)
 - ZFS on Linux (Ubuntu, etc.)
 - Synology (experimental)
 - ObjectiveFS
@@ -91,13 +91,13 @@
 - Requires SSH setup and potentially sudo configuration for most drivers
 - Experimental `freenas-api-*` drivers work without SSH (SCALE 21.08+)
 - Helm chart with extensive example values
-- May require shell configuration on TrueNAS
+- May require shell configuration on NASty
 
 ## When to Choose Each
 
 ### Choose TNS-CSI if:
 
-- You're running TrueNAS Scale 25.10+
+- You're running NASty Scale 25.10+
 - You want all three protocols (NFS, iSCSI, NVMe-oF) from a single driver
 - You prefer a simpler, focused driver with fewer moving parts
 - You don't want to configure SSH access to your NAS
@@ -110,7 +110,7 @@
 ### Choose Democratic-CSI if:
 
 - You need production-ready, battle-tested software
-- You're running older TrueNAS/FreeNAS versions or TrueNAS CORE
+- You're running older NASty/FreeNAS versions or NASty CORE
 - You need Windows node support
 - You want multi-backend flexibility (ZoL, Synology, ObjectiveFS, etc.)
 - You need local/ephemeral volume support
