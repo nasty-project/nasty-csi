@@ -20,7 +20,7 @@ import (
 // Static errors for list-orphaned command.
 var errOrphanedUnknownOutputFormat = errors.New("unknown output format")
 
-// OrphanedVolumeInfo represents a volume that exists on TrueNAS but has no matching PVC.
+// OrphanedVolumeInfo represents a volume that exists on NASty but has no matching PVC.
 type OrphanedVolumeInfo struct {
 	PVCName    string `json:"pvcName,omitempty"   yaml:"pvcName,omitempty"`
 	Namespace  string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
@@ -33,8 +33,8 @@ func newListOrphanedCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVer
 
 	cmd := &cobra.Command{
 		Use:   "list-orphaned",
-		Short: "Find volumes on TrueNAS without matching PVCs in the cluster",
-		Long: `Find orphaned volumes - volumes that exist on TrueNAS but have no
+		Short: "Find volumes on NASty without matching PVCs in the cluster",
+		Long: `Find orphaned volumes - volumes that exist on NASty but have no
 corresponding PVC in the current Kubernetes cluster.
 
 This is useful for:
@@ -65,8 +65,8 @@ func runListOrphaned(ctx context.Context, url, apiKey, secretRef, outputFormat *
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func runListOrphaned(ctx context.Context, url, apiKey, secretRef, outputFormat *
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
 
-	// Query all managed volumes from TrueNAS
+	// Query all managed volumes from NASty
 	volumes, err := dashboard.FindManagedVolumes(ctx, client, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)

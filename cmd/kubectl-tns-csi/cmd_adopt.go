@@ -33,7 +33,7 @@ func newAdoptCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bo
 for adopting an orphaned volume into the cluster.
 
 The generated manifests use the static provisioning pattern - the PV references
-the existing TrueNAS dataset, and the PVC binds to it.
+the existing NASty dataset, and the PVC binds to it.
 
 Examples:
   # Generate manifests for a specific dataset
@@ -70,8 +70,8 @@ func runAdopt(ctx context.Context, url, apiKey, secretRef, _ *string, skipTLSVer
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -134,28 +134,28 @@ type adoptionVolumeInfo struct {
 	capacityBytes int64
 }
 
-func getDatasetWithProperties(ctx context.Context, client tnsapi.ClientInterface, datasetPath string) (*tnsapi.DatasetWithProperties, error) {
-	datasets, err := client.FindDatasetsByProperty(ctx, datasetPath, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
+func getDatasetWithProperties(ctx context.Context, client tnsapi.ClientInterface, datasetPath string) (*tnsapi.Subvolume, error) {
+	datasets, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
 
 	// Look for exact match
 	for i := range datasets {
-		if datasets[i].ID == datasetPath {
+		if datasets[i].Pool+"/"+datasets[i].Name == datasetPath {
 			return &datasets[i], nil
 		}
 	}
 
-	// If no exact match, try querying directly
-	// This handles cases where the dataset exists but might not have the property yet
-	allDatasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyCSIVolumeName, "")
+	// If no exact match, try all managed subvolumes
+	// This handles cases where the dataset exists but might not have the managed_by property yet
+	allDatasets, err := client.FindManagedSubvolumes(ctx, "")
 	if err != nil {
 		return nil, err
 	}
 
 	for i := range allDatasets {
-		if allDatasets[i].ID == datasetPath {
+		if allDatasets[i].Pool+"/"+allDatasets[i].Name == datasetPath {
 			return &allDatasets[i], nil
 		}
 	}
@@ -163,33 +163,33 @@ func getDatasetWithProperties(ctx context.Context, client tnsapi.ClientInterface
 	return nil, fmt.Errorf("%w: %s", errDatasetNotFound, datasetPath)
 }
 
-func extractVolumeInfo(ds *tnsapi.DatasetWithProperties) (*adoptionVolumeInfo, error) {
-	props := ds.UserProperties
+func extractVolumeInfo(ds *tnsapi.Subvolume) (*adoptionVolumeInfo, error) {
+	props := ds.Properties
 	if props == nil {
 		return nil, errNoUserProperties
 	}
 
 	// Verify it's managed by tns-csi
-	if prop, ok := props[tnsapi.PropertyManagedBy]; !ok || prop.Value != tnsapi.ManagedByValue {
+	if val, ok := props[tnsapi.PropertyManagedBy]; !ok || val != tnsapi.ManagedByValue {
 		return nil, errNotManagedByTNSCSI
 	}
 
 	info := &adoptionVolumeInfo{
-		dataset:   ds.ID,
+		dataset:   ds.Pool + "/" + ds.Name,
 		namespace: "default", // Default
 	}
 
 	// Extract volume ID
-	if prop, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
-		info.volumeID = prop.Value
-		info.pvcName = prop.Value // Default PVC name to volume ID
+	if val, ok := props[tnsapi.PropertyCSIVolumeName]; ok {
+		info.volumeID = val
+		info.pvcName = val // Default PVC name to volume ID
 	}
 
 	// Extract protocol
-	if prop, ok := props[tnsapi.PropertyProtocol]; ok {
-		info.protocol = prop.Value
+	if val, ok := props[tnsapi.PropertyProtocol]; ok {
+		info.protocol = val
 		// Set default access mode based on protocol
-		switch prop.Value {
+		switch val {
 		case tnsapi.ProtocolNFS:
 			info.accessMode = "ReadWriteMany"
 		case tnsapi.ProtocolNVMeOF:
@@ -202,47 +202,47 @@ func extractVolumeInfo(ds *tnsapi.DatasetWithProperties) (*adoptionVolumeInfo, e
 	}
 
 	// Extract capacity
-	if prop, ok := props[tnsapi.PropertyCapacityBytes]; ok {
-		info.capacityBytes = tnsapi.StringToInt64(prop.Value)
+	if val, ok := props[tnsapi.PropertyCapacityBytes]; ok {
+		info.capacityBytes = tnsapi.StringToInt64(val)
 	}
 
 	// Extract stored PVC metadata (if available from previous cluster)
-	if prop, ok := props[tnsapi.PropertyPVCName]; ok && prop.Value != "" {
-		info.pvcName = prop.Value
+	if val, ok := props[tnsapi.PropertyPVCName]; ok && val != "" {
+		info.pvcName = val
 	}
-	if prop, ok := props[tnsapi.PropertyPVCNamespace]; ok && prop.Value != "" {
-		info.namespace = prop.Value
+	if val, ok := props[tnsapi.PropertyPVCNamespace]; ok && val != "" {
+		info.namespace = val
 	}
-	if prop, ok := props[tnsapi.PropertyStorageClass]; ok {
-		info.storageClass = prop.Value
+	if val, ok := props[tnsapi.PropertyStorageClass]; ok {
+		info.storageClass = val
 	}
 
 	// Extract NFS-specific info
-	if prop, ok := props[tnsapi.PropertyNFSSharePath]; ok {
-		info.nfsSharePath = prop.Value
+	if val, ok := props[tnsapi.PropertyNFSSharePath]; ok {
+		info.nfsSharePath = val
 	}
 
 	// Extract NVMe-oF-specific info
-	if prop, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		info.nvmeNQN = prop.Value
+	if val, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok {
+		info.nvmeNQN = val
 	}
 
 	// Extract iSCSI-specific info
-	if prop, ok := props[tnsapi.PropertyISCSIIQN]; ok {
-		info.iscsiIQN = prop.Value
+	if val, ok := props[tnsapi.PropertyISCSIIQN]; ok {
+		info.iscsiIQN = val
 	}
 
 	// Extract SMB-specific info
-	if prop, ok := props[tnsapi.PropertySMBShareName]; ok {
-		info.smbShareName = prop.Value
+	if val, ok := props[tnsapi.PropertySMBShareName]; ok {
+		info.smbShareName = val
 	}
 
 	return info, nil
 }
 
-func generateAdoptionManifests(info *adoptionVolumeInfo, truenasURL string) (string, error) {
-	// Extract server from TrueNAS URL for NFS
-	server := extractServerFromURL(truenasURL)
+func generateAdoptionManifests(info *adoptionVolumeInfo, nastyURL string) (string, error) {
+	// Extract server from NASty URL for NFS
+	server := extractServerFromURL(nastyURL)
 
 	// Generate PV
 	pv := generatePV(info, server)

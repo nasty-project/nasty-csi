@@ -92,8 +92,8 @@ func runSummary(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 	}
 
 	// Show spinner while connecting and gathering data
-	spin := newSpinner("Connecting to TrueNAS...")
-	client, err := connectToTrueNAS(ctx, cfg)
+	spin := newSpinner("Connecting to NASty...")
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		spin.stop()
 		return err
@@ -124,20 +124,20 @@ type summaryContext struct {
 func gatherSummary(ctx context.Context, client tnsapi.ClientInterface) (*Summary, error) {
 	summary := &Summary{}
 
-	// Get all managed datasets (volumes)
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
+	// Get all managed subvolumes
+	subvols, err := client.FindManagedSubvolumes(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to query datasets: %w", err)
+		return nil, fmt.Errorf("failed to query subvolumes: %w", err)
 	}
 
 	// Build lookup maps for health checks
 	sc := buildSummaryContext(ctx, client)
 
-	// Process volume datasets
-	processVolumeDatasets(datasets, sc, summary)
+	// Process volume subvolumes
+	processVolumeSubvolumes(subvols, sc, summary)
 
-	// Count attached snapshots
-	countAttachedSnapshots(ctx, client, datasets, summary)
+	// Count attached snapshots from subvolume Snapshots field
+	countAttachedSnapshots(subvols, summary)
 
 	// Finalize summary
 	summary.Snapshots.Total = summary.Snapshots.Attached + summary.Snapshots.Detached
@@ -159,26 +159,25 @@ func buildSummaryContext(ctx context.Context, client tnsapi.ClientInterface) *su
 	}
 
 	// Get all NFS shares for health checks (ignore errors - non-critical)
-	nfsShares, _ := client.QueryAllNFSShares(ctx, "") //nolint:errcheck // non-critical for summary
+	nfsShares, _ := client.ListNFSShares(ctx) //nolint:errcheck // non-critical for summary
 	for i := range nfsShares {
 		sc.nfsShareMap[nfsShares[i].Path] = &nfsShares[i]
 	}
 
 	// Get all NVMe-oF subsystems for health checks (ignore errors - non-critical)
-	nvmeSubsystems, _ := client.ListAllNVMeOFSubsystems(ctx) //nolint:errcheck // non-critical for summary
+	nvmeSubsystems, _ := client.ListNVMeOFSubsystems(ctx) //nolint:errcheck // non-critical for summary
 	for i := range nvmeSubsystems {
-		sc.nvmeSubsysMap[nvmeSubsystems[i].Name] = &nvmeSubsystems[i]
 		sc.nvmeSubsysMap[nvmeSubsystems[i].NQN] = &nvmeSubsystems[i]
 	}
 
 	// Get all iSCSI targets for health checks (ignore errors - non-critical)
-	iscsiTargets, _ := client.QueryISCSITargets(ctx, nil) //nolint:errcheck // non-critical for summary
+	iscsiTargets, _ := client.ListISCSITargets(ctx) //nolint:errcheck // non-critical for summary
 	for i := range iscsiTargets {
-		sc.iscsiTargetMap[iscsiTargets[i].Name] = &iscsiTargets[i]
+		sc.iscsiTargetMap[iscsiTargets[i].IQN] = &iscsiTargets[i]
 	}
 
 	// Get all SMB shares for health checks (ignore errors - non-critical)
-	smbShares, _ := client.QueryAllSMBShares(ctx, "") //nolint:errcheck // non-critical for summary
+	smbShares, _ := client.ListSMBShares(ctx) //nolint:errcheck // non-critical for summary
 	for i := range smbShares {
 		sc.smbShareMap[smbShares[i].Path] = &smbShares[i]
 	}
@@ -186,40 +185,34 @@ func buildSummaryContext(ctx context.Context, client tnsapi.ClientInterface) *su
 	return sc
 }
 
-// processVolumeDatasets processes all datasets and updates summary counters.
-func processVolumeDatasets(datasets []tnsapi.DatasetWithProperties, sc *summaryContext, summary *Summary) {
-	for i := range datasets {
-		ds := &datasets[i]
+// processVolumeSubvolumes processes all subvolumes and updates summary counters.
+func processVolumeSubvolumes(subvols []tnsapi.Subvolume, sc *summaryContext, summary *Summary) {
+	for i := range subvols {
+		sv := &subvols[i]
 
 		// Skip detached snapshots (they're counted separately)
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && prop.Value == valueTrue {
+		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
 			summary.Snapshots.Detached++
 			continue
 		}
 
-		// Skip datasets without volume ID (not actual volumes)
-		volumeID := ""
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-			volumeID = prop.Value
-		}
+		// Skip subvolumes without volume ID (not actual volumes)
+		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
 		if volumeID == "" {
 			continue
 		}
 
 		// Count and categorize this volume
-		processVolume(ds, sc, summary)
+		processSubvolume(sv, sc, summary)
 	}
 }
 
-// processVolume processes a single volume dataset.
-func processVolume(ds *tnsapi.DatasetWithProperties, sc *summaryContext, summary *Summary) {
+// processSubvolume processes a single subvolume.
+func processSubvolume(sv *tnsapi.Subvolume, sc *summaryContext, summary *Summary) {
 	summary.Volumes.Total++
 
 	// Get protocol
-	protocol := ""
-	if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-		protocol = prop.Value
-	}
+	protocol := sv.Properties[tnsapi.PropertyProtocol]
 
 	// Count by protocol
 	switch protocol {
@@ -234,32 +227,27 @@ func processVolume(ds *tnsapi.DatasetWithProperties, sc *summaryContext, summary
 	}
 
 	// Check if it's a clone
-	if prop, ok := ds.UserProperties[tnsapi.PropertyContentSourceType]; ok && prop.Value != "" {
+	if sv.Properties[tnsapi.PropertyContentSourceType] != "" {
 		summary.Volumes.Clones++
 	}
 
 	// Add capacity
-	if prop, ok := ds.UserProperties[tnsapi.PropertyCapacityBytes]; ok {
-		summary.Capacity.ProvisionedBytes += tnsapi.StringToInt64(prop.Value)
+	if capStr := sv.Properties[tnsapi.PropertyCapacityBytes]; capStr != "" {
+		summary.Capacity.ProvisionedBytes += tnsapi.StringToInt64(capStr)
 	}
 
 	// Add used space
-	if ds.Used != nil {
-		if val, ok := ds.Used["parsed"].(float64); ok {
-			summary.Capacity.UsedBytes += int64(val)
-		}
+	if sv.UsedBytes != nil {
+		summary.Capacity.UsedBytes += int64(*sv.UsedBytes)
 	}
 
 	// Check health
-	issue := checkVolumeHealthForSummary(ds, protocol, sc)
+	issue := checkVolumeHealthForSummary(sv, protocol, sc)
 	if issue == "" {
 		summary.Health.HealthyVolumes++
 	} else {
 		summary.Health.UnhealthyVolumes++
-		volumeID := ""
-		if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-			volumeID = prop.Value
-		}
+		volumeID := sv.Properties[tnsapi.PropertyCSIVolumeName]
 		summary.HealthIssues = append(summary.HealthIssues,
 			fmt.Sprintf("%s (%s): %s", volumeID, protocol, issue))
 	}
@@ -267,75 +255,46 @@ func processVolume(ds *tnsapi.DatasetWithProperties, sc *summaryContext, summary
 
 // checkVolumeHealthForSummary checks if a volume is healthy based on protocol.
 // Returns empty string if healthy, or a short issue description.
-func checkVolumeHealthForSummary(ds *tnsapi.DatasetWithProperties, protocol string, sc *summaryContext) string {
+func checkVolumeHealthForSummary(sv *tnsapi.Subvolume, protocol string, sc *summaryContext) string {
 	switch protocol {
 	case protocolNFS:
-		return checkNFSHealthForSummary(ds, sc.nfsShareMap)
+		return checkNFSHealthForSummary(sv, sc.nfsShareMap)
 	case protocolNVMeOF:
-		return checkNVMeOFHealthForSummary(ds, sc.nvmeSubsysMap)
+		return checkNVMeOFHealthForSummary(sv, sc.nvmeSubsysMap)
 	case protocolISCSI:
-		return checkISCSIHealthForSummary(ds, sc.iscsiTargetMap)
+		return checkISCSIHealthForSummary(sv, sc.iscsiTargetMap)
 	case protocolSMB:
-		return checkSMBHealthForSummary(ds, sc.smbShareMap)
+		return checkSMBHealthForSummary(sv, sc.smbShareMap)
 	default:
 		return "" // Unknown protocol - assume healthy
 	}
 }
 
-// countAttachedSnapshots counts ZFS snapshots on managed datasets.
-func countAttachedSnapshots(ctx context.Context, client tnsapi.ClientInterface, datasets []tnsapi.DatasetWithProperties, summary *Summary) {
-	for i := range datasets {
-		ds := &datasets[i]
+// countAttachedSnapshots counts snapshots on managed subvolumes using the Snapshots field.
+func countAttachedSnapshots(subvols []tnsapi.Subvolume, summary *Summary) {
+	for i := range subvols {
+		sv := &subvols[i]
 
 		// Skip detached snapshots
-		if prop, ok := ds.UserProperties[tnsapi.PropertyDetachedSnapshot]; ok && prop.Value == valueTrue {
+		if sv.Properties[tnsapi.PropertyDetachedSnapshot] == valueTrue {
 			continue
 		}
 		// Skip non-volumes
-		if _, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; !ok {
+		if sv.Properties[tnsapi.PropertyCSIVolumeName] == "" {
 			continue
 		}
 
-		// Count snapshots on this dataset
-		filter := []interface{}{
-			[]interface{}{"id", "^", ds.ID + "@"},
-		}
-		snapshots, err := client.QuerySnapshots(ctx, filter)
-		if err != nil {
-			continue
-		}
-
-		for j := range snapshots {
-			snap := &snapshots[j]
-			if isManagedSnapshot(snap) {
-				summary.Snapshots.Attached++
-			}
-		}
+		// Count snapshots from the Snapshots field
+		summary.Snapshots.Attached += len(sv.Snapshots)
 	}
-}
-
-// isManagedSnapshot checks if a snapshot is managed by tns-csi.
-func isManagedSnapshot(snap *tnsapi.Snapshot) bool {
-	prop, ok := snap.Properties[tnsapi.PropertyManagedBy]
-	if !ok {
-		return false
-	}
-	propMap, ok := prop.(map[string]interface{})
-	if !ok {
-		return false
-	}
-	val, ok := propMap["value"].(string)
-	return ok && val == tnsapi.ManagedByValue
 }
 
 // checkNFSHealthForSummary checks if NFS volume is healthy.
 // Returns empty string if healthy, or a short issue description.
-func checkNFSHealthForSummary(ds *tnsapi.DatasetWithProperties, nfsShareMap map[string]*tnsapi.NFSShare) string {
-	sharePath := ""
-	if prop, ok := ds.UserProperties[tnsapi.PropertyNFSSharePath]; ok {
-		sharePath = prop.Value
-	} else if ds.Mountpoint != "" {
-		sharePath = ds.Mountpoint
+func checkNFSHealthForSummary(sv *tnsapi.Subvolume, nfsShareMap map[string]*tnsapi.NFSShare) string {
+	sharePath := sv.Properties[tnsapi.PropertyNFSSharePath]
+	if sharePath == "" {
+		sharePath = sv.Path
 	}
 
 	if sharePath == "" {
@@ -356,13 +315,8 @@ func checkNFSHealthForSummary(ds *tnsapi.DatasetWithProperties, nfsShareMap map[
 
 // checkNVMeOFHealthForSummary checks if NVMe-oF volume is healthy.
 // Returns empty string if healthy, or a short issue description.
-// Note: we only check subsystem existence, not the "enabled" field — TrueNAS
-// NVMe-oF subsystems function regardless of the enabled flag.
-func checkNVMeOFHealthForSummary(ds *tnsapi.DatasetWithProperties, nvmeSubsysMap map[string]*tnsapi.NVMeOFSubsystem) string {
-	nqn := ""
-	if prop, ok := ds.UserProperties[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		nqn = prop.Value
-	}
+func checkNVMeOFHealthForSummary(sv *tnsapi.Subvolume, nvmeSubsysMap map[string]*tnsapi.NVMeOFSubsystem) string {
+	nqn := sv.Properties[tnsapi.PropertyNVMeSubsystemNQN]
 
 	if nqn == "" {
 		return "no NVMe-oF subsystem NQN configured"
@@ -378,34 +332,15 @@ func checkNVMeOFHealthForSummary(ds *tnsapi.DatasetWithProperties, nvmeSubsysMap
 
 // checkISCSIHealthForSummary checks if iSCSI volume is healthy.
 // Returns empty string if healthy, or a short issue description.
-func checkISCSIHealthForSummary(ds *tnsapi.DatasetWithProperties, iscsiTargetMap map[string]*tnsapi.ISCSITarget) string {
-	iqn := ""
-	if prop, ok := ds.UserProperties[tnsapi.PropertyISCSIIQN]; ok {
-		iqn = prop.Value
-	}
+func checkISCSIHealthForSummary(sv *tnsapi.Subvolume, iscsiTargetMap map[string]*tnsapi.ISCSITarget) string {
+	iqn := sv.Properties[tnsapi.PropertyISCSIIQN]
 
 	if iqn == "" {
 		return "no iSCSI IQN configured"
 	}
 
-	// Look up by IQN — targets are keyed by name, but we stored by name
-	// Try to find a target whose name matches the dataset-based naming convention
-	targetName := ""
-	if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-		targetName = prop.Value
-	}
-
-	if targetName != "" {
-		if _, exists := iscsiTargetMap[targetName]; exists {
-			return ""
-		}
-	}
-
-	// Fallback: search all targets for matching name prefix
-	for name := range iscsiTargetMap {
-		if name == targetName {
-			return ""
-		}
+	if _, exists := iscsiTargetMap[iqn]; exists {
+		return ""
 	}
 
 	return "iSCSI target not found"
@@ -413,11 +348,8 @@ func checkISCSIHealthForSummary(ds *tnsapi.DatasetWithProperties, iscsiTargetMap
 
 // checkSMBHealthForSummary checks if SMB volume is healthy.
 // Returns empty string if healthy, or a short issue description.
-func checkSMBHealthForSummary(ds *tnsapi.DatasetWithProperties, smbShareMap map[string]*tnsapi.SMBShare) string {
-	sharePath := ""
-	if ds.Mountpoint != "" {
-		sharePath = ds.Mountpoint
-	}
+func checkSMBHealthForSummary(sv *tnsapi.Subvolume, smbShareMap map[string]*tnsapi.SMBShare) string {
+	sharePath := sv.Path
 
 	if sharePath == "" {
 		return "no SMB share path configured"

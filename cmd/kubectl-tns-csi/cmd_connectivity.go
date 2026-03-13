@@ -14,8 +14,8 @@ func newConnectivityCmd(url, apiKey, secretRef *string, skipTLSVerify *bool, clu
 
 	cmd := &cobra.Command{
 		Use:   "connectivity",
-		Short: "Test connectivity to TrueNAS",
-		Long: `Test WebSocket connectivity to TrueNAS and verify API access.
+		Short: "Test connectivity to NASty",
+		Long: `Test WebSocket connectivity to NASty and verify API access.
 
 This command:
   1. Establishes a WebSocket connection
@@ -24,7 +24,7 @@ This command:
 
 Examples:
   # Test connectivity using flags
-  kubectl tns-csi connectivity --url wss://truenas:443/api/current --api-key <key>
+  kubectl tns-csi connectivity --url wss://nasty:443/api/current --api-key <key>
 
   # Test using credentials from secret
   kubectl tns-csi connectivity --secret kube-system/tns-csi-config
@@ -42,7 +42,7 @@ Examples:
 }
 
 func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTLSVerify *bool, clusterID *string, timeout time.Duration) error {
-	colorHeader.Println("Testing TrueNAS connectivity...") //nolint:errcheck,gosec
+	colorHeader.Println("Testing NASty connectivity...") //nolint:errcheck,gosec
 	fmt.Println()
 
 	// Step 1: Check configuration
@@ -63,10 +63,10 @@ func runConnectivity(ctx context.Context, url, apiKey, secretRef *string, skipTL
 	defer cancel()
 
 	// Step 2: Test connection
-	printStep(colorMuted.Sprint("..."), "Connecting to TrueNAS...")
+	printStep(colorMuted.Sprint("..."), "Connecting to NASty...")
 	startTime := time.Now()
 
-	client, err := connectToTrueNAS(ctx, cfg)
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		printStepf(colorError, iconError, "Connection: FAILED")
 		fmt.Printf("  Error: %v\n", err)

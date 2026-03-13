@@ -21,41 +21,37 @@ func TestFindManagedVolumes(t *testing.T) {
 		{
 			name: "empty result",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{}, nil
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{}, nil
 				}
 			},
 			wantCount: 0,
 			wantErr:   false,
 		},
 		{
-			name: "returns only datasets with csi volume name",
+			name: "returns only subvolumes with csi volume name",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{
 						{
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi/pvc-111",
-								Name: "tank/csi/pvc-111",
-								Type: "FILESYSTEM",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:      {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName:  {Value: "pvc-111"},
-								tnsapi.PropertyProtocol:       {Value: "nfs"},
-								tnsapi.PropertyCapacityBytes:  {Value: "1073741824"},
-								tnsapi.PropertyDeleteStrategy: {Value: "delete"},
+							Name:          "csi/pvc-111",
+							Pool:          "tank",
+							SubvolumeType: "filesystem",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:      tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName:  "pvc-111",
+								tnsapi.PropertyProtocol:       "nfs",
+								tnsapi.PropertyCapacityBytes:  "1073741824",
+								tnsapi.PropertyDeleteStrategy: "delete",
 							},
 						},
 						{
-							// Unmanaged / parent dataset (no CSI volume name)
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi",
-								Name: "tank/csi",
-								Type: "FILESYSTEM",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy: {Value: tnsapi.ManagedByValue},
+							// Unmanaged / parent subvolume (no CSI volume name)
+							Name:          "csi",
+							Pool:          "tank",
+							SubvolumeType: "filesystem",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy: tnsapi.ManagedByValue,
 							},
 						},
 					}, nil
@@ -76,31 +72,27 @@ func TestFindManagedVolumes(t *testing.T) {
 		{
 			name: "skip detached snapshots",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{
 						{
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi/pvc-222",
-								Name: "tank/csi/pvc-222",
-								Type: "FILESYSTEM",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:        {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName:    {Value: "pvc-222"},
-								tnsapi.PropertyProtocol:         {Value: "nfs"},
-								tnsapi.PropertyDetachedSnapshot: {Value: "true"},
+							Name:          "csi/pvc-222",
+							Pool:          "tank",
+							SubvolumeType: "filesystem",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:        tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName:    "pvc-222",
+								tnsapi.PropertyProtocol:         "nfs",
+								tnsapi.PropertyDetachedSnapshot: "true",
 							},
 						},
 						{
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi/pvc-333",
-								Name: "tank/csi/pvc-333",
-								Type: "FILESYSTEM",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:     {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName: {Value: "pvc-333"},
-								tnsapi.PropertyProtocol:      {Value: "nfs"},
+							Name:          "csi/pvc-333",
+							Pool:          "tank",
+							SubvolumeType: "filesystem",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:     tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName: "pvc-333",
+								tnsapi.PropertyProtocol:      "nfs",
 							},
 						},
 					}, nil
@@ -116,30 +108,26 @@ func TestFindManagedVolumes(t *testing.T) {
 			},
 		},
 		{
-			name: "skip datasets without volume ID",
+			name: "skip subvolumes without volume ID",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{
 						{
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi/parent",
-								Name: "tank/csi/parent",
-								Type: "FILESYSTEM",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy: {Value: tnsapi.ManagedByValue},
+							Name:          "csi/parent",
+							Pool:          "tank",
+							SubvolumeType: "filesystem",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy: tnsapi.ManagedByValue,
 								// No PropertyCSIVolumeName
 							},
 						},
 						{
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi/pvc-444",
-								Name: "tank/csi/pvc-444",
-								Type: "FILESYSTEM",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:     {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName: {Value: ""},
+							Name:          "csi/pvc-444",
+							Pool:          "tank",
+							SubvolumeType: "filesystem",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:     tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName: "",
 							},
 						},
 					}, nil
@@ -151,23 +139,21 @@ func TestFindManagedVolumes(t *testing.T) {
 		{
 			name: "property extraction",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{
 						{
-							Dataset: tnsapi.Dataset{
-								ID:   "tank/csi/pvc-555",
-								Name: "tank/csi/pvc-555",
-								Type: "VOLUME",
-							},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:         {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName:     {Value: "pvc-555"},
-								tnsapi.PropertyProtocol:          {Value: "nvmeof"},
-								tnsapi.PropertyCapacityBytes:     {Value: "10737418240"},
-								tnsapi.PropertyDeleteStrategy:    {Value: "retain"},
-								tnsapi.PropertyAdoptable:         {Value: "true"},
-								tnsapi.PropertyContentSourceType: {Value: "snapshot"},
-								tnsapi.PropertyContentSourceID:   {Value: "snap-abc"},
+							Name:          "zvols/pvc-555",
+							Pool:          "tank",
+							SubvolumeType: "block",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:         tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName:     "pvc-555",
+								tnsapi.PropertyProtocol:          "nvmeof",
+								tnsapi.PropertyCapacityBytes:     "10737418240",
+								tnsapi.PropertyDeleteStrategy:    "retain",
+								tnsapi.PropertyAdoptable:         "true",
+								tnsapi.PropertyContentSourceType: "snapshot",
+								tnsapi.PropertyContentSourceID:   "snap-abc",
 							},
 						},
 					}, nil
@@ -178,8 +164,8 @@ func TestFindManagedVolumes(t *testing.T) {
 			checkVols: func(t *testing.T, vols []VolumeInfo) {
 				t.Helper()
 				v := vols[0]
-				if v.Dataset != "tank/csi/pvc-555" {
-					t.Errorf("Dataset = %q, want %q", v.Dataset, "tank/csi/pvc-555")
+				if v.Dataset != "tank/zvols/pvc-555" {
+					t.Errorf("Dataset = %q, want %q", v.Dataset, "tank/zvols/pvc-555")
 				}
 				if v.VolumeID != "pvc-555" {
 					t.Errorf("VolumeID = %q, want %q", v.VolumeID, "pvc-555")
@@ -205,15 +191,15 @@ func TestFindManagedVolumes(t *testing.T) {
 				if v.ContentSourceID != "snap-abc" {
 					t.Errorf("ContentSourceID = %q, want %q", v.ContentSourceID, "snap-abc")
 				}
-				if v.Type != "VOLUME" {
-					t.Errorf("Type = %q, want %q", v.Type, "VOLUME")
+				if v.Type != "block" {
+					t.Errorf("Type = %q, want %q", v.Type, "block")
 				}
 			},
 		},
 		{
 			name: "API error propagates",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
 					return nil, errNotImplemented
 				}
 			},

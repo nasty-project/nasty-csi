@@ -109,17 +109,17 @@ func TestExtractConfigFromSecretData(t *testing.T) {
 		{
 			name: "complete data with standard keys",
 			data: map[string][]byte{
-				"url":     []byte("wss://truenas:443/api/current"),
+				"url":     []byte("wss://nasty:443/api/current"),
 				"api-key": []byte("my-secret-key"),
 			},
 			wantNil:    false,
-			wantURL:    "wss://truenas:443/api/current",
+			wantURL:    "wss://nasty:443/api/current",
 			wantAPIKey: "my-secret-key",
 		},
 		{
 			name: "alternative key names",
 			data: map[string][]byte{
-				"truenas-url": []byte("wss://alt-host:443/api/current"),
+				"nasty-url": []byte("wss://alt-host:443/api/current"),
 				"apiKey":      []byte("alt-key"),
 			},
 			wantNil:    false,
@@ -134,10 +134,10 @@ func TestExtractConfigFromSecretData(t *testing.T) {
 		{
 			name: "partial data with only URL",
 			data: map[string][]byte{
-				"url": []byte("wss://truenas:443/api/current"),
+				"url": []byte("wss://nasty:443/api/current"),
 			},
 			wantNil:    false,
-			wantURL:    "wss://truenas:443/api/current",
+			wantURL:    "wss://nasty:443/api/current",
 			wantAPIKey: "",
 		},
 		{

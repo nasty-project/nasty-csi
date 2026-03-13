@@ -36,12 +36,11 @@ type VolumeStatus struct {
 	CapacityHuman   string   `json:"capacityHuman"             yaml:"capacityHuman"`
 	NFSSharePath    string   `json:"nfsSharePath,omitempty"    yaml:"nfsSharePath,omitempty"`
 	VolumeID        string   `json:"volumeId"                  yaml:"volumeId"`
+	NFSShareID      string   `json:"nfsShareId,omitempty"      yaml:"nfsShareId,omitempty"`
+	NVMeSubsystemID string   `json:"nvmeSubsystemId,omitempty" yaml:"nvmeSubsystemId,omitempty"`
 	Issues          []string `json:"issues,omitempty"          yaml:"issues,omitempty"`
 	CapacityBytes   int64    `json:"capacityBytes"             yaml:"capacityBytes"`
 	UsedBytes       int64    `json:"usedBytes,omitempty"       yaml:"usedBytes,omitempty"`
-	NFSShareID      int      `json:"nfsShareId,omitempty"      yaml:"nfsShareId,omitempty"`
-	NVMeSubsystemID int      `json:"nvmeSubsystemId,omitempty" yaml:"nvmeSubsystemId,omitempty"`
-	NVMeNamespaceID int      `json:"nvmeNamespaceId,omitempty" yaml:"nvmeNamespaceId,omitempty"`
 	AvailableBytes  int64    `json:"availableBytes,omitempty"  yaml:"availableBytes,omitempty"`
 	Healthy         bool     `json:"healthy"                   yaml:"healthy"`
 	NFSEnabled      bool     `json:"nfsEnabled,omitempty"      yaml:"nfsEnabled,omitempty"`
@@ -50,7 +49,7 @@ type VolumeStatus struct {
 func newStatusCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status <volume-id>",
-		Short: "Show detailed status of a volume from TrueNAS",
+		Short: "Show detailed status of a volume from NASty",
 		Long: `Show detailed status of a tns-csi managed volume, including:
   - Dataset information (capacity, used space)
   - NFS share status (enabled, path)
@@ -79,24 +78,24 @@ func runStatus(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
 	// Find the volume by CSI volume name
-	dataset, err := client.FindDatasetByCSIVolumeName(ctx, "", volumeID)
+	subvol, err := client.FindSubvolumeByCSIVolumeName(ctx, "", volumeID)
 	if err != nil {
 		return fmt.Errorf("failed to find volume: %w", err)
 	}
-	if dataset == nil {
+	if subvol == nil {
 		return fmt.Errorf("%w: %s", errVolumeNotFound, volumeID)
 	}
 
 	// Build status
-	status, err := buildVolumeStatus(ctx, client, dataset, volumeID)
+	status, err := buildVolumeStatus(ctx, client, subvol, volumeID)
 	if err != nil {
 		return fmt.Errorf("failed to get volume status: %w", err)
 	}
@@ -106,40 +105,43 @@ func runStatus(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 }
 
 //nolint:unparam // error kept for API consistency
-func buildVolumeStatus(ctx context.Context, client tnsapi.ClientInterface, ds *tnsapi.DatasetWithProperties, volumeID string) (*VolumeStatus, error) {
-	props := ds.UserProperties
+func buildVolumeStatus(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, volumeID string) (*VolumeStatus, error) {
+	props := sv.Properties
 
 	status := &VolumeStatus{
 		VolumeID: volumeID,
-		Dataset:  ds.ID,
-		Type:     ds.Type,
+		Dataset:  sv.Pool + "/" + sv.Name,
+		Type:     sv.SubvolumeType,
 		Healthy:  true,
 	}
 
 	// Extract protocol
-	if prop, ok := props[tnsapi.PropertyProtocol]; ok {
-		status.Protocol = prop.Value
+	if props != nil {
+		status.Protocol = props[tnsapi.PropertyProtocol]
+
+		// Extract capacity from properties
+		if capStr := props[tnsapi.PropertyCapacityBytes]; capStr != "" {
+			status.CapacityBytes = tnsapi.StringToInt64(capStr)
+			status.CapacityHuman = dashboard.FormatBytes(status.CapacityBytes)
+		}
 	}
 
-	// Extract capacity from properties
-	if prop, ok := props[tnsapi.PropertyCapacityBytes]; ok {
-		status.CapacityBytes = tnsapi.StringToInt64(prop.Value)
-		status.CapacityHuman = dashboard.FormatBytes(status.CapacityBytes)
+	// Used bytes from subvolume
+	if sv.UsedBytes != nil {
+		status.UsedBytes = int64(*sv.UsedBytes)
+		status.UsedHuman = dashboard.FormatBytes(status.UsedBytes)
 	}
-
-	// Try to get used/available from dataset info
-	// This requires additional API calls or parsing dataset response
 
 	// Check protocol-specific resources
 	switch status.Protocol {
 	case tnsapi.ProtocolNFS:
-		if err := checkNFSStatus(ctx, client, ds, props, status); err != nil {
+		if err := checkNFSStatus(ctx, client, sv, props, status); err != nil {
 			status.Healthy = false
 			status.Issues = append(status.Issues, err.Error())
 		}
 
 	case tnsapi.ProtocolNVMeOF:
-		if err := checkNVMeOFStatus(ctx, client, ds, props, status); err != nil {
+		if err := checkNVMeOFStatus(ctx, client, sv, props, status); err != nil {
 			status.Healthy = false
 			status.Issues = append(status.Issues, err.Error())
 		}
@@ -148,21 +150,19 @@ func buildVolumeStatus(ctx context.Context, client tnsapi.ClientInterface, ds *t
 	return status, nil
 }
 
-func checkNFSStatus(ctx context.Context, client tnsapi.ClientInterface, _ *tnsapi.DatasetWithProperties, props map[string]tnsapi.UserProperty, status *VolumeStatus) error {
+func checkNFSStatus(ctx context.Context, client tnsapi.ClientInterface, _ *tnsapi.Subvolume, props map[string]string, status *VolumeStatus) error {
 	// Get NFS share ID from properties
-	if prop, ok := props[tnsapi.PropertyNFSShareID]; ok {
-		status.NFSShareID = tnsapi.StringToInt(prop.Value)
-	}
-	if prop, ok := props[tnsapi.PropertyNFSSharePath]; ok {
-		status.NFSSharePath = prop.Value
+	if props != nil {
+		status.NFSShareID = props[tnsapi.PropertyNFSShareID]
+		status.NFSSharePath = props[tnsapi.PropertyNFSSharePath]
 	}
 
-	if status.NFSShareID == 0 {
+	if status.NFSShareID == "" {
 		return errNFSShareIDNotFound
 	}
 
 	// Query NFS shares to verify share exists and is enabled
-	shares, err := client.QueryAllNFSShares(ctx, "")
+	shares, err := client.ListNFSShares(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to query NFS shares: %w", err)
 	}
@@ -174,30 +174,37 @@ func checkNFSStatus(ctx context.Context, client tnsapi.ClientInterface, _ *tnsap
 				status.NFSSharePath = share.Path
 			}
 			if !share.Enabled {
-				return fmt.Errorf("%w: %d", errNFSShareDisabled, share.ID)
+				return fmt.Errorf("%w: %s", errNFSShareDisabled, share.ID)
 			}
 			return nil
 		}
 	}
 
-	return fmt.Errorf("%w: %d", errNFSShareNotFound, status.NFSShareID)
+	return fmt.Errorf("%w: %s", errNFSShareNotFound, status.NFSShareID)
 }
 
-func checkNVMeOFStatus(ctx context.Context, client tnsapi.ClientInterface, _ *tnsapi.DatasetWithProperties, props map[string]tnsapi.UserProperty, status *VolumeStatus) error {
+func checkNVMeOFStatus(ctx context.Context, client tnsapi.ClientInterface, _ *tnsapi.Subvolume, props map[string]string, status *VolumeStatus) error {
 	// Get NVMe-oF IDs from properties
-	if prop, ok := props[tnsapi.PropertyNVMeSubsystemID]; ok {
-		status.NVMeSubsystemID = tnsapi.StringToInt(prop.Value)
-	}
-	if prop, ok := props[tnsapi.PropertyNVMeNamespaceID]; ok {
-		status.NVMeNamespaceID = tnsapi.StringToInt(prop.Value)
-	}
-	if prop, ok := props[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		status.NVMeNQN = prop.Value
+	if props != nil {
+		status.NVMeSubsystemID = props[tnsapi.PropertyNVMeSubsystemID]
+		status.NVMeNQN = props[tnsapi.PropertyNVMeSubsystemNQN]
 	}
 
-	// Verify subsystem exists
-	if status.NVMeSubsystemID > 0 {
-		subsystems, err := client.ListAllNVMeOFSubsystems(ctx)
+	// Verify subsystem exists by NQN
+	if status.NVMeNQN != "" {
+		subsystem, err := client.GetNVMeOFSubsystemByNQN(ctx, status.NVMeNQN)
+		if err != nil {
+			return fmt.Errorf("failed to query NVMe-oF subsystem: %w", err)
+		}
+		if subsystem == nil {
+			return fmt.Errorf("%w: %s", errNVMeSubsystemNotFound, status.NVMeNQN)
+		}
+		if status.NVMeSubsystemID == "" {
+			status.NVMeSubsystemID = subsystem.ID
+		}
+	} else if status.NVMeSubsystemID != "" {
+		// Fallback: scan all subsystems for matching ID
+		subsystems, err := client.ListNVMeOFSubsystems(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to query NVMe-oF subsystems: %w", err)
 		}
@@ -213,28 +220,13 @@ func checkNVMeOFStatus(ctx context.Context, client tnsapi.ClientInterface, _ *tn
 			}
 		}
 		if !found {
-			return fmt.Errorf("%w: %d", errNVMeSubsystemNotFound, status.NVMeSubsystemID)
+			return fmt.Errorf("%w: %s", errNVMeSubsystemNotFound, status.NVMeSubsystemID)
 		}
 	}
 
-	// Verify namespace exists
-	if status.NVMeNamespaceID > 0 {
-		namespaces, err := client.QueryAllNVMeOFNamespaces(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to query NVMe-oF namespaces: %w", err)
-		}
-
-		found := false
-		for _, ns := range namespaces {
-			if ns.ID == status.NVMeNamespaceID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("%w: %d", errNVMeNamespaceNotFound, status.NVMeNamespaceID)
-		}
-	}
+	// errNVMeNamespaceNotFound is kept for error definitions but namespaces are now
+	// embedded in the subsystem — no separate namespace check needed.
+	_ = errNVMeNamespaceNotFound
 
 	return nil
 }
@@ -260,15 +252,14 @@ func outputStatus(status *VolumeStatus, format string) error {
 
 		if status.Protocol == tnsapi.ProtocolNFS {
 			colorHeader.Printf("\nNFS Status:\n") //nolint:errcheck,gosec
-			fmt.Printf("  Share ID:   %d\n", status.NFSShareID)
+			fmt.Printf("  Share ID:   %s\n", status.NFSShareID)
 			fmt.Printf("  Share Path: %s\n", status.NFSSharePath)
 			fmt.Printf("  Enabled:    %t\n", status.NFSEnabled)
 		}
 
 		if status.Protocol == tnsapi.ProtocolNVMeOF {
 			colorHeader.Printf("\nNVMe-oF Status:\n") //nolint:errcheck,gosec
-			fmt.Printf("  Subsystem ID:  %d\n", status.NVMeSubsystemID)
-			fmt.Printf("  Namespace ID:  %d\n", status.NVMeNamespaceID)
+			fmt.Printf("  Subsystem ID:  %s\n", status.NVMeSubsystemID)
 			fmt.Printf("  NQN:           %s\n", status.NVMeNQN)
 		}
 

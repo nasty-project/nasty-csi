@@ -1,4 +1,4 @@
-// Package main implements the TrueNAS CSI driver entry point.
+// Package main implements the NASty CSI driver entry point.
 package main
 
 import (
@@ -33,7 +33,7 @@ var (
 	maxConcurrentNVMeConnects = flag.Int("max-concurrent-nvme-connects", 5, "Maximum number of concurrent NVMe-oF connect operations per node (limits kernel NVMe subsystem lock contention)")
 	dashboardAddr             = flag.String("dashboard-addr", "", "Address for in-cluster web dashboard (e.g., ':2137', empty = disabled)")
 	dashboardPool             = flag.String("dashboard-pool", "", "ZFS pool for unmanaged volume discovery in dashboard")
-	clusterID                 = flag.String("cluster-id", "", "Unique identifier for this cluster (for multi-cluster TrueNAS sharing)")
+	clusterID                 = flag.String("cluster-id", "", "Unique identifier for this cluster (for multi-cluster NASty sharing)")
 )
 
 func main() {

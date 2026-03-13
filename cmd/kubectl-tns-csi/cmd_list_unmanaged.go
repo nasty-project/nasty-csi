@@ -23,7 +23,7 @@ func newListUnmanagedCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVe
 	cmd := &cobra.Command{
 		Use:   "list-unmanaged",
 		Short: "List volumes not managed by tns-csi",
-		Long: `List all datasets and zvols on TrueNAS that are not managed by tns-csi.
+		Long: `List all datasets and zvols on NASty that are not managed by tns-csi.
 
 This command helps identify volumes that could be imported into tns-csi management,
 such as volumes created by democratic-csi, manual creation, or other tools.
@@ -73,8 +73,8 @@ func runListUnmanaged(ctx context.Context, url, apiKey, secretRef, outputFormat 
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}

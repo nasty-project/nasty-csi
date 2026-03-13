@@ -15,8 +15,8 @@ import (
 
 // Static errors for connection.
 var (
-	errURLNotConfigured    = errors.New("TrueNAS URL not configured (use --url, --secret, or TRUENAS_URL env var)")
-	errAPIKeyNotConfigured = errors.New("TrueNAS API key not configured (use --api-key, --secret, or TRUENAS_API_KEY env var)")
+	errURLNotConfigured    = errors.New("NASty URL not configured (use --url, --secret, or NASTY_URL env var)")
+	errAPIKeyNotConfigured = errors.New("NASty API key not configured (use --api-key, --secret, or NASTY_API_KEY env var)")
 	errInvalidSecretRef    = errors.New("invalid secret reference format, expected 'namespace/name'")
 )
 
@@ -26,14 +26,14 @@ const (
 	driverLabelSelector    = "app.kubernetes.io/name=nasty-csi-driver"
 )
 
-// connectionConfig holds TrueNAS connection parameters.
+// connectionConfig holds NASty connection parameters.
 type connectionConfig struct {
 	URL           string
 	APIKey        string
 	SkipTLSVerify bool
 }
 
-// getConnectionConfig resolves TrueNAS connection config from various sources.
+// getConnectionConfig resolves NASty connection config from various sources.
 // Priority: flags > explicit secret > auto-discovered secret > environment.
 func getConnectionConfig(ctx context.Context, url, apiKey, secretRef *string, skipTLSVerify *bool) (*connectionConfig, error) {
 	cfg := &connectionConfig{
@@ -85,10 +85,10 @@ func getConnectionConfig(ctx context.Context, url, apiKey, secretRef *string, sk
 
 	// Try environment variables as fallback
 	if cfg.URL == "" {
-		cfg.URL = os.Getenv("TRUENAS_URL")
+		cfg.URL = os.Getenv("NASTY_URL")
 	}
 	if cfg.APIKey == "" {
-		cfg.APIKey = os.Getenv("TRUENAS_API_KEY")
+		cfg.APIKey = os.Getenv("NASTY_API_KEY")
 	}
 
 	// Validate we have required config
@@ -102,7 +102,7 @@ func getConnectionConfig(ctx context.Context, url, apiKey, secretRef *string, sk
 	return cfg, nil
 }
 
-// getConfigFromSecret reads TrueNAS config from a Kubernetes secret.
+// getConfigFromSecret reads NASty config from a Kubernetes secret.
 // secretRef format: "namespace/name".
 func getConfigFromSecret(ctx context.Context, secretRef string) (*connectionConfig, error) {
 	parts := strings.SplitN(secretRef, "/", 2)
@@ -135,7 +135,7 @@ func getConfigFromSecret(ctx context.Context, secretRef string) (*connectionConf
 	cfg := &connectionConfig{}
 
 	// Try common key names for URL
-	for _, key := range []string{"url", "truenas-url", "TRUENAS_URL"} {
+	for _, key := range []string{"url", "nasty-url", "NASTY_URL"} {
 		if val, ok := secret.Data[key]; ok {
 			cfg.URL = string(val)
 			break
@@ -143,7 +143,7 @@ func getConfigFromSecret(ctx context.Context, secretRef string) (*connectionConf
 	}
 
 	// Try common key names for API key
-	for _, key := range []string{"api-key", "apiKey", "truenas-api-key", "TRUENAS_API_KEY"} {
+	for _, key := range []string{"api-key", "apiKey", "nasty-api-key", "NASTY_API_KEY"} {
 		if val, ok := secret.Data[key]; ok {
 			cfg.APIKey = string(val)
 			break
@@ -153,21 +153,21 @@ func getConfigFromSecret(ctx context.Context, secretRef string) (*connectionConf
 	return cfg, nil
 }
 
-// TrueNASClient wraps the tnsapi.Client to provide ClientInterface with Close.
-type TrueNASClient struct {
+// NAStyClient wraps the tnsapi.Client to provide ClientInterface with Close.
+type NAStyClient struct {
 	*tnsapi.Client
 }
 
-// connectToTrueNAS creates a TrueNAS API client with the given config.
+// connectToNASty creates a NASty API client with the given config.
 // The client auto-connects on first API call.
-func connectToTrueNAS(_ context.Context, cfg *connectionConfig) (*TrueNASClient, error) {
+func connectToNASty(_ context.Context, cfg *connectionConfig) (*NAStyClient, error) {
 	//nolint:contextcheck // NewClient doesn't require context, connection is lazy
 	client, err := tnsapi.NewClient(cfg.URL, cfg.APIKey, cfg.SkipTLSVerify)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create TrueNAS client: %w", err)
+		return nil, fmt.Errorf("failed to create NASty client: %w", err)
 	}
 
-	return &TrueNASClient{Client: client}, nil
+	return &NAStyClient{Client: client}, nil
 }
 
 // autoDiscoverDriverSecret attempts to find the tns-csi driver secret automatically.
@@ -243,7 +243,7 @@ func tryCommonSecretNames(ctx context.Context, clientset *kubernetes.Clientset, 
 	commonNames := []string{
 		"nasty-csi-driver-secret",
 		"nasty-csi-secret",
-		"truenas-csi-secret",
+		"nasty-csi-secret",
 	}
 
 	for _, ns := range namespaces {
@@ -310,7 +310,7 @@ func extractConfigFromSecretData(data map[string][]byte) *connectionConfig {
 	cfg := &connectionConfig{}
 
 	// Try common key names for URL
-	for _, key := range []string{"url", "truenas-url", "TRUENAS_URL"} {
+	for _, key := range []string{"url", "nasty-url", "NASTY_URL"} {
 		if val, ok := data[key]; ok && len(val) > 0 {
 			cfg.URL = string(val)
 			break
@@ -318,7 +318,7 @@ func extractConfigFromSecretData(data map[string][]byte) *connectionConfig {
 	}
 
 	// Try common key names for API key
-	for _, key := range []string{"api-key", "apiKey", "truenas-api-key", "TRUENAS_API_KEY"} {
+	for _, key := range []string{"api-key", "apiKey", "nasty-api-key", "NASTY_API_KEY"} {
 		if val, ok := data[key]; ok && len(val) > 0 {
 			cfg.APIKey = string(val)
 			break

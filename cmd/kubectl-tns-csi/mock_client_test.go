@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
 )
@@ -17,92 +16,47 @@ type mockClient struct {
 	// Pool operations
 	QueryPoolFunc func(ctx context.Context, poolName string) (*tnsapi.Pool, error)
 
-	// Dataset operations
-	CreateDatasetFunc    func(ctx context.Context, params tnsapi.DatasetCreateParams) (*tnsapi.Dataset, error)
-	DeleteDatasetFunc    func(ctx context.Context, datasetID string) error
-	DatasetFunc          func(ctx context.Context, datasetID string) (*tnsapi.Dataset, error)
-	UpdateDatasetFunc    func(ctx context.Context, datasetID string, params tnsapi.DatasetUpdateParams) (*tnsapi.Dataset, error)
-	QueryAllDatasetsFunc func(ctx context.Context, prefix string) ([]tnsapi.Dataset, error)
-
-	// ZFS User Property operations
-	SetSnapshotPropertiesFunc   func(ctx context.Context, snapshotID string, updateProperties map[string]string, removeProperties []string) error
-	SetDatasetPropertiesFunc    func(ctx context.Context, datasetID string, properties map[string]string) error
-	GetDatasetPropertiesFunc    func(ctx context.Context, datasetID string, propertyNames []string) (map[string]string, error)
-	GetAllDatasetPropertiesFunc func(ctx context.Context, datasetID string) (map[string]string, error)
-	InheritDatasetPropertyFunc  func(ctx context.Context, datasetID, propertyName string) error
-	ClearDatasetPropertiesFunc  func(ctx context.Context, datasetID string, propertyNames []string) error
-
-	// Dataset lookup by ZFS user properties
-	GetDatasetWithPropertiesFunc   func(ctx context.Context, datasetID string) (*tnsapi.DatasetWithProperties, error)
-	FindDatasetsByPropertyFunc     func(ctx context.Context, prefix, propertyName, propertyValue string) ([]tnsapi.DatasetWithProperties, error)
-	FindManagedDatasetsFunc        func(ctx context.Context, prefix string) ([]tnsapi.DatasetWithProperties, error)
-	FindDatasetByCSIVolumeNameFunc func(ctx context.Context, prefix, csiVolumeName string) (*tnsapi.DatasetWithProperties, error)
-
-	// NFS share operations
-	CreateNFSShareFunc    func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error)
-	DeleteNFSShareFunc    func(ctx context.Context, shareID int) error
-	QueryNFSShareFunc     func(ctx context.Context, path string) ([]tnsapi.NFSShare, error)
-	QueryNFSShareByIDFunc func(ctx context.Context, shareID int) (*tnsapi.NFSShare, error)
-	QueryAllNFSSharesFunc func(ctx context.Context, pathPrefix string) ([]tnsapi.NFSShare, error)
-
-	// ZVOL operations
-	CreateZvolFunc func(ctx context.Context, params tnsapi.ZvolCreateParams) (*tnsapi.Dataset, error)
-
-	// NVMe-oF operations
-	CreateNVMeOFSubsystemFunc   func(ctx context.Context, params tnsapi.NVMeOFSubsystemCreateParams) (*tnsapi.NVMeOFSubsystem, error)
-	DeleteNVMeOFSubsystemFunc   func(ctx context.Context, subsystemID int) error
-	NVMeOFSubsystemByNQNFunc    func(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error)
-	QueryNVMeOFSubsystemFunc    func(ctx context.Context, nqn string) ([]tnsapi.NVMeOFSubsystem, error)
-	ListAllNVMeOFSubsystemsFunc func(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error)
-
-	CreateNVMeOFNamespaceFunc    func(ctx context.Context, params tnsapi.NVMeOFNamespaceCreateParams) (*tnsapi.NVMeOFNamespace, error)
-	DeleteNVMeOFNamespaceFunc    func(ctx context.Context, namespaceID int) error
-	QueryNVMeOFNamespaceByIDFunc func(ctx context.Context, namespaceID int) (*tnsapi.NVMeOFNamespace, error)
-	QueryAllNVMeOFNamespacesFunc func(ctx context.Context) ([]tnsapi.NVMeOFNamespace, error)
-
-	AddSubsystemToPortFunc         func(ctx context.Context, subsystemID, portID int) error
-	RemoveSubsystemFromPortFunc    func(ctx context.Context, portSubsysID int) error
-	QuerySubsystemPortBindingsFunc func(ctx context.Context, subsystemID int) ([]tnsapi.NVMeOFPortSubsystem, error)
-	QueryNVMeOFPortsFunc           func(ctx context.Context) ([]tnsapi.NVMeOFPort, error)
-
-	// iSCSI operations
-	GetISCSIGlobalConfigFunc func(ctx context.Context) (*tnsapi.ISCSIGlobalConfig, error)
-	QueryISCSIPortalsFunc    func(ctx context.Context) ([]tnsapi.ISCSIPortal, error)
-	QueryISCSIInitiatorsFunc func(ctx context.Context) ([]tnsapi.ISCSIInitiator, error)
-
-	CreateISCSITargetFunc func(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error)
-	DeleteISCSITargetFunc func(ctx context.Context, targetID int, force bool) error
-	QueryISCSITargetsFunc func(ctx context.Context, filters []interface{}) ([]tnsapi.ISCSITarget, error)
-	ISCSITargetByNameFunc func(ctx context.Context, name string) (*tnsapi.ISCSITarget, error)
-
-	CreateISCSIExtentFunc func(ctx context.Context, params tnsapi.ISCSIExtentCreateParams) (*tnsapi.ISCSIExtent, error)
-	DeleteISCSIExtentFunc func(ctx context.Context, extentID int, removeFile, force bool) error
-	QueryISCSIExtentsFunc func(ctx context.Context, filters []interface{}) ([]tnsapi.ISCSIExtent, error)
-	ISCSIExtentByNameFunc func(ctx context.Context, name string) (*tnsapi.ISCSIExtent, error)
-
-	CreateISCSITargetExtentFunc   func(ctx context.Context, params tnsapi.ISCSITargetExtentCreateParams) (*tnsapi.ISCSITargetExtent, error)
-	DeleteISCSITargetExtentFunc   func(ctx context.Context, targetExtentID int, force bool) error
-	QueryISCSITargetExtentsFunc   func(ctx context.Context, filters []interface{}) ([]tnsapi.ISCSITargetExtent, error)
-	ISCSITargetExtentByTargetFunc func(ctx context.Context, targetID int) ([]tnsapi.ISCSITargetExtent, error)
-
-	// iSCSI service management
-	ReloadISCSIServiceFunc func(ctx context.Context) error
+	// Subvolume operations
+	CreateSubvolumeFunc          func(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error)
+	DeleteSubvolumeFunc          func(ctx context.Context, pool, name string) error
+	GetSubvolumeFunc             func(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error)
+	ListAllSubvolumesFunc        func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error)
+	SetSubvolumePropertiesFunc   func(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error)
+	RemoveSubvolumePropertiesFunc func(ctx context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error)
+	FindSubvolumesByPropertyFunc func(ctx context.Context, key, value, pool string) ([]tnsapi.Subvolume, error)
+	FindManagedSubvolumesFunc    func(ctx context.Context, pool string) ([]tnsapi.Subvolume, error)
+	FindSubvolumeByCSIVolumeNameFunc func(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error)
 
 	// Snapshot operations
-	CreateSnapshotFunc   func(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error)
-	DeleteSnapshotFunc   func(ctx context.Context, snapshotID string) error
-	QuerySnapshotsFunc   func(ctx context.Context, filters []interface{}) ([]tnsapi.Snapshot, error)
-	QuerySnapshotIDsFunc func(ctx context.Context, filters []interface{}) ([]string, error)
-	CloneSnapshotFunc    func(ctx context.Context, params tnsapi.CloneSnapshotParams) (*tnsapi.Dataset, error)
+	CreateSnapshotFunc func(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error)
+	DeleteSnapshotFunc func(ctx context.Context, pool, subvolume, name string) error
+	ListSnapshotsFunc  func(ctx context.Context, pool string) ([]tnsapi.Snapshot, error)
 
-	// Dataset promotion
-	PromoteDatasetFunc func(ctx context.Context, datasetID string) error
+	// NFS share operations
+	CreateNFSShareFunc func(ctx context.Context, params tnsapi.NFSShareCreateParams) (*tnsapi.NFSShare, error)
+	DeleteNFSShareFunc func(ctx context.Context, id string) error
+	ListNFSSharesFunc  func(ctx context.Context) ([]tnsapi.NFSShare, error)
+	GetNFSShareFunc    func(ctx context.Context, id string) (*tnsapi.NFSShare, error)
 
-	// Replication operations
-	RunOnetimeReplicationFunc        func(ctx context.Context, params tnsapi.ReplicationRunOnetimeParams) (int, error)
-	GetJobStatusFunc                 func(ctx context.Context, jobID int) (*tnsapi.ReplicationJobState, error)
-	WaitForJobFunc                   func(ctx context.Context, jobID int, pollInterval time.Duration) error
-	RunOnetimeReplicationAndWaitFunc func(ctx context.Context, params tnsapi.ReplicationRunOnetimeParams, pollInterval time.Duration) error
+	// SMB share operations
+	CreateSMBShareFunc func(ctx context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error)
+	DeleteSMBShareFunc func(ctx context.Context, id string) error
+	ListSMBSharesFunc  func(ctx context.Context) ([]tnsapi.SMBShare, error)
+	GetSMBShareFunc    func(ctx context.Context, id string) (*tnsapi.SMBShare, error)
+
+	// iSCSI operations
+	CreateISCSITargetFunc    func(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error)
+	AddISCSILunFunc          func(ctx context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error)
+	AddISCSIACLFunc          func(ctx context.Context, targetID, initiatorIQN string) (*tnsapi.ISCSITarget, error)
+	DeleteISCSITargetFunc    func(ctx context.Context, id string) error
+	ListISCSITargetsFunc     func(ctx context.Context) ([]tnsapi.ISCSITarget, error)
+	GetISCSITargetByIQNFunc  func(ctx context.Context, iqn string) (*tnsapi.ISCSITarget, error)
+
+	// NVMe-oF operations
+	CreateNVMeOFSubsystemFunc   func(ctx context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error)
+	DeleteNVMeOFSubsystemFunc   func(ctx context.Context, id string) error
+	ListNVMeOFSubsystemsFunc    func(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error)
+	GetNVMeOFSubsystemByNQNFunc func(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error)
 }
 
 // errNotImplemented is the default error returned when a mock function is not set.
@@ -117,113 +71,90 @@ func (m *mockClient) QueryPool(ctx context.Context, poolName string) (*tnsapi.Po
 	return nil, errNotImplemented
 }
 
-// Dataset operations.
+// Subvolume operations.
 
-func (m *mockClient) CreateDataset(ctx context.Context, params tnsapi.DatasetCreateParams) (*tnsapi.Dataset, error) {
-	if m.CreateDatasetFunc != nil {
-		return m.CreateDatasetFunc(ctx, params)
+func (m *mockClient) CreateSubvolume(ctx context.Context, params tnsapi.SubvolumeCreateParams) (*tnsapi.Subvolume, error) {
+	if m.CreateSubvolumeFunc != nil {
+		return m.CreateSubvolumeFunc(ctx, params)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) DeleteDataset(ctx context.Context, datasetID string) error {
-	if m.DeleteDatasetFunc != nil {
-		return m.DeleteDatasetFunc(ctx, datasetID)
+func (m *mockClient) DeleteSubvolume(ctx context.Context, pool, name string) error {
+	if m.DeleteSubvolumeFunc != nil {
+		return m.DeleteSubvolumeFunc(ctx, pool, name)
 	}
 	return errNotImplemented
 }
 
-func (m *mockClient) Dataset(ctx context.Context, datasetID string) (*tnsapi.Dataset, error) {
-	if m.DatasetFunc != nil {
-		return m.DatasetFunc(ctx, datasetID)
+func (m *mockClient) GetSubvolume(ctx context.Context, pool, name string) (*tnsapi.Subvolume, error) {
+	if m.GetSubvolumeFunc != nil {
+		return m.GetSubvolumeFunc(ctx, pool, name)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) UpdateDataset(ctx context.Context, datasetID string, params tnsapi.DatasetUpdateParams) (*tnsapi.Dataset, error) {
-	if m.UpdateDatasetFunc != nil {
-		return m.UpdateDatasetFunc(ctx, datasetID, params)
+func (m *mockClient) ListAllSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
+	if m.ListAllSubvolumesFunc != nil {
+		return m.ListAllSubvolumesFunc(ctx, pool)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) QueryAllDatasets(ctx context.Context, prefix string) ([]tnsapi.Dataset, error) {
-	if m.QueryAllDatasetsFunc != nil {
-		return m.QueryAllDatasetsFunc(ctx, prefix)
+func (m *mockClient) SetSubvolumeProperties(ctx context.Context, pool, name string, props map[string]string) (*tnsapi.Subvolume, error) {
+	if m.SetSubvolumePropertiesFunc != nil {
+		return m.SetSubvolumePropertiesFunc(ctx, pool, name, props)
 	}
 	return nil, errNotImplemented
 }
 
-// ZFS User Property operations.
+func (m *mockClient) RemoveSubvolumeProperties(ctx context.Context, pool, name string, keys []string) (*tnsapi.Subvolume, error) {
+	if m.RemoveSubvolumePropertiesFunc != nil {
+		return m.RemoveSubvolumePropertiesFunc(ctx, pool, name, keys)
+	}
+	return nil, errNotImplemented
+}
 
-func (m *mockClient) SetSnapshotProperties(ctx context.Context, snapshotID string, updateProperties map[string]string, removeProperties []string) error {
-	if m.SetSnapshotPropertiesFunc != nil {
-		return m.SetSnapshotPropertiesFunc(ctx, snapshotID, updateProperties, removeProperties)
+func (m *mockClient) FindSubvolumesByProperty(ctx context.Context, key, value, pool string) ([]tnsapi.Subvolume, error) {
+	if m.FindSubvolumesByPropertyFunc != nil {
+		return m.FindSubvolumesByPropertyFunc(ctx, key, value, pool)
+	}
+	return nil, errNotImplemented
+}
+
+func (m *mockClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]tnsapi.Subvolume, error) {
+	if m.FindManagedSubvolumesFunc != nil {
+		return m.FindManagedSubvolumesFunc(ctx, pool)
+	}
+	return nil, errNotImplemented
+}
+
+func (m *mockClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*tnsapi.Subvolume, error) {
+	if m.FindSubvolumeByCSIVolumeNameFunc != nil {
+		return m.FindSubvolumeByCSIVolumeNameFunc(ctx, pool, volumeName)
+	}
+	return nil, errNotImplemented
+}
+
+// Snapshot operations.
+
+func (m *mockClient) CreateSnapshot(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error) {
+	if m.CreateSnapshotFunc != nil {
+		return m.CreateSnapshotFunc(ctx, params)
+	}
+	return nil, errNotImplemented
+}
+
+func (m *mockClient) DeleteSnapshot(ctx context.Context, pool, subvolume, name string) error {
+	if m.DeleteSnapshotFunc != nil {
+		return m.DeleteSnapshotFunc(ctx, pool, subvolume, name)
 	}
 	return errNotImplemented
 }
 
-func (m *mockClient) SetDatasetProperties(ctx context.Context, datasetID string, properties map[string]string) error {
-	if m.SetDatasetPropertiesFunc != nil {
-		return m.SetDatasetPropertiesFunc(ctx, datasetID, properties)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) GetDatasetProperties(ctx context.Context, datasetID string, propertyNames []string) (map[string]string, error) {
-	if m.GetDatasetPropertiesFunc != nil {
-		return m.GetDatasetPropertiesFunc(ctx, datasetID, propertyNames)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) GetAllDatasetProperties(ctx context.Context, datasetID string) (map[string]string, error) {
-	if m.GetAllDatasetPropertiesFunc != nil {
-		return m.GetAllDatasetPropertiesFunc(ctx, datasetID)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) InheritDatasetProperty(ctx context.Context, datasetID, propertyName string) error {
-	if m.InheritDatasetPropertyFunc != nil {
-		return m.InheritDatasetPropertyFunc(ctx, datasetID, propertyName)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) ClearDatasetProperties(ctx context.Context, datasetID string, propertyNames []string) error {
-	if m.ClearDatasetPropertiesFunc != nil {
-		return m.ClearDatasetPropertiesFunc(ctx, datasetID, propertyNames)
-	}
-	return errNotImplemented
-}
-
-// Dataset lookup by ZFS user properties.
-
-func (m *mockClient) GetDatasetWithProperties(ctx context.Context, datasetID string) (*tnsapi.DatasetWithProperties, error) {
-	if m.GetDatasetWithPropertiesFunc != nil {
-		return m.GetDatasetWithPropertiesFunc(ctx, datasetID)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) FindDatasetsByProperty(ctx context.Context, prefix, propertyName, propertyValue string) ([]tnsapi.DatasetWithProperties, error) {
-	if m.FindDatasetsByPropertyFunc != nil {
-		return m.FindDatasetsByPropertyFunc(ctx, prefix, propertyName, propertyValue)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) FindManagedDatasets(ctx context.Context, prefix string) ([]tnsapi.DatasetWithProperties, error) {
-	if m.FindManagedDatasetsFunc != nil {
-		return m.FindManagedDatasetsFunc(ctx, prefix)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) FindDatasetByCSIVolumeName(ctx context.Context, prefix, csiVolumeName string) (*tnsapi.DatasetWithProperties, error) {
-	if m.FindDatasetByCSIVolumeNameFunc != nil {
-		return m.FindDatasetByCSIVolumeNameFunc(ctx, prefix, csiVolumeName)
+func (m *mockClient) ListSnapshots(ctx context.Context, pool string) ([]tnsapi.Snapshot, error) {
+	if m.ListSnapshotsFunc != nil {
+		return m.ListSnapshotsFunc(ctx, pool)
 	}
 	return nil, errNotImplemented
 }
@@ -237,30 +168,23 @@ func (m *mockClient) CreateNFSShare(ctx context.Context, params tnsapi.NFSShareC
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) DeleteNFSShare(ctx context.Context, shareID int) error {
+func (m *mockClient) DeleteNFSShare(ctx context.Context, id string) error {
 	if m.DeleteNFSShareFunc != nil {
-		return m.DeleteNFSShareFunc(ctx, shareID)
+		return m.DeleteNFSShareFunc(ctx, id)
 	}
 	return errNotImplemented
 }
 
-func (m *mockClient) QueryNFSShare(ctx context.Context, path string) ([]tnsapi.NFSShare, error) {
-	if m.QueryNFSShareFunc != nil {
-		return m.QueryNFSShareFunc(ctx, path)
+func (m *mockClient) ListNFSShares(ctx context.Context) ([]tnsapi.NFSShare, error) {
+	if m.ListNFSSharesFunc != nil {
+		return m.ListNFSSharesFunc(ctx)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) QueryNFSShareByID(ctx context.Context, shareID int) (*tnsapi.NFSShare, error) {
-	if m.QueryNFSShareByIDFunc != nil {
-		return m.QueryNFSShareByIDFunc(ctx, shareID)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QueryAllNFSShares(ctx context.Context, pathPrefix string) ([]tnsapi.NFSShare, error) {
-	if m.QueryAllNFSSharesFunc != nil {
-		return m.QueryAllNFSSharesFunc(ctx, pathPrefix)
+func (m *mockClient) GetNFSShare(ctx context.Context, id string) (*tnsapi.NFSShare, error) {
+	if m.GetNFSShareFunc != nil {
+		return m.GetNFSShareFunc(ctx, id)
 	}
 	return nil, errNotImplemented
 }
@@ -268,161 +192,34 @@ func (m *mockClient) QueryAllNFSShares(ctx context.Context, pathPrefix string) (
 // SMB share operations.
 
 func (m *mockClient) CreateSMBShare(ctx context.Context, params tnsapi.SMBShareCreateParams) (*tnsapi.SMBShare, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) DeleteSMBShare(ctx context.Context, shareID int) error {
-	return errNotImplemented
-}
-
-func (m *mockClient) QuerySMBShare(ctx context.Context, path string) ([]tnsapi.SMBShare, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QuerySMBShareByID(ctx context.Context, shareID int) (*tnsapi.SMBShare, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QueryAllSMBShares(ctx context.Context, pathPrefix string) ([]tnsapi.SMBShare, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) FilesystemStat(ctx context.Context, path string) error {
-	return nil
-}
-
-func (m *mockClient) GetFilesystemACL(ctx context.Context, path string) (string, error) {
-	return "NFS4", nil
-}
-
-func (m *mockClient) SetFilesystemACL(ctx context.Context, path string) error {
-	return nil
-}
-
-// ZVOL operations.
-
-func (m *mockClient) CreateZvol(ctx context.Context, params tnsapi.ZvolCreateParams) (*tnsapi.Dataset, error) {
-	if m.CreateZvolFunc != nil {
-		return m.CreateZvolFunc(ctx, params)
+	if m.CreateSMBShareFunc != nil {
+		return m.CreateSMBShareFunc(ctx, params)
 	}
 	return nil, errNotImplemented
 }
 
-// NVMe-oF operations.
-
-func (m *mockClient) CreateNVMeOFSubsystem(ctx context.Context, params tnsapi.NVMeOFSubsystemCreateParams) (*tnsapi.NVMeOFSubsystem, error) {
-	if m.CreateNVMeOFSubsystemFunc != nil {
-		return m.CreateNVMeOFSubsystemFunc(ctx, params)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) DeleteNVMeOFSubsystem(ctx context.Context, subsystemID int) error {
-	if m.DeleteNVMeOFSubsystemFunc != nil {
-		return m.DeleteNVMeOFSubsystemFunc(ctx, subsystemID)
+func (m *mockClient) DeleteSMBShare(ctx context.Context, id string) error {
+	if m.DeleteSMBShareFunc != nil {
+		return m.DeleteSMBShareFunc(ctx, id)
 	}
 	return errNotImplemented
 }
 
-func (m *mockClient) NVMeOFSubsystemByNQN(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error) {
-	if m.NVMeOFSubsystemByNQNFunc != nil {
-		return m.NVMeOFSubsystemByNQNFunc(ctx, nqn)
+func (m *mockClient) ListSMBShares(ctx context.Context) ([]tnsapi.SMBShare, error) {
+	if m.ListSMBSharesFunc != nil {
+		return m.ListSMBSharesFunc(ctx)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) QueryNVMeOFSubsystem(ctx context.Context, nqn string) ([]tnsapi.NVMeOFSubsystem, error) {
-	if m.QueryNVMeOFSubsystemFunc != nil {
-		return m.QueryNVMeOFSubsystemFunc(ctx, nqn)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) ListAllNVMeOFSubsystems(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
-	if m.ListAllNVMeOFSubsystemsFunc != nil {
-		return m.ListAllNVMeOFSubsystemsFunc(ctx)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) CreateNVMeOFNamespace(ctx context.Context, params tnsapi.NVMeOFNamespaceCreateParams) (*tnsapi.NVMeOFNamespace, error) {
-	if m.CreateNVMeOFNamespaceFunc != nil {
-		return m.CreateNVMeOFNamespaceFunc(ctx, params)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) DeleteNVMeOFNamespace(ctx context.Context, namespaceID int) error {
-	if m.DeleteNVMeOFNamespaceFunc != nil {
-		return m.DeleteNVMeOFNamespaceFunc(ctx, namespaceID)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) QueryNVMeOFNamespaceByID(ctx context.Context, namespaceID int) (*tnsapi.NVMeOFNamespace, error) {
-	if m.QueryNVMeOFNamespaceByIDFunc != nil {
-		return m.QueryNVMeOFNamespaceByIDFunc(ctx, namespaceID)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QueryAllNVMeOFNamespaces(ctx context.Context) ([]tnsapi.NVMeOFNamespace, error) {
-	if m.QueryAllNVMeOFNamespacesFunc != nil {
-		return m.QueryAllNVMeOFNamespacesFunc(ctx)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) AddSubsystemToPort(ctx context.Context, subsystemID, portID int) error {
-	if m.AddSubsystemToPortFunc != nil {
-		return m.AddSubsystemToPortFunc(ctx, subsystemID, portID)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) RemoveSubsystemFromPort(ctx context.Context, portSubsysID int) error {
-	if m.RemoveSubsystemFromPortFunc != nil {
-		return m.RemoveSubsystemFromPortFunc(ctx, portSubsysID)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) QuerySubsystemPortBindings(ctx context.Context, subsystemID int) ([]tnsapi.NVMeOFPortSubsystem, error) {
-	if m.QuerySubsystemPortBindingsFunc != nil {
-		return m.QuerySubsystemPortBindingsFunc(ctx, subsystemID)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QueryNVMeOFPorts(ctx context.Context) ([]tnsapi.NVMeOFPort, error) {
-	if m.QueryNVMeOFPortsFunc != nil {
-		return m.QueryNVMeOFPortsFunc(ctx)
+func (m *mockClient) GetSMBShare(ctx context.Context, id string) (*tnsapi.SMBShare, error) {
+	if m.GetSMBShareFunc != nil {
+		return m.GetSMBShareFunc(ctx, id)
 	}
 	return nil, errNotImplemented
 }
 
 // iSCSI operations.
-
-func (m *mockClient) GetISCSIGlobalConfig(ctx context.Context) (*tnsapi.ISCSIGlobalConfig, error) {
-	if m.GetISCSIGlobalConfigFunc != nil {
-		return m.GetISCSIGlobalConfigFunc(ctx)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QueryISCSIPortals(ctx context.Context) ([]tnsapi.ISCSIPortal, error) {
-	if m.QueryISCSIPortalsFunc != nil {
-		return m.QueryISCSIPortalsFunc(ctx)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QueryISCSIInitiators(ctx context.Context) ([]tnsapi.ISCSIInitiator, error) {
-	if m.QueryISCSIInitiatorsFunc != nil {
-		return m.QueryISCSIInitiatorsFunc(ctx)
-	}
-	return nil, errNotImplemented
-}
 
 func (m *mockClient) CreateISCSITarget(ctx context.Context, params tnsapi.ISCSITargetCreateParams) (*tnsapi.ISCSITarget, error) {
 	if m.CreateISCSITargetFunc != nil {
@@ -431,178 +228,69 @@ func (m *mockClient) CreateISCSITarget(ctx context.Context, params tnsapi.ISCSIT
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) DeleteISCSITarget(ctx context.Context, targetID int, force bool) error {
+func (m *mockClient) AddISCSILun(ctx context.Context, targetID, backstorePath string) (*tnsapi.ISCSITarget, error) {
+	if m.AddISCSILunFunc != nil {
+		return m.AddISCSILunFunc(ctx, targetID, backstorePath)
+	}
+	return nil, errNotImplemented
+}
+
+func (m *mockClient) AddISCSIACL(ctx context.Context, targetID, initiatorIQN string) (*tnsapi.ISCSITarget, error) {
+	if m.AddISCSIACLFunc != nil {
+		return m.AddISCSIACLFunc(ctx, targetID, initiatorIQN)
+	}
+	return nil, errNotImplemented
+}
+
+func (m *mockClient) DeleteISCSITarget(ctx context.Context, id string) error {
 	if m.DeleteISCSITargetFunc != nil {
-		return m.DeleteISCSITargetFunc(ctx, targetID, force)
+		return m.DeleteISCSITargetFunc(ctx, id)
 	}
 	return errNotImplemented
 }
 
-func (m *mockClient) QueryISCSITargets(ctx context.Context, filters []interface{}) ([]tnsapi.ISCSITarget, error) {
-	if m.QueryISCSITargetsFunc != nil {
-		return m.QueryISCSITargetsFunc(ctx, filters)
+func (m *mockClient) ListISCSITargets(ctx context.Context) ([]tnsapi.ISCSITarget, error) {
+	if m.ListISCSITargetsFunc != nil {
+		return m.ListISCSITargetsFunc(ctx)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) ISCSITargetByName(ctx context.Context, name string) (*tnsapi.ISCSITarget, error) {
-	if m.ISCSITargetByNameFunc != nil {
-		return m.ISCSITargetByNameFunc(ctx, name)
+func (m *mockClient) GetISCSITargetByIQN(ctx context.Context, iqn string) (*tnsapi.ISCSITarget, error) {
+	if m.GetISCSITargetByIQNFunc != nil {
+		return m.GetISCSITargetByIQNFunc(ctx, iqn)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) CreateISCSIExtent(ctx context.Context, params tnsapi.ISCSIExtentCreateParams) (*tnsapi.ISCSIExtent, error) {
-	if m.CreateISCSIExtentFunc != nil {
-		return m.CreateISCSIExtentFunc(ctx, params)
+// NVMe-oF operations.
+
+func (m *mockClient) CreateNVMeOFSubsystem(ctx context.Context, params tnsapi.NVMeOFCreateParams) (*tnsapi.NVMeOFSubsystem, error) {
+	if m.CreateNVMeOFSubsystemFunc != nil {
+		return m.CreateNVMeOFSubsystemFunc(ctx, params)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) DeleteISCSIExtent(ctx context.Context, extentID int, removeFile, force bool) error {
-	if m.DeleteISCSIExtentFunc != nil {
-		return m.DeleteISCSIExtentFunc(ctx, extentID, removeFile, force)
+func (m *mockClient) DeleteNVMeOFSubsystem(ctx context.Context, id string) error {
+	if m.DeleteNVMeOFSubsystemFunc != nil {
+		return m.DeleteNVMeOFSubsystemFunc(ctx, id)
 	}
 	return errNotImplemented
 }
 
-func (m *mockClient) QueryISCSIExtents(ctx context.Context, filters []interface{}) ([]tnsapi.ISCSIExtent, error) {
-	if m.QueryISCSIExtentsFunc != nil {
-		return m.QueryISCSIExtentsFunc(ctx, filters)
+func (m *mockClient) ListNVMeOFSubsystems(ctx context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
+	if m.ListNVMeOFSubsystemsFunc != nil {
+		return m.ListNVMeOFSubsystemsFunc(ctx)
 	}
 	return nil, errNotImplemented
 }
 
-func (m *mockClient) ISCSIExtentByName(ctx context.Context, name string) (*tnsapi.ISCSIExtent, error) {
-	if m.ISCSIExtentByNameFunc != nil {
-		return m.ISCSIExtentByNameFunc(ctx, name)
+func (m *mockClient) GetNVMeOFSubsystemByNQN(ctx context.Context, nqn string) (*tnsapi.NVMeOFSubsystem, error) {
+	if m.GetNVMeOFSubsystemByNQNFunc != nil {
+		return m.GetNVMeOFSubsystemByNQNFunc(ctx, nqn)
 	}
 	return nil, errNotImplemented
-}
-
-func (m *mockClient) CreateISCSITargetExtent(ctx context.Context, params tnsapi.ISCSITargetExtentCreateParams) (*tnsapi.ISCSITargetExtent, error) {
-	if m.CreateISCSITargetExtentFunc != nil {
-		return m.CreateISCSITargetExtentFunc(ctx, params)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) DeleteISCSITargetExtent(ctx context.Context, targetExtentID int, force bool) error {
-	if m.DeleteISCSITargetExtentFunc != nil {
-		return m.DeleteISCSITargetExtentFunc(ctx, targetExtentID, force)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) QueryISCSITargetExtents(ctx context.Context, filters []interface{}) ([]tnsapi.ISCSITargetExtent, error) {
-	if m.QueryISCSITargetExtentsFunc != nil {
-		return m.QueryISCSITargetExtentsFunc(ctx, filters)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) ISCSITargetExtentByTarget(ctx context.Context, targetID int) ([]tnsapi.ISCSITargetExtent, error) {
-	if m.ISCSITargetExtentByTargetFunc != nil {
-		return m.ISCSITargetExtentByTargetFunc(ctx, targetID)
-	}
-	return nil, errNotImplemented
-}
-
-// iSCSI service management.
-
-func (m *mockClient) ReloadISCSIService(ctx context.Context) error {
-	if m.ReloadISCSIServiceFunc != nil {
-		return m.ReloadISCSIServiceFunc(ctx)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) ReloadSMBService(_ context.Context) error {
-	return nil
-}
-
-func (m *mockClient) UpdateSMBShare(_ context.Context, _ int, _ tnsapi.SMBShareUpdateParams) (*tnsapi.SMBShare, error) {
-	return &tnsapi.SMBShare{}, nil
-}
-
-// Snapshot operations.
-
-func (m *mockClient) CreateSnapshot(ctx context.Context, params tnsapi.SnapshotCreateParams) (*tnsapi.Snapshot, error) {
-	if m.CreateSnapshotFunc != nil {
-		return m.CreateSnapshotFunc(ctx, params)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) DeleteSnapshot(ctx context.Context, snapshotID string) error {
-	if m.DeleteSnapshotFunc != nil {
-		return m.DeleteSnapshotFunc(ctx, snapshotID)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) QuerySnapshots(ctx context.Context, filters []interface{}) ([]tnsapi.Snapshot, error) {
-	if m.QuerySnapshotsFunc != nil {
-		return m.QuerySnapshotsFunc(ctx, filters)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QuerySnapshotsWithProperties(ctx context.Context, filters []interface{}) ([]tnsapi.Snapshot, error) {
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) QuerySnapshotIDs(ctx context.Context, filters []interface{}) ([]string, error) {
-	if m.QuerySnapshotIDsFunc != nil {
-		return m.QuerySnapshotIDsFunc(ctx, filters)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) CloneSnapshot(ctx context.Context, params tnsapi.CloneSnapshotParams) (*tnsapi.Dataset, error) {
-	if m.CloneSnapshotFunc != nil {
-		return m.CloneSnapshotFunc(ctx, params)
-	}
-	return nil, errNotImplemented
-}
-
-// Dataset promotion.
-
-func (m *mockClient) PromoteDataset(ctx context.Context, datasetID string) error {
-	if m.PromoteDatasetFunc != nil {
-		return m.PromoteDatasetFunc(ctx, datasetID)
-	}
-	return errNotImplemented
-}
-
-// Replication operations.
-
-func (m *mockClient) RunOnetimeReplication(ctx context.Context, params tnsapi.ReplicationRunOnetimeParams) (int, error) {
-	if m.RunOnetimeReplicationFunc != nil {
-		return m.RunOnetimeReplicationFunc(ctx, params)
-	}
-	return 0, errNotImplemented
-}
-
-func (m *mockClient) GetJobStatus(ctx context.Context, jobID int) (*tnsapi.ReplicationJobState, error) {
-	if m.GetJobStatusFunc != nil {
-		return m.GetJobStatusFunc(ctx, jobID)
-	}
-	return nil, errNotImplemented
-}
-
-func (m *mockClient) WaitForJob(ctx context.Context, jobID int, pollInterval time.Duration) error {
-	if m.WaitForJobFunc != nil {
-		return m.WaitForJobFunc(ctx, jobID, pollInterval)
-	}
-	return errNotImplemented
-}
-
-func (m *mockClient) RunOnetimeReplicationAndWait(ctx context.Context, params tnsapi.ReplicationRunOnetimeParams, pollInterval time.Duration) error {
-	if m.RunOnetimeReplicationAndWaitFunc != nil {
-		return m.RunOnetimeReplicationAndWaitFunc(ctx, params, pollInterval)
-	}
-	return errNotImplemented
 }
 
 // Connection management.

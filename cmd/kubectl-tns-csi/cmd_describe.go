@@ -57,8 +57,8 @@ func runDescribe(ctx context.Context, volumeRef string, url, apiKey, secretRef, 
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -182,26 +182,26 @@ func outputVolumeDetailsTable(details *VolumeDetails) error {
 	// Protocol-specific details
 	if details.NFSShare != nil {
 		colorHeader.Println("=== NFS Share ===") //nolint:errcheck,gosec
-		describeKV("Share ID", strconv.Itoa(details.NFSShare.ID))
+		describeKV("Share ID", details.NFSShare.ID)
 		describeKV("Path", details.NFSShare.Path)
-		describeKV("Hosts", strings.Join(details.NFSShare.Hosts, ", "))
+		if len(details.NFSShare.Clients) > 0 {
+			describeKV("Clients", strings.Join(details.NFSShare.Clients, ", "))
+		}
 		describeKV("Enabled", strconv.FormatBool(details.NFSShare.Enabled))
 		fmt.Println()
 	}
 
 	if details.NVMeOFSubsystem != nil {
 		colorHeader.Println("=== NVMe-oF Subsystem ===") //nolint:errcheck,gosec
-		describeKV("Subsystem ID", strconv.Itoa(details.NVMeOFSubsystem.ID))
-		describeKV("Name", details.NVMeOFSubsystem.Name)
+		describeKV("Subsystem ID", details.NVMeOFSubsystem.ID)
 		describeKV("NQN", details.NVMeOFSubsystem.NQN)
-		describeKV("Serial", details.NVMeOFSubsystem.Serial)
 		describeKV("Enabled", strconv.FormatBool(details.NVMeOFSubsystem.Enabled))
 		fmt.Println()
 	}
 
 	if details.SMBShare != nil {
 		colorHeader.Println("=== SMB Share ===") //nolint:errcheck,gosec
-		describeKV("Share ID", strconv.Itoa(details.SMBShare.ID))
+		describeKV("Share ID", details.SMBShare.ID)
 		describeKV("Name", details.SMBShare.Name)
 		describeKV("Path", details.SMBShare.Path)
 		describeKV("Enabled", strconv.FormatBool(details.SMBShare.Enabled))
@@ -210,8 +210,7 @@ func outputVolumeDetailsTable(details *VolumeDetails) error {
 
 	if details.ISCSITarget != nil {
 		colorHeader.Println("=== iSCSI Target ===") //nolint:errcheck,gosec
-		describeKV("Target ID", strconv.Itoa(details.ISCSITarget.ID))
-		describeKV("Name", details.ISCSITarget.Name)
+		describeKV("Target ID", details.ISCSITarget.ID)
 		describeKV("IQN", details.ISCSITarget.IQN)
 		fmt.Println()
 	}

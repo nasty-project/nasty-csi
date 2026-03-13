@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/nasty-project/nasty-csi/pkg/dashboard"
@@ -53,10 +52,10 @@ func newCleanupCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *
 
 	cmd := &cobra.Command{
 		Use:   "cleanup",
-		Short: "Delete orphaned volumes from TrueNAS",
-		Long: `Delete volumes that exist on TrueNAS but have no matching PVC in the cluster.
+		Short: "Delete orphaned volumes from NASty",
+		Long: `Delete volumes that exist on NASty but have no matching PVC in the cluster.
 
-This command finds orphaned volumes and optionally deletes them from TrueNAS.
+This command finds orphaned volumes and optionally deletes them from NASty.
 For safety, it operates in dry-run mode by default.
 
 Orphaned volumes are those that:
@@ -104,8 +103,8 @@ func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -117,7 +116,7 @@ func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 		return fmt.Errorf("failed to create Kubernetes client: %w", err)
 	}
 
-	// Query all managed volumes from TrueNAS
+	// Query all managed volumes from NASty
 	volumes, err := dashboard.FindManagedVolumes(ctx, client, *clusterID)
 	if err != nil {
 		return fmt.Errorf("failed to query volumes: %w", err)
@@ -239,134 +238,100 @@ func runCleanup(ctx context.Context, url, apiKey, secretRef, outputFormat *strin
 	return outputCleanupResult(result, *outputFormat)
 }
 
-// deleteOrphanedVolume deletes a volume and its associated resources from TrueNAS.
+// parsePoolName splits a datasetPath like "tank/csi/pvc-abc" into pool="tank", name="csi/pvc-abc".
+func parsePoolName(datasetPath string) (pool, name string) {
+	idx := strings.Index(datasetPath, "/")
+	if idx < 0 {
+		return datasetPath, ""
+	}
+	return datasetPath[:idx], datasetPath[idx+1:]
+}
+
+// deleteOrphanedVolume deletes a volume and its associated resources from NASty.
 func deleteOrphanedVolume(ctx context.Context, client tnsapi.ClientInterface, vol *OrphanedVolumeInfo) error {
-	// Get the dataset with full properties to find resource IDs
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyCSIVolumeName, vol.VolumeID)
+	// Get the subvolume with full properties to find resource IDs
+	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyCSIVolumeName, vol.VolumeID, "")
 	if err != nil {
-		return fmt.Errorf("failed to find dataset: %w", err)
+		return fmt.Errorf("failed to find subvolume: %w", err)
 	}
 
-	if len(datasets) == 0 {
+	if len(subvols) == 0 {
 		return fmt.Errorf("%w: %s", errDatasetNotFoundClean, vol.VolumeID)
 	}
 
-	ds := &datasets[0]
+	sv := &subvols[0]
 
 	switch vol.Protocol {
 	case protocolNFS:
-		return deleteNFSVolumeResources(ctx, client, ds)
+		return deleteNFSVolumeResources(ctx, client, sv)
 	case protocolNVMeOF:
-		return deleteNVMeOFVolumeResources(ctx, client, ds)
+		return deleteNVMeOFVolumeResources(ctx, client, sv)
 	case protocolSMB:
-		return deleteSMBVolumeResources(ctx, client, ds)
+		return deleteSMBVolumeResources(ctx, client, sv)
 	case protocolISCSI:
-		return deleteISCSIVolumeResources(ctx, client, ds)
+		return deleteISCSIVolumeResources(ctx, client, sv)
 	default:
-		// Unknown protocol - just try to delete the dataset
-		return client.DeleteDataset(ctx, ds.ID)
+		// Unknown protocol - just try to delete the subvolume
+		pool, name := parsePoolName(sv.Pool + "/" + sv.Name)
+		return client.DeleteSubvolume(ctx, pool, name)
 	}
 }
 
-// deleteNFSVolumeResources deletes NFS share and dataset.
-func deleteNFSVolumeResources(ctx context.Context, client tnsapi.ClientInterface, ds *tnsapi.DatasetWithProperties) error {
+// deleteNFSVolumeResources deletes NFS share and subvolume.
+func deleteNFSVolumeResources(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) error {
 	// Get NFS share ID from properties
-	if prop, ok := ds.UserProperties[tnsapi.PropertyNFSShareID]; ok && prop.Value != "" {
-		shareID, err := strconv.Atoi(prop.Value)
-		if err == nil && shareID > 0 {
-			// Delete NFS share first
-			if err := client.DeleteNFSShare(ctx, shareID); err != nil {
-				// Log but continue - share may already be deleted
-				fmt.Printf("(warning: failed to delete NFS share %d: %v) ", shareID, err)
-			}
+	if shareID, ok := sv.Properties[tnsapi.PropertyNFSShareID]; ok && shareID != "" {
+		// Delete NFS share first
+		if err := client.DeleteNFSShare(ctx, shareID); err != nil {
+			// Log but continue - share may already be deleted
+			fmt.Printf("(warning: failed to delete NFS share %s: %v) ", shareID, err)
 		}
 	}
 
-	// Delete the dataset
-	return client.DeleteDataset(ctx, ds.ID)
+	// Delete the subvolume
+	return client.DeleteSubvolume(ctx, sv.Pool, sv.Name)
 }
 
-// deleteNVMeOFVolumeResources deletes NVMe-oF subsystem, namespace, and zvol.
-func deleteNVMeOFVolumeResources(ctx context.Context, client tnsapi.ClientInterface, ds *tnsapi.DatasetWithProperties) error {
-	// Get namespace ID and delete it first
-	if prop, ok := ds.UserProperties[tnsapi.PropertyNVMeNamespaceID]; ok && prop.Value != "" {
-		nsID, err := strconv.Atoi(prop.Value)
-		if err == nil && nsID > 0 {
-			if err := client.DeleteNVMeOFNamespace(ctx, nsID); err != nil {
-				// Log but continue
-				fmt.Printf("(warning: failed to delete NVMe namespace %d: %v) ", nsID, err)
-			}
-		}
-	}
-
+// deleteNVMeOFVolumeResources deletes NVMe-oF subsystem and zvol.
+func deleteNVMeOFVolumeResources(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) error {
 	// Get subsystem ID and delete it
-	if prop, ok := ds.UserProperties[tnsapi.PropertyNVMeSubsystemID]; ok && prop.Value != "" {
-		subsysID, err := strconv.Atoi(prop.Value)
-		if err == nil && subsysID > 0 {
-			if err := client.DeleteNVMeOFSubsystem(ctx, subsysID); err != nil {
-				// Log but continue
-				fmt.Printf("(warning: failed to delete NVMe subsystem %d: %v) ", subsysID, err)
-			}
+	if subsysID, ok := sv.Properties[tnsapi.PropertyNVMeSubsystemID]; ok && subsysID != "" {
+		if err := client.DeleteNVMeOFSubsystem(ctx, subsysID); err != nil {
+			// Log but continue
+			fmt.Printf("(warning: failed to delete NVMe subsystem %s: %v) ", subsysID, err)
 		}
 	}
 
 	// Delete the zvol
-	return client.DeleteDataset(ctx, ds.ID)
+	return client.DeleteSubvolume(ctx, sv.Pool, sv.Name)
 }
 
-// deleteSMBVolumeResources deletes SMB share and dataset.
-func deleteSMBVolumeResources(ctx context.Context, client tnsapi.ClientInterface, ds *tnsapi.DatasetWithProperties) error {
+// deleteSMBVolumeResources deletes SMB share and subvolume.
+func deleteSMBVolumeResources(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) error {
 	// Get SMB share ID from properties
-	if prop, ok := ds.UserProperties[tnsapi.PropertySMBShareID]; ok && prop.Value != "" {
-		shareID, err := strconv.Atoi(prop.Value)
-		if err == nil && shareID > 0 {
-			// Delete SMB share first
-			if err := client.DeleteSMBShare(ctx, shareID); err != nil {
-				// Log but continue - share may already be deleted
-				fmt.Printf("(warning: failed to delete SMB share %d: %v) ", shareID, err)
-			}
+	if shareID, ok := sv.Properties[tnsapi.PropertySMBShareID]; ok && shareID != "" {
+		// Delete SMB share first
+		if err := client.DeleteSMBShare(ctx, shareID); err != nil {
+			// Log but continue - share may already be deleted
+			fmt.Printf("(warning: failed to delete SMB share %s: %v) ", shareID, err)
 		}
 	}
 
-	// Delete the dataset
-	return client.DeleteDataset(ctx, ds.ID)
+	// Delete the subvolume
+	return client.DeleteSubvolume(ctx, sv.Pool, sv.Name)
 }
 
-// deleteISCSIVolumeResources deletes iSCSI target, extent, target-extent associations, and zvol.
-func deleteISCSIVolumeResources(ctx context.Context, client tnsapi.ClientInterface, ds *tnsapi.DatasetWithProperties) error {
-	// Get target ID and delete target-extent associations first
-	if prop, ok := ds.UserProperties[tnsapi.PropertyISCSITargetID]; ok && prop.Value != "" {
-		targetID, err := strconv.Atoi(prop.Value)
-		if err == nil && targetID > 0 {
-			// Delete target-extent associations
-			associations, assocErr := client.ISCSITargetExtentByTarget(ctx, targetID)
-			if assocErr == nil {
-				for _, assoc := range associations {
-					if err := client.DeleteISCSITargetExtent(ctx, assoc.ID, true); err != nil {
-						fmt.Printf("(warning: failed to delete iSCSI target-extent %d: %v) ", assoc.ID, err)
-					}
-				}
-			}
-
-			// Delete the target
-			if err := client.DeleteISCSITarget(ctx, targetID, true); err != nil {
-				fmt.Printf("(warning: failed to delete iSCSI target %d: %v) ", targetID, err)
-			}
-		}
-	}
-
-	// Delete the extent
-	if prop, ok := ds.UserProperties[tnsapi.PropertyISCSIExtentID]; ok && prop.Value != "" {
-		extentID, err := strconv.Atoi(prop.Value)
-		if err == nil && extentID > 0 {
-			if err := client.DeleteISCSIExtent(ctx, extentID, false, true); err != nil {
-				fmt.Printf("(warning: failed to delete iSCSI extent %d: %v) ", extentID, err)
-			}
+// deleteISCSIVolumeResources deletes iSCSI target and zvol.
+func deleteISCSIVolumeResources(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume) error {
+	// Get target ID and delete it
+	if targetID, ok := sv.Properties[tnsapi.PropertyISCSITargetID]; ok && targetID != "" {
+		if err := client.DeleteISCSITarget(ctx, targetID); err != nil {
+			fmt.Printf("(warning: failed to delete iSCSI target %s: %v) ", targetID, err)
 		}
 	}
 
 	// Delete the zvol
-	return client.DeleteDataset(ctx, ds.ID)
+	return client.DeleteSubvolume(ctx, sv.Pool, sv.Name)
 }
 
 // showCleanupPreview displays the volumes that will be deleted.

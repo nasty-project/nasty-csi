@@ -11,45 +11,51 @@ import (
 func TestCheckNFSHealth(t *testing.T) {
 	tests := []struct {
 		nfsShareMap map[string]*tnsapi.NFSShare
-		ds          *tnsapi.DatasetWithProperties
+		sv          *tnsapi.Subvolume
 		wantShareOK *bool
 		name        string
 		wantIssues  int
 	}{
 		{
 			name: "share found and enabled",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset: tnsapi.Dataset{ID: "tank/csi/pvc-1"},
-				UserProperties: map[string]tnsapi.UserProperty{
-					tnsapi.PropertyNFSSharePath: {Value: "/mnt/tank/csi/pvc-1"},
+			sv: &tnsapi.Subvolume{
+				Name: "csi/pvc-1",
+				Pool: "tank",
+				Path: "/tank/csi/pvc-1",
+				Properties: map[string]string{
+					tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-1",
 				},
 			},
 			nfsShareMap: map[string]*tnsapi.NFSShare{
-				"/mnt/tank/csi/pvc-1": {Path: "/mnt/tank/csi/pvc-1", Enabled: true, ID: 1},
+				"/mnt/tank/csi/pvc-1": {Path: "/mnt/tank/csi/pvc-1", Enabled: true, ID: "1"},
 			},
 			wantShareOK: boolPtr(true),
 			wantIssues:  0,
 		},
 		{
 			name: "share found but disabled",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset: tnsapi.Dataset{ID: "tank/csi/pvc-2"},
-				UserProperties: map[string]tnsapi.UserProperty{
-					tnsapi.PropertyNFSSharePath: {Value: "/mnt/tank/csi/pvc-2"},
+			sv: &tnsapi.Subvolume{
+				Name: "csi/pvc-2",
+				Pool: "tank",
+				Path: "/tank/csi/pvc-2",
+				Properties: map[string]string{
+					tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-2",
 				},
 			},
 			nfsShareMap: map[string]*tnsapi.NFSShare{
-				"/mnt/tank/csi/pvc-2": {Path: "/mnt/tank/csi/pvc-2", Enabled: false, ID: 2},
+				"/mnt/tank/csi/pvc-2": {Path: "/mnt/tank/csi/pvc-2", Enabled: false, ID: "2"},
 			},
 			wantShareOK: boolPtr(false),
 			wantIssues:  1,
 		},
 		{
 			name: "share not found",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset: tnsapi.Dataset{ID: "tank/csi/pvc-3"},
-				UserProperties: map[string]tnsapi.UserProperty{
-					tnsapi.PropertyNFSSharePath: {Value: "/mnt/tank/csi/pvc-3"},
+			sv: &tnsapi.Subvolume{
+				Name: "csi/pvc-3",
+				Pool: "tank",
+				Path: "/tank/csi/pvc-3",
+				Properties: map[string]string{
+					tnsapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-3",
 				},
 			},
 			nfsShareMap: map[string]*tnsapi.NFSShare{},
@@ -58,9 +64,11 @@ func TestCheckNFSHealth(t *testing.T) {
 		},
 		{
 			name: "share path not in properties",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset:        tnsapi.Dataset{ID: "tank/csi/pvc-4", Mountpoint: ""},
-				UserProperties: map[string]tnsapi.UserProperty{
+			sv: &tnsapi.Subvolume{
+				Name:       "csi/pvc-4",
+				Pool:       "tank",
+				Path:       "",
+				Properties: map[string]string{
 					// No PropertyNFSSharePath set
 				},
 			},
@@ -75,7 +83,7 @@ func TestCheckNFSHealth(t *testing.T) {
 			health := &VolumeHealth{
 				Issues: make([]string, 0),
 			}
-			dashboard.CheckNFSHealth(tt.ds, tt.nfsShareMap, health)
+			dashboard.CheckNFSHealth(tt.sv, tt.nfsShareMap, health)
 
 			if len(health.Issues) != tt.wantIssues {
 				t.Errorf("got %d issues, want %d; issues: %v", len(health.Issues), tt.wantIssues, health.Issues)
@@ -95,31 +103,33 @@ func TestCheckNFSHealth(t *testing.T) {
 func TestCheckNVMeOFHealth(t *testing.T) {
 	tests := []struct {
 		nvmeSubsysMap map[string]*tnsapi.NVMeOFSubsystem
-		ds            *tnsapi.DatasetWithProperties
+		sv            *tnsapi.Subvolume
 		wantSubsysOK  *bool
 		name          string
 		wantIssues    int
 	}{
 		{
 			name: "subsystem found",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset: tnsapi.Dataset{ID: "tank/zvols/pvc-1"},
-				UserProperties: map[string]tnsapi.UserProperty{
-					tnsapi.PropertyNVMeSubsystemNQN: {Value: "nqn.2024.io.truenas:nvme:pvc-1"},
+			sv: &tnsapi.Subvolume{
+				Name: "zvols/pvc-1",
+				Pool: "tank",
+				Properties: map[string]string{
+					tnsapi.PropertyNVMeSubsystemNQN: "nqn.2024.io.nasty:nvme:pvc-1",
 				},
 			},
 			nvmeSubsysMap: map[string]*tnsapi.NVMeOFSubsystem{
-				"nqn.2024.io.truenas:nvme:pvc-1": {Name: "pvc-1", NQN: "nqn.2024.io.truenas:nvme:pvc-1", ID: 1},
+				"nqn.2024.io.nasty:nvme:pvc-1": {ID: "1", NQN: "nqn.2024.io.nasty:nvme:pvc-1"},
 			},
 			wantSubsysOK: boolPtr(true),
 			wantIssues:   0,
 		},
 		{
 			name: "subsystem not found",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset: tnsapi.Dataset{ID: "tank/zvols/pvc-2"},
-				UserProperties: map[string]tnsapi.UserProperty{
-					tnsapi.PropertyNVMeSubsystemNQN: {Value: "nqn.2024.io.truenas:nvme:pvc-2"},
+			sv: &tnsapi.Subvolume{
+				Name: "zvols/pvc-2",
+				Pool: "tank",
+				Properties: map[string]string{
+					tnsapi.PropertyNVMeSubsystemNQN: "nqn.2024.io.nasty:nvme:pvc-2",
 				},
 			},
 			nvmeSubsysMap: map[string]*tnsapi.NVMeOFSubsystem{},
@@ -128,9 +138,10 @@ func TestCheckNVMeOFHealth(t *testing.T) {
 		},
 		{
 			name: "NQN not in properties",
-			ds: &tnsapi.DatasetWithProperties{
-				Dataset:        tnsapi.Dataset{ID: "tank/zvols/pvc-3"},
-				UserProperties: map[string]tnsapi.UserProperty{
+			sv: &tnsapi.Subvolume{
+				Name:       "zvols/pvc-3",
+				Pool:       "tank",
+				Properties: map[string]string{
 					// No PropertyNVMeSubsystemNQN set
 				},
 			},
@@ -145,7 +156,7 @@ func TestCheckNVMeOFHealth(t *testing.T) {
 			health := &VolumeHealth{
 				Issues: make([]string, 0),
 			}
-			dashboard.CheckNVMeOFHealth(tt.ds, tt.nvmeSubsysMap, health)
+			dashboard.CheckNVMeOFHealth(tt.sv, tt.nvmeSubsysMap, health)
 
 			if len(health.Issues) != tt.wantIssues {
 				t.Errorf("got %d issues, want %d; issues: %v", len(health.Issues), tt.wantIssues, health.Issues)
@@ -177,14 +188,20 @@ func TestCheckVolumeHealth(t *testing.T) {
 		{
 			name: "empty datasets yields empty report",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{}, nil
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{}, nil
 				}
-				m.QueryAllNFSSharesFunc = func(_ context.Context, _ string) ([]tnsapi.NFSShare, error) {
+				m.ListNFSSharesFunc = func(_ context.Context) ([]tnsapi.NFSShare, error) {
 					return []tnsapi.NFSShare{}, nil
 				}
-				m.ListAllNVMeOFSubsystemsFunc = func(_ context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
+				m.ListNVMeOFSubsystemsFunc = func(_ context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
 					return []tnsapi.NVMeOFSubsystem{}, nil
+				}
+				m.ListSMBSharesFunc = func(_ context.Context) ([]tnsapi.SMBShare, error) {
+					return []tnsapi.SMBShare{}, nil
+				}
+				m.ListISCSITargetsFunc = func(_ context.Context) ([]tnsapi.ISCSITarget, error) {
+					return []tnsapi.ISCSITarget{}, nil
 				}
 			},
 			wantErr:          false,
@@ -196,50 +213,61 @@ func TestCheckVolumeHealth(t *testing.T) {
 		{
 			name: "mix of healthy and unhealthy volumes",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
-					return []tnsapi.DatasetWithProperties{
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
+					return []tnsapi.Subvolume{
 						{
 							// Healthy NFS volume
-							Dataset: tnsapi.Dataset{ID: "tank/csi/pvc-healthy"},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:     {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName: {Value: "pvc-healthy"},
-								tnsapi.PropertyProtocol:      {Value: "nfs"},
-								tnsapi.PropertyNFSSharePath:  {Value: "/mnt/tank/csi/pvc-healthy"},
+							Name: "csi/pvc-healthy",
+							Pool: "tank",
+							Path: "/mnt/tank/csi/pvc-healthy",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:     tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName: "pvc-healthy",
+								tnsapi.PropertyProtocol:      "nfs",
+								tnsapi.PropertyNFSSharePath:  "/mnt/tank/csi/pvc-healthy",
 							},
 						},
 						{
 							// Unhealthy NFS volume (share missing)
-							Dataset: tnsapi.Dataset{ID: "tank/csi/pvc-unhealthy"},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:     {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName: {Value: "pvc-unhealthy"},
-								tnsapi.PropertyProtocol:      {Value: "nfs"},
-								tnsapi.PropertyNFSSharePath:  {Value: "/mnt/tank/csi/pvc-unhealthy"},
+							Name: "csi/pvc-unhealthy",
+							Pool: "tank",
+							Path: "/mnt/tank/csi/pvc-unhealthy",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:     tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName: "pvc-unhealthy",
+								tnsapi.PropertyProtocol:      "nfs",
+								tnsapi.PropertyNFSSharePath:  "/mnt/tank/csi/pvc-unhealthy",
 							},
 						},
 						{
 							// Healthy NVMe-oF volume
-							Dataset: tnsapi.Dataset{ID: "tank/zvols/pvc-nvme"},
-							UserProperties: map[string]tnsapi.UserProperty{
-								tnsapi.PropertyManagedBy:        {Value: tnsapi.ManagedByValue},
-								tnsapi.PropertyCSIVolumeName:    {Value: "pvc-nvme"},
-								tnsapi.PropertyProtocol:         {Value: "nvmeof"},
-								tnsapi.PropertyNVMeSubsystemNQN: {Value: "nqn.2024.io.truenas:nvme:pvc-nvme"},
+							Name: "zvols/pvc-nvme",
+							Pool: "tank",
+							Properties: map[string]string{
+								tnsapi.PropertyManagedBy:        tnsapi.ManagedByValue,
+								tnsapi.PropertyCSIVolumeName:    "pvc-nvme",
+								tnsapi.PropertyProtocol:         "nvmeof",
+								tnsapi.PropertyNVMeSubsystemNQN: "nqn.2024.io.nasty:nvme:pvc-nvme",
 							},
 						},
 					}, nil
 				}
-				m.QueryAllNFSSharesFunc = func(_ context.Context, _ string) ([]tnsapi.NFSShare, error) {
+				m.ListNFSSharesFunc = func(_ context.Context) ([]tnsapi.NFSShare, error) {
 					return []tnsapi.NFSShare{
-						{Path: "/mnt/tank/csi/pvc-healthy", Enabled: true, ID: 1},
+						{Path: "/mnt/tank/csi/pvc-healthy", Enabled: true, ID: "1"},
 						// pvc-unhealthy share is missing
 					}, nil
 				}
-				m.ListAllNVMeOFSubsystemsFunc = func(_ context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
+				m.ListNVMeOFSubsystemsFunc = func(_ context.Context) ([]tnsapi.NVMeOFSubsystem, error) {
 					return []tnsapi.NVMeOFSubsystem{
-						{Name: "pvc-nvme", NQN: "nqn.2024.io.truenas:nvme:pvc-nvme", ID: 10},
+						{ID: "10", NQN: "nqn.2024.io.nasty:nvme:pvc-nvme"},
 					}, nil
+				}
+				m.ListSMBSharesFunc = func(_ context.Context) ([]tnsapi.SMBShare, error) {
+					return []tnsapi.SMBShare{}, nil
+				}
+				m.ListISCSITargetsFunc = func(_ context.Context) ([]tnsapi.ISCSITarget, error) {
+					return []tnsapi.ISCSITarget{}, nil
 				}
 			},
 			wantErr:          false,
@@ -251,7 +279,7 @@ func TestCheckVolumeHealth(t *testing.T) {
 		{
 			name: "API error propagates",
 			setupMock: func(m *mockClient) {
-				m.FindDatasetsByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.DatasetWithProperties, error) {
+				m.FindSubvolumesByPropertyFunc = func(_ context.Context, _, _, _ string) ([]tnsapi.Subvolume, error) {
 					return nil, errNotImplemented
 				}
 			},

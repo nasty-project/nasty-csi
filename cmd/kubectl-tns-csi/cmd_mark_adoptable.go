@@ -87,8 +87,8 @@ func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -168,56 +168,57 @@ func runMarkAdoptable(ctx context.Context, args []string, url, apiKey, secretRef
 // findVolumeByRef finds a volume by volume ID or dataset path.
 func findVolumeByRef(ctx context.Context, client tnsapi.ClientInterface, volumeRef string) (*VolumeInfo, error) {
 	// Try to find by CSI volume name first
-	ds, err := client.FindDatasetByCSIVolumeName(ctx, "", volumeRef)
-	if err == nil && ds != nil {
-		return datasetToVolumeInfo(ds), nil
+	sv, err := client.FindSubvolumeByCSIVolumeName(ctx, "", volumeRef)
+	if err == nil && sv != nil {
+		return subvolumeToVolumeInfo(sv), nil
 	}
 
-	// Try to find by dataset path
-	datasets, err := client.FindDatasetsByProperty(ctx, "", tnsapi.PropertyManagedBy, tnsapi.ManagedByValue)
+	// Try to find by dataset path (pool/name)
+	subvols, err := client.FindSubvolumesByProperty(ctx, tnsapi.PropertyManagedBy, tnsapi.ManagedByValue, "")
 	if err != nil {
 		return nil, err
 	}
 
-	for i := range datasets {
-		if datasets[i].ID == volumeRef {
-			return datasetToVolumeInfo(&datasets[i]), nil
+	for i := range subvols {
+		svID := subvols[i].Pool + "/" + subvols[i].Name
+		if svID == volumeRef {
+			return subvolumeToVolumeInfo(&subvols[i]), nil
 		}
 	}
 
 	return nil, fmt.Errorf("%w: %s", errVolumeNotFound, volumeRef)
 }
 
-// datasetToVolumeInfo converts a dataset to VolumeInfo.
-func datasetToVolumeInfo(ds *tnsapi.DatasetWithProperties) *VolumeInfo {
+// subvolumeToVolumeInfo converts a Subvolume to VolumeInfo.
+func subvolumeToVolumeInfo(sv *tnsapi.Subvolume) *VolumeInfo {
 	info := &VolumeInfo{
-		Dataset: ds.ID,
+		Dataset: sv.Pool + "/" + sv.Name,
 	}
 
-	if prop, ok := ds.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-		info.VolumeID = prop.Value
-	}
-	if prop, ok := ds.UserProperties[tnsapi.PropertyProtocol]; ok {
-		info.Protocol = prop.Value
-	}
-	if prop, ok := ds.UserProperties[tnsapi.PropertyAdoptable]; ok {
-		info.Adoptable = prop.Value == valueTrue
+	if sv.Properties != nil {
+		info.VolumeID = sv.Properties[tnsapi.PropertyCSIVolumeName]
+		info.Protocol = sv.Properties[tnsapi.PropertyProtocol]
+		info.Adoptable = sv.Properties[tnsapi.PropertyAdoptable] == valueTrue
 	}
 
 	return info
 }
 
-// setAdoptableFlag sets the adoptable flag on a dataset.
+// setAdoptableFlag sets the adoptable flag on a subvolume.
 func setAdoptableFlag(ctx context.Context, client tnsapi.ClientInterface, datasetID string) error {
+	pool, name := parsePoolName(datasetID)
 	props := map[string]string{
 		tnsapi.PropertyAdoptable: tnsapi.PropertyValueTrue,
 	}
-	return client.SetDatasetProperties(ctx, datasetID, props)
+	_, err := client.SetSubvolumeProperties(ctx, pool, name, props)
+	return err
 }
 
-// clearAdoptableFlag removes the adoptable flag from a dataset.
+// clearAdoptableFlag removes the adoptable flag from a subvolume.
 func clearAdoptableFlag(ctx context.Context, client tnsapi.ClientInterface, datasetID string) error {
-	return client.ClearDatasetProperties(ctx, datasetID, []string{tnsapi.PropertyAdoptable})
+	pool, name := parsePoolName(datasetID)
+	_, err := client.RemoveSubvolumeProperties(ctx, pool, name, []string{tnsapi.PropertyAdoptable})
+	return err
 }
 
 // actionVerb returns the appropriate verb for the action.

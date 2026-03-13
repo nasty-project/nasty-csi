@@ -22,8 +22,7 @@ var (
 	errNoNFSShareForImport = errors.New("no NFS share found, use --create-share to create one")
 	errPoolOrParentMissing = errors.New("either --pool or --parent must be specified")
 	errISCSIRequiresZvol   = errors.New("iSCSI requires a zvol")
-	errNoISCSIExtent       = errors.New("no iSCSI extent found for zvol")
-	errNoISCSITargetAssoc  = errors.New("no target association found for extent")
+	errNoISCSITargetFound  = errors.New("no iSCSI target found for block device")
 	errNoSMBShareForPath   = errors.New("no SMB share found for path")
 )
 
@@ -34,12 +33,11 @@ type ImportResult struct {
 	Dataset       string            `json:"dataset"                 yaml:"dataset"`
 	VolumeID      string            `json:"volumeId"                yaml:"volumeId"`
 	Protocol      string            `json:"protocol"                yaml:"protocol"`
-	NFSShareID    int               `json:"nfsShareId,omitempty"    yaml:"nfsShareId,omitempty"`
+	NFSShareID    string            `json:"nfsShareId,omitempty"    yaml:"nfsShareId,omitempty"`
 	NFSSharePath  string            `json:"nfsSharePath,omitempty"  yaml:"nfsSharePath,omitempty"`
-	ISCSITargetID int               `json:"iscsiTargetId,omitempty" yaml:"iscsiTargetId,omitempty"`
-	ISCSIExtentID int               `json:"iscsiExtentId,omitempty" yaml:"iscsiExtentId,omitempty"`
+	ISCSITargetID string            `json:"iscsiTargetId,omitempty" yaml:"iscsiTargetId,omitempty"`
 	ISCSIIQN      string            `json:"iscsiIqn,omitempty"      yaml:"iscsiIqn,omitempty"`
-	SMBShareID    int               `json:"smbShareId,omitempty"    yaml:"smbShareId,omitempty"`
+	SMBShareID    string            `json:"smbShareId,omitempty"    yaml:"smbShareId,omitempty"`
 	SMBShareName  string            `json:"smbShareName,omitempty"  yaml:"smbShareName,omitempty"`
 	CapacityBytes int64             `json:"capacityBytes"           yaml:"capacityBytes"`
 	Properties    map[string]string `json:"properties"              yaml:"properties"`
@@ -59,7 +57,7 @@ func newImportCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *b
 	cmd := &cobra.Command{
 		Use:   "import <dataset-path>",
 		Short: "Import an existing dataset into tns-csi management",
-		Long: `Import an existing TrueNAS dataset into tns-csi management.
+		Long: `Import an existing NASty dataset into tns-csi management.
 
 This command adds tns-csi properties to an existing dataset, allowing it to be
 managed by the tns-csi driver. This is useful for:
@@ -125,23 +123,25 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer client.Close()
 
+	// Parse pool/name from dataset path
+	pool, name := parsePoolName(datasetPath)
+
 	// Verify dataset exists
-	dataset, err := client.Dataset(ctx, datasetPath)
+	subvol, err := client.GetSubvolume(ctx, pool, name)
 	if err != nil {
 		return fmt.Errorf("dataset not found: %w", err)
 	}
 
 	// Check if already managed by tns-csi
-	existingProps, err := client.GetAllDatasetProperties(ctx, datasetPath)
-	if err == nil {
-		if val, ok := existingProps[tnsapi.PropertyManagedBy]; ok && val == tnsapi.ManagedByValue {
+	if subvol.Properties != nil {
+		if val, ok := subvol.Properties[tnsapi.PropertyManagedBy]; ok && val == tnsapi.ManagedByValue {
 			return fmt.Errorf("%w: %s", errAlreadyManaged, datasetPath)
 		}
 	}
@@ -161,10 +161,8 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 	result.VolumeID = volumeID
 
 	// Get capacity from used space
-	if dataset.Used != nil {
-		if val, ok := dataset.Used["parsed"].(float64); ok {
-			result.CapacityBytes = int64(val)
-		}
+	if subvol.UsedBytes != nil {
+		result.CapacityBytes = int64(*subvol.UsedBytes)
 	}
 
 	// Build properties to set
@@ -183,14 +181,13 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 	// Protocol-specific handling
 	switch protocol {
 	case protocolNFS:
-		nfsProps, nfsErr := handleNFSImport(ctx, client, dataset, createShare, dryRun)
+		nfsProps, nfsErr := handleNFSImport(ctx, client, subvol, createShare, dryRun)
 		if nfsErr != nil {
 			return fmt.Errorf("NFS setup failed: %w", nfsErr)
 		}
 		for k, v := range nfsProps {
 			if k == "_nfs_share_id" {
-				//nolint:errcheck // ignore parse errors for internal metadata
-				result.NFSShareID, _ = strconv.Atoi(v)
+				result.NFSShareID = v
 			} else {
 				props[k] = v
 			}
@@ -205,18 +202,14 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 		fmt.Fprintln(os.Stderr, "Warning: NVMe-oF import is experimental. Subsystem must already exist.")
 
 	case protocolISCSI:
-		iscsiProps, iscsiErr := handleISCSIImport(ctx, client, dataset, dryRun)
+		iscsiProps, iscsiErr := handleISCSIImport(ctx, client, subvol, dryRun)
 		if iscsiErr != nil {
 			return fmt.Errorf("iSCSI setup failed: %w", iscsiErr)
 		}
 		for k, v := range iscsiProps {
 			switch k {
 			case "_iscsi_target_id":
-				//nolint:errcheck // ignore parse errors for internal metadata
-				result.ISCSITargetID, _ = strconv.Atoi(v)
-			case "_iscsi_extent_id":
-				//nolint:errcheck // ignore parse errors for internal metadata
-				result.ISCSIExtentID, _ = strconv.Atoi(v)
+				result.ISCSITargetID = v
 			default:
 				props[k] = v
 			}
@@ -226,14 +219,13 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 		}
 
 	case protocolSMB:
-		smbProps, smbErr := handleSMBImport(ctx, client, dataset, dryRun)
+		smbProps, smbErr := handleSMBImport(ctx, client, subvol, dryRun)
 		if smbErr != nil {
 			return fmt.Errorf("SMB setup failed: %w", smbErr)
 		}
 		for k, v := range smbProps {
 			if k == "_smb_share_id" {
-				//nolint:errcheck // ignore parse errors for internal metadata
-				result.SMBShareID, _ = strconv.Atoi(v)
+				result.SMBShareID = v
 			} else {
 				props[k] = v
 			}
@@ -256,7 +248,7 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 	}
 
 	// Apply properties
-	err = client.SetDatasetProperties(ctx, datasetPath, props)
+	_, err = client.SetSubvolumeProperties(ctx, pool, name, props)
 	if err != nil {
 		result.Success = false
 		result.Message = "Failed to set properties: " + err.Error()
@@ -279,126 +271,123 @@ func runImport(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 	return nil
 }
 
-func handleISCSIImport(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.Dataset, dryRun bool) (map[string]string, error) {
+func handleISCSIImport(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, dryRun bool) (map[string]string, error) {
 	props := make(map[string]string)
 
-	// iSCSI volumes are ZVOLs - verify type
-	if dataset.Type != datasetTypeVolume {
-		return nil, fmt.Errorf("%w: dataset type is %s", errISCSIRequiresZvol, dataset.Type)
+	// iSCSI volumes are block devices
+	if sv.SubvolumeType != "block" {
+		return nil, fmt.Errorf("%w: subvolume type is %s", errISCSIRequiresZvol, sv.SubvolumeType)
 	}
 
-	// Get zvol path for extent lookup (format: zvol/pool/path)
-	zvolPath := "zvol/" + dataset.ID
+	// Check if IQN is already stored in properties
+	if sv.Properties != nil {
+		if storedIQN, ok := sv.Properties[tnsapi.PropertyISCSIIQN]; ok && storedIQN != "" {
+			// Look up target by IQN
+			target, err := client.GetISCSITargetByIQN(ctx, storedIQN)
+			if err == nil && target != nil {
+				if dryRun {
+					fmt.Printf("DRY RUN - Found iSCSI target by stored IQN:\n")
+					fmt.Printf("  Target ID: %s, IQN: %s\n", target.ID, target.IQN)
+					return props, nil
+				}
+				props[tnsapi.PropertyISCSIIQN] = target.IQN
+				props[tnsapi.PropertyISCSITargetID] = target.ID
+				props["_iscsi_target_id"] = target.ID
+				fmt.Printf("Found iSCSI target by IQN: %s (ID: %s)\n", target.IQN, target.ID)
+				return props, nil
+			}
+		}
+	}
 
-	// Find existing extent for this zvol
-	extents, err := client.QueryISCSIExtents(ctx, nil)
+	// Scan all targets for one whose LUN backstore path matches the block device
+	blockDevice := ""
+	if sv.BlockDevice != nil {
+		blockDevice = *sv.BlockDevice
+	}
+
+	targets, err := client.ListISCSITargets(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query iSCSI extents: %w", err)
+		return nil, fmt.Errorf("failed to list iSCSI targets: %w", err)
 	}
 
-	var extent *tnsapi.ISCSIExtent
-	for i := range extents {
-		if extents[i].Disk == zvolPath {
-			extent = &extents[i]
+	var matchedTarget *tnsapi.ISCSITarget
+	for i := range targets {
+		t := &targets[i]
+		for _, lun := range t.Luns {
+			if blockDevice != "" && lun.BackstorePath == blockDevice {
+				matchedTarget = t
+				break
+			}
+		}
+		if matchedTarget != nil {
 			break
 		}
 	}
 
-	if extent == nil {
-		return nil, fmt.Errorf("%w: %s", errNoISCSIExtent, zvolPath)
+	if matchedTarget == nil {
+		return nil, fmt.Errorf("%w: %s", errNoISCSITargetFound, blockDevice)
 	}
-
-	// Find target-extent association
-	targetExtents, err := client.QueryISCSITargetExtents(ctx, []interface{}{
-		[]interface{}{"extent", "=", extent.ID},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to query target-extent associations: %w", err)
-	}
-
-	if len(targetExtents) == 0 {
-		return nil, fmt.Errorf("%w: extent ID %d", errNoISCSITargetAssoc, extent.ID)
-	}
-
-	targetExtent := targetExtents[0]
-
-	// Get target details
-	targets, err := client.QueryISCSITargets(ctx, []interface{}{
-		[]interface{}{"id", "=", targetExtent.Target},
-	})
-	if err != nil || len(targets) == 0 {
-		return nil, fmt.Errorf("failed to get target %d: %w", targetExtent.Target, err)
-	}
-
-	target := targets[0]
-
-	// Get global config for base IQN
-	globalConfig, err := client.GetISCSIGlobalConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get iSCSI global config: %w", err)
-	}
-
-	// Build full IQN
-	fullIQN := globalConfig.Basename + ":" + target.Name
 
 	if dryRun {
 		fmt.Printf("DRY RUN - Found iSCSI resources:\n")
-		fmt.Printf("  Extent: %s (ID: %d)\n", extent.Name, extent.ID)
-		fmt.Printf("  Target: %s (ID: %d)\n", target.Name, target.ID)
-		fmt.Printf("  IQN: %s\n", fullIQN)
+		fmt.Printf("  Target: %s (ID: %s, IQN: %s)\n", matchedTarget.ID, matchedTarget.ID, matchedTarget.IQN)
 		return props, nil
 	}
 
-	props[tnsapi.PropertyISCSIIQN] = fullIQN
-	props[tnsapi.PropertyISCSITargetID] = strconv.Itoa(target.ID)
-	props[tnsapi.PropertyISCSIExtentID] = strconv.Itoa(extent.ID)
-	props["_iscsi_target_id"] = strconv.Itoa(target.ID)
-	props["_iscsi_extent_id"] = strconv.Itoa(extent.ID)
+	props[tnsapi.PropertyISCSIIQN] = matchedTarget.IQN
+	props[tnsapi.PropertyISCSITargetID] = matchedTarget.ID
+	props["_iscsi_target_id"] = matchedTarget.ID
 
-	fmt.Printf("Found iSCSI target: %s (IQN: %s)\n", target.Name, fullIQN)
+	fmt.Printf("Found iSCSI target: %s (IQN: %s)\n", matchedTarget.ID, matchedTarget.IQN)
 	return props, nil
 }
 
-func handleSMBImport(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.Dataset, dryRun bool) (map[string]string, error) {
+func handleSMBImport(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, dryRun bool) (map[string]string, error) {
 	props := make(map[string]string)
 
 	// Check for existing SMB share by path
-	shares, err := client.QuerySMBShare(ctx, dataset.Mountpoint)
+	shares, err := client.ListSMBShares(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query SMB shares: %w", err)
+		return nil, fmt.Errorf("failed to list SMB shares: %w", err)
 	}
 
-	if len(shares) == 0 {
-		return nil, fmt.Errorf("%w: %s", errNoSMBShareForPath, dataset.Mountpoint)
+	var matchedShare *tnsapi.SMBShare
+	for i := range shares {
+		if shares[i].Path == sv.Path {
+			matchedShare = &shares[i]
+			break
+		}
 	}
 
-	share := shares[0]
+	if matchedShare == nil {
+		return nil, fmt.Errorf("%w: %s", errNoSMBShareForPath, sv.Path)
+	}
 
 	if dryRun {
-		fmt.Printf("DRY RUN - Found SMB share: %s (ID: %d)\n", share.Name, share.ID)
+		fmt.Printf("DRY RUN - Found SMB share: %s (ID: %s)\n", matchedShare.Name, matchedShare.ID)
 		return props, nil
 	}
 
-	props[tnsapi.PropertySMBShareName] = share.Name
-	props[tnsapi.PropertySMBShareID] = strconv.Itoa(share.ID)
-	props["_smb_share_id"] = strconv.Itoa(share.ID)
+	props[tnsapi.PropertySMBShareName] = matchedShare.Name
+	props[tnsapi.PropertySMBShareID] = matchedShare.ID
+	props["_smb_share_id"] = matchedShare.ID
 
-	fmt.Printf("Found SMB share: %s (ID: %d)\n", share.Name, share.ID)
+	fmt.Printf("Found SMB share: %s (ID: %s)\n", matchedShare.Name, matchedShare.ID)
 	return props, nil
 }
 
-func handleNFSImport(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.Dataset, createShare, dryRun bool) (map[string]string, error) {
+func handleNFSImport(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, createShare, dryRun bool) (map[string]string, error) {
 	props := make(map[string]string)
 
 	// Check for existing NFS share
-	shares, err := client.QueryAllNFSShares(ctx, "")
+	shares, err := client.ListNFSShares(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query NFS shares: %w", err)
+		return nil, fmt.Errorf("failed to list NFS shares: %w", err)
 	}
 
 	var existingShare *tnsapi.NFSShare
 	for i := range shares {
-		if shares[i].Path == dataset.Mountpoint {
+		if shares[i].Path == sv.Path {
 			existingShare = &shares[i]
 			break
 		}
@@ -407,30 +396,29 @@ func handleNFSImport(ctx context.Context, client tnsapi.ClientInterface, dataset
 	if existingShare != nil {
 		// Use existing share
 		props[tnsapi.PropertyNFSSharePath] = existingShare.Path
-		props[tnsapi.PropertyNFSShareID] = strconv.Itoa(existingShare.ID)
-		props["_nfs_share_id"] = strconv.Itoa(existingShare.ID)
-		fmt.Printf("Found existing NFS share: %s (ID: %d)\n", existingShare.Path, existingShare.ID)
+		props[tnsapi.PropertyNFSShareID] = existingShare.ID
+		props["_nfs_share_id"] = existingShare.ID
+		fmt.Printf("Found existing NFS share: %s (ID: %s)\n", existingShare.Path, existingShare.ID)
 		return props, nil
 	}
 
 	// No existing share
 	if !createShare {
-		return nil, fmt.Errorf("%w: %s", errNoNFSShareForImport, dataset.Mountpoint)
+		return nil, fmt.Errorf("%w: %s", errNoNFSShareForImport, sv.Path)
 	}
 
 	if dryRun {
-		fmt.Printf("DRY RUN - Would create NFS share for path: %s\n", dataset.Mountpoint)
-		props[tnsapi.PropertyNFSSharePath] = dataset.Mountpoint
+		fmt.Printf("DRY RUN - Would create NFS share for path: %s\n", sv.Path)
+		props[tnsapi.PropertyNFSSharePath] = sv.Path
 		return props, nil
 	}
 
 	// Create NFS share
+	enabled := true
 	shareParams := tnsapi.NFSShareCreateParams{
-		Path:         dataset.Mountpoint,
-		Comment:      "nasty-csi imported volume: " + dataset.ID,
-		Enabled:      true,
-		MaprootUser:  "root",
-		MaprootGroup: "wheel",
+		Path:    sv.Path,
+		Comment: "nasty-csi imported volume: " + sv.Pool + "/" + sv.Name,
+		Enabled: &enabled,
 	}
 
 	share, err := client.CreateNFSShare(ctx, shareParams)
@@ -438,11 +426,11 @@ func handleNFSImport(ctx context.Context, client tnsapi.ClientInterface, dataset
 		return nil, fmt.Errorf("failed to create NFS share: %w", err)
 	}
 
-	props[tnsapi.PropertyNFSSharePath] = dataset.Mountpoint
-	props[tnsapi.PropertyNFSShareID] = strconv.Itoa(share.ID)
-	props["_nfs_share_id"] = strconv.Itoa(share.ID)
+	props[tnsapi.PropertyNFSSharePath] = sv.Path
+	props[tnsapi.PropertyNFSShareID] = share.ID
+	props["_nfs_share_id"] = share.ID
 
-	fmt.Printf("Created NFS share: %s (ID: %d)\n", dataset.Mountpoint, share.ID)
+	fmt.Printf("Created NFS share: %s (ID: %s)\n", sv.Path, share.ID)
 	return props, nil
 }
 
@@ -465,14 +453,14 @@ func outputImportResult(result *ImportResult, format string) error {
 			fmt.Printf("  Protocol:  %s\n", protocolBadge(result.Protocol))
 			fmt.Printf("  Capacity:  %s\n", dashboard.FormatBytes(result.CapacityBytes))
 			if result.NFSSharePath != "" {
-				fmt.Printf("  NFS Share: %s (ID: %d)\n", result.NFSSharePath, result.NFSShareID)
+				fmt.Printf("  NFS Share: %s (ID: %s)\n", result.NFSSharePath, result.NFSShareID)
 			}
 			if result.ISCSIIQN != "" {
-				fmt.Printf("  iSCSI IQN: %s (Target ID: %d, Extent ID: %d)\n",
-					result.ISCSIIQN, result.ISCSITargetID, result.ISCSIExtentID)
+				fmt.Printf("  iSCSI IQN: %s (Target ID: %s)\n",
+					result.ISCSIIQN, result.ISCSITargetID)
 			}
 			if result.SMBShareName != "" {
-				fmt.Printf("  SMB Share: %s (ID: %d)\n", result.SMBShareName, result.SMBShareID)
+				fmt.Printf("  SMB Share: %s (ID: %s)\n", result.SMBShareName, result.SMBShareID)
 			}
 		} else {
 			printStepf(colorError, iconError, "Failed to import %s: %s", result.Dataset, result.Message)

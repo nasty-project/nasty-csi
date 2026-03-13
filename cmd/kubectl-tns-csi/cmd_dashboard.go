@@ -72,7 +72,7 @@ Examples:
   kubectl tns-csi dashboard --pool storage
 
   # With explicit credentials
-  kubectl tns-csi dashboard --url wss://truenas:443/api/current --api-key KEY`,
+  kubectl tns-csi dashboard --url wss://nasty:443/api/current --api-key KEY`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runDashboard(cmd.Context(), url, apiKey, secretRef, skipTLSVerify, clusterID, port, pool, openBrowser)
 		},
@@ -200,7 +200,7 @@ func openURL(ctx context.Context, url string) error {
 }
 
 func (s *dashboardServer) getClient(ctx context.Context) (tnsapi.ClientInterface, error) {
-	return connectToTrueNAS(ctx, s.cfg)
+	return connectToNASty(ctx, s.cfg)
 }
 
 func (s *dashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +214,7 @@ func (s *dashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request
 
 	client, err := s.getClient(ctx)
 	if err != nil {
-		data.Error = fmt.Sprintf("Failed to connect to TrueNAS: %v", err)
+		data.Error = fmt.Sprintf("Failed to connect to NASty: %v", err)
 	} else {
 		defer client.Close()
 		data = s.fetchAllData(ctx, client)

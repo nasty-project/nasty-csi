@@ -23,17 +23,17 @@ const (
 	outputFormatTable = "table"
 	valueTrue         = "true"
 
-	// datasetTypeVolume is the TrueNAS dataset type for ZVOLs.
+	// datasetTypeVolume is the NASty dataset type for ZVOLs.
 	datasetTypeVolume = "VOLUME"
 )
 
 func newListCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all tns-csi managed volumes on TrueNAS",
-		Long: `List all volumes managed by tns-csi on TrueNAS.
+		Short: "List all tns-csi managed volumes on NASty",
+		Long: `List all volumes managed by tns-csi on NASty.
 
-This command queries TrueNAS for all datasets with nasty-csi:managed_by property
+This command queries NASty for all datasets with nasty-csi:managed_by property
 and displays their metadata.
 
 Examples:
@@ -43,8 +43,8 @@ Examples:
   # List all volumes in YAML format
   kubectl tns-csi list -o yaml
 
-  # List volumes using specific TrueNAS connection
-  kubectl tns-csi list --url wss://truenas:443/api/current --api-key <key>`,
+  # List volumes using specific NASty connection
+  kubectl tns-csi list --url wss://nasty:443/api/current --api-key <key>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runList(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID)
 		},
@@ -59,9 +59,9 @@ func runList(ctx context.Context, url, apiKey, secretRef, outputFormat *string, 
 		return err
 	}
 
-	// Connect to TrueNAS
-	spin := newSpinner("Fetching volumes from TrueNAS...")
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	spin := newSpinner("Fetching volumes from NASty...")
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		spin.stop()
 		return err

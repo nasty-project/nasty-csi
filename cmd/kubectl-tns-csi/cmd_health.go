@@ -18,10 +18,10 @@ func newHealthCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *b
 	cmd := &cobra.Command{
 		Use:   "health",
 		Short: "Check health of all tns-csi managed volumes",
-		Long: `Check the health status of all tns-csi managed volumes on TrueNAS.
+		Long: `Check the health status of all tns-csi managed volumes on NASty.
 
 This command verifies:
-  - Dataset exists on TrueNAS
+  - Dataset exists on NASty
   - NFS shares are present and enabled (for NFS volumes)
   - NVMe-oF subsystems are present and enabled (for NVMe-oF volumes)
 
@@ -52,9 +52,9 @@ func runHealth(ctx context.Context, url, apiKey, secretRef, outputFormat *string
 		return err
 	}
 
-	// Connect to TrueNAS
+	// Connect to NASty
 	spin := newSpinner("Checking volume health...")
-	client, err := connectToTrueNAS(ctx, cfg)
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		spin.stop()
 		return err

@@ -1,4 +1,4 @@
-// Package main implements the kubectl-nasty-csi plugin for managing TrueNAS CSI volumes.
+// Package main implements the kubectl-nasty-csi plugin for managing NASty CSI volumes.
 //
 // Installation:
 //
@@ -10,8 +10,8 @@
 //	kubectl tns-csi list                     # List all tns-csi managed volumes
 //	kubectl tns-csi list-orphaned            # Find volumes with no matching PVC
 //	kubectl tns-csi adopt <dataset-path>     # Generate static PV manifest
-//	kubectl tns-csi status <pvc-name>        # Show volume status from TrueNAS
-//	kubectl tns-csi connectivity             # Test TrueNAS connection
+//	kubectl tns-csi status <pvc-name>        # Show volume status from NASty
+//	kubectl tns-csi connectivity             # Test NASty connection
 package main
 
 import (
@@ -34,8 +34,8 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	var (
-		truenasURL    string
-		truenasAPIKey string
+		nastyURL    string
+		nastyAPIKey string
 		secretRef     string
 		outputFormat  string
 		skipTLSVerify bool
@@ -44,44 +44,44 @@ func newRootCmd() *cobra.Command {
 
 	rootCmd := &cobra.Command{
 		Use:   "kubectl-nasty-csi",
-		Short: "Manage TrueNAS CSI volumes",
-		Long: `kubectl-nasty-csi is a kubectl plugin for managing TrueNAS CSI driver volumes.
+		Short: "Manage NASty CSI volumes",
+		Long: `kubectl-nasty-csi is a kubectl plugin for managing NASty CSI driver volumes.
 
 It provides commands for discovering orphaned volumes, adopting volumes across
 clusters, and troubleshooting volume issues.
 
-Connection to TrueNAS can be configured via:
+Connection to NASty can be configured via:
   - Flags: --url and --api-key
   - Kubernetes secret: --secret <namespace>/<name>
-  - Environment: TRUENAS_URL and TRUENAS_API_KEY`,
+  - Environment: NASTY_URL and NASTY_API_KEY`,
 		Version: version + " (" + commit + ")",
 	}
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVar(&truenasURL, "url", "", "TrueNAS WebSocket URL (wss://host/api/current)")
-	rootCmd.PersistentFlags().StringVar(&truenasAPIKey, "api-key", "", "TrueNAS API key")
-	rootCmd.PersistentFlags().StringVar(&secretRef, "secret", "", "Kubernetes secret with TrueNAS credentials (namespace/name)")
+	rootCmd.PersistentFlags().StringVar(&nastyURL, "url", "", "NASty WebSocket URL (wss://host/api/current)")
+	rootCmd.PersistentFlags().StringVar(&nastyAPIKey, "api-key", "", "NASty API key")
+	rootCmd.PersistentFlags().StringVar(&secretRef, "secret", "", "Kubernetes secret with NASty credentials (namespace/name)")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "table", "Output format: table, yaml, json")
 	rootCmd.PersistentFlags().BoolVar(&skipTLSVerify, "insecure-skip-tls-verify", true, "Skip TLS certificate verification")
-	rootCmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "Filter by cluster ID (for multi-cluster TrueNAS sharing)")
+	rootCmd.PersistentFlags().StringVar(&clusterID, "cluster-id", "", "Filter by cluster ID (for multi-cluster NASty sharing)")
 
 	// Add subcommands
-	rootCmd.AddCommand(newListCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newListSnapshotsCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newListClonesCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newListOrphanedCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newDescribeCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newHealthCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newTroubleshootCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newSummaryCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newCleanupCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newMarkAdoptableCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newAdoptCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newStatusCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newConnectivityCmd(&truenasURL, &truenasAPIKey, &secretRef, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newListUnmanagedCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
-	rootCmd.AddCommand(newImportCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
-	rootCmd.AddCommand(newDashboardCmd(&truenasURL, &truenasAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListSnapshotsCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListClonesCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListOrphanedCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newDescribeCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newHealthCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newTroubleshootCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newSummaryCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newCleanupCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newMarkAdoptableCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newAdoptCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newStatusCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newConnectivityCmd(&nastyURL, &nastyAPIKey, &secretRef, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newListUnmanagedCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
+	rootCmd.AddCommand(newImportCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify))
+	rootCmd.AddCommand(newDashboardCmd(&nastyURL, &nastyAPIKey, &secretRef, &outputFormat, &skipTLSVerify, &clusterID))
 
 	return rootCmd
 }

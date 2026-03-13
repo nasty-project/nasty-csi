@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	"github.com/nasty-project/nasty-csi/pkg/tnsapi"
@@ -77,7 +76,7 @@ func newTroubleshootCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVer
 
 This command performs comprehensive checks:
   - Kubernetes: PVC status, PV binding, events
-  - TrueNAS: Dataset exists, NFS share/NVMe-oF subsystem status
+  - NASty: Dataset exists, NFS share/NVMe-oF subsystem status
   - Provides actionable suggestions based on findings
 
 Examples:
@@ -181,77 +180,77 @@ func runTroubleshoot(ctx context.Context, pvcName, namespace string, url, apiKey
 		Message: fmt.Sprintf("PV found (handle: %s)", pv.VolumeHandle),
 	})
 
-	// Step 4: Connect to TrueNAS and check resources
+	// Step 4: Connect to NASty and check resources
 	cfg, err := getConnectionConfig(ctx, url, apiKey, secretRef, skipTLSVerify)
 	if err != nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
-			Name:    "TrueNAS Connection",
+			Name:    "NASty Connection",
 			Status:  statusError,
-			Message: "Cannot connect to TrueNAS: " + err.Error(),
+			Message: "Cannot connect to NASty: " + err.Error(),
 		})
-		result.Suggestions = append(result.Suggestions, "Verify TrueNAS connection settings (--url, --api-key, or --secret)")
+		result.Suggestions = append(result.Suggestions, "Verify NASty connection settings (--url, --api-key, or --secret)")
 		result.Status = statusWarning
-		result.Summary = "Cannot verify TrueNAS resources - connection failed"
+		result.Summary = "Cannot verify NASty resources - connection failed"
 		return outputTroubleshootResult(result, *outputFormat)
 	}
 
-	client, err := connectToTrueNAS(ctx, cfg)
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
-			Name:    "TrueNAS Connection",
+			Name:    "NASty Connection",
 			Status:  statusError,
-			Message: "Cannot connect to TrueNAS: " + err.Error(),
+			Message: "Cannot connect to NASty: " + err.Error(),
 		})
-		result.Suggestions = append(result.Suggestions, "Check TrueNAS is accessible and API key is valid")
+		result.Suggestions = append(result.Suggestions, "Check NASty is accessible and API key is valid")
 		result.Status = statusWarning
-		result.Summary = "Cannot verify TrueNAS resources - connection failed"
+		result.Summary = "Cannot verify NASty resources - connection failed"
 		return outputTroubleshootResult(result, *outputFormat)
 	}
 	defer client.Close()
 
 	result.Checks = append(result.Checks, TroubleshootCheck{
-		Name:    "TrueNAS Connection",
+		Name:    "NASty Connection",
 		Status:  statusOK,
-		Message: "Connected to TrueNAS",
+		Message: "Connected to NASty",
 	})
 
-	// Step 5: Check dataset on TrueNAS
+	// Step 5: Check subvolume on NASty
 	volumeID := pv.VolumeHandle
-	dataset, datasetErr := findDatasetByVolumeID(ctx, client, volumeID)
-	if datasetErr != nil || dataset == nil {
+	subvol, datasetErr := findSubvolumeByVolumeID(ctx, client, volumeID)
+	if datasetErr != nil || subvol == nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
-			Name:    "TrueNAS Dataset",
+			Name:    "NASty Dataset",
 			Status:  statusError,
 			Message: "Dataset not found for volume " + volumeID,
 		})
-		result.Suggestions = append(result.Suggestions, "The dataset may have been deleted from TrueNAS")
+		result.Suggestions = append(result.Suggestions, "The dataset may have been deleted from NASty")
 		result.Suggestions = append(result.Suggestions, "Check if the volume was manually deleted or if there's a pool issue")
 		result.Status = statusError
-		result.Summary = "Volume dataset missing from TrueNAS"
+		result.Summary = "Volume dataset missing from NASty"
 		return outputTroubleshootResult(result, *outputFormat)
 	}
 
 	result.Checks = append(result.Checks, TroubleshootCheck{
-		Name:    "TrueNAS Dataset",
+		Name:    "NASty Dataset",
 		Status:  statusOK,
-		Message: "Dataset found: " + dataset.ID,
+		Message: "Dataset found: " + subvol.Pool + "/" + subvol.Name,
 	})
 
 	// Step 6: Check protocol-specific resources
 	protocol := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyProtocol]; ok {
-		protocol = prop.Value
+	if subvol.Properties != nil {
+		protocol = subvol.Properties[tnsapi.PropertyProtocol]
 	}
 
 	switch protocol {
 	case protocolNFS:
-		checkNFSResourcesForTroubleshoot(ctx, client, dataset, result)
+		checkNFSResourcesForTroubleshoot(ctx, client, subvol, result)
 	case protocolNVMeOF:
-		checkNVMeOFResourcesForTroubleshoot(ctx, client, dataset, result)
+		checkNVMeOFResourcesForTroubleshoot(ctx, client, subvol, result)
 	case protocolSMB:
-		checkSMBResourcesForTroubleshoot(ctx, client, dataset, result)
+		checkSMBResourcesForTroubleshoot(ctx, client, subvol, result)
 	case protocolISCSI:
-		checkISCSIResourcesForTroubleshoot(ctx, client, dataset, result)
+		checkISCSIResourcesForTroubleshoot(ctx, client, subvol, result)
 	default:
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "Protocol Check",
@@ -312,26 +311,28 @@ func runTroubleshoot(ctx context.Context, pvcName, namespace string, url, apiKey
 	return outputTroubleshootResult(result, *outputFormat)
 }
 
-// findDatasetByVolumeID finds a dataset by volume ID.
+// findSubvolumeByVolumeID finds a subvolume by volume ID.
 // If volumeID contains "/" it's a dataset path (new format), so try O(1) direct lookup first.
 // Falls back to property search by CSI volume name for old-format IDs.
-func findDatasetByVolumeID(ctx context.Context, client tnsapi.ClientInterface, volumeID string) (*tnsapi.DatasetWithProperties, error) {
+func findSubvolumeByVolumeID(ctx context.Context, client tnsapi.ClientInterface, volumeID string) (*tnsapi.Subvolume, error) {
 	if strings.Contains(volumeID, "/") {
-		ds, err := client.GetDatasetWithProperties(ctx, volumeID)
-		if err == nil && ds != nil {
-			return ds, nil
+		pool, name := parsePoolName(volumeID)
+		sv, err := client.GetSubvolume(ctx, pool, name)
+		if err == nil && sv != nil {
+			return sv, nil
 		}
 	}
-	return client.FindDatasetByCSIVolumeName(ctx, "", volumeID)
+	return client.FindSubvolumeByCSIVolumeName(ctx, "", volumeID)
 }
 
-// checkNFSResourcesForTroubleshoot checks NFS-specific resources on TrueNAS.
-func checkNFSResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties, result *TroubleshootResult) {
+// checkNFSResourcesForTroubleshoot checks NFS-specific resources on NASty.
+func checkNFSResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, result *TroubleshootResult) {
 	sharePath := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyNFSSharePath]; ok {
-		sharePath = prop.Value
-	} else if dataset.Mountpoint != "" {
-		sharePath = dataset.Mountpoint
+	if sv.Properties != nil {
+		sharePath = sv.Properties[tnsapi.PropertyNFSSharePath]
+	}
+	if sharePath == "" {
+		sharePath = sv.Path
 	}
 
 	if sharePath == "" {
@@ -343,8 +344,25 @@ func checkNFSResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientI
 		return
 	}
 
-	shares, err := client.QueryNFSShare(ctx, sharePath)
-	if err != nil || len(shares) == 0 {
+	shares, err := client.ListNFSShares(ctx)
+	if err != nil {
+		result.Checks = append(result.Checks, TroubleshootCheck{
+			Name:    "NFS Share",
+			Status:  statusError,
+			Message: "Failed to list NFS shares: " + err.Error(),
+		})
+		return
+	}
+
+	var found *tnsapi.NFSShare
+	for i := range shares {
+		if shares[i].Path == sharePath {
+			found = &shares[i]
+			break
+		}
+	}
+
+	if found == nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "NFS Share",
 			Status:  statusError,
@@ -354,29 +372,28 @@ func checkNFSResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientI
 		return
 	}
 
-	share := shares[0]
-	if !share.Enabled {
+	if !found.Enabled {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "NFS Share",
 			Status:  statusError,
 			Message: "NFS share exists but is disabled",
 		})
-		result.Suggestions = append(result.Suggestions, "Enable the NFS share in TrueNAS UI or via API")
+		result.Suggestions = append(result.Suggestions, "Enable the NFS share in NASty UI or via API")
 		return
 	}
 
 	result.Checks = append(result.Checks, TroubleshootCheck{
 		Name:    "NFS Share",
 		Status:  statusOK,
-		Message: fmt.Sprintf("NFS share found and enabled (ID: %d)", share.ID),
+		Message: fmt.Sprintf("NFS share found and enabled (ID: %s)", found.ID),
 	})
 }
 
-// checkNVMeOFResourcesForTroubleshoot checks NVMe-oF-specific resources on TrueNAS.
-func checkNVMeOFResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties, result *TroubleshootResult) {
+// checkNVMeOFResourcesForTroubleshoot checks NVMe-oF-specific resources on NASty.
+func checkNVMeOFResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, result *TroubleshootResult) {
 	nqn := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyNVMeSubsystemNQN]; ok {
-		nqn = prop.Value
+	if sv.Properties != nil {
+		nqn = sv.Properties[tnsapi.PropertyNVMeSubsystemNQN]
 	}
 
 	if nqn == "" {
@@ -388,8 +405,18 @@ func checkNVMeOFResourcesForTroubleshoot(ctx context.Context, client tnsapi.Clie
 		return
 	}
 
-	subsystem, err := client.NVMeOFSubsystemByNQN(ctx, nqn)
+	subsystem, err := client.GetNVMeOFSubsystemByNQN(ctx, nqn)
 	if err != nil {
+		result.Checks = append(result.Checks, TroubleshootCheck{
+			Name:    "NVMe-oF Subsystem",
+			Status:  statusError,
+			Message: "NVMe-oF subsystem not found: " + nqn,
+		})
+		result.Suggestions = append(result.Suggestions, "The NVMe-oF subsystem may have been deleted - delete/recreate the PVC")
+		return
+	}
+
+	if subsystem == nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "NVMe-oF Subsystem",
 			Status:  statusError,
@@ -405,29 +432,28 @@ func checkNVMeOFResourcesForTroubleshoot(ctx context.Context, client tnsapi.Clie
 			Status:  statusError,
 			Message: "NVMe-oF subsystem exists but is disabled",
 		})
-		result.Suggestions = append(result.Suggestions, "Enable the NVMe-oF subsystem in TrueNAS UI or via API")
+		result.Suggestions = append(result.Suggestions, "Enable the NVMe-oF subsystem in NASty UI or via API")
 		return
 	}
 
 	result.Checks = append(result.Checks, TroubleshootCheck{
 		Name:    "NVMe-oF Subsystem",
 		Status:  statusOK,
-		Message: fmt.Sprintf("NVMe-oF subsystem found and enabled (ID: %d, NQN: %s)", subsystem.ID, subsystem.NQN),
+		Message: fmt.Sprintf("NVMe-oF subsystem found and enabled (ID: %s, NQN: %s)", subsystem.ID, subsystem.NQN),
 	})
 }
 
-// checkSMBResourcesForTroubleshoot checks SMB-specific resources on TrueNAS.
-func checkSMBResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties, result *TroubleshootResult) {
+// checkSMBResourcesForTroubleshoot checks SMB-specific resources on NASty.
+func checkSMBResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, result *TroubleshootResult) {
 	// Try share ID from properties first
-	if prop, ok := dataset.UserProperties[tnsapi.PropertySMBShareID]; ok && prop.Value != "" {
-		shareID, err := strconv.Atoi(prop.Value)
-		if err == nil && shareID > 0 {
-			share, err := client.QuerySMBShareByID(ctx, shareID)
+	if sv.Properties != nil {
+		if shareID := sv.Properties[tnsapi.PropertySMBShareID]; shareID != "" {
+			share, err := client.GetSMBShare(ctx, shareID)
 			if err != nil || share == nil {
 				result.Checks = append(result.Checks, TroubleshootCheck{
 					Name:    "SMB Share",
 					Status:  statusError,
-					Message: fmt.Sprintf("SMB share not found (ID: %d)", shareID),
+					Message: fmt.Sprintf("SMB share not found (ID: %s)", shareID),
 				})
 				result.Suggestions = append(result.Suggestions, "The SMB share may have been deleted - recreate it or delete/recreate the PVC")
 				return
@@ -439,21 +465,21 @@ func checkSMBResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientI
 					Status:  statusError,
 					Message: "SMB share exists but is disabled",
 				})
-				result.Suggestions = append(result.Suggestions, "Enable the SMB share in TrueNAS UI or via API")
+				result.Suggestions = append(result.Suggestions, "Enable the SMB share in NASty UI or via API")
 				return
 			}
 
 			result.Checks = append(result.Checks, TroubleshootCheck{
 				Name:    "SMB Share",
 				Status:  statusOK,
-				Message: fmt.Sprintf("SMB share found and enabled (ID: %d, Name: %s)", share.ID, share.Name),
+				Message: fmt.Sprintf("SMB share found and enabled (ID: %s, Name: %s)", share.ID, share.Name),
 			})
 			return
 		}
 	}
 
-	// Fallback: query by mountpoint path
-	sharePath := dataset.Mountpoint
+	// Fallback: query by path
+	sharePath := sv.Path
 	if sharePath == "" {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "SMB Share",
@@ -463,8 +489,25 @@ func checkSMBResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientI
 		return
 	}
 
-	shares, err := client.QuerySMBShare(ctx, sharePath)
-	if err != nil || len(shares) == 0 {
+	shares, err := client.ListSMBShares(ctx)
+	if err != nil {
+		result.Checks = append(result.Checks, TroubleshootCheck{
+			Name:    "SMB Share",
+			Status:  statusError,
+			Message: "Failed to list SMB shares: " + err.Error(),
+		})
+		return
+	}
+
+	var found *tnsapi.SMBShare
+	for i := range shares {
+		if shares[i].Path == sharePath {
+			found = &shares[i]
+			break
+		}
+	}
+
+	if found == nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "SMB Share",
 			Status:  statusError,
@@ -474,29 +517,28 @@ func checkSMBResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientI
 		return
 	}
 
-	share := shares[0]
-	if !share.Enabled {
+	if !found.Enabled {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "SMB Share",
 			Status:  statusError,
 			Message: "SMB share exists but is disabled",
 		})
-		result.Suggestions = append(result.Suggestions, "Enable the SMB share in TrueNAS UI or via API")
+		result.Suggestions = append(result.Suggestions, "Enable the SMB share in NASty UI or via API")
 		return
 	}
 
 	result.Checks = append(result.Checks, TroubleshootCheck{
 		Name:    "SMB Share",
 		Status:  statusOK,
-		Message: fmt.Sprintf("SMB share found and enabled (ID: %d, Name: %s)", share.ID, share.Name),
+		Message: fmt.Sprintf("SMB share found and enabled (ID: %s, Name: %s)", found.ID, found.Name),
 	})
 }
 
-// checkISCSIResourcesForTroubleshoot checks iSCSI-specific resources on TrueNAS.
-func checkISCSIResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, dataset *tnsapi.DatasetWithProperties, result *TroubleshootResult) {
+// checkISCSIResourcesForTroubleshoot checks iSCSI-specific resources on NASty.
+func checkISCSIResourcesForTroubleshoot(ctx context.Context, client tnsapi.ClientInterface, sv *tnsapi.Subvolume, result *TroubleshootResult) {
 	iqn := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyISCSIIQN]; ok {
-		iqn = prop.Value
+	if sv.Properties != nil {
+		iqn = sv.Properties[tnsapi.PropertyISCSIIQN]
 	}
 
 	if iqn == "" {
@@ -508,18 +550,12 @@ func checkISCSIResourcesForTroubleshoot(ctx context.Context, client tnsapi.Clien
 		return
 	}
 
-	// Look up target by volume name
-	targetName := ""
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyCSIVolumeName]; ok {
-		targetName = prop.Value
-	}
-
-	target, err := client.ISCSITargetByName(ctx, targetName)
+	target, err := client.GetISCSITargetByIQN(ctx, iqn)
 	if err != nil || target == nil {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "iSCSI Target",
 			Status:  statusError,
-			Message: "iSCSI target not found: " + targetName,
+			Message: "iSCSI target not found for IQN: " + iqn,
 		})
 		result.Suggestions = append(result.Suggestions, "iSCSI target may have been deleted - delete/recreate the PVC")
 		return
@@ -528,60 +564,24 @@ func checkISCSIResourcesForTroubleshoot(ctx context.Context, client tnsapi.Clien
 	result.Checks = append(result.Checks, TroubleshootCheck{
 		Name:    "iSCSI Target",
 		Status:  statusOK,
-		Message: fmt.Sprintf("iSCSI target found (ID: %d, IQN: %s)", target.ID, iqn),
+		Message: fmt.Sprintf("iSCSI target found (ID: %s, IQN: %s)", target.ID, iqn),
 	})
 
-	// Check extent
-	if prop, ok := dataset.UserProperties[tnsapi.PropertyISCSIExtentID]; ok && prop.Value != "" {
-		extentID, parseErr := strconv.Atoi(prop.Value)
-		if parseErr == nil && extentID > 0 {
-			extents, extentErr := client.QueryISCSIExtents(ctx, []interface{}{
-				[]interface{}{"id", "=", extentID},
-			})
-			if extentErr != nil || len(extents) == 0 {
-				result.Checks = append(result.Checks, TroubleshootCheck{
-					Name:    "iSCSI Extent",
-					Status:  statusError,
-					Message: fmt.Sprintf("iSCSI extent not found (ID: %d)", extentID),
-				})
-				result.Suggestions = append(result.Suggestions, "iSCSI extent may have been deleted - delete/recreate the PVC")
-				return
-			}
-
-			extent := &extents[0]
-			if !extent.Enabled {
-				result.Checks = append(result.Checks, TroubleshootCheck{
-					Name:    "iSCSI Extent",
-					Status:  statusWarning,
-					Message: fmt.Sprintf("iSCSI extent exists but is disabled (ID: %d)", extentID),
-				})
-				result.Suggestions = append(result.Suggestions, "Enable the iSCSI extent in TrueNAS UI or via API")
-			} else {
-				result.Checks = append(result.Checks, TroubleshootCheck{
-					Name:    "iSCSI Extent",
-					Status:  statusOK,
-					Message: fmt.Sprintf("iSCSI extent found and enabled (ID: %d)", extentID),
-				})
-			}
-		}
-	}
-
-	// Check target-extent association (LUN mapping)
-	associations, assocErr := client.ISCSITargetExtentByTarget(ctx, target.ID)
-	if assocErr != nil || len(associations) == 0 {
+	// Check LUNs
+	if len(target.Luns) == 0 {
 		result.Checks = append(result.Checks, TroubleshootCheck{
 			Name:    "iSCSI LUN Mapping",
 			Status:  statusError,
-			Message: "Target-extent association missing",
+			Message: "Target has no LUNs attached",
 		})
-		result.Suggestions = append(result.Suggestions, "iSCSI target-extent association missing - the LUN mapping may need to be recreated")
+		result.Suggestions = append(result.Suggestions, "iSCSI LUN mapping missing - the volume may need to be re-attached")
 		return
 	}
 
 	result.Checks = append(result.Checks, TroubleshootCheck{
 		Name:    "iSCSI LUN Mapping",
 		Status:  statusOK,
-		Message: fmt.Sprintf("Target-extent association found (LUN %d)", associations[0].LunID),
+		Message: fmt.Sprintf("Target has %d LUN(s) attached", len(target.Luns)),
 	})
 }
 

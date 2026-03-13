@@ -17,7 +17,7 @@ func newListClonesCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerif
 	cmd := &cobra.Command{
 		Use:   "list-clones",
 		Short: "List all tns-csi cloned volumes with dependency info",
-		Long: `List all cloned volumes managed by tns-csi on TrueNAS.
+		Long: `List all cloned volumes managed by tns-csi on NASty.
 
 Shows clone mode and dependency relationships to help understand
 what can and cannot be deleted:
@@ -47,8 +47,8 @@ func runListClones(ctx context.Context, url, apiKey, secretRef, outputFormat *st
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}

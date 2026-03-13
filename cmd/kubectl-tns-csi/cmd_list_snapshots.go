@@ -15,10 +15,10 @@ import (
 func newListSnapshotsCmd(url, apiKey, secretRef, outputFormat *string, skipTLSVerify *bool, clusterID *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list-snapshots",
-		Short: "List all tns-csi managed snapshots on TrueNAS",
-		Long: `List all snapshots managed by tns-csi on TrueNAS.
+		Short: "List all tns-csi managed snapshots on NASty",
+		Long: `List all snapshots managed by tns-csi on NASty.
 
-This command queries TrueNAS for all snapshots associated with tns-csi managed
+This command queries NASty for all snapshots associated with tns-csi managed
 volumes, including both attached (on-volume) and detached snapshots.
 
 Examples:
@@ -28,8 +28,8 @@ Examples:
   # List all snapshots in YAML format
   kubectl tns-csi list-snapshots -o yaml
 
-  # List snapshots using specific TrueNAS connection
-  kubectl tns-csi list-snapshots --url wss://truenas:443/api/current --api-key <key>`,
+  # List snapshots using specific NASty connection
+  kubectl tns-csi list-snapshots --url wss://nasty:443/api/current --api-key <key>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runListSnapshots(cmd.Context(), url, apiKey, secretRef, outputFormat, skipTLSVerify, clusterID)
 		},
@@ -44,8 +44,8 @@ func runListSnapshots(ctx context.Context, url, apiKey, secretRef, outputFormat 
 		return err
 	}
 
-	// Connect to TrueNAS
-	client, err := connectToTrueNAS(ctx, cfg)
+	// Connect to NASty
+	client, err := connectToNASty(ctx, cfg)
 	if err != nil {
 		return err
 	}
