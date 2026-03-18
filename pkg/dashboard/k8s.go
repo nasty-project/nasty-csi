@@ -91,19 +91,6 @@ func FetchK8sVolumes(ctx context.Context) ([]VolumeInfo, *K8sEnrichmentResult) {
 	return volumes, result
 }
 
-// MatchK8sBinding tries to find a K8s binding by dataset path first (new volumes),
-// then falls back to csi_volume_name (old volumes).
-func MatchK8sBinding(bindings map[string]*K8sVolumeBinding, dataset, volumeID string) *K8sVolumeBinding {
-	if b, ok := bindings[dataset]; ok {
-		return b
-	}
-	if volumeID != "" && volumeID != dataset {
-		if b, ok := bindings[volumeID]; ok {
-			return b
-		}
-	}
-	return nil
-}
 
 // EnrichWithK8sData fetches K8s PV/PVC data and optionally pod data.
 // When running in-cluster, uses the service account token.

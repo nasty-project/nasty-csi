@@ -43,39 +43,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// CalculateSummary computes summary statistics from volumes, snapshots, and clones.
-func CalculateSummary(volumes []VolumeInfo, snapshots []SnapshotInfo, clones []CloneInfo) SummaryData {
-	summary := SummaryData{
-		TotalVolumes:   len(volumes),
-		TotalSnapshots: len(snapshots),
-		TotalClones:    len(clones),
-	}
-
-	var totalBytes int64
-	for i := range volumes {
-		switch volumes[i].Protocol {
-		case protocolNFS:
-			summary.NFSVolumes++
-		case protocolNVMeOF:
-			summary.NVMeOFVolumes++
-		case protocolISCSI:
-			summary.ISCSIVolumes++
-		case protocolSMB:
-			summary.SMBVolumes++
-		}
-		totalBytes += volumes[i].CapacityBytes
-		if volumes[i].HealthStatus != "" && volumes[i].HealthStatus != string(HealthStatusHealthy) {
-			summary.UnhealthyVolumes++
-		} else {
-			summary.HealthyVolumes++
-		}
-	}
-
-	summary.CapacityBytes = totalBytes
-	summary.TotalCapacity = FormatBytes(totalBytes)
-
-	return summary
-}
 
 func (s *Server) handleAPIVolumes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
