@@ -3,7 +3,7 @@ package driver
 import (
 	"context"
 
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 )
 
 // MockAPIClient is a mock implementation of nastyapi.ClientInterface for testing.

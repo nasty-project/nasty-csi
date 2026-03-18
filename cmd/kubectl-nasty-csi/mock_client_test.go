@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 )
 
 // Compile-time verification that mockClient implements nastyapi.ClientInterface.

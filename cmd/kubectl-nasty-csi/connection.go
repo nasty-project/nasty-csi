@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -162,7 +162,7 @@ type NAStyClient struct {
 // The client auto-connects on first API call.
 func connectToNASty(_ context.Context, cfg *connectionConfig) (*NAStyClient, error) {
 	//nolint:contextcheck // NewClient doesn't require context, connection is lazy
-	client, err := nastyapi.NewClient(cfg.URL, cfg.APIKey, cfg.SkipTLSVerify)
+	client, err := nastyapi.NewClient(cfg.URL, cfg.APIKey, cfg.SkipTLSVerify, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NASty client: %w", err)
 	}

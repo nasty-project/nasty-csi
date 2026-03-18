@@ -11,7 +11,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 
 	"github.com/nasty-project/nasty-csi/pkg/retry"
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 	"k8s.io/klog/v2"
 )
 
@@ -35,7 +35,7 @@ type NAStyVerifier struct {
 // NewNAStyVerifier creates a new NAStyVerifier.
 func NewNAStyVerifier(host, apiKey string) (*NAStyVerifier, error) {
 	url := fmt.Sprintf("wss://%s/api/current", host)
-	client, err := nastyapi.NewClient(url, apiKey, true) // skip TLS verify for tests
+	client, err := nastyapi.NewClient(url, apiKey, true, nil) // skip TLS verify for tests, no metrics
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NASty: %w", err)
 	}

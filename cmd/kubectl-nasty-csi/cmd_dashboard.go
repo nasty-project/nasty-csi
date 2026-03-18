@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/nasty-project/nasty-csi/pkg/dashboard"
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 )

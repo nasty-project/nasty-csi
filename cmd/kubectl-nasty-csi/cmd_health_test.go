@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/nasty-project/nasty-csi/pkg/dashboard"
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 )
 
 func TestCheckNFSHealth(t *testing.T) {

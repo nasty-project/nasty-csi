@@ -13,7 +13,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
@@ -56,7 +56,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 		cfg.DriverName, cfg.NodeID, cfg.Endpoint, cfg.APIURL, cfg.MetricsAddr, cfg.TestMode, cfg.SkipTLSVerify)
 
 	// Create API client
-	apiClient, err := nastyapi.NewClient(cfg.APIURL, cfg.APIKey, cfg.SkipTLSVerify)
+	apiClient, err := nastyapi.NewClient(cfg.APIURL, cfg.APIKey, cfg.SkipTLSVerify, &metrics.WSMetricsAdapter{})
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/klog/v2"
 
-	"github.com/nasty-project/nasty-csi/pkg/nasty-api"
+	nastyapi "github.com/nasty-project/nasty-go"
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
