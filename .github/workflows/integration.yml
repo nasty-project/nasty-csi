@@ -90,7 +90,7 @@ jobs:
           echo "Changed files: $CHANGED"
 
           # Check if any driver-related files changed (excludes docs/, README, tests/, etc.)
-          if echo "$CHANGED" | grep -qE '^(cmd/nasty-csi-driver/|pkg/|Dockerfile|go\.(mod|sum)|charts/)'; then
+          if echo "$CHANGED" | grep -qE '^(cmd/nasty-csi-driver/|pkg/|Dockerfile|go\.(mod|sum))'; then
             echo "Driver files changed - will run integration tests"
             echo "should_run=true" >> $GITHUB_OUTPUT
           else

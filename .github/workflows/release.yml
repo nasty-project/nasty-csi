@@ -87,63 +87,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: 'latest'
-
-      - name: Update Helm chart versions
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          # Update Chart.yaml with new versions
-          sed -i "s/^version:.*/version: ${VERSION#v}/" charts/nasty-csi-driver/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/nasty-csi-driver/Chart.yaml
-          # Update values.yaml with new image tag (only the main image.tag, not sidecars)
-          # The main image.tag has empty value "", sidecars have specific versions
-          sed -i 's/^  tag: ""$/  tag: "'"${VERSION}"'"/' charts/nasty-csi-driver/values.yaml
-
-      - name: Package Helm chart
-        run: |
-          helm package charts/nasty-csi-driver -d .helm-releases
-
-      - name: Render plain manifest for Kustomize users
-        run: |
-          helm template nasty-csi charts/nasty-csi-driver \
-            --namespace kube-system \
-            --set nasty.url="wss://NASTY_IP/api/current" \
-            --set nasty.apiKey="REPLACE_WITH_API_KEY" \
-            --set storageClasses[0].name=nasty-csi-nfs \
-            --set storageClasses[0].enabled=true \
-            --set storageClasses[0].protocol=nfs \
-            --set storageClasses[0].server="NASTY_IP" \
-            --set storageClasses[0].pool="tank" \
-            --set storageClasses[1].name=nasty-csi-nvmeof \
-            --set storageClasses[1].enabled=true \
-            --set storageClasses[1].protocol=nvmeof \
-            --set storageClasses[1].server="NASTY_IP" \
-            --set storageClasses[1].pool="tank" \
-            --set storageClasses[2].name=nasty-csi-iscsi \
-            --set storageClasses[2].enabled=true \
-            --set storageClasses[2].protocol=iscsi \
-            --set storageClasses[2].server="NASTY_IP" \
-            --set storageClasses[2].pool="tank" \
-            --set snapshots.enabled=true \
-            > .helm-releases/nasty-csi-driver-${{ steps.version.outputs.version }}.yaml
-
-      - name: Push Helm chart to Docker Hub (OCI)
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          CHART_VERSION=${VERSION#v}
-          echo ${{ secrets.DOCKERHUB_TOKEN }} | helm registry login registry-1.docker.io -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-          helm push .helm-releases/nasty-csi-driver-${CHART_VERSION}.tgz oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}
-
-      - name: Push Helm chart to GHCR (OCI)
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          CHART_VERSION=${VERSION#v}
-          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-          helm push .helm-releases/nasty-csi-driver-${CHART_VERSION}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
-
       - name: Generate changelog with git-cliff
         id: changelog
         uses: orhun/git-cliff-action@v4
@@ -167,18 +110,11 @@ jobs:
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi:${VERSION}
           \`\`\`
 
-          ### Using Helm (Docker Hub)
+          ### Using Helm
+          The Helm chart is released separately from [nasty-project/nasty-chart](https://github.com/nasty-project/nasty-chart).
           \`\`\`bash
-          helm install nasty-csi oci://registry-1.docker.io/${{ secrets.DOCKERHUB_USERNAME }}/nasty-csi-driver --version ${VERSION#v}
+          helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver
           \`\`\`
-
-          ### Using Helm (GitHub Container Registry)
-          \`\`\`bash
-          helm install nasty-csi oci://ghcr.io/${{ github.repository_owner }}/charts/nasty-csi-driver --version ${VERSION#v}
-          \`\`\`
-
-          ### Using Kustomize
-          Download the plain manifest from this release (\`nasty-csi-driver-${VERSION}.yaml\`) and use it as a Kustomize base. Replace \`NASTY_IP\` and \`REPLACE_WITH_API_KEY\` placeholders with your values, and remove any storage classes you don't need.
 
           For detailed installation instructions, see the [README](https://github.com/${{ github.repository }}/blob/${VERSION}/README.md).
           EOF
@@ -189,9 +125,6 @@ jobs:
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
-          files: |
-            .helm-releases/*.tgz
-            .helm-releases/*.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

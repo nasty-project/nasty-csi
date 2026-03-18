@@ -1,5 +1,0 @@
-{{- range .Values.storageClasses }}
-{{- if .enabled }}
-{{- include "nasty-csi-driver.storageclass" (dict "protocol" .protocol "sc" . "root" $) }}
-{{- end }}
-{{- end }}

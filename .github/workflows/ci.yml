@@ -31,7 +31,6 @@ jobs:
               - 'Dockerfile'
               - 'go.mod'
               - 'go.sum'
-              - 'charts/**'
             plugin:
               - 'cmd/kubectl-nasty-csi/**'
 
