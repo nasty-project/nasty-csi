@@ -527,3 +527,59 @@ func (m *MockClient) GetNVMeOFSubsystemByNQN(_ context.Context, nqn string) (*na
 	}
 	return nil, nil //nolint:nilnil // nil, nil indicates "not found"
 }
+
+// ResizeSubvolume resizes a subvolume.
+func (m *MockClient) ResizeSubvolume(_ context.Context, pool, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := pool + "/" + name
+	sv, exists := m.subvolumes[key]
+	if !exists {
+		return nil, ErrDatasetNotFound
+	}
+	sv.VolsizeBytes = &volsizeBytes
+	cp := *sv
+	return &cp, nil
+}
+
+// CloneSnapshot clones a snapshot into a new writable subvolume.
+func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Verify the source snapshot exists
+	snapKey := params.Pool + "/" + params.Subvolume + "@" + params.Snapshot
+	if _, exists := m.snapshots[snapKey]; !exists {
+		return nil, ErrSnapshotNotFound
+	}
+
+	// Create the new subvolume as a clone
+	newKey := params.Pool + "/" + params.NewName
+	if _, exists := m.subvolumes[newKey]; exists {
+		return nil, ErrDatasetExists
+	}
+
+	// Copy properties from parent subvolume if it exists
+	parentKey := params.Pool + "/" + params.Subvolume
+	var props map[string]string
+	if parent, exists := m.subvolumes[parentKey]; exists && parent.Properties != nil {
+		props = make(map[string]string)
+		for k, v := range parent.Properties {
+			props[k] = v
+		}
+	} else {
+		props = make(map[string]string)
+	}
+
+	sv := &nastyapi.Subvolume{
+		Name:       params.NewName,
+		Pool:       params.Pool,
+		Path:       "/" + params.Pool + "/" + params.NewName,
+		Properties: props,
+		Snapshots:  []string{},
+	}
+	m.subvolumes[newKey] = sv
+	cp := *sv
+	return &cp, nil
+}

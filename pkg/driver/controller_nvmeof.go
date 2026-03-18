@@ -441,6 +441,13 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
 	}
 
+	// Resize the underlying subvolume
+	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", err)
+	}
+
 	// Update capacity via xattr property
 	props := map[string]string{
 		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),

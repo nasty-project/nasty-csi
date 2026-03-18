@@ -537,14 +537,53 @@ func TestSnapshotTokenRoundtrip(t *testing.T) {
 	}
 }
 
-func TestCreateVolumeFromSnapshot_Unimplemented(t *testing.T) {
-	// Clone/restore from snapshot is stubbed to Unimplemented.
+func TestCreateVolumeFromSnapshot(t *testing.T) {
 	ctx := context.Background()
-	service := NewControllerService(&mockAPIClient{}, NewNodeRegistry(), "")
 
-	// A CreateVolume request with a snapshot source triggers createVolumeFromSnapshot
+	clonedSubvol := &nastyapi.Subvolume{
+		Name:       "restored-volume",
+		Pool:       "tank",
+		Path:       "/tank/restored-volume",
+		Properties: map[string]string{},
+		Snapshots:  []string{},
+	}
+
+	mockClient := &mockAPIClient{
+		GetSubvolumeFunc: func(_ context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+			if pool == "tank" && name == "restored-volume" {
+				return clonedSubvol, nil
+			}
+			return nil, nastyapi.ErrDatasetNotFound
+		},
+		CloneSnapshotFunc: func(_ context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error) {
+			if params.Pool != "tank" || params.Subvolume != "source-vol" || params.Snapshot != "snap1" || params.NewName != "restored-volume" {
+				t.Errorf("Unexpected clone params: %+v", params)
+			}
+			return clonedSubvol, nil
+		},
+		SetSubvolumePropertiesFunc: func(_ context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+			return clonedSubvol, nil
+		},
+		ListNFSSharesFunc: func(_ context.Context) ([]nastyapi.NFSShare, error) {
+			return []nastyapi.NFSShare{}, nil
+		},
+		CreateNFSShareFunc: func(_ context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
+			return &nastyapi.NFSShare{
+				ID:      "share-1",
+				Path:    params.Path,
+				Enabled: true,
+			}, nil
+		},
+	}
+
+	service := NewControllerService(mockClient, NewNodeRegistry(), "")
+
 	req := &csi.CreateVolumeRequest{
 		Name: "restored-volume",
+		Parameters: map[string]string{
+			"pool":     "tank",
+			"protocol": "nfs",
+		},
 		VolumeCapabilities: []*csi.VolumeCapability{
 			{
 				AccessType: &csi.VolumeCapability_Mount{
@@ -555,24 +594,32 @@ func TestCreateVolumeFromSnapshot_Unimplemented(t *testing.T) {
 				},
 			},
 		},
+		CapacityRange: &csi.CapacityRange{
+			RequiredBytes: 1073741824,
+		},
 		VolumeContentSource: &csi.VolumeContentSource{
 			Type: &csi.VolumeContentSource_Snapshot{
 				Snapshot: &csi.VolumeContentSource_SnapshotSource{
-					SnapshotId: "nfs:tank/csi/source-vol@snap1",
+					SnapshotId: "nfs:tank/source-vol@snap1",
 				},
 			},
 		},
 	}
 
-	_, err := service.CreateVolume(ctx, req)
-	if err == nil {
-		t.Fatal("Expected Unimplemented error, got nil")
+	resp, err := service.CreateVolume(ctx, req)
+	if err != nil {
+		t.Fatalf("Expected success, got error: %v", err)
 	}
-	st, ok := status.FromError(err)
-	if !ok {
-		t.Fatalf("Expected gRPC status error, got: %v", err)
+	if resp == nil || resp.Volume == nil {
+		t.Fatal("Expected non-nil response with volume")
 	}
-	if st.Code() != codes.Unimplemented {
-		t.Errorf("Expected codes.Unimplemented, got %v", st.Code())
+	if resp.Volume.ContentSource == nil {
+		t.Fatal("Expected ContentSource to be set on response")
+	}
+	if resp.Volume.ContentSource.GetSnapshot() == nil {
+		t.Fatal("Expected ContentSource to contain snapshot source")
+	}
+	if resp.Volume.ContentSource.GetSnapshot().GetSnapshotId() != "nfs:tank/source-vol@snap1" {
+		t.Errorf("Expected snapshot ID in content source, got %s", resp.Volume.ContentSource.GetSnapshot().GetSnapshotId())
 	}
 }

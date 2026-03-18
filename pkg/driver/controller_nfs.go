@@ -641,6 +641,13 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 	klog.V(4).Infof("Expanding NFS subvolume %s/%s to %d bytes", pool, subvolName, requiredBytes)
 
+	// Resize the underlying subvolume
+	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); err != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, err)
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", err)
+	}
+
 	// Update capacity via xattr property (NASty handles quota enforcement via xattr)
 	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
 		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
