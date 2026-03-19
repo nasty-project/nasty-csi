@@ -43,6 +43,7 @@ type MockAPIClient struct {
 	GetNVMeOFSubsystemByNQNFunc   func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error)
 	ResizeSubvolumeFunc           func(ctx context.Context, pool, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error)
 	CloneSnapshotFunc             func(ctx context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error)
+	CloneSubvolumeFunc            func(ctx context.Context, pool, name, newName string) (*nastyapi.Subvolume, error)
 }
 
 // MockAPIClientForSnapshots is an alias for MockAPIClient for backward compatibility in tests.
@@ -280,4 +281,11 @@ func (m *MockAPIClient) CloneSnapshot(ctx context.Context, params nastyapi.Snaps
 		return m.CloneSnapshotFunc(ctx, params)
 	}
 	panic("CloneSnapshot called unexpectedly")
+}
+
+func (m *MockAPIClient) CloneSubvolume(ctx context.Context, pool, name, newName string) (*nastyapi.Subvolume, error) {
+	if m.CloneSubvolumeFunc != nil {
+		return m.CloneSubvolumeFunc(ctx, pool, name, newName)
+	}
+	return &nastyapi.Subvolume{Name: newName, Pool: pool}, nil
 }

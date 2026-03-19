@@ -98,6 +98,7 @@ type mockAPIClient struct {
 	GetNVMeOFSubsystemByNQNFunc    func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error)
 	ResizeSubvolumeFunc            func(ctx context.Context, pool, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error)
 	CloneSnapshotFunc              func(ctx context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error)
+	CloneSubvolumeFunc             func(ctx context.Context, pool, name, newName string) (*nastyapi.Subvolume, error)
 }
 
 var errNotImplemented = errors.New("mock method not implemented")
@@ -352,6 +353,13 @@ func (m *mockAPIClient) CloneSnapshot(ctx context.Context, params nastyapi.Snaps
 		return m.CloneSnapshotFunc(ctx, params)
 	}
 	return nil, errNotImplemented
+}
+
+func (m *mockAPIClient) CloneSubvolume(ctx context.Context, pool, name, newName string) (*nastyapi.Subvolume, error) {
+	if m.CloneSubvolumeFunc != nil {
+		return m.CloneSubvolumeFunc(ctx, pool, name, newName)
+	}
+	return &nastyapi.Subvolume{Name: newName, Pool: pool}, nil
 }
 
 // Connection

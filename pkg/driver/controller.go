@@ -585,10 +585,9 @@ func (s *ControllerService) checkExistingVolume(_ context.Context, _ *csi.Create
 
 // createVolumeFromVolume creates a new volume by cloning an existing volume.
 //
-// The approach: create a temporary snapshot of the source volume, clone it
-// into the new subvolume, then delete the temporary snapshot.
-// This gives copy-on-write semantics — the clone starts with the source's
-// data but is fully independent.
+// Uses bcachefs's native O(1) writable snapshot — a single
+// `bcachefs subvolume snapshot` (without -r) that creates a COW clone
+// sharing data blocks with the source. No temporary snapshots needed.
 func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
 	klog.Infof("createVolumeFromVolume called for volume %s from source %s", req.GetName(), sourceVolumeID)
 
@@ -623,44 +622,16 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	}
 
 	if existingSubvol == nil {
-		// Create a temporary snapshot, clone it, then clean up
-		tempSnapName := fmt.Sprintf("clone-tmp-%s", newName)
+		// Native COW clone — O(1), no temporary snapshot needed
+		klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", pool, sourceSubvolName, pool, newName)
 
-		klog.V(4).Infof("Creating temporary snapshot %s/%s@%s for volume clone",
-			pool, sourceSubvolName, tempSnapName)
-
-		_, snapErr := s.apiClient.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-			Pool:      pool,
-			Subvolume: sourceSubvolName,
-			Name:      tempSnapName,
-			ReadOnly:  true,
-		})
-		if snapErr != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create temporary snapshot for clone: %v", snapErr)
-		}
-
-		// Clone the temporary snapshot into the new subvolume
-		klog.V(4).Infof("Cloning temporary snapshot into new subvolume %s/%s", pool, newName)
-
-		_, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
-			Pool:      pool,
-			Subvolume: sourceSubvolName,
-			Snapshot:  tempSnapName,
-			NewName:   newName,
-		})
+		_, cloneErr := s.apiClient.CloneSubvolume(ctx, pool, sourceSubvolName, newName)
 		if cloneErr != nil {
-			// Best-effort cleanup of the temporary snapshot
-			_ = s.apiClient.DeleteSnapshot(ctx, pool, sourceSubvolName, tempSnapName)
+			klog.Errorf("Failed to clone subvolume %s/%s: %v", pool, sourceSubvolName, cloneErr)
 			return nil, status.Errorf(codes.Internal, "failed to clone volume: %v", cloneErr)
 		}
 
-		// Delete the temporary snapshot — it's no longer needed
-		if delErr := s.apiClient.DeleteSnapshot(ctx, pool, sourceSubvolName, tempSnapName); delErr != nil {
-			klog.Warningf("Failed to delete temporary snapshot %s/%s@%s: %v (non-fatal)",
-				pool, sourceSubvolName, tempSnapName, delErr)
-		}
-
-		klog.Infof("Successfully cloned volume %s into subvolume %s/%s", sourceVolumeID, pool, newName)
+		klog.Infof("Cloned subvolume %s/%s to %s/%s", pool, sourceSubvolName, pool, newName)
 	} else {
 		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", pool, newName)
 	}

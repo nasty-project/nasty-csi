@@ -583,3 +583,41 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 	cp := *sv
 	return &cp, nil
 }
+
+func (m *MockClient) CloneSubvolume(_ context.Context, pool, name, newName string) (*nastyapi.Subvolume, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sourceKey := pool + "/" + name
+	source, exists := m.subvolumes[sourceKey]
+	if !exists {
+		return nil, ErrDatasetNotFound
+	}
+
+	newKey := pool + "/" + newName
+	if _, exists := m.subvolumes[newKey]; exists {
+		return nil, ErrDatasetExists
+	}
+
+	// COW clone — copy properties from source
+	props := make(map[string]string)
+	if source.Properties != nil {
+		for k, v := range source.Properties {
+			props[k] = v
+		}
+	}
+
+	sv := &nastyapi.Subvolume{
+		Name:          newName,
+		Pool:          pool,
+		SubvolumeType: source.SubvolumeType,
+		Path:          "/" + pool + "/" + newName,
+		VolsizeBytes:  source.VolsizeBytes,
+		Compression:   source.Compression,
+		Properties:    props,
+		Snapshots:     []string{},
+	}
+	m.subvolumes[newKey] = sv
+	cp := *sv
+	return &cp, nil
+}
