@@ -584,10 +584,123 @@ func (s *ControllerService) checkExistingVolume(_ context.Context, _ *csi.Create
 }
 
 // createVolumeFromVolume creates a new volume by cloning an existing volume.
-// TODO: Implement when NASty supports subvolume cloning.
-func (s *ControllerService) createVolumeFromVolume(_ context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
-	klog.V(4).Infof("createVolumeFromVolume called for %s from source %s (not yet implemented)", req.GetName(), sourceVolumeID)
-	return nil, status.Error(codes.Unimplemented, "volume cloning from volume is not yet supported by the NASty backend")
+//
+// The approach: create a temporary snapshot of the source volume, clone it
+// into the new subvolume, then delete the temporary snapshot.
+// This gives copy-on-write semantics — the clone starts with the source's
+// data but is fully independent.
+func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
+	klog.Infof("createVolumeFromVolume called for volume %s from source %s", req.GetName(), sourceVolumeID)
+
+	// 1. Look up the source volume to get pool, name, and protocol
+	sourceMeta, err := s.lookupVolumeByCSIName(ctx, "", sourceVolumeID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to lookup source volume %s: %v", sourceVolumeID, err)
+	}
+	if sourceMeta == nil {
+		return nil, status.Errorf(codes.NotFound, "source volume %s not found", sourceVolumeID)
+	}
+
+	pool, sourceSubvolName, err := splitSubvolumeID(sourceMeta.DatasetID)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid source volume dataset ID %q: %v", sourceMeta.DatasetID, err)
+	}
+
+	protocol := sourceMeta.Protocol
+	klog.V(4).Infof("Volume clone: pool=%s, sourceSubvolume=%s, protocol=%s", pool, sourceSubvolName, protocol)
+
+	// 2. Resolve the new subvolume name
+	params := req.GetParameters()
+	newName, err := ResolveVolumeName(params, req.GetName())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve volume name: %v", err)
+	}
+
+	// 3. Check if the subvolume already exists (idempotency)
+	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, pool, newName)
+	if getErr != nil && !isNotFoundError(getErr) {
+		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", pool, newName, getErr)
+	}
+
+	if existingSubvol == nil {
+		// Create a temporary snapshot, clone it, then clean up
+		tempSnapName := fmt.Sprintf("clone-tmp-%s", newName)
+
+		klog.V(4).Infof("Creating temporary snapshot %s/%s@%s for volume clone",
+			pool, sourceSubvolName, tempSnapName)
+
+		_, snapErr := s.apiClient.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
+			Pool:      pool,
+			Subvolume: sourceSubvolName,
+			Name:      tempSnapName,
+			ReadOnly:  true,
+		})
+		if snapErr != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create temporary snapshot for clone: %v", snapErr)
+		}
+
+		// Clone the temporary snapshot into the new subvolume
+		klog.V(4).Infof("Cloning temporary snapshot into new subvolume %s/%s", pool, newName)
+
+		_, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
+			Pool:      pool,
+			Subvolume: sourceSubvolName,
+			Snapshot:  tempSnapName,
+			NewName:   newName,
+		})
+		if cloneErr != nil {
+			// Best-effort cleanup of the temporary snapshot
+			_ = s.apiClient.DeleteSnapshot(ctx, pool, sourceSubvolName, tempSnapName)
+			return nil, status.Errorf(codes.Internal, "failed to clone volume: %v", cloneErr)
+		}
+
+		// Delete the temporary snapshot — it's no longer needed
+		if delErr := s.apiClient.DeleteSnapshot(ctx, pool, sourceSubvolName, tempSnapName); delErr != nil {
+			klog.Warningf("Failed to delete temporary snapshot %s/%s@%s: %v (non-fatal)",
+				pool, sourceSubvolName, tempSnapName, delErr)
+		}
+
+		klog.Infof("Successfully cloned volume %s into subvolume %s/%s", sourceVolumeID, pool, newName)
+	} else {
+		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", pool, newName)
+	}
+
+	// 4. Set CSI metadata properties on the cloned subvolume
+	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
+	if requestedCapacity == 0 {
+		requestedCapacity = 1 * 1024 * 1024 * 1024
+	}
+
+	csiProps := map[string]string{
+		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+		nastyapi.PropertyCSIVolumeName: req.GetName(),
+		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requestedCapacity),
+		nastyapi.PropertyProtocol:      protocol,
+	}
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, pool, newName, csiProps); propErr != nil {
+		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", pool, newName, propErr)
+	}
+
+	// 5. Delegate to protocol-specific create to set up sharing
+	klog.V(4).Infof("Delegating to createVolumeByProtocol for protocol %s", protocol)
+	resp, err := s.createVolumeByProtocol(ctx, req, protocol)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set the content source in the response so the CO knows this came from a volume
+	if resp != nil && resp.Volume != nil {
+		resp.Volume.ContentSource = &csi.VolumeContentSource{
+			Type: &csi.VolumeContentSource_Volume{
+				Volume: &csi.VolumeContentSource_VolumeSource{
+					VolumeId: sourceVolumeID,
+				},
+			},
+		}
+	}
+
+	klog.Infof("Created volume %s from source volume %s (protocol: %s)", req.GetName(), sourceVolumeID, protocol)
+	return resp, nil
 }
 
 // DeleteVolume deletes a volume.
