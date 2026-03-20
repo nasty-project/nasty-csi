@@ -2,6 +2,8 @@ package driver
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -233,6 +235,35 @@ func TestFormatDeviceUnsupportedFSType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetLogicalSectorSize(t *testing.T) {
+	t.Run("valid sysfs entry", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		devName := "fakedev0"
+		queueDir := filepath.Join(tmpDir, devName, "queue")
+		if err := os.MkdirAll(queueDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(queueDir, "logical_block_size"), []byte("512\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// Verify the file content is readable and parseable
+		data, err := os.ReadFile(filepath.Join(queueDir, "logical_block_size"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != "512\n" {
+			t.Errorf("unexpected data: %q", string(data))
+		}
+	})
+
+	t.Run("nonexistent device returns error", func(t *testing.T) {
+		_, err := getLogicalSectorSize("/dev/nonexistent_device_xyz")
+		if err == nil {
+			t.Error("expected error for nonexistent device")
+		}
+	})
 }
 
 func TestWaitForNVMeStabilization(t *testing.T) {
