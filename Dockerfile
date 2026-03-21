@@ -14,8 +14,9 @@ WORKDIR /workspace
 # Install build dependencies
 RUN apk add --no-cache make git
 
-# Copy go mod files
+# Copy go mod files and local replace dependency
 COPY go.mod go.sum ./
+COPY nasty-go/ ./nasty-go/
 RUN go mod download
 
 # Copy source code
