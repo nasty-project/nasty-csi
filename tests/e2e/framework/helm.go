@@ -172,6 +172,16 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		return fmt.Errorf("%w: %s", ErrUnknownProtocol, protocol)
 	}
 
+	// Log the helm command for debugging (mask API key)
+	safeArgs := make([]string, len(args))
+	copy(safeArgs, args)
+	for i, a := range safeArgs {
+		if strings.HasPrefix(a, "nasty.apiKey=") {
+			safeArgs[i] = "nasty.apiKey=***"
+		}
+	}
+	klog.Infof("Helm command: helm %s", strings.Join(safeArgs, " "))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Minute)
 	defer cancel()
 	return h.runHelm(ctx, args...)

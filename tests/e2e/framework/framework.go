@@ -135,6 +135,10 @@ func SetupSuite(protocol string) error {
 	}
 	klog.Infof("Pre-flight: NASty is reachable")
 
+	// Log deployment details for debugging
+	klog.Infof("Deploy config: image=%s:%s pool=%s url=wss://%s/ws",
+		config.CSIImageRepo, config.CSIImageTag, config.NAStyPool, config.NAStyHost)
+
 	// Create SMB credentials secret before Helm deploy (StorageClass references it)
 	if (protocol == protocolSMB || protocol == protocolAll || protocol == protocolBoth) && config.SMBUsername != "" {
 		klog.Infof("Creating SMB credentials secret in %s", helmNamespace)
