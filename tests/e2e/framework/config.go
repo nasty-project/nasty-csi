@@ -79,7 +79,7 @@ func (c *Config) Validate() error {
 
 // NAStyURL returns the WebSocket URL for the NASty API.
 func (c *Config) NAStyURL() string {
-	return fmt.Sprintf("wss://%s/api/current", c.NAStyHost)
+	return fmt.Sprintf("wss://%s/ws", c.NAStyHost)
 }
 
 // CSIImage returns the full Docker image reference.

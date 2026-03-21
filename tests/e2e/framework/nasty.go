@@ -34,7 +34,7 @@ type NAStyVerifier struct {
 
 // NewNAStyVerifier creates a new NAStyVerifier.
 func NewNAStyVerifier(host, apiKey string) (*NAStyVerifier, error) {
-	url := fmt.Sprintf("wss://%s/api/current", host)
+	url := fmt.Sprintf("wss://%s/ws", host)
 	client, err := nastyapi.NewClient(url, apiKey, true, nil) // skip TLS verify for tests, no metrics
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NASty: %w", err)
