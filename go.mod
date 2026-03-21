@@ -71,4 +71,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/nasty-project/nasty-go => ../nasty-go
+replace github.com/nasty-project/nasty-go => ./nasty-go

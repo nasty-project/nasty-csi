@@ -210,7 +210,7 @@ jobs:
         with:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
-          path: ../nasty-go
+          path: nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -267,7 +267,7 @@ jobs:
         with:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
-          path: ../nasty-go
+          path: nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -324,7 +324,7 @@ jobs:
         with:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
-          path: ../nasty-go
+          path: nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -381,7 +381,7 @@ jobs:
         with:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
-          path: ../nasty-go
+          path: nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -466,7 +466,7 @@ jobs:
         with:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
-          path: ../nasty-go
+          path: nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
