@@ -71,7 +71,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		"--create-namespace",
 		"--wait",
 		"--timeout", "8m",
-		"--set", "nasty.url=wss://" + h.config.NAStyHost + "/api/current",
+		"--set", "nasty.url=wss://" + h.config.NAStyHost + "/ws",
 		"--set", "nasty.apiKey=" + h.config.NAStyAPIKey,
 		"--set", "nasty.pool=" + h.config.NAStyPool,
 		"--set", "image.repository=" + h.config.CSIImageRepo,
