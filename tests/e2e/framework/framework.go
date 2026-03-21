@@ -160,7 +160,7 @@ func SetupSuite(protocol string) error {
 	// Deploy the CSI driver with retry logic.
 	// Helm deploy can fail transiently over internet (image pull, NASty WebSocket timeout).
 	// Retry up to 3 times with cleanup between attempts.
-	const maxDeployAttempts = 3
+	const maxDeployAttempts = 1
 	var lastDeployErr error
 	for attempt := 1; attempt <= maxDeployAttempts; attempt++ {
 		if attempt > 1 {
@@ -176,6 +176,8 @@ func SetupSuite(protocol string) error {
 		if deployErr := suite.helm.Deploy(protocol); deployErr != nil {
 			lastDeployErr = deployErr
 			klog.Warningf("Helm deploy attempt %d/%d failed: %s", attempt, maxDeployAttempts, sanitizeError(deployErr))
+			// Dump pod status and logs for debugging
+			dumpDeployDiagnostics()
 			continue
 		}
 
@@ -578,6 +580,40 @@ func (f *Framework) UniqueName(prefix string) string {
 
 // SetupProtocol changes the protocol without doing a full setup.
 // This is useful for tests that need to test multiple protocols.
+// dumpDeployDiagnostics prints pod status and container logs after a failed deploy.
+func dumpDeployDiagnostics() {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	klog.Info("=== Deploy diagnostics: pod status ===")
+	out, err := exec.CommandContext(ctx, "kubectl", "get", "pods", "-n", "kube-system",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver", "-o", "wide").CombinedOutput()
+	if err == nil {
+		klog.Infof("\n%s", string(out))
+	}
+
+	klog.Info("=== Deploy diagnostics: pod describe ===")
+	out, err = exec.CommandContext(ctx, "kubectl", "describe", "pods", "-n", "kube-system",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver").CombinedOutput()
+	if err == nil {
+		klog.Infof("\n%s", string(out))
+	}
+
+	klog.Info("=== Deploy diagnostics: container logs ===")
+	out, err = exec.CommandContext(ctx, "kubectl", "logs", "-n", "kube-system",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver", "--all-containers", "--tail=50").CombinedOutput()
+	if err == nil {
+		klog.Infof("\n%s", string(out))
+	}
+
+	klog.Info("=== Deploy diagnostics: events ===")
+	out, err = exec.CommandContext(ctx, "kubectl", "get", "events", "-n", "kube-system",
+		"--sort-by=.lastTimestamp", "--field-selector=reason!=Pulling").CombinedOutput()
+	if err == nil {
+		klog.Infof("\n%s", string(out))
+	}
+}
+
 func (f *Framework) SetupProtocol(protocol string) error {
 	f.protocol = protocol
 	klog.Infof("Switching to protocol %s", protocol)

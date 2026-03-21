@@ -70,7 +70,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		"--namespace", helmNamespace,
 		"--create-namespace",
 		"--wait",
-		"--timeout", "8m",
+		"--timeout", "1m",
 		"--set", "nasty.url=wss://" + h.config.NAStyHost + "/ws",
 		"--set", "nasty.apiKey=" + h.config.NAStyAPIKey,
 		"--set", "nasty.pool=" + h.config.NAStyPool,
