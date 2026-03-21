@@ -123,7 +123,7 @@ jobs:
         if: inputs.pr != ''
         run: |
           PR_TAG="pr-${{ inputs.pr }}"
-          IMAGE="ghcr.io/fenio/nasty-csi:${PR_TAG}"
+          IMAGE="ghcr.io/nasty-project/nasty-csi:${PR_TAG}"
           echo "=== Building image from PR #${{ inputs.pr }} ==="
           docker buildx build \
             --load \
