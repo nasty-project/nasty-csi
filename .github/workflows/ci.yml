@@ -1,10 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [ '**' ]  # All branches
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 # Restrict permissions to minimum required at workflow level
@@ -39,6 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -56,6 +57,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -84,6 +90,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -169,6 +180,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -184,6 +200,11 @@ jobs:
     if: needs.changes.outputs.plugin == 'true'
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
 
       - name: Set up Go
         uses: actions/setup-go@v6

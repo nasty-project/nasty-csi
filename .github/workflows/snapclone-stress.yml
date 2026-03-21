@@ -1,12 +1,6 @@
 name: Snapshot/Clone Stress Tests
 
 on:
-  # Run after Integration Tests complete successfully
-  workflow_run:
-    workflows: ["Integration Tests"]
-    types:
-      - completed
-  # Manual trigger
   workflow_dispatch:
 
 # Restrict permissions to minimum required

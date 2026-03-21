@@ -1,12 +1,6 @@
 name: Deploy Test Dashboard
 
 on:
-  # Run after integration tests complete
-  workflow_run:
-    workflows: ["Integration Tests"]
-    types:
-      - completed
-  # Allow manual trigger
   workflow_dispatch:
   # Run daily to keep dashboard fresh even without test runs
   schedule:
