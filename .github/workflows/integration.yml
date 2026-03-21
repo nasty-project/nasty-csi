@@ -214,6 +214,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -266,6 +271,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -318,6 +328,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -370,6 +385,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -450,6 +470,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.pr != '' && format('refs/pull/{0}/merge', inputs.pr) || '' }}
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: ../nasty-go
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
