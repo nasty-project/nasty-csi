@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,15 @@ func NewHelmDeployer(config *Config) *HelmDeployer {
 }
 
 // getChartPath returns the absolute path to the Helm chart.
+// Checks CSI_CHART_PATH env var first, then falls back to <repo-root>/charts/nasty-csi-driver.
 func getChartPath() (string, error) {
+	if p := os.Getenv("CSI_CHART_PATH"); p != "" {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return "", fmt.Errorf("invalid CSI_CHART_PATH: %w", err)
+		}
+		return abs, nil
+	}
 	// Get the git repo root
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

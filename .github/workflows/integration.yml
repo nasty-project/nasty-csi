@@ -211,6 +211,11 @@ jobs:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -239,6 +244,7 @@ jobs:
           NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
           echo "=== Running NFS E2E Tests ==="
           # Run only NFS-specific tests from the nfs/ directory
@@ -268,6 +274,11 @@ jobs:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -296,6 +307,7 @@ jobs:
           NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
           echo "=== Running NVMe-oF E2E Tests ==="
           # Run only NVMe-oF-specific tests from the nvmeof/ directory
@@ -325,6 +337,11 @@ jobs:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -353,6 +370,7 @@ jobs:
           NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
           echo "=== Running iSCSI E2E Tests ==="
           # Run only iSCSI-specific tests from the iscsi/ directory
@@ -382,6 +400,11 @@ jobs:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -412,6 +435,7 @@ jobs:
           NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
@@ -467,6 +491,11 @@ jobs:
           repository: nasty-project/nasty-go
           token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
+      - uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -495,6 +524,7 @@ jobs:
           NASTY_POOL: ${{ secrets.NASTY_POOL }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
