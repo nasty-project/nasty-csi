@@ -138,7 +138,7 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		detachedDatasetPath := fmt.Sprintf("%s/csi-detached-snapshots/%s", pool, csiSnapshotName)
 
 		By("Verifying detached snapshot dataset exists")
-		exists, err := f.NASty.DatasetExists(ctx, detachedDatasetPath)
+		exists, err = f.NASty.DatasetExists(ctx, detachedDatasetPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to check if detached dataset exists")
 		Expect(exists).To(BeTrue(), fmt.Sprintf("Detached snapshot dataset %s should exist", detachedDatasetPath))
 		GinkgoWriter.Printf("[NFS] Detached snapshot dataset path: %s (exists: %v)\n", detachedDatasetPath, exists)
