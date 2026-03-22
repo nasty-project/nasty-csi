@@ -30,10 +30,10 @@ func sanitizeError(err error) string {
 // suiteState holds suite-level state for Helm deployment.
 // This allows us to deploy Helm once per suite instead of per test.
 type suiteState struct {
-	nastyError   error
+	nastyError     error
 	helm           *HelmDeployer
 	config         *Config
-	nasty        *NAStyVerifier
+	nasty          *NAStyVerifier
 	beforeSnapshot *ResourceSnapshot
 	protocol       string
 	mu             sync.Mutex
@@ -164,7 +164,7 @@ func SetupSuite(protocol string) error {
 	// Deploy the CSI driver with retry logic.
 	// Helm deploy can fail transiently over internet (image pull, NASty WebSocket timeout).
 	// Retry up to 3 times with cleanup between attempts.
-	const maxDeployAttempts = 1
+	const maxDeployAttempts = 3
 	var lastDeployErr error
 	for attempt := 1; attempt <= maxDeployAttempts; attempt++ {
 		if attempt > 1 {
@@ -298,7 +298,7 @@ type Framework struct {
 	Config   *Config
 	K8s      *KubernetesClient
 	Helm     *HelmDeployer
-	NASty  *NAStyVerifier
+	NASty    *NAStyVerifier
 	Cleanup  *CleanupTracker
 	protocol string
 }

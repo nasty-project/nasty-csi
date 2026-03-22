@@ -541,6 +541,21 @@ func (k *KubernetesClient) logCSINodeLogs(ctx context.Context) {
 		return
 	}
 	klog.Errorf("CSI Node Logs (last 200 lines):\n%s", string(output))
+
+	// Also dump controller logs (CreateVolume/DeleteVolume errors)
+	ctrlCtx, ctrlCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer ctrlCancel()
+	ctrlCmd := exec.CommandContext(ctrlCtx, "kubectl", "logs",
+		"-n", "kube-system",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=controller",
+		"-c", "nasty-csi-plugin",
+		"--tail", "200")
+	ctrlOutput, ctrlErr := ctrlCmd.CombinedOutput()
+	if ctrlErr != nil {
+		klog.Warningf("Failed to get CSI controller logs: %v", ctrlErr)
+	} else {
+		klog.Errorf("CSI Controller Logs (last 200 lines):\n%s", string(ctrlOutput))
+	}
 }
 
 // logPodEvents logs events related to a pod for debugging.
