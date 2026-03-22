@@ -14,9 +14,9 @@ import (
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
-// These tests verify that detached snapshots are truly independent at the ZFS level.
+// These tests verify that detached snapshots are truly independent.
 // A detached snapshot should:
-// 1. NOT be a ZFS clone (no origin property)
+// 1. NOT be a dependent clone of the source
 // 2. Allow the source volume to be deleted without errors
 // 3. Survive source volume deletion and remain usable
 
@@ -38,16 +38,16 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		}
 	})
 
-	It("should create truly independent detached snapshot (no ZFS clone dependency)", func() {
+	It("should create truly independent detached snapshot (no clone dependency)", func() {
 		ctx := context.Background()
 
 		storageClass := "nasty-csi-nfs"
 		accessMode := corev1.ReadWriteMany
 		podTimeout := 2 * time.Minute
-		pool := "storage"
+		pool := f.Config.NAStyPool
 
 		if f.NASty == nil {
-			Skip("NASty verifier not configured - skipping ZFS-level verification")
+			Skip("NASty verifier not configured - skipping backend verification")
 		}
 
 		By("Creating source PVC")
@@ -77,28 +77,18 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		err = f.K8s.WaitForPVCBound(ctx, pvc.Name, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC did not become Bound")
 
-		By("Getting the source PV name to find ZFS dataset")
-		sourcePV, err := f.K8s.GetPVForPVC(ctx, pvc.Name)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get PV for source PVC")
-		sourcePVName := sourcePV.Name
-		GinkgoWriter.Printf("[NFS] Source PV: %s\n", sourcePVName)
+		By("Getting the source volume handle")
+		sourcePVName, err := f.K8s.GetPVName(ctx, pvc.Name)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get PV name")
+		sourceDatasetPath, err := f.K8s.GetVolumeHandle(ctx, sourcePVName)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get volume handle")
+		Expect(sourceDatasetPath).NotTo(BeEmpty(), "Volume handle is empty")
+		GinkgoWriter.Printf("[NFS] Source volume handle: %s\n", sourceDatasetPath)
 
-		possibleDatasetPaths := []string{
-			fmt.Sprintf("%s/%s", pool, sourcePVName),
-			fmt.Sprintf("%s/%s", pool, sourcePVCName),
-		}
-
-		By("Finding source ZFS dataset")
-		var sourceDatasetPath string
-		for _, path := range possibleDatasetPaths {
-			dsExists, dsErr := f.NASty.DatasetExists(ctx, path)
-			if dsErr == nil && dsExists {
-				sourceDatasetPath = path
-				break
-			}
-		}
-		Expect(sourceDatasetPath).NotTo(BeEmpty(), "Could not find source ZFS dataset")
-		GinkgoWriter.Printf("[NFS] Source ZFS dataset: %s\n", sourceDatasetPath)
+		// Verify the subvolume exists
+		exists, err := f.NASty.DatasetExists(ctx, sourceDatasetPath)
+		Expect(err).NotTo(HaveOccurred(), "Failed to check subvolume existence")
+		Expect(exists).To(BeTrue(), "Source subvolume should exist")
 
 		By("Writing test data to source volume")
 		testData := fmt.Sprintf("Independence Test Data - NFS - %d", time.Now().UnixNano())
@@ -153,15 +143,15 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		Expect(exists).To(BeTrue(), fmt.Sprintf("Detached snapshot dataset %s should exist", detachedDatasetPath))
 		GinkgoWriter.Printf("[NFS] Detached snapshot dataset path: %s (exists: %v)\n", detachedDatasetPath, exists)
 
-		By("CRITICAL: Verifying detached snapshot is NOT a ZFS clone (no origin)")
+		By("Verifying detached snapshot is independent (not a dependent clone)")
 		isClone, origin, err := f.NASty.IsDatasetClone(ctx, detachedDatasetPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to check clone status")
 
 		if isClone {
 			GinkgoWriter.Printf("[NFS] FAILURE: Detached snapshot IS a clone! Origin: %s\n", origin)
-			Fail(fmt.Sprintf("Detached snapshot %s is a ZFS clone with origin %s - it should be independent", detachedDatasetPath, origin))
+			Fail(fmt.Sprintf("Detached snapshot %s is a clone with origin %s - it should be independent", detachedDatasetPath, origin))
 		} else {
-			GinkgoWriter.Printf("[NFS] SUCCESS: Detached snapshot is NOT a clone - it is truly independent\n")
+			GinkgoWriter.Printf("[NFS] SUCCESS: Detached snapshot is independent\n")
 		}
 
 		By("Deleting source POD")
@@ -178,12 +168,12 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		err = f.K8s.WaitForPVCDeleted(ctx, sourcePVCName, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC was not deleted in time")
 
-		By("Verifying source ZFS dataset was deleted")
+		By("Verifying source subvolume was deleted")
 		time.Sleep(5 * time.Second)
 		sourceExists, _ := f.NASty.DatasetExists(ctx, sourceDatasetPath)
 		if sourceExists {
-			GinkgoWriter.Printf("[NFS] WARNING: Source dataset %s still exists after PVC deletion\n", sourceDatasetPath)
-			Fail(fmt.Sprintf("Source dataset %s could not be deleted - likely due to clone dependency", sourceDatasetPath))
+			GinkgoWriter.Printf("[NFS] WARNING: Source subvolume %s still exists after PVC deletion\n", sourceDatasetPath)
+			Fail(fmt.Sprintf("Source subvolume %s could not be deleted", sourceDatasetPath))
 		} else {
 			GinkgoWriter.Printf("[NFS] SUCCESS: Source dataset %s was deleted\n", sourceDatasetPath)
 		}
