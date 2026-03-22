@@ -43,7 +43,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 func (s *Server) handleAPIVolumes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	volumes, err := FindManagedVolumes(ctx, s.client, s.clusterID)

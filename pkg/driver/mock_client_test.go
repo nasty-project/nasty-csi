@@ -10,40 +10,40 @@ import (
 // Each method has a corresponding function field that can be set by tests.
 // If the function field is nil, the method panics to indicate unexpected calls.
 type MockAPIClient struct {
-	QueryPoolFunc                 func(ctx context.Context, poolName string) (*nastyapi.Pool, error)
-	CreateSubvolumeFunc           func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error)
-	DeleteSubvolumeFunc           func(ctx context.Context, pool, name string) error
-	GetSubvolumeFunc              func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error)
-	ListAllSubvolumesFunc         func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error)
-	SetSubvolumePropertiesFunc    func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error)
-	RemoveSubvolumePropertiesFunc func(ctx context.Context, pool, name string, keys []string) (*nastyapi.Subvolume, error)
-	FindSubvolumesByPropertyFunc  func(ctx context.Context, key, value, pool string) ([]nastyapi.Subvolume, error)
-	FindManagedSubvolumesFunc     func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error)
+	QueryPoolFunc                    func(ctx context.Context, poolName string) (*nastyapi.Pool, error)
+	CreateSubvolumeFunc              func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error)
+	DeleteSubvolumeFunc              func(ctx context.Context, pool, name string) error
+	GetSubvolumeFunc                 func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error)
+	ListAllSubvolumesFunc            func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error)
+	SetSubvolumePropertiesFunc       func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error)
+	RemoveSubvolumePropertiesFunc    func(ctx context.Context, pool, name string, keys []string) (*nastyapi.Subvolume, error)
+	FindSubvolumesByPropertyFunc     func(ctx context.Context, key, value, pool string) ([]nastyapi.Subvolume, error)
+	FindManagedSubvolumesFunc        func(ctx context.Context, pool string) ([]nastyapi.Subvolume, error)
 	FindSubvolumeByCSIVolumeNameFunc func(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error)
-	CreateSnapshotFunc            func(ctx context.Context, params nastyapi.SnapshotCreateParams) (*nastyapi.Snapshot, error)
-	DeleteSnapshotFunc            func(ctx context.Context, pool, subvolume, name string) error
-	ListSnapshotsFunc             func(ctx context.Context, pool string) ([]nastyapi.Snapshot, error)
-	CreateNFSShareFunc            func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error)
-	DeleteNFSShareFunc            func(ctx context.Context, id string) error
-	ListNFSSharesFunc             func(ctx context.Context) ([]nastyapi.NFSShare, error)
-	GetNFSShareFunc               func(ctx context.Context, id string) (*nastyapi.NFSShare, error)
-	CreateSMBShareFunc            func(ctx context.Context, params nastyapi.SMBShareCreateParams) (*nastyapi.SMBShare, error)
-	DeleteSMBShareFunc            func(ctx context.Context, id string) error
-	ListSMBSharesFunc             func(ctx context.Context) ([]nastyapi.SMBShare, error)
-	GetSMBShareFunc               func(ctx context.Context, id string) (*nastyapi.SMBShare, error)
-	CreateISCSITargetFunc         func(ctx context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error)
-	AddISCSILunFunc               func(ctx context.Context, targetID, backstorePath string) (*nastyapi.ISCSITarget, error)
-	AddISCSIACLFunc               func(ctx context.Context, targetID, initiatorIQN string) (*nastyapi.ISCSITarget, error)
-	DeleteISCSITargetFunc         func(ctx context.Context, id string) error
-	ListISCSITargetsFunc          func(ctx context.Context) ([]nastyapi.ISCSITarget, error)
-	GetISCSITargetByIQNFunc       func(ctx context.Context, iqn string) (*nastyapi.ISCSITarget, error)
-	CreateNVMeOFSubsystemFunc     func(ctx context.Context, params nastyapi.NVMeOFCreateParams) (*nastyapi.NVMeOFSubsystem, error)
-	DeleteNVMeOFSubsystemFunc     func(ctx context.Context, id string) error
-	ListNVMeOFSubsystemsFunc      func(ctx context.Context) ([]nastyapi.NVMeOFSubsystem, error)
-	GetNVMeOFSubsystemByNQNFunc   func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error)
-	ResizeSubvolumeFunc           func(ctx context.Context, pool, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error)
-	CloneSnapshotFunc             func(ctx context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error)
-	CloneSubvolumeFunc            func(ctx context.Context, pool, name, newName string) (*nastyapi.Subvolume, error)
+	CreateSnapshotFunc               func(ctx context.Context, params nastyapi.SnapshotCreateParams) (*nastyapi.Snapshot, error)
+	DeleteSnapshotFunc               func(ctx context.Context, pool, subvolume, name string) error
+	ListSnapshotsFunc                func(ctx context.Context, pool string) ([]nastyapi.Snapshot, error)
+	CreateNFSShareFunc               func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error)
+	DeleteNFSShareFunc               func(ctx context.Context, id string) error
+	ListNFSSharesFunc                func(ctx context.Context) ([]nastyapi.NFSShare, error)
+	GetNFSShareFunc                  func(ctx context.Context, id string) (*nastyapi.NFSShare, error)
+	CreateSMBShareFunc               func(ctx context.Context, params nastyapi.SMBShareCreateParams) (*nastyapi.SMBShare, error)
+	DeleteSMBShareFunc               func(ctx context.Context, id string) error
+	ListSMBSharesFunc                func(ctx context.Context) ([]nastyapi.SMBShare, error)
+	GetSMBShareFunc                  func(ctx context.Context, id string) (*nastyapi.SMBShare, error)
+	CreateISCSITargetFunc            func(ctx context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error)
+	AddISCSILunFunc                  func(ctx context.Context, targetID, backstorePath string) (*nastyapi.ISCSITarget, error)
+	AddISCSIACLFunc                  func(ctx context.Context, targetID, initiatorIQN string) (*nastyapi.ISCSITarget, error)
+	DeleteISCSITargetFunc            func(ctx context.Context, id string) error
+	ListISCSITargetsFunc             func(ctx context.Context) ([]nastyapi.ISCSITarget, error)
+	GetISCSITargetByIQNFunc          func(ctx context.Context, iqn string) (*nastyapi.ISCSITarget, error)
+	CreateNVMeOFSubsystemFunc        func(ctx context.Context, params nastyapi.NVMeOFCreateParams) (*nastyapi.NVMeOFSubsystem, error)
+	DeleteNVMeOFSubsystemFunc        func(ctx context.Context, id string) error
+	ListNVMeOFSubsystemsFunc         func(ctx context.Context) ([]nastyapi.NVMeOFSubsystem, error)
+	GetNVMeOFSubsystemByNQNFunc      func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error)
+	ResizeSubvolumeFunc              func(ctx context.Context, pool, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error)
+	CloneSnapshotFunc                func(ctx context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error)
+	CloneSubvolumeFunc               func(ctx context.Context, pool, name, newName string) (*nastyapi.Subvolume, error)
 }
 
 // MockAPIClientForSnapshots is an alias for MockAPIClient for backward compatibility in tests.

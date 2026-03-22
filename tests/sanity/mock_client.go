@@ -22,6 +22,8 @@ var (
 	ErrNVMeOFTargetNotFound = errors.New("NVMe-oF target not found")
 	// ErrSnapshotNotFound indicates a snapshot was not found.
 	ErrSnapshotNotFound = errors.New("snapshot not found")
+	// ErrSnapshotAlreadyExists indicates a snapshot already exists.
+	ErrSnapshotAlreadyExists = errors.New("snapshot already exists")
 	// ErrSubsystemNotFound indicates a subsystem was not found.
 	ErrSubsystemNotFound = errors.New("subsystem not found")
 	// ErrISCSITargetNotFound indicates an iSCSI target was not found.
@@ -32,14 +34,14 @@ var (
 
 // MockClient is a mock implementation of the NASty API client for sanity testing.
 type MockClient struct {
-	mu         sync.Mutex
-	subvolumes map[string]*nastyapi.Subvolume  // key: "pool/name"
-	snapshots  map[string]*nastyapi.Snapshot   // key: "pool/subvolume@name"
-	nfsShares  map[string]*nastyapi.NFSShare   // key: UUID
-	smbShares  map[string]*nastyapi.SMBShare   // key: UUID
-	iscsiTargets map[string]*nastyapi.ISCSITarget // key: UUID
+	mu               sync.Mutex
+	subvolumes       map[string]*nastyapi.Subvolume       // key: "pool/name"
+	snapshots        map[string]*nastyapi.Snapshot        // key: "pool/subvolume@name"
+	nfsShares        map[string]*nastyapi.NFSShare        // key: UUID
+	smbShares        map[string]*nastyapi.SMBShare        // key: UUID
+	iscsiTargets     map[string]*nastyapi.ISCSITarget     // key: UUID
 	nvmeofSubsystems map[string]*nastyapi.NVMeOFSubsystem // key: UUID
-	nextID     uint64
+	nextID           uint64
 }
 
 // NewMockClient creates a new mock client for testing.
@@ -229,7 +231,7 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 
 	snapKey := svKey + "@" + params.Name
 	if _, exists := m.snapshots[snapKey]; exists {
-		return nil, errors.New("snapshot already exists")
+		return nil, ErrSnapshotAlreadyExists
 	}
 
 	snap := &nastyapi.Snapshot{
@@ -584,6 +586,7 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 	return &cp, nil
 }
 
+// CloneSubvolume creates a COW clone of a subvolume.
 func (m *MockClient) CloneSubvolume(_ context.Context, pool, name, newName string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

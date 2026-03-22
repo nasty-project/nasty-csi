@@ -1,3 +1,4 @@
+// Package dashboard provides shared dashboard data types and functions.
 package dashboard
 
 // Type aliases re-exported from nasty-go/dashboard so the rest of this package
@@ -34,6 +35,7 @@ type (
 )
 
 const (
+	// HealthStatusHealthy indicates a healthy status.
 	HealthStatusHealthy   = dashlib.HealthStatusHealthy
 	HealthStatusDegraded  = dashlib.HealthStatusDegraded
 	HealthStatusUnhealthy = dashlib.HealthStatusUnhealthy
@@ -41,27 +43,27 @@ const (
 
 // Re-export functions from nasty-go/dashboard used within this package.
 var (
-	FindManagedVolumes      = dashlib.FindManagedVolumes
-	FindManagedSnapshots    = dashlib.FindManagedSnapshots
-	FindClonedVolumes       = dashlib.FindClonedVolumes
-	FindUnmanagedVolumes    = dashlib.FindUnmanagedVolumes
-	GetVolumeDetails        = dashlib.GetVolumeDetails
-	FormatBytes             = dashlib.FormatBytes
-	CheckVolumeHealth       = dashlib.CheckVolumeHealth
-	CheckNFSHealth          = dashlib.CheckNFSHealth
-	CheckNVMeOFHealth       = dashlib.CheckNVMeOFHealth
-	CheckSMBHealth          = dashlib.CheckSMBHealth
-	CheckISCSIHealth        = dashlib.CheckISCSIHealth
-	BuildHealthMapsFromData = dashlib.BuildHealthMapsFromData
-	AnnotateHealthFromMaps  = dashlib.AnnotateHealthFromMaps
+	FindManagedVolumes        = dashlib.FindManagedVolumes
+	FindManagedSnapshots      = dashlib.FindManagedSnapshots
+	FindClonedVolumes         = dashlib.FindClonedVolumes
+	FindUnmanagedVolumes      = dashlib.FindUnmanagedVolumes
+	GetVolumeDetails          = dashlib.GetVolumeDetails
+	FormatBytes               = dashlib.FormatBytes
+	CheckVolumeHealth         = dashlib.CheckVolumeHealth
+	CheckNFSHealth            = dashlib.CheckNFSHealth
+	CheckNVMeOFHealth         = dashlib.CheckNVMeOFHealth
+	CheckSMBHealth            = dashlib.CheckSMBHealth
+	CheckISCSIHealth          = dashlib.CheckISCSIHealth
+	BuildHealthMapsFromData   = dashlib.BuildHealthMapsFromData
+	AnnotateHealthFromMaps    = dashlib.AnnotateHealthFromMaps
 	AnnotateVolumesWithHealth = dashlib.AnnotateVolumesWithHealth
-	ParsePaginationParams   = dashlib.ParsePaginationParams
-	PaginateVolumes         = dashlib.PaginateVolumes
-	PaginateSnapshots       = dashlib.PaginateSnapshots
-	PaginateClones          = dashlib.PaginateClones
-	PaginateUnmanaged       = dashlib.PaginateUnmanaged
-	CalculateSummary        = dashlib.CalculateSummary
-	MatchK8sBinding         = dashlib.MatchK8sBinding
+	ParsePaginationParams     = dashlib.ParsePaginationParams
+	PaginateVolumes           = dashlib.PaginateVolumes
+	PaginateSnapshots         = dashlib.PaginateSnapshots
+	PaginateClones            = dashlib.PaginateClones
+	PaginateUnmanaged         = dashlib.PaginateUnmanaged
+	CalculateSummary          = dashlib.CalculateSummary
+	MatchK8sBinding           = dashlib.MatchK8sBinding
 )
 
 // Protocol constants forwarded for use within this package.

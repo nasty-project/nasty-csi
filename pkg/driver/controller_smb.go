@@ -4,6 +4,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -452,7 +453,7 @@ func (s *ControllerService) expandSMBVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
-		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	})
 	if err != nil {
 		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)

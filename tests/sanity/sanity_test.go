@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nasty-project/nasty-csi/pkg/driver"
 	sanity "github.com/kubernetes-csi/csi-test/v5/pkg/sanity"
+	"github.com/nasty-project/nasty-csi/pkg/driver"
 )
 
 const (

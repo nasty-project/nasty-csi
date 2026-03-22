@@ -450,7 +450,7 @@ func (s *NodeService) getExpectedCapacity(ctx context.Context, devicePath, datas
 		pool, name, splitErr := func(s string) (string, string, error) {
 			idx := strings.Index(s, "/")
 			if idx < 0 || idx == len(s)-1 {
-				return "", "", fmt.Errorf("invalid subvolume ID %q", s)
+				return "", "", fmt.Errorf("%w: %q", ErrInvalidVolumeID, s)
 			}
 			return s[:idx], s[idx+1:], nil
 		}(datasetName)

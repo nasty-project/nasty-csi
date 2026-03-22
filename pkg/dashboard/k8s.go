@@ -91,7 +91,6 @@ func FetchK8sVolumes(ctx context.Context) ([]VolumeInfo, *K8sEnrichmentResult) {
 	return volumes, result
 }
 
-
 // EnrichWithK8sData fetches K8s PV/PVC data and optionally pod data.
 // When running in-cluster, uses the service account token.
 // Returns best-effort results — if K8s is unavailable, Available will be false.

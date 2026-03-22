@@ -2,7 +2,7 @@ package driver
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	nastyapi "github.com/nasty-project/nasty-go"
@@ -21,13 +21,13 @@ type cloneInfo struct {
 // createVolumeFromSnapshot creates a new volume from a snapshot by cloning.
 //
 // The approach:
-// 1. Decode the snapshot ID to get pool, parent subvolume, snapshot name, and protocol.
-// 2. Resolve the new subvolume name from the CSI request (same naming as normal create).
-// 3. Clone the snapshot into a new writable subvolume.
-// 4. Set CSI metadata properties on the new subvolume.
-// 5. Delegate to createVolumeByProtocol to set up protocol-specific sharing.
-//    The protocol create function will find the existing subvolume (idempotency)
-//    and create the share.
+//  1. Decode the snapshot ID to get pool, parent subvolume, snapshot name, and protocol.
+//  2. Resolve the new subvolume name from the CSI request (same naming as normal create).
+//  3. Clone the snapshot into a new writable subvolume.
+//  4. Set CSI metadata properties on the new subvolume.
+//  5. Delegate to createVolumeByProtocol to set up protocol-specific sharing.
+//     The protocol create function will find the existing subvolume (idempotency)
+//     and create the share.
 func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *csi.CreateVolumeRequest, snapshotID string) (*csi.CreateVolumeResponse, error) {
 	klog.Infof("createVolumeFromSnapshot called for volume %s from snapshot %s", req.GetName(), snapshotID)
 
@@ -88,10 +88,10 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 	}
 
 	csiProps := map[string]string{
-		nastyapi.PropertyManagedBy:      nastyapi.ManagedByValue,
-		nastyapi.PropertyCSIVolumeName:  req.GetName(),
-		nastyapi.PropertyCapacityBytes:  fmt.Sprintf("%d", requestedCapacity),
-		nastyapi.PropertyProtocol:       protocol,
+		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+		nastyapi.PropertyCSIVolumeName: req.GetName(),
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
+		nastyapi.PropertyProtocol:      protocol,
 	}
 	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, pool, newName, csiProps); propErr != nil {
 		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", pool, newName, propErr)

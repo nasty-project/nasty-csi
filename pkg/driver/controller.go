@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -52,13 +53,13 @@ const (
 
 // Static errors for controller operations.
 var (
-	ErrVolumeNotFound  = errors.New("volume not found")
-	ErrDatasetNotFound = errors.New("dataset not found for share")
+	ErrVolumeNotFound    = errors.New("volume not found")
+	ErrDatasetNotFound   = errors.New("dataset not found for share")
+	ErrInvalidVolumeID   = errors.New("invalid subvolume ID")
 )
 
 // capacityErrorSubstrings are error message patterns that indicate insufficient pool capacity.
 // NASty returns these when a pool or dataset doesn't have enough free space.
-var errNoDeferredClonesToPromote = errors.New("no deferred-destroy snapshot clones to promote")
 
 var capacityErrorSubstrings = []string{
 	"insufficient space",
@@ -92,7 +93,6 @@ func createVolumeError(msg string, err error) error {
 	}
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
-
 
 // VolumeMetadata contains information needed to manage a volume.
 // This is used internally and for building VolumeContext.
@@ -211,8 +211,8 @@ func isDatasetPathVolumeID(volumeID string) bool {
 // For new-format volume IDs (containing "/"), uses O(1) direct subvolume lookup (pool/name).
 // For legacy volume IDs (plain names), falls back to O(n) property scan.
 // Returns nil, nil if volume not found; returns error only on API failures.
-func (s *ControllerService) lookupVolumeByCSIName(ctx context.Context, poolDatasetPrefix, volumeName string) (*VolumeMetadata, error) {
-	klog.V(4).Infof("Looking up volume by CSI name: %s (prefix: %s)", volumeName, poolDatasetPrefix)
+func (s *ControllerService) lookupVolumeByCSIName(ctx context.Context, volumeName string) (*VolumeMetadata, error) {
+	klog.V(4).Infof("Looking up volume by CSI name: %s", volumeName)
 
 	// New-format volume IDs contain "/" (e.g., "pool/pvc-xxx") — use O(1) direct lookup
 	if isDatasetPathVolumeID(volumeName) {
@@ -220,7 +220,7 @@ func (s *ControllerService) lookupVolumeByCSIName(ctx context.Context, poolDatas
 	}
 
 	// Plain-name volume IDs — use O(n) property scan
-	return s.lookupVolumeByPropertyScan(ctx, poolDatasetPrefix, volumeName)
+	return s.lookupVolumeByPropertyScan(ctx, "", volumeName)
 }
 
 // lookupVolumeBySubvolumePath looks up a volume by its full subvolume path "pool/name" (O(1) lookup).
@@ -318,7 +318,6 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvol
 	klog.V(4).Infof("Found volume: %s (subvolume=%s, protocol=%s)", volumeID, subvolumeID, meta.Protocol)
 	return meta, nil
 }
-
 
 // subvolumeHasCSIManagedSnapshots checks if a subvolume has any CSI-managed snapshots.
 // This is used as a pre-deletion guard to prevent destroying snapshots that other tools depend on.
@@ -592,7 +591,7 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	klog.Infof("createVolumeFromVolume called for volume %s from source %s", req.GetName(), sourceVolumeID)
 
 	// 1. Look up the source volume to get pool, name, and protocol
-	sourceMeta, err := s.lookupVolumeByCSIName(ctx, "", sourceVolumeID)
+	sourceMeta, err := s.lookupVolumeByCSIName(ctx, sourceVolumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to lookup source volume %s: %v", sourceVolumeID, err)
 	}
@@ -645,7 +644,7 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	csiProps := map[string]string{
 		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
 		nastyapi.PropertyCSIVolumeName: req.GetName(),
-		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requestedCapacity),
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
 		nastyapi.PropertyProtocol:      protocol,
 	}
 	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, pool, newName, csiProps); propErr != nil {
@@ -687,7 +686,7 @@ func (s *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 	// Try property-based lookup first (preferred method - uses ZFS properties as source of truth)
 	// Pass empty prefix to search all datasets across all pools
-	volumeMeta, err := s.lookupVolumeByCSIName(ctx, "", volumeID)
+	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("Property-based lookup failed for volume %s: %v", volumeID, err)
 		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", err)
@@ -809,7 +808,7 @@ func (s *ControllerService) ValidateVolumeCapabilities(ctx context.Context, req 
 	klog.V(4).Infof("ValidateVolumeCapabilities: validating volume %s", volumeID)
 
 	// Look up the volume and determine its protocol
-	meta, err := s.lookupVolumeByCSIName(ctx, "", volumeID)
+	meta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil || meta == nil {
 		return nil, status.Errorf(codes.NotFound, "Volume %s not found", volumeID)
 	}
@@ -1289,7 +1288,7 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 	klog.Infof("ControllerExpandVolume: Expanding volume %s to %d bytes", volumeID, requiredBytes)
 
 	// Look up volume using ZFS properties as source of truth
-	volumeMeta, err := s.lookupVolumeByCSIName(ctx, "", volumeID)
+	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("ControllerExpandVolume: Property-based lookup failed for volume %s: %v", volumeID, err)
 		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", err)
@@ -1334,7 +1333,7 @@ func (s *ControllerService) ControllerGetVolume(ctx context.Context, req *csi.Co
 	klog.V(4).Infof("Getting volume info for: %s", volumeID)
 
 	// Look up volume using ZFS properties as source of truth
-	volumeMeta, err := s.lookupVolumeByCSIName(ctx, "", volumeID)
+	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("ControllerGetVolume: Property-based lookup failed for volume %s: %v", volumeID, err)
 		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", err)

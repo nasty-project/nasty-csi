@@ -4,6 +4,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,7 +173,7 @@ func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *nast
 }
 
 // nfsPropertiesV1 builds xattr property map for an NFS subvolume.
-func nfsPropertiesV1(params *nfsVolumeParams, shareID, sharePath string, clusterID string) map[string]string {
+func nfsPropertiesV1(params *nfsVolumeParams, shareID, sharePath, clusterID string) map[string]string {
 	return nastyapi.NFSVolumePropertiesV1(nastyapi.NFSVolumeParams{
 		VolumeID:       params.volumeName,
 		CapacityBytes:  params.requestedCapacity,
@@ -500,7 +501,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 func splitSubvolumeID(subvolumeID string) (string, string, error) {
 	idx := strings.Index(subvolumeID, "/")
 	if idx < 0 || idx == len(subvolumeID)-1 {
-		return "", "", fmt.Errorf("invalid subvolume ID %q: expected pool/name format", subvolumeID)
+		return "", "", fmt.Errorf("%w: %q expected pool/name format", ErrInvalidVolumeID, subvolumeID)
 	}
 	return subvolumeID[:idx], subvolumeID[idx+1:], nil
 }
@@ -622,7 +623,6 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 
 // expandNFSVolume expands an NFS volume by updating the subvolume capacity.
 //
-//nolint:dupl // Similar to expandNVMeOFVolume but with different protocol
 func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMetadata, requiredBytes int64) (*csi.ControllerExpandVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "expand")
 	klog.V(4).Infof("Expanding NFS volume: %s (subvolumeID: %s) to %d bytes", meta.Name, meta.DatasetID, requiredBytes)
@@ -650,7 +650,7 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 	// Update capacity via xattr property (NASty handles quota enforcement via xattr)
 	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
-		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	})
 	if err != nil {
 		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)

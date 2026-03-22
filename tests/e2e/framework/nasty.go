@@ -234,16 +234,30 @@ func (v *NAStyVerifier) deleteRelatedResources(
 	return nil
 }
 
-// toInt converts a value (typically from JSON unmarshaling) to int.
-// JSON numbers are unmarshaled as float64 in Go.
+// toInt converts a JSON-unmarshaled value to int.
+func toInt(v any) (int, error) {
+	switch val := v.(type) {
+	case float64:
+		return int(val), nil
+	case int:
+		return val, nil
+	case int64:
+		return int(val), nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to int", v)
+	}
+}
 
-// extractID extracts an ID from a value that can be either:
-// - A direct number (int, int64, float64)
-// - A nested object with an "id" field (map[string]any)
-//
-// NASty API returns parent references (like "subsys" in namespaces) as nested objects:
-//
-//	{"id": 123, "name": "nqn...", "subnqn": "..."}
+// extractID extracts an ID from a value that can be a number or a nested {"id": N} object.
+func extractID(v any) (int, error) {
+	if m, ok := v.(map[string]any); ok {
+		if id, exists := m["id"]; exists {
+			return toInt(id)
+		}
+		return 0, fmt.Errorf("nested object has no 'id' field")
+	}
+	return toInt(v)
+}
 
 // DeleteNFSShare deletes an NFS share from NASty by path.
 // This is used for cleaning up retained NFS shares after tests.

@@ -21,8 +21,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/klog/v2"
 
-	nastyapi "github.com/nasty-project/nasty-go"
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
+	nastyapi "github.com/nasty-project/nasty-go"
 )
 
 const (
@@ -70,10 +70,6 @@ func getEnvInt(key string, defaultVal int) int {
 }
 
 // parsePoolName extracts the pool name (first component) from a path like "pool/subvol/child".
-func parsePoolName(path string) string {
-	parts := strings.SplitN(path, "/", 2)
-	return parts[0]
-}
 
 // parseSubvolName extracts the subvolume name (rest after first /) from a path like "pool/subvol/child".
 func parseSubvolName(path string) string {

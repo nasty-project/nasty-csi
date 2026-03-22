@@ -264,8 +264,8 @@ func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, pa
 	existingCapacity := params.requestedCapacity
 	if existingSubvol.Properties != nil {
 		if capStr, ok := existingSubvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
-			if cap := nastyapi.StringToInt64(capStr); cap > 0 {
-				existingCapacity = cap
+			if capBytes := nastyapi.StringToInt64(capStr); capBytes > 0 {
+				existingCapacity = capBytes
 			}
 		}
 	}
