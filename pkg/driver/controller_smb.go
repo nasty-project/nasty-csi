@@ -25,6 +25,7 @@ type smbVolumeParams struct {
 	server            string
 	comment           string
 	compression       string
+	smbUsername       string
 	pvcName           string
 	pvcNamespace      string
 	storageClass      string
@@ -80,6 +81,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 		markAdoptable:     markAdoptable,
 		comment:           comment,
 		compression:       compression,
+		smbUsername:       params["smbUsername"],
 		pvcName:           params["csi.storage.k8s.io/pvc/name"],
 		pvcNamespace:      params["csi.storage.k8s.io/pvc/namespace"],
 		storageClass:      params["csi.storage.k8s.io/sc/name"],
@@ -143,11 +145,15 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 // createSMBShareForSubvolume creates an SMB share for a subvolume and stores xattr properties.
 func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *smbVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*nastyapi.SMBShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
-	smbShare, err := s.apiClient.CreateSMBShare(ctx, nastyapi.SMBShareCreateParams{
+	createParams := nastyapi.SMBShareCreateParams{
 		Name:    params.volumeName,
 		Path:    subvol.Path,
 		Comment: comment,
-	})
+	}
+	if params.smbUsername != "" {
+		createParams.ValidUsers = []string{params.smbUsername}
+	}
+	smbShare, err := s.apiClient.CreateSMBShare(ctx, createParams)
 	if err != nil {
 		klog.Errorf("Failed to create SMB share '%s' for subvolume %s/%s (path: %s): %v", params.volumeName, subvol.Pool, subvol.Name, subvol.Path, err)
 		if subvolumeIsNew {

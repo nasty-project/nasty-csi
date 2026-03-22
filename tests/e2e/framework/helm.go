@@ -136,6 +136,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			args = append(args,
 				"--set", "storageClasses[0].smbCredentialsSecret.name=nasty-csi-smb-creds",
 				"--set", "storageClasses[0].smbCredentialsSecret.namespace="+helmNamespace,
+				"--set", "storageClasses[0].smbUsername="+h.config.SMBUsername,
 			)
 		}
 	case protocolBoth, protocolAll:
@@ -168,6 +169,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 				"--set", "storageClasses[3].server="+h.config.NAStyHost,
 				"--set", "storageClasses[3].smbCredentialsSecret.name=nasty-csi-smb-creds",
 				"--set", "storageClasses[3].smbCredentialsSecret.namespace="+helmNamespace,
+				"--set", "storageClasses[3].smbUsername="+h.config.SMBUsername,
 			)
 		}
 	default:
