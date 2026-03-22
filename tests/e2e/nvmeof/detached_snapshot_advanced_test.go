@@ -13,12 +13,12 @@ import (
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
-// These tests cover advanced detached snapshot scenarios:
-// 1. Detached snapshots via zfs send/receive (VolumeSnapshotClass with detachedSnapshots=true)
-// 2. Restoring from detached snapshots
-// 3. Detached snapshots surviving source volume deletion (DR scenario)
+// These tests cover snapshot scenarios:
+// 1. Creating a snapshot and restoring from it
+// 2. Snapshot surviving source volume deletion (DR scenario)
+// bcachefs snapshots are always independent — no detach/promote needed.
 
-var _ = Describe("Detached Snapshot Advanced", func() {
+var _ = Describe("Snapshot Advanced", func() {
 	var f *framework.Framework
 
 	BeforeEach(func() {
@@ -36,15 +36,15 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		}
 	})
 
-	It("should create detached snapshot via zfs send/receive and restore from it", func() {
+	It("should create snapshot and restore from it", func() {
 		ctx := context.Background()
 
 		storageClass := "nasty-csi-nvmeof"
 		accessMode := corev1.ReadWriteOnce
-		podTimeout := 6 * time.Minute
+		podTimeout := 2 * time.Minute
 
 		By("Creating source PVC")
-		sourcePVCName := "detached-snap-source-nvmeof"
+		sourcePVCName := "snap-adv-source-nvmeof"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             sourcePVCName,
 			StorageClassName: storageClass,
@@ -54,7 +54,7 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to create source PVC")
 
 		By("Creating source POD to write data")
-		sourcePodName := "detached-snap-source-pod-nvmeof"
+		sourcePodName := "snap-adv-source-pod-nvmeof"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      sourcePodName,
 			PVCName:   pvc.Name,
@@ -71,49 +71,41 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		Expect(err).NotTo(HaveOccurred(), "Source PVC did not become Bound")
 
 		By("Writing test data to source volume")
-		testData := fmt.Sprintf("Detached Snapshot Data - NVMe-oF - %d", time.Now().UnixNano())
+		testData := fmt.Sprintf("Snapshot Data - NVMe-oF - %d", time.Now().UnixNano())
 		_, err = f.K8s.ExecInPod(ctx, pod.Name, []string{
-			"sh", "-c", fmt.Sprintf("echo '%s' > /data/detached-test.txt && sync", testData),
+			"sh", "-c", fmt.Sprintf("echo '%s' > /data/snap-test.txt && sync", testData),
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to write test data")
 
-		By("Creating VolumeSnapshotClass with detachedSnapshots=true (zfs send/receive)")
-		snapshotClassName := "detached-snapclass-nvmeof"
-		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{
-			"detachedSnapshots": "true",
-		})
+		By("Creating VolumeSnapshotClass")
+		snapshotClassName := "snap-adv-snapclass-nvmeof"
+		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshotClass(ctx, snapshotClassName)
 		})
 
-		By("Creating detached VolumeSnapshot")
-		snapshotName := "detached-snap-nvmeof"
+		By("Creating VolumeSnapshot")
+		snapshotName := "snap-adv-snap-nvmeof"
 		err = f.K8s.CreateVolumeSnapshot(ctx, snapshotName, pvc.Name, snapshotClassName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create snapshot")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshot(ctx, snapshotName)
 		})
 
-		By("Waiting for detached snapshot to be ready")
+		By("Waiting for snapshot to be ready")
 		err = f.K8s.WaitForSnapshotReady(ctx, snapshotName, 5*time.Minute)
-		Expect(err).NotTo(HaveOccurred(), "Detached snapshot did not become ready")
+		Expect(err).NotTo(HaveOccurred(), "Snapshot did not become ready")
 
-		By("Deleting source POD before restoring")
-		err = f.K8s.DeletePod(ctx, sourcePodName)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete source POD")
-		err = f.K8s.WaitForPodDeleted(ctx, sourcePodName, 2*time.Minute)
-		Expect(err).NotTo(HaveOccurred(), "Source POD was not deleted")
-
-		By("Restoring PVC from detached snapshot")
-		restoredPVCName := "detached-snap-restored-nvmeof"
+		By("Restoring PVC from snapshot")
+		restoredPVCName := "snap-adv-restored-nvmeof"
 		err = f.K8s.CreatePVCFromSnapshot(ctx, restoredPVCName, snapshotName, storageClass, "1Gi",
 			[]corev1.PersistentVolumeAccessMode{accessMode})
-		Expect(err).NotTo(HaveOccurred(), "Failed to create PVC from detached snapshot")
+		Expect(err).NotTo(HaveOccurred(), "Failed to create PVC from snapshot")
 		f.RegisterPVCCleanup(restoredPVCName)
 
 		By("Creating POD to mount restored volume")
-		restoredPodName := "detached-snap-restored-pod-nvmeof"
+		restoredPodName := "snap-adv-restored-pod-nvmeof"
 		restoredPod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      restoredPodName,
 			PVCName:   restoredPVCName,
@@ -129,25 +121,21 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		err = f.K8s.WaitForPVCBound(ctx, restoredPVCName, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Restored PVC did not become Bound")
 
-		By("Verifying data was restored from detached snapshot")
-		output, err := f.K8s.ExecInPod(ctx, restoredPod.Name, []string{"cat", "/data/detached-test.txt"})
+		By("Verifying data was restored from snapshot")
+		output, err := f.K8s.ExecInPod(ctx, restoredPod.Name, []string{"cat", "/data/snap-test.txt"})
 		Expect(err).NotTo(HaveOccurred(), "Failed to read data from restored volume")
 		Expect(output).To(Equal(testData), "Restored data should match original")
-
-		if f.Verbose() {
-			GinkgoWriter.Printf("[NVMe-oF] Successfully created and restored from detached snapshot\n")
-		}
 	})
 
-	It("should preserve detached snapshot after source volume deletion", func() {
+	It("should preserve snapshot after source volume deletion (DR scenario)", func() {
 		ctx := context.Background()
 
 		storageClass := "nasty-csi-nvmeof"
 		accessMode := corev1.ReadWriteOnce
-		podTimeout := 6 * time.Minute
+		podTimeout := 2 * time.Minute
 
 		By("Creating source PVC")
-		sourcePVCName := "detached-dr-source-nvmeof"
+		sourcePVCName := "snap-dr-source-nvmeof"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             sourcePVCName,
 			StorageClassName: storageClass,
@@ -157,7 +145,7 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to create source PVC")
 
 		By("Creating source POD to write data")
-		sourcePodName := "detached-dr-source-pod-nvmeof"
+		sourcePodName := "snap-dr-source-pod-nvmeof"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      sourcePodName,
 			PVCName:   pvc.Name,
@@ -180,27 +168,25 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to write test data")
 
-		By("Creating VolumeSnapshotClass with detachedSnapshots=true")
-		snapshotClassName := "detached-dr-snapclass-nvmeof"
-		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{
-			"detachedSnapshots": "true",
-		})
+		By("Creating VolumeSnapshotClass")
+		snapshotClassName := "snap-dr-snapclass-nvmeof"
+		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshotClass(ctx, snapshotClassName)
 		})
 
-		By("Creating detached VolumeSnapshot")
-		snapshotName := "detached-dr-snap-nvmeof"
+		By("Creating VolumeSnapshot")
+		snapshotName := "snap-dr-snap-nvmeof"
 		err = f.K8s.CreateVolumeSnapshot(ctx, snapshotName, pvc.Name, snapshotClassName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create snapshot")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshot(ctx, snapshotName)
 		})
 
-		By("Waiting for detached snapshot to be ready")
+		By("Waiting for snapshot to be ready")
 		err = f.K8s.WaitForSnapshotReady(ctx, snapshotName, 5*time.Minute)
-		Expect(err).NotTo(HaveOccurred(), "Detached snapshot did not become ready")
+		Expect(err).NotTo(HaveOccurred(), "Snapshot did not become ready")
 
 		By("Deleting source POD")
 		err = f.K8s.DeletePod(ctx, sourcePodName)
@@ -208,42 +194,31 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		err = f.K8s.WaitForPodDeleted(ctx, sourcePodName, 60*time.Second)
 		Expect(err).NotTo(HaveOccurred(), "Source POD was not deleted")
 
-		By("Deleting source PVC (this would delete regular snapshots but not detached)")
+		By("Deleting source PVC — snapshot should survive (bcachefs snapshots are independent)")
 		err = f.K8s.DeletePVC(ctx, sourcePVCName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete source PVC")
 		err = f.K8s.WaitForPVCDeleted(ctx, sourcePVCName, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC was not deleted")
 
-		By("Waiting a moment for any cascading effects")
+		By("Waiting a moment for cleanup")
 		time.Sleep(5 * time.Second)
 
-		By("Verifying detached snapshot still exists and is ready")
+		By("Verifying snapshot still exists and is ready")
 		snapshotInfo, err := f.K8s.GetVolumeSnapshot(ctx, snapshotName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to get snapshot after source deletion")
 		Expect(snapshotInfo).NotTo(BeNil(), "Snapshot should still exist")
 		Expect(snapshotInfo.ReadyToUse).NotTo(BeNil(), "Snapshot should have ReadyToUse status")
 		Expect(*snapshotInfo.ReadyToUse).To(BeTrue(), "Snapshot should still be ready")
 
-		By("Checking VolumeSnapshotContent state after source deletion")
-		contentInfo, contentErr := f.K8s.GetVolumeSnapshotContent(ctx, snapshotName)
-		if contentErr != nil {
-			GinkgoWriter.Printf("[NVMe-oF] WARNING: Failed to get VolumeSnapshotContent: %v\n", contentErr)
-		} else if contentInfo != nil {
-			GinkgoWriter.Printf("[NVMe-oF] VolumeSnapshotContent: name=%s, snapshotHandle=%s, readyToUse=%v, deletionPolicy=%s\n",
-				contentInfo.Name, contentInfo.SnapshotHandle, contentInfo.ReadyToUse, contentInfo.DeletionPolicy)
-		} else {
-			GinkgoWriter.Printf("[NVMe-oF] WARNING: VolumeSnapshotContent is nil\n")
-		}
-
-		By("Restoring PVC from detached snapshot (after source was deleted)")
-		restoredPVCName := "detached-dr-restored-nvmeof"
+		By("Restoring PVC from snapshot after source was deleted")
+		restoredPVCName := "snap-dr-restored-nvmeof"
 		err = f.K8s.CreatePVCFromSnapshot(ctx, restoredPVCName, snapshotName, storageClass, "1Gi",
 			[]corev1.PersistentVolumeAccessMode{accessMode})
-		Expect(err).NotTo(HaveOccurred(), "Failed to create PVC from detached snapshot")
+		Expect(err).NotTo(HaveOccurred(), "Failed to create PVC from snapshot")
 		f.RegisterPVCCleanup(restoredPVCName)
 
 		By("Creating POD to mount restored volume")
-		restoredPodName := "detached-dr-restored-pod-nvmeof"
+		restoredPodName := "snap-dr-restored-pod-nvmeof"
 		restoredPod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      restoredPodName,
 			PVCName:   restoredPVCName,
@@ -259,13 +234,9 @@ var _ = Describe("Detached Snapshot Advanced", func() {
 		err = f.K8s.WaitForPVCBound(ctx, restoredPVCName, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Restored PVC did not become Bound")
 
-		By("Verifying data was restored from detached snapshot after source deletion")
+		By("Verifying data was restored from snapshot after source deletion")
 		output, err := f.K8s.ExecInPod(ctx, restoredPod.Name, []string{"cat", "/data/dr-test.txt"})
 		Expect(err).NotTo(HaveOccurred(), "Failed to read data from restored volume")
 		Expect(output).To(Equal(testData), "Restored data should match original even after source deletion")
-
-		if f.Verbose() {
-			GinkgoWriter.Printf("[NVMe-oF] Successfully restored from detached snapshot after source volume deletion (DR scenario)\n")
-		}
 	})
 })

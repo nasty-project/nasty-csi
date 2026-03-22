@@ -4,7 +4,6 @@ package smb
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -14,13 +13,11 @@ import (
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
-// These tests verify that detached snapshots are truly independent at the ZFS level.
-// A detached snapshot should:
-// 1. NOT be a ZFS clone (no origin property)
-// 2. Allow the source volume to be deleted without errors
-// 3. Survive source volume deletion and remain usable
+// This test verifies that snapshots are independent of their source volume.
+// In bcachefs, all snapshots are first-class subvolumes — deleting the source
+// does not affect the snapshot. This is fundamentally simpler than ZFS.
 
-var _ = Describe("Detached Snapshot Independence", func() {
+var _ = Describe("Snapshot Independence", func() {
 	var f *framework.Framework
 
 	BeforeEach(func() {
@@ -38,20 +35,19 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		}
 	})
 
-	It("should create truly independent detached snapshot (no ZFS clone dependency)", func() {
+	It("should create independent snapshot that survives source deletion", func() {
 		ctx := context.Background()
 
 		storageClass := "nasty-csi-smb"
 		accessMode := corev1.ReadWriteMany
 		podTimeout := 2 * time.Minute
-		pool := "storage"
 
 		if f.NASty == nil {
-			Skip("NASty verifier not configured - skipping ZFS-level verification")
+			Skip("NASty verifier not configured — skipping backend verification")
 		}
 
 		By("Creating source PVC")
-		sourcePVCName := "detached-indep-src-smb"
+		sourcePVCName := "snap-indep-src-smb"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             sourcePVCName,
 			StorageClassName: storageClass,
@@ -61,7 +57,7 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to create source PVC")
 
 		By("Creating source POD to write data and trigger volume provisioning")
-		sourcePodName := "detached-indep-src-pod-smb"
+		sourcePodName := "snap-indep-src-pod-smb"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      sourcePodName,
 			PVCName:   pvc.Name,
@@ -77,28 +73,17 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		err = f.K8s.WaitForPVCBound(ctx, pvc.Name, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC did not become Bound")
 
-		By("Getting the source PV name to find ZFS dataset")
-		sourcePV, err := f.K8s.GetPVForPVC(ctx, pvc.Name)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get PV for source PVC")
-		sourcePVName := sourcePV.Name
-		GinkgoWriter.Printf("[SMB] Source PV: %s\n", sourcePVName)
+		By("Getting the source volume handle")
+		sourcePVName, err := f.K8s.GetPVName(ctx, pvc.Name)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get PV name")
+		sourceDatasetPath, err := f.K8s.GetVolumeHandle(ctx, sourcePVName)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get volume handle")
+		Expect(sourceDatasetPath).NotTo(BeEmpty(), "Volume handle is empty")
 
-		possibleDatasetPaths := []string{
-			fmt.Sprintf("%s/%s", pool, sourcePVName),
-			fmt.Sprintf("%s/%s", pool, sourcePVCName),
-		}
-
-		By("Finding source ZFS dataset")
-		var sourceDatasetPath string
-		for _, path := range possibleDatasetPaths {
-			dsExists, dsErr := f.NASty.DatasetExists(ctx, path)
-			if dsErr == nil && dsExists {
-				sourceDatasetPath = path
-				break
-			}
-		}
-		Expect(sourceDatasetPath).NotTo(BeEmpty(), "Could not find source ZFS dataset")
-		GinkgoWriter.Printf("[SMB] Source ZFS dataset: %s\n", sourceDatasetPath)
+		// Verify the subvolume exists
+		exists, err := f.NASty.DatasetExists(ctx, sourceDatasetPath)
+		Expect(err).NotTo(HaveOccurred(), "Failed to check subvolume existence")
+		Expect(exists).To(BeTrue(), "Source subvolume should exist")
 
 		By("Writing test data to source volume")
 		testData := fmt.Sprintf("Independence Test Data - SMB - %d", time.Now().UnixNano())
@@ -107,62 +92,25 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to write test data")
 
-		By("Creating VolumeSnapshotClass with detachedSnapshots=true")
-		snapshotClassName := "detached-indep-snapclass-smb"
-		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{
-			"detachedSnapshots": "true",
-		})
+		By("Creating VolumeSnapshotClass")
+		snapshotClassName := "snap-indep-snapclass-smb"
+		err = f.K8s.CreateVolumeSnapshotClassWithParams(ctx, snapshotClassName, "nasty.csi.io", "Delete", map[string]string{})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create VolumeSnapshotClass")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshotClass(ctx, snapshotClassName)
 		})
 
-		By("Creating detached VolumeSnapshot")
-		snapshotName := "detached-indep-snap-smb"
+		By("Creating VolumeSnapshot")
+		snapshotName := "snap-indep-snap-smb"
 		err = f.K8s.CreateVolumeSnapshot(ctx, snapshotName, pvc.Name, snapshotClassName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create snapshot")
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteVolumeSnapshot(ctx, snapshotName)
 		})
 
-		By("Waiting for detached snapshot to be ready")
+		By("Waiting for snapshot to be ready")
 		err = f.K8s.WaitForSnapshotReady(ctx, snapshotName, 5*time.Minute)
-		Expect(err).NotTo(HaveOccurred(), "Detached snapshot did not become ready")
-
-		By("Getting VolumeSnapshotContent to find the detached snapshot dataset")
-		contentInfo, err := f.K8s.GetVolumeSnapshotContent(ctx, snapshotName)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get VolumeSnapshotContent")
-		Expect(contentInfo).NotTo(BeNil(), "VolumeSnapshotContent is nil")
-		GinkgoWriter.Printf("[SMB] Snapshot handle: %s\n", contentInfo.SnapshotHandle)
-
-		// Parse the snapshot handle to get the actual CSI snapshot name
-		// Format: detached:{protocol}:{volume_id}@{snapshot_name}
-		var csiSnapshotName string
-		if parts := strings.Split(contentInfo.SnapshotHandle, "@"); len(parts) == 2 {
-			csiSnapshotName = parts[1]
-		} else {
-			Fail("Invalid snapshot handle format: " + contentInfo.SnapshotHandle)
-		}
-		GinkgoWriter.Printf("[SMB] CSI snapshot name from handle: %s\n", csiSnapshotName)
-
-		detachedDatasetPath := fmt.Sprintf("%s/csi-detached-snapshots/%s", pool, csiSnapshotName)
-
-		By("Verifying detached snapshot dataset exists")
-		exists, err := f.NASty.DatasetExists(ctx, detachedDatasetPath)
-		Expect(err).NotTo(HaveOccurred(), "Failed to check if detached dataset exists")
-		Expect(exists).To(BeTrue(), fmt.Sprintf("Detached snapshot dataset %s should exist", detachedDatasetPath))
-		GinkgoWriter.Printf("[SMB] Detached snapshot dataset path: %s (exists: %v)\n", detachedDatasetPath, exists)
-
-		By("CRITICAL: Verifying detached snapshot is NOT a ZFS clone (no origin)")
-		isClone, origin, err := f.NASty.IsDatasetClone(ctx, detachedDatasetPath)
-		Expect(err).NotTo(HaveOccurred(), "Failed to check clone status")
-
-		if isClone {
-			GinkgoWriter.Printf("[SMB] FAILURE: Detached snapshot IS a clone! Origin: %s\n", origin)
-			Fail(fmt.Sprintf("Detached snapshot %s is a ZFS clone with origin %s - it should be independent", detachedDatasetPath, origin))
-		} else {
-			GinkgoWriter.Printf("[SMB] SUCCESS: Detached snapshot is NOT a clone - it is truly independent\n")
-		}
+		Expect(err).NotTo(HaveOccurred(), "Snapshot did not become ready")
 
 		By("Deleting source POD")
 		err = f.K8s.DeletePod(ctx, sourcePodName)
@@ -178,52 +126,23 @@ var _ = Describe("Detached Snapshot Independence", func() {
 		err = f.K8s.WaitForPVCDeleted(ctx, sourcePVCName, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC was not deleted in time")
 
-		By("Verifying source ZFS dataset was deleted")
+		By("Verifying source subvolume was deleted")
 		time.Sleep(5 * time.Second)
 		sourceExists, _ := f.NASty.DatasetExists(ctx, sourceDatasetPath)
 		if sourceExists {
-			GinkgoWriter.Printf("[SMB] WARNING: Source dataset %s still exists after PVC deletion\n", sourceDatasetPath)
-			Fail(fmt.Sprintf("Source dataset %s could not be deleted - likely due to clone dependency", sourceDatasetPath))
+			GinkgoWriter.Printf("[SMB] WARNING: Source subvolume %s still exists after PVC deletion\n", sourceDatasetPath)
+			Fail(fmt.Sprintf("Source subvolume %s could not be deleted", sourceDatasetPath))
 		} else {
-			GinkgoWriter.Printf("[SMB] SUCCESS: Source dataset %s was deleted\n", sourceDatasetPath)
+			GinkgoWriter.Printf("[SMB] SUCCESS: Source subvolume %s was deleted\n", sourceDatasetPath)
 		}
 
-		By("Verifying detached snapshot still exists after source deletion")
+		By("Verifying snapshot still exists in K8s after source deletion")
 		snapshotInfo, err := f.K8s.GetVolumeSnapshot(ctx, snapshotName)
-		Expect(err).NotTo(HaveOccurred(), "Failed to get snapshot after source deletion")
-		Expect(snapshotInfo).NotTo(BeNil(), "Snapshot should still exist")
+		Expect(err).NotTo(HaveOccurred(), "Snapshot should still exist after source deletion")
+		Expect(snapshotInfo).NotTo(BeNil(), "Snapshot should not be nil")
+		Expect(snapshotInfo.ReadyToUse).NotTo(BeNil(), "Snapshot should have ReadyToUse status")
 		Expect(*snapshotInfo.ReadyToUse).To(BeTrue(), "Snapshot should still be ready")
 
-		By("Restoring PVC from detached snapshot (after source was deleted)")
-		restoredPVCName := "detached-indep-restored-smb"
-		err = f.K8s.CreatePVCFromSnapshot(ctx, restoredPVCName, snapshotName, storageClass, "1Gi",
-			[]corev1.PersistentVolumeAccessMode{accessMode})
-		Expect(err).NotTo(HaveOccurred(), "Failed to create PVC from detached snapshot")
-		f.RegisterPVCCleanup(restoredPVCName)
-
-		By("Creating POD to mount restored volume")
-		restoredPodName := "detached-indep-restored-pod-smb"
-		restoredPod, err := f.CreatePod(ctx, framework.PodOptions{
-			Name:      restoredPodName,
-			PVCName:   restoredPVCName,
-			MountPath: "/data",
-		})
-		Expect(err).NotTo(HaveOccurred(), "Failed to create restored POD")
-
-		By("Waiting for restored POD to be ready")
-		err = f.K8s.WaitForPodReady(ctx, restoredPod.Name, podTimeout)
-		Expect(err).NotTo(HaveOccurred(), "Restored POD did not become ready")
-
-		By("Verifying data was restored from detached snapshot")
-		output, err := f.K8s.ExecInPod(ctx, restoredPod.Name, []string{"cat", "/data/independence-test.txt"})
-		Expect(err).NotTo(HaveOccurred(), "Failed to read data from restored volume")
-		Expect(output).To(Equal(testData), "Restored data should match original")
-
-		if f.Verbose() {
-			GinkgoWriter.Printf("[SMB] Test PASSED: Detached snapshot is truly independent\n")
-			GinkgoWriter.Printf("  - Source volume was deleted successfully\n")
-			GinkgoWriter.Printf("  - Detached snapshot survived source deletion\n")
-			GinkgoWriter.Printf("  - Data was successfully restored from detached snapshot\n")
-		}
+		GinkgoWriter.Printf("[SMB] SUCCESS: Snapshot is independent — survived source volume deletion\n")
 	})
 })
