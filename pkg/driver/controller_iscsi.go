@@ -198,31 +198,17 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 	target, err := s.apiClient.CreateISCSITarget(ctx, targetParams)
 	if err != nil {
-		// Handle "already exists" — the target may have been created on a
-		// previous attempt where the response was lost (e.g. connection reset).
-		if strings.Contains(err.Error(), "already exists") {
-			klog.Infof("iSCSI target for %s already exists, looking up existing target", params.volumeName)
-			existingTarget, lookupErr := s.apiClient.GetISCSITargetByIQN(ctx, "iqn.2137-04.storage.nasty:"+params.volumeName)
-			if lookupErr != nil || existingTarget == nil {
-				klog.Errorf("Failed to lookup existing iSCSI target: %v", lookupErr)
-				timer.ObserveError()
-				return nil, status.Errorf(codes.Internal, "iSCSI target already exists but lookup failed: %v", lookupErr)
+		// Cleanup: only delete subvolume if we just created it
+		if subvolIsNew {
+			klog.Errorf("Failed to create iSCSI target, cleaning up newly-created subvolume: %v", err)
+			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
+				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
 			}
-			target = existingTarget
-			klog.Infof("Found existing iSCSI target: %s (IQN: %s)", target.ID, target.IQN)
 		} else {
-			// Cleanup: only delete subvolume if we just created it
-			if subvolIsNew {
-				klog.Errorf("Failed to create iSCSI target, cleaning up newly-created subvolume: %v", err)
-				if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
-					klog.Errorf("Failed to cleanup subvolume: %v", delErr)
-				}
-			} else {
-				klog.Warningf("Failed to create iSCSI target: %v (skipping subvolume cleanup — volume was pre-existing)", err)
-			}
-			timer.ObserveError()
-			return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target '%s': %v", params.volumeName, err)
+			klog.Warningf("Failed to create iSCSI target: %v (skipping subvolume cleanup — volume was pre-existing)", err)
 		}
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target '%s': %v", params.volumeName, err)
 	}
 
 	// Step 3: Add LUN to target (points to block device)
