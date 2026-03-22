@@ -415,13 +415,15 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", pool, subvolName, managedBy)
 			}
 
-			// Verify volume name matches
+			// Verify volume name matches — compare stored CSI name against
+			// the subvolume name (DatasetName), not the full volume ID (Name)
+			// which includes the pool prefix.
 			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
-				if volumeName != meta.Name {
-					klog.Errorf("Subvolume %s/%s volume name mismatch: property=%s, requested=%s", pool, subvolName, volumeName, meta.Name)
+				if volumeName != meta.DatasetName {
+					klog.Errorf("Subvolume %s/%s volume name mismatch: property=%s, requested=%s", pool, subvolName, volumeName, meta.DatasetName)
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
-						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.Name)
+						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.DatasetName)
 				}
 			}
 

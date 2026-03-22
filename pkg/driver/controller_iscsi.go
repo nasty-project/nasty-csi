@@ -332,10 +332,9 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 	}
 
 	if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
-		nameMatches := volumeName == meta.Name || (isDatasetPathVolumeID(meta.Name) && strings.HasSuffix(meta.Name, "/"+volumeName))
-		if !nameMatches {
+		if volumeName != meta.DatasetName {
 			return "", false, status.Errorf(codes.FailedPrecondition,
-				"Subvolume %s volume name mismatch (stored=%s, requested=%s)", meta.DatasetID, volumeName, meta.Name)
+				"Subvolume %s volume name mismatch (stored=%s, requested=%s)", meta.DatasetID, volumeName, meta.DatasetName)
 		}
 	}
 

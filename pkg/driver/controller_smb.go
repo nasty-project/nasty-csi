@@ -263,11 +263,10 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 			}
 
 			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
-				nameMatches := volumeName == meta.Name || (isDatasetPathVolumeID(meta.Name) && strings.HasSuffix(meta.Name, "/"+volumeName))
-				if !nameMatches {
+				if volumeName != meta.DatasetName {
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
-						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.Name)
+						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.DatasetName)
 				}
 			}
 
