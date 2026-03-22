@@ -246,7 +246,8 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 	if err != nil {
 		// Check if already logged in
 		alreadyLoggedIn := strings.Contains(string(output), "already present") ||
-			strings.Contains(string(output), "session already exists")
+			strings.Contains(string(output), "session already exists") ||
+			strings.Contains(string(output), "session exists")
 		if alreadyLoggedIn {
 			klog.V(4).Infof("iSCSI target already logged in: %s", params.iqn)
 			return nil
