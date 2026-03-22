@@ -2,6 +2,7 @@ package iscsi_test
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -11,7 +12,7 @@ import (
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
-var _ = Describe("iSCSI ZFS Properties", func() {
+var _ = Describe("iSCSI Storage Properties", func() {
 	var f *framework.Framework
 	var ctx context.Context
 	var err error
@@ -36,28 +37,27 @@ var _ = Describe("iSCSI ZFS Properties", func() {
 		}
 	})
 
-	It("should create ZVOL with custom ZFS properties", func() {
-		By("Creating StorageClass with ZFS properties for iSCSI")
-		zfsStorageClass := "nasty-csi-iscsi-zfsprops"
-		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, zfsStorageClass, "nasty.csi.io", map[string]string{
-			"protocol":         "iscsi",
-			"server":           f.Config.NAStyHost,
-			"pool":             f.Config.NAStyPool,
-			"port":             "3260",
-			"fsType":           "ext4",
-			"zfs.compression":  "lz4",
-			"zfs.volblocksize": "16K",
+	It("should create volume with custom storage properties", func() {
+		By("Creating StorageClass with storage properties for iSCSI")
+		storageClass := "nasty-csi-iscsi-props"
+		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, storageClass, "nasty.csi.io", map[string]string{
+			"protocol":    "iscsi",
+			"server":      f.Config.NAStyHost,
+			"pool":        f.Config.NAStyPool,
+			"port":        "3260",
+			"fsType":      "ext4",
+			"compression": "lz4",
 		}, "Immediate")
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
-			return f.K8s.DeleteStorageClass(ctx, zfsStorageClass)
+			return f.K8s.DeleteStorageClass(ctx, storageClass)
 		})
 
 		By("Creating PVC")
-		pvcName := "test-pvc-iscsi-zfsprops"
+		pvcName := "test-pvc-iscsi-props"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: zfsStorageClass,
+			StorageClassName: storageClass,
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		})
@@ -68,7 +68,7 @@ var _ = Describe("iSCSI ZFS Properties", func() {
 		})
 
 		By("Creating POD to trigger provisioning")
-		podName := "test-pod-iscsi-zfsprops"
+		podName := "test-pod-iscsi-props"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      podName,
 			PVCName:   pvcName,
@@ -95,11 +95,11 @@ var _ = Describe("iSCSI ZFS Properties", func() {
 		By("Verifying compression is set to lz4")
 		compression, err := f.NASty.GetZFSProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(compression).To(Equal("LZ4"), "compression should be LZ4")
+		Expect(strings.ToLower(compression)).To(Equal("lz4"), "compression should be lz4")
 
-		By("Verifying volblocksize is set to 16K")
-		volblocksize, err := f.NASty.GetZFSProperty(ctx, datasetPath, "volblocksize")
+		By("Verifying cluster_id user property is set")
+		clusterID, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(volblocksize).To(Equal("16K"), "volblocksize should be 16K")
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have nasty-csi:cluster_id matching configured cluster ID")
 	})
 })

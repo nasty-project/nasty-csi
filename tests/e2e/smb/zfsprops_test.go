@@ -3,6 +3,7 @@ package smb
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -12,7 +13,7 @@ import (
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
-var _ = Describe("SMB ZFS Properties", func() {
+var _ = Describe("SMB Storage Properties", func() {
 	var f *framework.Framework
 	var ctx context.Context
 	var err error
@@ -37,29 +38,27 @@ var _ = Describe("SMB ZFS Properties", func() {
 		}
 	})
 
-	It("should create volume with custom ZFS properties", func() {
-		By("Creating StorageClass with ZFS properties")
-		zfsStorageClass := "nasty-csi-smb-zfsprops"
-		err = f.K8s.CreateStorageClassWithParams(ctx, zfsStorageClass, "nasty.csi.io", map[string]string{
-			"protocol":        "smb",
-			"server":          f.Config.NAStyHost,
-			"pool":            f.Config.NAStyPool,
-			"zfs.compression": "lz4",
-			"zfs.atime":       "off",
-			"zfs.recordsize":  "128K",
+	It("should create volume with custom storage properties", func() {
+		By("Creating StorageClass with storage properties")
+		storageClass := "nasty-csi-smb-props"
+		err = f.K8s.CreateStorageClassWithParams(ctx, storageClass, "nasty.csi.io", map[string]string{
+			"protocol":    "smb",
+			"server":      f.Config.NAStyHost,
+			"pool":        f.Config.NAStyPool,
+			"compression": "lz4",
 			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
 		})
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
-			return f.K8s.DeleteStorageClass(ctx, zfsStorageClass)
+			return f.K8s.DeleteStorageClass(ctx, storageClass)
 		})
 
 		By("Creating PVC")
-		pvcName := "test-pvc-zfsprops"
+		pvcName := "test-pvc-smb-props"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
-			StorageClassName: zfsStorageClass,
+			StorageClassName: storageClass,
 			Size:             "1Gi",
 			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
@@ -70,7 +69,7 @@ var _ = Describe("SMB ZFS Properties", func() {
 		})
 
 		By("Creating POD to trigger provisioning")
-		podName := "test-pod-zfsprops"
+		podName := "test-pod-smb-props"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      podName,
 			PVCName:   pvcName,
@@ -97,16 +96,11 @@ var _ = Describe("SMB ZFS Properties", func() {
 		By("Verifying compression is set to lz4")
 		compression, err := f.NASty.GetZFSProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(compression).To(Equal("LZ4"), "compression should be LZ4")
+		Expect(strings.ToLower(compression)).To(Equal("lz4"), "compression should be lz4")
 
-		By("Verifying atime is set to off")
-		atime, err := f.NASty.GetZFSProperty(ctx, datasetPath, "atime")
+		By("Verifying cluster_id user property is set")
+		clusterID, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(atime).To(Equal("OFF"), "atime should be OFF")
-
-		By("Verifying recordsize is set to 128K")
-		recordsize, err := f.NASty.GetZFSProperty(ctx, datasetPath, "recordsize")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(recordsize).To(Equal("128K"), "recordsize should be 128K")
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have nasty-csi:cluster_id matching configured cluster ID")
 	})
 })
