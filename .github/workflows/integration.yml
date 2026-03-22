@@ -249,8 +249,19 @@ jobs:
           echo "=== Running NFS E2E Tests ==="
           # Run only NFS-specific tests from the nfs/ directory
           ginkgo -v --timeout=55m --flake-attempts=2 ./tests/e2e/nfs/...
+      - name: Collect diagnostic logs
+        if: always()
+        run: |
+          mkdir -p /tmp/test-logs
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide >> /tmp/test-logs/pvcs.log 2>&1 || true
+          kubectl get pv -o wide >> /tmp/test-logs/pvs.log 2>&1 || true
+          kubectl get volumesnapshots --all-namespaces -o wide >> /tmp/test-logs/snapshots.log 2>&1 || true
+          kubectl get volumesnapshotcontents -o wide >> /tmp/test-logs/snapshot-contents.log 2>&1 || true
       - name: Upload diagnostic logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: e2e-nfs-diagnostics
@@ -312,8 +323,16 @@ jobs:
           echo "=== Running NVMe-oF E2E Tests ==="
           # Run only NVMe-oF-specific tests from the nvmeof/ directory
           ginkgo -v --timeout=70m --flake-attempts=2 ./tests/e2e/nvmeof/...
+      - name: Collect diagnostic logs
+        if: always()
+        run: |
+          mkdir -p /tmp/test-logs
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide >> /tmp/test-logs/pvcs.log 2>&1 || true
       - name: Upload diagnostic logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: e2e-nvmeof-diagnostics
@@ -375,8 +394,16 @@ jobs:
           echo "=== Running iSCSI E2E Tests ==="
           # Run only iSCSI-specific tests from the iscsi/ directory
           ginkgo -v --timeout=70m --flake-attempts=2 ./tests/e2e/iscsi/...
+      - name: Collect diagnostic logs
+        if: always()
+        run: |
+          mkdir -p /tmp/test-logs
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide >> /tmp/test-logs/pvcs.log 2>&1 || true
       - name: Upload diagnostic logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: e2e-iscsi-diagnostics
@@ -424,10 +451,10 @@ jobs:
           sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
           sudo k3s crictl images | grep nasty-csi || true
-      - name: Install Ginkgo and smbclient
+      - name: Install Ginkgo and SMB tools
         run: |
           go install github.com/onsi/ginkgo/v2/ginkgo@latest
-          sudo apt-get install -y smbclient 2>/dev/null || true
+          sudo apt-get install -y -qq smbclient cifs-utils
       - name: Run SMB E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -443,32 +470,20 @@ jobs:
           # Run only SMB-specific tests from the smb/ directory
           ginkgo -v --timeout=55m --flake-attempts=2 ./tests/e2e/smb/...
       - name: Collect diagnostic logs
-        if: failure()
+        if: always()
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
-          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
           mkdir -p /tmp/test-logs
-          echo "=== CSI Controller Logs ===" > /tmp/test-logs/controller.log
-          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=500 >> /tmp/test-logs/controller.log 2>&1 || true
-          echo "=== CSI Node Logs ===" > /tmp/test-logs/node.log
-          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=500 >> /tmp/test-logs/node.log 2>&1 || true
-          echo "=== Pod Events ===" > /tmp/test-logs/events.log
-          kubectl get events --all-namespaces --sort-by='.lastTimestamp' >> /tmp/test-logs/events.log 2>&1 || true
-          echo "=== PVCs ===" >> /tmp/test-logs/events.log
-          kubectl get pvc --all-namespaces >> /tmp/test-logs/events.log 2>&1 || true
-          echo "=== CSI Driver Pods ===" >> /tmp/test-logs/events.log
-          kubectl get pods -n kube-system -l app.kubernetes.io/name=nasty-csi-driver -o wide >> /tmp/test-logs/events.log 2>&1 || true
-
-          # SMB-specific diagnostics (note: runs after test cleanup, so shares may be gone)
-          echo "=== SMB Share Listing (smbclient -L) ===" > /tmp/test-logs/smb-diag.log
-          smbclient -L "//${NASTY_HOST}" -U "${SMB_USERNAME}%${SMB_PASSWORD}" --option="client min protocol=SMB3" 2>&1 >> /tmp/test-logs/smb-diag.log || true
-          echo "" >> /tmp/test-logs/smb-diag.log
-          echo "=== NOTE: Real-time share diagnostics are in controller.log [SMB clone diag] lines ===" >> /tmp/test-logs/smb-diag.log
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
+          smbclient -L "//${NASTY_HOST}" -U "${SMB_USERNAME}%${SMB_PASSWORD}" --option="client min protocol=SMB3" > /tmp/test-logs/smb-diag.log 2>&1 || true
       - name: Upload diagnostic logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: e2e-smb-diagnostics
@@ -515,8 +530,10 @@ jobs:
           sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
           echo "Imported PR image into k3s containerd"
           sudo k3s crictl images | grep nasty-csi || true
-      - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+      - name: Install Ginkgo and node prerequisites
+        run: |
+          go install github.com/onsi/ginkgo/v2/ginkgo@latest
+          sudo apt-get install -y -qq cifs-utils
       - name: Run Shared E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -532,8 +549,16 @@ jobs:
           # Run shared tests from the root e2e/ directory (not nfs/ or nvmeof/)
           # These tests use "both" protocol setup (NFS, NVMe-oF, and iSCSI)
           ginkgo -v --timeout=70m --flake-attempts=2 ./tests/e2e/
+      - name: Collect diagnostic logs
+        if: always()
+        run: |
+          mkdir -p /tmp/test-logs
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
+          kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
       - name: Upload diagnostic logs
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: e2e-shared-diagnostics
