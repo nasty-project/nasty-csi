@@ -83,7 +83,7 @@ var _ = Describe("SMB Delete Strategy Retain", func() {
 		// Volume handle is the full dataset path (e.g., pool/parent/pvc-xxx)
 		datasetPath := volumeHandle
 		// SMB share path format: /mnt/<datasetPath>
-		smbSharePath := "/mnt/" + volumeHandle
+		smbSharePath := "/storage/" + volumeHandle
 		GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		GinkgoWriter.Printf("Expected dataset path on NASty: %s\n", datasetPath)
 		GinkgoWriter.Printf("Expected SMB share path on NASty: %s\n", smbSharePath)

@@ -82,7 +82,7 @@ var _ = Describe("SMB Volume Adoption", func() {
 		Expect(volumeHandle).NotTo(BeEmpty())
 
 		datasetPath := volumeHandle
-		smbSharePath := "/mnt/" + volumeHandle
+		smbSharePath := "/storage/" + volumeHandle
 		if f.Verbose() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
@@ -345,7 +345,7 @@ var _ = Describe("SMB Volume Adoption", func() {
 		Expect(exists).To(BeTrue(), "Dataset should be retained with deleteStrategy=retain")
 
 		By("Cleaning up retained resources from NASty")
-		smbSharePath := "/mnt/" + volumeHandle
+		smbSharePath := "/storage/" + volumeHandle
 		err = f.NASty.DeleteSMBShare(ctx, smbSharePath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained SMB share from NASty")
 		err = f.NASty.DeleteDataset(ctx, datasetPath)
