@@ -219,15 +219,80 @@ func (s *ControllerService) listSnapshotsBySourceVolume(ctx context.Context, req
 }
 
 // listAllSnapshots handles listing all snapshots across all managed volumes.
-//
-// NASty requires a pool name to query snapshots — there is no global snapshot index.
-// Without a source volume or snapshot ID filter, we cannot determine the pool.
-// This case returns an empty list per CSI spec (which allows it for optional LIST_SNAPSHOTS capability).
-//
-// Callers that need a full list should use ListSnapshots with SourceVolumeId filter.
-func (s *ControllerService) listAllSnapshots(_ context.Context, _ *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	// TODO: If a driver-wide default pool is ever added to ControllerService, enumerate
-	// all snapshots via FindManagedSubvolumes + ListSnapshots(ctx, pool).
-	klog.V(4).Infof("ListSnapshots (all) called without filter — returning empty list (pool required by NASty API)")
-	return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
+// Finds all managed subvolumes and collects their snapshots.
+func (s *ControllerService) listAllSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
+	klog.V(4).Infof("ListSnapshots (all) called — finding managed subvolumes")
+
+	// Find all CSI-managed subvolumes (across all pools)
+	subvols, err := s.apiClient.FindManagedSubvolumes(ctx, "")
+	if err != nil {
+		klog.Warningf("Failed to find managed subvolumes: %v — returning empty list", err)
+		return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
+	}
+
+	// Collect all snapshots from all managed subvolumes
+	var allEntries []*csi.ListSnapshotsResponse_Entry
+	for _, subvol := range subvols {
+		protocol := subvol.Properties[nastyapi.PropertyProtocol]
+		if protocol == "" {
+			protocol = ProtocolNFS
+		}
+
+		var sizeBytes int64
+		if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+			sizeBytes = nastyapi.StringToInt64(capStr)
+		}
+
+		sourceVolumeID := subvol.Pool + "/" + subvol.Name
+
+		for _, snapName := range subvol.Snapshots {
+			snapshotID, encodeErr := encodeSnapshotID(SnapshotMetadata{
+				SnapshotName: snapName,
+				SourceVolume: sourceVolumeID,
+				Protocol:     protocol,
+			})
+			if encodeErr != nil {
+				continue
+			}
+
+			allEntries = append(allEntries, &csi.ListSnapshotsResponse_Entry{
+				Snapshot: &csi.Snapshot{
+					SnapshotId:     snapshotID,
+					SourceVolumeId: sourceVolumeID,
+					CreationTime:   timestamppb.New(time.Now()),
+					ReadyToUse:     true,
+					SizeBytes:      sizeBytes,
+				},
+			})
+		}
+	}
+
+	// Handle pagination
+	maxEntries := int(req.GetMaxEntries())
+	startIndex := 0
+	if req.GetStartingToken() != "" {
+		startIndex, err = parseSnapshotToken(req.GetStartingToken())
+		if err != nil {
+			return nil, status.Errorf(codes.Aborted, "invalid starting_token: %v", err)
+		}
+	}
+
+	if startIndex >= len(allEntries) {
+		return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
+	}
+
+	endIndex := len(allEntries)
+	if maxEntries > 0 && startIndex+maxEntries < endIndex {
+		endIndex = startIndex + maxEntries
+	}
+
+	var nextToken string
+	if endIndex < len(allEntries) {
+		nextToken = encodeSnapshotToken(endIndex)
+	}
+
+	return &csi.ListSnapshotsResponse{
+		Entries:   allEntries[startIndex:endIndex],
+		NextToken: nextToken,
+	}, nil
 }
