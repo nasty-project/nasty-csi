@@ -226,17 +226,31 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 
 	subsystem, err := s.apiClient.CreateNVMeOFSubsystem(ctx, subsystemParams)
 	if err != nil {
-		// Cleanup: only delete subvolume if we just created it
-		if subvolIsNew {
-			klog.Errorf("Failed to create NVMe-oF subsystem, cleaning up newly-created subvolume: %v", err)
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
-				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
+		// Handle "already exists" — the subsystem may have been created on a
+		// previous attempt where the response was lost (e.g. connection reset).
+		if strings.Contains(err.Error(), "already exists") {
+			klog.Infof("NVMe-oF subsystem for %s already exists, looking up existing subsystem", params.volumeName)
+			existingSub, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, "nqn.2137-04.storage.nasty:"+params.volumeName)
+			if lookupErr != nil || existingSub == nil {
+				klog.Errorf("Failed to lookup existing NVMe-oF subsystem: %v", lookupErr)
+				timer.ObserveError()
+				return nil, status.Errorf(codes.Internal, "NVMe-oF subsystem already exists but lookup failed: %v", lookupErr)
 			}
+			subsystem = existingSub
+			klog.Infof("Found existing NVMe-oF subsystem: %s (NQN: %s)", subsystem.ID, subsystem.NQN)
 		} else {
-			klog.Warningf("Failed to create NVMe-oF subsystem: %v (skipping subvolume cleanup — volume was pre-existing)", err)
+			// Cleanup: only delete subvolume if we just created it
+			if subvolIsNew {
+				klog.Errorf("Failed to create NVMe-oF subsystem, cleaning up newly-created subvolume: %v", err)
+				if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
+					klog.Errorf("Failed to cleanup subvolume: %v", delErr)
+				}
+			} else {
+				klog.Warningf("Failed to create NVMe-oF subsystem: %v (skipping subvolume cleanup — volume was pre-existing)", err)
+			}
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem '%s': %v", params.subsystemNQN, err)
 		}
-		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem '%s': %v", params.subsystemNQN, err)
 	}
 
 	// Wait for NVMe-oF target to fully initialize the namespace
