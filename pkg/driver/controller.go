@@ -254,6 +254,10 @@ func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, pool
 
 	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, pool, volumeName)
 	if err != nil {
+		if errors.Is(err, nastyapi.ErrDatasetNotFound) || isNotFoundError(err) {
+			klog.V(4).Infof("Volume not found by CSI name (property scan): %s", volumeName)
+			return nil, nil //nolint:nilnil // not found
+		}
 		return nil, fmt.Errorf("failed to find subvolume by CSI volume name: %w", err)
 	}
 	if subvol == nil {
