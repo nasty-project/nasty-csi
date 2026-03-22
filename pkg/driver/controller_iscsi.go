@@ -68,7 +68,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 	// Get delete strategy (default: delete)
 	deleteStrategy := params["deleteStrategy"]
 	if deleteStrategy == "" {
-		deleteStrategy = "delete"
+		deleteStrategy = deleteStrategyDelete
 	}
 
 	// Check if volume should be marked as adoptable
@@ -358,8 +358,10 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 // Subvolume is deleted first; if it fails, iSCSI target is preserved to prevent orphaning.
 //
 //nolint:gocognit // Complexity from ownership verification + dependent data guard + subvolume-first delete order
+const deleteStrategyDelete = "delete"
+
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
-	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, "delete")
+	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, deleteStrategyDelete)
 	klog.Infof("Deleting iSCSI volume: %s (subvolume: %s, target: %s)",
 		meta.Name, meta.DatasetID, meta.ISCSITargetUUID)
 
@@ -451,6 +453,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 	}
 
 	// Resize the underlying subvolume
+//nolint:gosec // G115: CSI capacity is always non-negative
 	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
 		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
 		timer.ObserveError()

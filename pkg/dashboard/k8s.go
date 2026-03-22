@@ -14,6 +14,7 @@ import (
 
 // FetchK8sVolumes builds VolumeInfo directly from K8s PVs without any NASty API calls.
 // This provides a fast initial view of volumes using only the Kubernetes API.
+//nolint:gocritic // unnamedResult: named returns would conflict with local vars
 func FetchK8sVolumes(ctx context.Context) ([]VolumeInfo, *K8sEnrichmentResult) {
 	result := &K8sEnrichmentResult{
 		Bindings: make(map[string]*K8sVolumeBinding),

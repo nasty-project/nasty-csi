@@ -1471,7 +1471,7 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 			messages = append(messages, fmt.Sprintf("NVMe-oF subsystem not found for NQN %s: %v", meta.NVMeOFNQN, err))
 		} else if foundSubsystem == nil {
 			abnormal = true
-			messages = append(messages, fmt.Sprintf("NVMe-oF subsystem not found for NQN %s", meta.NVMeOFNQN))
+			messages = append(messages, "NVMe-oF subsystem not found for NQN "+meta.NVMeOFNQN)
 		} else {
 			klog.V(4).Infof("NVMe-oF subsystem %s is healthy (NQN: %s)", foundSubsystem.ID, foundSubsystem.NQN)
 		}

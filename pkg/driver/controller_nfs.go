@@ -500,7 +500,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 }
 
 // splitSubvolumeID splits "pool/name" into (pool, name).
-func splitSubvolumeID(subvolumeID string) (string, string, error) {
+func splitSubvolumeID(subvolumeID string) (pool string, name string, err error) {
 	idx := strings.Index(subvolumeID, "/")
 	if idx < 0 || idx == len(subvolumeID)-1 {
 		return "", "", fmt.Errorf("%w: %q expected pool/name format", ErrInvalidVolumeID, subvolumeID)
@@ -644,6 +644,7 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 	klog.V(4).Infof("Expanding NFS subvolume %s/%s to %d bytes", pool, subvolName, requiredBytes)
 
 	// Resize the underlying subvolume
+//nolint:gosec // G115: CSI capacity is always non-negative
 	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); err != nil {
 		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, err)
 		timer.ObserveError()

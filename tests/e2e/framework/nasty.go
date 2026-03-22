@@ -20,6 +20,9 @@ var ErrDatasetDeleteTimeout = errors.New("timeout waiting for dataset to be dele
 // ErrDatasetNotFound is returned when a requested dataset doesn't exist.
 var ErrDatasetNotFound = errors.New("dataset not found")
 
+// ErrInvalidDatasetPath is returned when a dataset path doesn't have pool/name format.
+var ErrInvalidDatasetPath = errors.New("invalid dataset path")
+
 // NAStyVerifier provides methods for verifying NASty backend state.
 type NAStyVerifier struct {
 	client *nastyapi.Client
@@ -48,10 +51,10 @@ func (v *NAStyVerifier) Client() *nastyapi.Client {
 }
 
 // parseDatasetPath splits a "pool/name" path into pool and name.
-func parseDatasetPath(datasetPath string) (string, string, error) {
+func parseDatasetPath(datasetPath string) (pool, name string, err error) {
 	parts := strings.SplitN(datasetPath, "/", 2)
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid dataset path %q: expected pool/name", datasetPath)
+		return "", "", fmt.Errorf("%w: %q", ErrInvalidDatasetPath, datasetPath)
 	}
 	return parts[0], parts[1], nil
 }
@@ -239,8 +242,8 @@ func (v *NAStyVerifier) GetDatasetOrigin(ctx context.Context, datasetPath string
 }
 
 // IsDatasetClone checks if a subvolume is a clone.
-func (v *NAStyVerifier) IsDatasetClone(ctx context.Context, datasetPath string) (bool, string, error) {
-	origin, err := v.GetDatasetOrigin(ctx, datasetPath)
+func (v *NAStyVerifier) IsDatasetClone(ctx context.Context, datasetPath string) (isClone bool, origin string, err error) {
+	origin, err = v.GetDatasetOrigin(ctx, datasetPath)
 	if err != nil {
 		return false, "", err
 	}
@@ -325,7 +328,8 @@ func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query managed subvolumes: %v", err)
 	} else {
-		for _, sv := range subvols {
+		for i := range subvols {
+			sv := &subvols[i]
 			info := datasetInfo{}
 			if sv.Properties != nil {
 				info.Protocol = sv.Properties[nastyapi.PropertyProtocol]

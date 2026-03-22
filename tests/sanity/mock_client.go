@@ -414,7 +414,7 @@ func (m *MockClient) AddISCSILun(_ context.Context, targetID, backstorePath stri
 		return nil, ErrISCSITargetNotFound
 	}
 	lun := nastyapi.ISCSILun{
-		LunID:         uint32(len(target.Luns)),
+		LunID:         uint32(len(target.Luns)), //nolint:gosec // G115: LUN count always small
 		BackstorePath: backstorePath,
 	}
 	target.Luns = append(target.Luns, lun)

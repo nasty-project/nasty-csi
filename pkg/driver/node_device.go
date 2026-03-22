@@ -487,7 +487,7 @@ func handleFinalResult(devicePath string, maxRetries int, lastOutput []byte, las
 func getLogicalSectorSize(devicePath string) (int, error) {
 	devName := filepath.Base(devicePath)
 	sysPath := path.Join("/sys/block", devName, "queue", "logical_block_size")
-	data, err := os.ReadFile(sysPath)
+	data, err := os.ReadFile(sysPath) //nolint:gosec // G304: path constructed from sysfs, not user input
 	if err != nil {
 		return 0, fmt.Errorf("reading logical_block_size for %s: %w", devName, err)
 	}

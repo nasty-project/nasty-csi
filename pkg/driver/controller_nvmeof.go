@@ -442,6 +442,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 	}
 
 	// Resize the underlying subvolume
+//nolint:gosec // G115: CSI capacity is always non-negative
 	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
 		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
 		timer.ObserveError()

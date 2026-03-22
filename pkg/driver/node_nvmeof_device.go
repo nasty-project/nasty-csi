@@ -463,7 +463,7 @@ func (s *NodeService) getExpectedCapacity(ctx context.Context, devicePath, datas
 			}
 			if subvol != nil && subvol.VolsizeBytes != nil {
 				klog.V(4).Infof("Got expected capacity %d bytes from NASty API for %s", *subvol.VolsizeBytes, devicePath)
-				return int64(*subvol.VolsizeBytes)
+				return int64(*subvol.VolsizeBytes) //nolint:gosec // G115: volume size fits in int64
 			}
 		}
 	}
