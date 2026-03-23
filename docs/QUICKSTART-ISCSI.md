@@ -73,7 +73,7 @@ cat /etc/iscsi/initiatorname.iscsi
 That's it! Unlike NVMe-oF, iSCSI doesn't require pre-configured portals or targets. The CSI driver automatically manages:
 
 - iSCSI targets (one per volume)
-- iSCSI extents (ZVOL-backed)
+- iSCSI extents (block subvolume-backed)
 - Target-extent associations
 - Initiator groups
 
@@ -84,7 +84,7 @@ That's it! Unlike NVMe-oF, iSCSI doesn't require pre-configured portals or targe
 |                    NASty iSCSI                             |
 +-------------------------------------------------------------+
 |  Target (per volume)      <- CSI driver creates/deletes     |
-|    +-- Extent (ZVOL)      <- CSI driver creates/deletes     |
+|    +-- Extent (block sub) <- CSI driver creates/deletes     |
 |    +-- Target-Extent      <- CSI driver creates/deletes     |
 |    +-- Initiator Group    <- CSI driver creates/deletes     |
 +-------------------------------------------------------------+
@@ -111,7 +111,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 **Replace these values:**
 - `YOUR-NASTY-IP` - Your NASty server IP address
 - `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
-- `YOUR-POOL-NAME` - ZFS pool name (e.g., `tank`, `storage`)
+- `YOUR-POOL-NAME` - Pool name (e.g., `tank`, `storage`)
 
 ### Verify Installation
 
@@ -241,7 +241,7 @@ parameters:
   pool: tank
   port: "3260"
   csi.storage.k8s.io/fstype: ext4
-  # ZFS properties
+  # Filesystem properties
   zfs.compression: lz4
   zfs.volblocksize: 16K
 allowVolumeExpansion: true
@@ -269,7 +269,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 ### Encryption
 
-Enable ZFS native encryption for iSCSI volumes:
+Enable native encryption for iSCSI volumes:
 
 ```yaml
 apiVersion: storage.k8s.io/v1

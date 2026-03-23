@@ -74,13 +74,13 @@ The NASty CSI Driver is a Kubernetes Container Storage Interface (CSI) driver th
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
 - **Description**: Automatic creation of storage volumes when PVCs are created
 - **Implementation**:
-  - NFS: Creates ZFS dataset and NFS share automatically
-  - NVMe-oF: Creates ZVOL, dedicated subsystem, and namespace
-  - iSCSI: Creates ZVOL, dedicated target, extent, and target-extent mapping
-  - SMB: Creates ZFS dataset and SMB share automatically
+  - NFS: Creates subvolume and NFS share automatically
+  - NVMe-oF: Creates block subvolume (sparse image + loop device), dedicated subsystem, and namespace
+  - iSCSI: Creates block subvolume (sparse image + loop device), dedicated target, extent, and target-extent mapping
+  - SMB: Creates subvolume and SMB share automatically
 - **Parameters**:
   - `protocol`: nfs, nvmeof, iscsi, or smb
-  - `pool`: ZFS pool name
+  - `pool`: Pool name
   - `server`: NASty IP/hostname
   - `port`: (NVMe-oF/iSCSI) Target port number
 
@@ -89,10 +89,10 @@ The NASty CSI Driver is a Kubernetes Container Storage Interface (CSI) driver th
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
 - **Description**: Automatic cleanup when PVCs with reclaimPolicy: Delete are removed
 - **Implementation**:
-  - NFS: Removes NFS share and deletes ZFS dataset
-  - NVMe-oF: Removes namespace, subsystem, and deletes ZVOL
-  - iSCSI: Removes target-extent, extent, target, and deletes ZVOL
-  - SMB: Removes SMB share and deletes ZFS dataset
+  - NFS: Removes NFS share and deletes subvolume
+  - NVMe-oF: Removes namespace, subsystem, and deletes block subvolume
+  - iSCSI: Removes target-extent, extent, target, and deletes block subvolume
+  - SMB: Removes SMB share and deletes subvolume
   - Idempotent operations (safe to retry)
   - Supports `deleteStrategy` parameter for volume retention (see below)
 
@@ -206,10 +206,10 @@ reclaimPolicy: Delete
   - Only expansion supported (shrinking not possible)
   - Volume must not be in use during expansion for some operations
 - **Implementation**:
-  - NFS: Expands ZFS dataset quota
-  - NVMe-oF: Expands ZVOL size and resizes filesystem
-  - iSCSI: Expands ZVOL size and resizes filesystem
-  - SMB: Expands ZFS dataset quota
+  - NFS: Expands subvolume quota
+  - NVMe-oF: Expands block subvolume size and resizes filesystem
+  - iSCSI: Expands block subvolume size and resizes filesystem
+  - SMB: Expands subvolume quota
 
 **Example:**
 ```bash
@@ -219,10 +219,11 @@ kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}
 ### Volume Snapshots
 - **Status**: ✅ Implemented, testing in progress
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
-- **Description**: Create point-in-time copies of volumes using ZFS snapshots
+- **Description**: Create point-in-time copies of volumes using bcachefs snapshots
 - **Features**:
   - Near-instant snapshot creation
   - Space-efficient (copy-on-write)
+  - Snapshots are independent first-class subvolumes -- they survive parent deletion
   - Snapshot deletion with proper cleanup
   - List snapshots
 - **Requirements**:
@@ -231,8 +232,8 @@ kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}
   - CSI snapshotter sidecar (included in Helm chart)
 
 **Key Operations:**
-- Create snapshot: ZFS snapshot created instantly
-- Delete snapshot: Snapshot removed from ZFS
+- Create snapshot: bcachefs snapshot created instantly
+- Delete snapshot: Snapshot removed
 - Idempotent operations
 
 ### Volume Cloning (Restore from Snapshot)
@@ -240,78 +241,14 @@ kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
 - **Description**: Create new volumes from existing snapshots
 - **Features**:
-  - Instant clone creation via ZFS clone
-  - Space-efficient (shares blocks with snapshot until modified)
+  - Instant clone creation via `bcachefs subvolume snapshot` (writable COW clone, O(1))
+  - Space-efficient (shares blocks with source until modified)
   - Full read/write access to cloned volume
-  - **Detached clones** (promoted) for independent volumes (see below)
+  - Clones are always independent -- no promote or detach needed
 - **Limitations**:
-  - Cannot clone across protocols (NFS snapshot → NFS volume only)
+  - Cannot clone across protocols (NFS snapshot -> NFS volume only)
   - Must restore to same or larger size
-  - Same ZFS pool required
-
-### Detached Clones (Independent Clone Restoration)
-- **Status**: ✅ Implemented
-- **Protocols**: NFS, NVMe-oF, iSCSI, SMB
-- **Description**: Create clones that are independent from the source snapshot
-- **Features**:
-  - Clone is promoted immediately after creation
-  - No dependency on parent snapshot
-  - Source snapshot can be deleted without affecting the clone
-  - Useful for snapshot rotation and cleanup
-- **Parameter**: `detached: "true"` in StorageClass parameters
-- **Use Cases**:
-  - Snapshot rotation policies where old snapshots need to be cleaned up
-  - Creating fully independent copies of data
-  - Avoiding clone dependency issues
-
-**Example StorageClass with Detached Clones:**
-```yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: nasty-nfs-detached
-provisioner: nasty.csi.io
-parameters:
-  protocol: nfs
-  pool: tank
-  server: nasty.local
-  detached: "true"  # Clones will be promoted to break parent dependency
-allowVolumeExpansion: true
-reclaimPolicy: Delete
-```
-
-### Detached Snapshots (Survive Source Volume Deletion)
-- **Status**: ✅ Implemented
-- **Protocols**: NFS, NVMe-oF, iSCSI, SMB
-- **Description**: Create snapshots that survive deletion of the source volume
-- **Features**:
-  - Uses `zfs send | zfs receive` for full data copy
-  - Stored as independent datasets in a dedicated folder
-  - Source volume can be deleted without affecting the snapshot
-  - Snapshots are stored under configurable parent dataset (default: `{pool}/csi-detached-snapshots`)
-- **Parameters**:
-  - `detachedSnapshots: "true"` in VolumeSnapshotClass
-  - `detachedSnapshotsParentDataset` (optional) - where snapshots are stored
-- **Use Cases**:
-  - Backup/DR scenarios requiring snapshots that outlive source volumes
-  - Data migration where source will be deleted
-  - Long-term archival with independent snapshot lifecycle
-  - Compliance requirements for independent backup copies
-
-**Example VolumeSnapshotClass for Detached Snapshots:**
-```yaml
-apiVersion: snapshot.storage.k8s.io/v1
-kind: VolumeSnapshotClass
-metadata:
-  name: nasty-nfs-snapshot-detached
-driver: nasty.csi.io
-deletionPolicy: Delete
-parameters:
-  detachedSnapshots: "true"
-  detachedSnapshotsParentDataset: "tank/backups/csi-snapshots"  # optional
-```
-
-**Note:** Detached snapshots take longer to create than regular COW snapshots since they perform a full data copy via `zfs send/receive`. Use regular snapshots for fast point-in-time recovery, and detached snapshots when you need snapshots that survive source volume deletion.
+  - Same pool required
 
 **Example:**
 ```yaml
@@ -346,15 +283,15 @@ spec:
 
 | Protocol | Check | Abnormal If |
 |----------|-------|-------------|
-| NFS | Dataset exists | Dataset not found or inaccessible |
+| NFS | Subvolume exists | Subvolume not found or inaccessible |
 | NFS | NFS share enabled | Share disabled or missing |
-| NVMe-oF | ZVOL exists | ZVOL not found |
+| NVMe-oF | Block subvolume exists | Block subvolume not found |
 | NVMe-oF | Subsystem exists | Subsystem missing |
 | NVMe-oF | Namespace exists | Namespace not found in subsystem |
-| iSCSI | ZVOL exists | ZVOL not found |
+| iSCSI | Block subvolume exists | Block subvolume not found |
 | iSCSI | Target exists | Target missing |
 | iSCSI | Extent exists | Extent not found |
-| SMB | Dataset exists | Dataset not found or inaccessible |
+| SMB | Subvolume exists | Subvolume not found or inaccessible |
 | SMB | SMB share enabled | Share disabled or missing |
 
 **Return Values:**
@@ -529,15 +466,15 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
   - NFS-specific: `path`
   - NVMe-oF specific: `subsystemNQN`, `fsType`, `transport`, `port`
   - SMB-specific: `smbCredentialsSecret` (name/namespace for nodeStageSecretRef)
-  - ZFS properties: See "Configurable ZFS Properties" section below
+  - Filesystem properties: See "Configurable Filesystem Properties" section below
 - **Mount Options**: Configurable via StorageClass `mountOptions` field (see "Configurable Mount Options" above)
 
-### Configurable ZFS Properties
+### Configurable Filesystem Properties
 - **Status**: ✅ Implemented
-- **Description**: Configure ZFS dataset/ZVOL properties via StorageClass parameters
-- **Prefix**: All ZFS properties use the `zfs.` prefix in StorageClass parameters
+- **Description**: Configure subvolume properties via StorageClass parameters
+- **Prefix**: All filesystem properties use the `zfs.` prefix in StorageClass parameters (legacy naming, applies to bcachefs)
 
-#### NFS (Dataset) Properties
+#### NFS (Subvolume) Properties
 | Parameter | Description | Valid Values |
 |-----------|-------------|--------------|
 | `zfs.compression` | Compression algorithm | `off`, `lz4`, `gzip`, `gzip-1` to `gzip-9`, `zstd`, `zstd-1` to `zstd-19`, `lzjb`, `zle` |
@@ -553,7 +490,7 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 | `zfs.acltype` | ACL type | `off`, `nfsv4`, `posix` |
 | `zfs.casesensitivity` | Case sensitivity (creation only) | `sensitive`, `insensitive`, `mixed` |
 
-#### NVMe-oF (ZVOL) Properties
+#### NVMe-oF (Block Subvolume) Properties
 | Parameter | Description | Valid Values |
 |-----------|-------------|--------------|
 | `zfs.compression` | Compression algorithm | `off`, `lz4`, `gzip`, `gzip-1` to `gzip-9`, `zstd`, `zstd-1` to `zstd-19`, `lzjb`, `zle` |
@@ -564,7 +501,7 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 | `zfs.sparse` | Thin provisioning | `true`, `false` |
 | `zfs.volblocksize` | Volume block size | `512`, `1K`, `2K`, `4K`, `8K`, `16K`, `32K`, `64K`, `128K` |
 
-**Example StorageClass with ZFS Properties:**
+**Example StorageClass with Filesystem Properties:**
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -575,7 +512,7 @@ parameters:
   protocol: nfs
   pool: tank
   server: nasty.local
-  # ZFS properties
+  # Filesystem properties
   zfs.compression: "lz4"
   zfs.atime: "off"
   zfs.recordsize: "128K"
@@ -583,7 +520,7 @@ allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
 
-**Example NVMe-oF StorageClass with ZFS Properties:**
+**Example NVMe-oF StorageClass with Filesystem Properties:**
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -596,7 +533,7 @@ parameters:
   server: nasty.local
   transport: tcp
   port: "4420"
-  # ZFS properties
+  # Filesystem properties
   zfs.compression: "lz4"
   zfs.sparse: "true"
   zfs.volblocksize: "16K"
@@ -604,12 +541,12 @@ allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
 
-### ZFS Native Encryption
+### Native Encryption
 - **Status**: ✅ Implemented
-- **Description**: Enable ZFS native encryption for datasets and ZVOLs at creation time
+- **Description**: Enable native encryption for subvolumes at creation time
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
 
-ZFS native encryption provides transparent, at-rest encryption for your volumes. Once enabled, all data written to the volume is automatically encrypted using AES-256-GCM (default) or other supported algorithms.
+bcachefs native encryption provides transparent, at-rest encryption for your volumes. Once enabled, all data written to the volume is automatically encrypted using AES-256-GCM (default) or other supported algorithms.
 
 #### StorageClass Parameters
 
@@ -728,25 +665,22 @@ stringData:
 - **Snapshots**: Snapshots of encrypted volumes inherit the encryption settings.
 - **Performance**: Encryption has minimal performance impact with modern CPUs (AES-NI acceleration).
 
-### Volume Metadata (Schema v1)
+### Volume Metadata
 - **Status**: ✅ Implemented
-- **Description**: All volumes are tagged with ZFS user properties for reliable identification and cross-cluster adoption
-- **Schema Version**: `1` (versioned for future migrations)
+- **Description**: All volumes are tagged with xattr properties for reliable identification and cross-cluster adoption
 
-The driver stores metadata as ZFS user properties on each volume's dataset/ZVOL. This enables:
+The driver stores metadata as xattr properties on each volume's subvolume. This enables:
 - Reliable volume identification without searching by name/path
 - Cross-cluster volume adoption
 - Ownership verification before deletion
-- Easy debugging via `zfs get all <dataset>`
 
 #### Core Properties (All Volumes)
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `nasty-csi:schema_version` | Schema version for migrations | `"1"` |
 | `nasty-csi:managed_by` | Ownership marker | `"nasty-csi"` |
 | `nasty-csi:csi_volume_name` | CSI volume identifier | `"pvc-abc123"` |
-| `nasty-csi:protocol` | Storage protocol | `"nfs"`, `"nvmeof"`, or `"iscsi"` |
+| `nasty-csi:protocol` | Storage protocol | `"nfs"`, `"nvmeof"`, `"iscsi"`, or `"smb"` |
 | `nasty-csi:capacity_bytes` | Volume size in bytes | `"10737418240"` |
 | `nasty-csi:created_at` | Creation timestamp (RFC3339) | `"2024-01-15T10:30:00Z"` |
 | `nasty-csi:delete_strategy` | Retain/delete policy | `"delete"` or `"retain"` |
@@ -755,49 +689,18 @@ The driver stores metadata as ZFS user properties on each volume's dataset/ZVOL.
 
 | Property | Description | Example |
 |----------|-------------|---------|
+| `nasty-csi:adoptable` | Whether volume can be adopted | `"true"` |
 | `nasty-csi:pvc_name` | Original PVC name | `"my-data"` |
 | `nasty-csi:pvc_namespace` | Original namespace | `"default"` |
 | `nasty-csi:storage_class` | Original StorageClass | `"nasty-nfs"` |
+| `nasty-csi:cluster_id` | Source cluster identifier | `"prod-cluster-1"` |
 
-#### Protocol-Specific Properties
-
-**NFS Volumes:**
-| Property | Description | Mutable? |
-|----------|-------------|----------|
-| `nasty-csi:nfs_share_path` | NFS export path (stable) | No |
-| `nasty-csi:nfs_share_id` | NASty share ID | Yes (on re-share) |
-
-**NVMe-oF Volumes:**
-| Property | Description | Mutable? |
-|----------|-------------|----------|
-| `nasty-csi:nvmeof_subsystem_nqn` | Subsystem NQN (stable) | No |
-| `nasty-csi:nvmeof_subsystem_id` | NASty subsystem ID | Yes |
-| `nasty-csi:nvmeof_namespace_id` | NASty namespace ID | Yes |
-
-**iSCSI Volumes:**
-| Property | Description | Mutable? |
-|----------|-------------|----------|
-| `nasty-csi:iscsi_iqn` | Target IQN (stable) | No |
-| `nasty-csi:iscsi_target_id` | NASty target ID | Yes |
-| `nasty-csi:iscsi_extent_id` | NASty extent ID | Yes |
-
-**Clone/Content Source Properties (set automatically when cloning):**
-| Property | Description | Values |
-|----------|-------------|--------|
-| `nasty-csi:content_source_type` | Type of clone source | `"snapshot"` or `"volume"` |
-| `nasty-csi:content_source_id` | Source snapshot/volume ID | CSI ID of source |
-| `nasty-csi:clone_mode` | Clone dependency mode | `"cow"`, `"promoted"`, or `"detached"` |
-| `nasty-csi:origin_snapshot` | ZFS origin (COW clones only) | ZFS snapshot path |
-
-Clone modes determine dependency relationships:
-- **cow** (Copy-on-Write): Clone depends on snapshot. Snapshot CANNOT be deleted while clone exists.
-- **promoted**: After ZFS promote, dependency is reversed. Snapshot CAN be deleted.
-- **detached**: Created via zfs send/receive. No dependency - both can be deleted independently.
+Shares are looked up by name/path -- there are no per-share ID xattr properties.
 
 **Viewing Volume Properties:**
 ```bash
-# On NASty, view all properties for a volume
-zfs get all tank/csi/pvc-12345678 | grep nasty-csi
+# On NASty, view xattr properties for a volume
+getfattr -d /mnt/pool/csi/pvc-12345678
 ```
 
 ### Volume Adoption (Cross-Cluster)
@@ -865,31 +768,26 @@ allowVolumeExpansion: true
 
 A volume is adoptable if it has:
 1. `nasty-csi:managed_by` = `"nasty-csi"` (ownership marker)
-2. Valid `nasty-csi:schema_version` (currently `"1"`)
-3. `nasty-csi:protocol` set to `"nfs"`, `"nvmeof"`, or `"iscsi"`
-4. Protocol-specific stable identifier:
-   - NFS: `nasty-csi:nfs_share_path`
-   - NVMe-oF: `nasty-csi:nvmeof_subsystem_nqn`
-   - iSCSI: `nasty-csi:iscsi_iqn`
+2. `nasty-csi:protocol` set to `"nfs"`, `"nvmeof"`, `"iscsi"`, or `"smb"`
 
 #### Manual Adoption Workflow
 
-**Note:** Dataset paths in examples use `{pool}/{parentDataset}/{volume}` format (e.g., `tank/csi/my-volume`).
+**Note:** Subvolume paths in examples use `{pool}/{parentDataset}/{volume}` format (e.g., `tank/csi/my-volume`).
 Your actual paths depend on StorageClass configuration:
-- `pool` parameter sets the ZFS pool (e.g., `tank`)
-- `parentDataset` parameter sets an optional parent dataset (e.g., `csi`)
+- `pool` parameter sets the pool (e.g., `tank`)
+- `parentDataset` parameter sets an optional parent subvolume (e.g., `csi`)
 - If `parentDataset` is not set, volumes are created directly under the pool
 
 1. **Identify adoptable volumes** on NASty:
    ```bash
-   # List all nasty-csi managed datasets (adjust path to match your pool/parentDataset)
-   zfs list -o name,nasty-csi:managed_by,nasty-csi:csi_volume_name,nasty-csi:protocol -r tank
+   # List all nasty-csi managed subvolumes (adjust path to match your pool/parentDataset)
+   bcachefs subvolume list /mnt/pool
    ```
 
 2. **Extract volume information**:
    ```bash
    # Get all properties for a specific volume
-   zfs get all tank/my-volume | grep nasty-csi
+   getfattr -d /mnt/pool/my-volume
    ```
 
 3. **Re-create NFS share or NVMe-oF namespace** if missing (NASty UI or API)
@@ -940,7 +838,7 @@ The kubectl plugin provides CLI tooling for volume discovery and adoption:
 kubectl nasty-csi list-orphaned
 
 # Generate PV manifest to adopt a specific volume
-kubectl nasty-csi adopt <dataset-path> -o yaml > pv.yaml
+kubectl nasty-csi adopt <subvolume-path> -o yaml > pv.yaml
 kubectl apply -f pv.yaml
 
 # Mark volumes as adoptable for future cluster recreation
@@ -951,11 +849,11 @@ See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full details on adopti
 
 ### Volume Name Templating
 - **Status**: ✅ Implemented
-- **Description**: Customize volume/dataset names on NASty using Go templates
+- **Description**: Customize volume/subvolume names on NASty using Go templates
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
 - **Use Cases**:
   - Use meaningful names instead of auto-generated PV UUIDs
-  - Include namespace/PVC name in dataset names for easier identification
+  - Include namespace/PVC name in subvolume names for easier identification
   - Organize volumes with consistent naming patterns
 
 #### Template Variables
@@ -971,12 +869,12 @@ See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full details on adopti
 | `nameTemplate` | Go template for full name | `{{ .PVCNamespace }}-{{ .PVCName }}` |
 | `namePrefix` | Simple prefix | `prod-` |
 | `nameSuffix` | Simple suffix | `-data` |
-| `commentTemplate` | Go template for dataset comment (visible in NASty UI) | `{{ .PVCNamespace }}/{{ .PVCName }}` |
+| `commentTemplate` | Go template for subvolume comment (visible in NASty UI) | `{{ .PVCNamespace }}/{{ .PVCName }}` |
 
 **Note**: `nameTemplate` takes precedence over `namePrefix`/`nameSuffix` if both are specified.
 
 #### Name Sanitization
-Volume names are automatically sanitized for ZFS compatibility:
+Volume names are automatically sanitized for bcachefs compatibility:
 - Invalid characters replaced with hyphens
 - Leading/trailing hyphens removed
 - Multiple consecutive hyphens collapsed
@@ -999,7 +897,7 @@ allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
 
-With this StorageClass, a PVC named `postgres-data` in namespace `production` would create a dataset named `tank/production-postgres-data` instead of `tank/pvc-abc123-def456-789...`.
+With this StorageClass, a PVC named `postgres-data` in namespace `production` would create a subvolume named `tank/production-postgres-data` instead of `tank/pvc-abc123-def456-789...`.
 
 **Example with Comment Template:**
 ```yaml
@@ -1012,13 +910,13 @@ parameters:
   protocol: nfs
   pool: tank
   server: nasty.local
-  # Dataset comment visible in NASty UI
+  # Subvolume comment visible in NASty UI
   commentTemplate: "{{ .PVCNamespace }}/{{ .PVCName }}"
 allowVolumeExpansion: true
 reclaimPolicy: Delete
 ```
 
-With this StorageClass, datasets will have a comment like `production/postgres-data` visible in the NASty web UI, making it easy to identify which PVC a dataset belongs to. Unlike volume names, comments are free-form text — no sanitization or length limits are applied.
+With this StorageClass, subvolumes will have a comment like `production/postgres-data` visible in the NASty web UI, making it easy to identify which PVC a subvolume belongs to. Unlike volume names, comments are free-form text -- no sanitization or length limits are applied.
 
 **Example with Simple Prefix/Suffix:**
 ```yaml
@@ -1170,20 +1068,18 @@ reclaimPolicy: Delete
 #### For NFS
 - NFS service enabled
 - Network access from Kubernetes nodes
-- ZFS pool with available space
+- Pool with available space
 
 #### For SMB
 - SMB service enabled
 - SMB user account configured (Credentials > Local Users)
 - Network access from Kubernetes nodes (port 445)
-- ZFS pool with available space
+- Pool with available space
 
 #### For NVMe-oF
 - **Static IP address** (DHCP not supported)
-- **Pre-configured NVMe-oF subsystem** with:
-  - At least one initial namespace (ZVOL)
-  - TCP port configured (default: 4420)
-  - Accessible from Kubernetes nodes
+- **Pre-configured NVMe-oF port** with TCP transport (default: 4420)
+- Accessible from Kubernetes nodes
 - NVMe-oF service enabled
 
 ## Known Limitations
@@ -1213,7 +1109,7 @@ reclaimPolicy: Delete
 - Restored volumes must be same size or larger
 
 ### Volume Expansion
-- Shrinking not supported (ZFS limitation)
+- Shrinking not supported
 - Some operations may require volume to be unmounted
 
 ## Roadmap / Future Considerations

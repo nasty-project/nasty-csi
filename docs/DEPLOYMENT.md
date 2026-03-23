@@ -87,12 +87,12 @@ If you don't already have a pool:
 1. Navigate to **Storage** > **Create Pool**
 2. Follow the wizard to create a pool (e.g., "pool1")
 
-### 1.3 (Optional) Create Parent Dataset
+### 1.3 (Optional) Create Parent Subvolume
 
-For better organization, create a parent dataset for Kubernetes volumes:
-1. Navigate to **Datasets**
+For better organization, create a parent subvolume for Kubernetes volumes:
+1. Navigate to **Subvolumes**
 2. Select your pool
-3. Click **Add Dataset**
+3. Click **Add Subvolume**
 4. Name it (e.g., "k8s")
 5. Keep default settings and click **Save**
 
@@ -128,19 +128,18 @@ If you plan to use NVMe-oF storage:
 
 NASty 25.10 only shows interfaces with static IPs in the NVMe-oF port configuration. DHCP addresses can change on reboot, which would break storage connections.
 
-#### Create Initial ZVOL and Namespace (REQUIRED)
+#### Create Initial Block Subvolume and Namespace (REQUIRED)
 
-**The subsystem needs at least one namespace with a ZVOL** - empty subsystems won't work:
+**The subsystem needs at least one namespace with a block subvolume** - empty subsystems won't work:
 
-1. Navigate to **Datasets**
-2. Click **Add Dataset** → **Create Zvol**
-3. Configure the ZVOL:
+1. Navigate to **Subvolumes**
+2. Click **Add Block Subvolume**
+3. Configure the block subvolume:
    - **Name:** `nvmeof-init` (or any name)
    - **Size:** `1 GiB` (minimum size for initial namespace)
-   - **Block size:** `16K` (recommended)
 4. Click **Save**
 
-This creates the ZVOL needed for the initial namespace.
+This creates the block subvolume needed for the initial namespace.
 
 #### Configure NVMe-oF Port (REQUIRED)
 
@@ -453,12 +452,12 @@ Edit `deploy/storageclass.yaml` and configure parameters:
 parameters:
   protocol: "nfs"
   pool: "pool1"              # Your NASty pool name
-  # parentDataset: "pool1/k8s"  # Optional parent dataset
+  # parentDataset: "pool1/k8s"  # Optional parent subvolume
   server: "YOUR-NASTY-IP"     # Your NASty IP/hostname
   # Optional parameters:
   # deleteStrategy: "retain"     # Keep volumes on NASty when PVC deleted
-  # zfs.compression: "lz4"       # ZFS compression algorithm
-  # zfs.recordsize: "128K"       # ZFS record size
+  # zfs.compression: "lz4"       # Compression algorithm
+  # zfs.recordsize: "128K"       # Record size
 ```
 
 **For NVMe-oF:**
@@ -470,9 +469,9 @@ parameters:
   subsystemNQN: "nqn.2005-03.org.nasty:csi"              # REQUIRED: The subsystem NQN from Step 1.4
   # Optional parameters:
   # filesystem: "ext4"                                     # Filesystem type: ext4 (default), ext3, or xfs
-  # blocksize: "16K"                                       # Block size for ZVOL (default: 16K)
+  # blocksize: "16K"                                       # Block size for block subvolume (default: 16K)
   # deleteStrategy: "retain"                               # Keep volumes on NASty when PVC deleted
-  # zfs.compression: "lz4"                                 # ZFS compression algorithm
+  # zfs.compression: "lz4"                                 # Compression algorithm
 ```
 
 **For iSCSI:**
@@ -484,9 +483,9 @@ parameters:
   # Optional parameters:
   # port: "3260"                                           # iSCSI port (default: 3260)
   # filesystem: "ext4"                                     # Filesystem type: ext4 (default), ext3, or xfs
-  # blocksize: "16K"                                       # Block size for ZVOL (default: 16K)
+  # blocksize: "16K"                                       # Block size for block subvolume (default: 16K)
   # deleteStrategy: "retain"                               # Keep volumes on NASty when PVC deleted
-  # zfs.compression: "lz4"                                 # ZFS compression algorithm
+  # zfs.compression: "lz4"                                 # Compression algorithm
 ```
 
 **For SMB:**
@@ -499,7 +498,7 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   # Optional parameters:
   # deleteStrategy: "retain"                               # Keep volumes on NASty when PVC deleted
-  # zfs.compression: "lz4"                                 # ZFS compression algorithm
+  # zfs.compression: "lz4"                                 # Compression algorithm
 ```
 
 **Important Notes:**
@@ -610,14 +609,14 @@ kubectl get pvc test-pvc
 **For NFS volumes:**
 1. Log in to NASty web interface
 2. Navigate to **Datasets**
-3. You should see a new dataset: `pool1/test-pvc` (or `pool1/k8s/test-pvc` if using parent dataset)
+3. You should see a new subvolume: `pool1/test-pvc` (or `pool1/k8s/test-pvc` if using parent subvolume)
 4. Navigate to **Shares** > **NFS**
-5. You should see a new NFS share for the dataset
+5. You should see a new NFS share for the subvolume
 
 **For NVMe-oF volumes:**
 1. Log in to NASty web interface
 2. Navigate to **Datasets**
-3. You should see a new ZVOL (block device): `pool1/test-nvmeof-pvc`
+3. You should see a new block subvolume: `pool1/test-nvmeof-pvc`
 4. Navigate to **Shares** > **NVMe-oF Subsystems**
 5. Click on your subsystem (e.g., `nqn.2005-03.org.nasty:csi`)
 6. You should see a **new namespace** added to the subsystem for the PVC
@@ -649,7 +648,7 @@ kubectl exec test-pod -- df -h /data
 kubectl delete -f deploy/example-pvc.yaml
 ```
 
-Verify the dataset and NFS share are removed from NASty (if reclaimPolicy is Delete).
+Verify the subvolume and NFS share are removed from NASty (if reclaimPolicy is Delete).
 
 ## Troubleshooting
 
@@ -855,7 +854,7 @@ kubectl delete -f deploy/secret.yaml
 
 ### Standard Upgrade (Minor Versions)
 
-For minor version upgrades within the same schema version:
+For minor version upgrades:
 
 ```bash
 # Helm upgrade
@@ -867,10 +866,10 @@ helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 ### Breaking Change Upgrade (v0.6.x → v0.8.0+)
 
-**⚠️ IMPORTANT:** Version 0.8.0 introduces Schema v1 which is a breaking change.
+**⚠️ IMPORTANT:** Version 0.8.0 introduces a breaking change in volume metadata.
 
 Volumes created with earlier versions will **not be recognized** by the new driver because:
-- The metadata schema has changed
+- The metadata format has changed
 - Legacy snapshot ID formats are no longer supported
 - Volume lookup fallbacks have been removed
 
@@ -910,24 +909,12 @@ Volumes created with earlier versions will **not be recognized** by the new driv
    ```bash
    # SSH to NASty and check properties
    # Path format: {pool}/{parentDataset}/{volume} or {pool}/{volume}
-   # Example with parentDataset=csi:
-   zfs get all tank/csi/my-volume | grep nasty-csi
-   # Example without parentDataset:
-   zfs get all tank/my-volume | grep nasty-csi
+   getfattr -d /mnt/pool/csi/my-volume
    ```
 
 5. **If metadata exists**, follow the [Volume Adoption workflow](FEATURES.md#volume-adoption-cross-cluster) to re-import volumes
 
-6. **If metadata is missing**, you'll need to manually set properties:
-   ```bash
-   # On NASty (example for NFS volume at tank/my-volume)
-   zfs set nasty-csi:managed_by=nasty-csi tank/my-volume
-   zfs set nasty-csi:schema_version=1 tank/my-volume
-   zfs set nasty-csi:csi_volume_name=my-volume tank/my-volume
-   zfs set nasty-csi:protocol=nfs tank/my-volume
-   zfs set nasty-csi:nfs_share_path=/mnt/tank/my-volume tank/my-volume
-   # ... set other properties as needed
-   ```
+6. **If metadata is missing**, you'll need to manually set properties using xattrs on NASty
 
 #### Verifying Upgrade Success
 
@@ -952,10 +939,8 @@ spec:
   storageClassName: nasty-nfs
 EOF
 
-# Verify volume was created with new schema
+# Verify volume was created with new metadata
 kubectl get pvc upgrade-test
-# On NASty (path depends on your pool/parentDataset settings):
-# zfs get nasty-csi:schema_version tank/upgrade-test
 ```
 
 ## Production Considerations
@@ -995,7 +980,7 @@ The following features are fully implemented and tested:
 - **Volume Expansion**: Resize volumes dynamically (`allowVolumeExpansion: true` in StorageClass)
 - **Volume Retention**: Optional `deleteStrategy: retain` to keep volumes on PVC deletion
 - **Configurable Mount Options**: Custom mount options via StorageClass `mountOptions` field
-- **Configurable ZFS Properties**: Set compression, dedup, recordsize, etc. via StorageClass parameters
+- **Configurable Filesystem Properties**: Set compression, dedup, recordsize, etc. via StorageClass parameters
 - **Snapshots**: CSI snapshot support using NASty snapshots (see [SNAPSHOTS.md](SNAPSHOTS.md))
 - **Volume Cloning**: Create new volumes from snapshots
 - **Volume Health Monitoring**: CSI `GET_VOLUME` capability for Kubernetes volume health reporting

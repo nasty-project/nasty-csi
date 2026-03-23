@@ -37,7 +37,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 **Replace these values:**
 - `YOUR-NASTY-IP` - Your NASty server IP address
 - `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
-- `YOUR-POOL-NAME` - ZFS pool name (e.g., `tank`, `storage`)
+- `YOUR-POOL-NAME` - Pool name (e.g., `tank`, `storage`)
 
 That's it! The driver is now installed and ready to use.
 
@@ -250,9 +250,9 @@ kubectl describe pvc <pvc-name>
   kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-driver
   ```
 
-#### "zpool (parentDataset) does not exist" Error
+#### "pool (parentDataset) does not exist" Error
 - If using `parentDataset` parameter, it must exist on NASty
-- Create it first: `zfs create tank/k8s-volumes` (via NASty shell or API)
+- Create it first: `bcachefs subvolume create /mnt/tank/k8s-volumes` (via NASty shell or API)
 - Or omit `parentDataset` to create volumes directly in the pool
 
 ### Enable Debug Logging
@@ -297,7 +297,7 @@ storageClasses:
     protocol: nfs
     pool: "tank"
     server: "YOUR-NASTY-IP"
-    # Optional: specify parent dataset (must exist on NASty)
+    # Optional: specify parent subvolume (must exist on NASty)
     # parentDataset: "k8s-volumes"
     mountOptions:
       - hard
@@ -308,7 +308,7 @@ storageClasses:
     parameters:
       # Keep volumes on NASty when PVC is deleted (useful for data protection)
       # deleteStrategy: "retain"
-      # ZFS properties
+      # Filesystem properties
       # zfs.compression: "lz4"
       # zfs.recordsize: "128K"
 ```
@@ -350,7 +350,7 @@ To expand a volume (enabled by default with Helm):
 kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
 ```
 
-The driver will automatically resize the dataset on NASty.
+The driver will automatically resize the subvolume on NASty.
 
 ### NVMe-oF Configuration
 

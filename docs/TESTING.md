@@ -16,7 +16,7 @@ The NASty CSI Driver is tested comprehensively using **real infrastructure** - n
 
 **Real NASty Scale Server:**
 - Physical NASty Scale 25.10+ installation
-- Real storage pools with ZFS
+- Real storage pools with bcachefs
 - Actual NFS shares and NVMe-oF subsystems
 - Real network I/O and protocol operations
 
@@ -73,7 +73,7 @@ Every push to main triggers comprehensive integration tests organized into proto
 | `detached_snapshot_test.go` | Snapshot lifecycle without attached pods |
 | `persistence_test.go` | Data survives pod restarts |
 | `statefulset_test.go` | StatefulSet with VolumeClaimTemplates |
-| `zfsprops_test.go` | Custom ZFS properties via StorageClass |
+| `properties_test.go` | Custom filesystem properties via StorageClass |
 
 #### NVMe-oF Test Suite (`tests/e2e/nvmeof/`)
 
@@ -88,7 +88,7 @@ Every push to main triggers comprehensive integration tests organized into proto
 | `detached_snapshot_test.go` | Snapshot lifecycle without attached pods |
 | `persistence_test.go` | Data survives pod restarts |
 | `statefulset_test.go` | StatefulSet with VolumeClaimTemplates |
-| `zfsprops_test.go` | Custom ZFS properties via StorageClass |
+| `properties_test.go` | Custom filesystem properties via StorageClass |
 
 #### iSCSI Test Suite (`tests/e2e/iscsi/`)
 
@@ -103,14 +103,14 @@ Every push to main triggers comprehensive integration tests organized into proto
 | `detached_snapshot_test.go` | Snapshot lifecycle without attached pods |
 | `persistence_test.go` | Data survives pod restarts |
 | `statefulset_test.go` | StatefulSet with VolumeClaimTemplates |
-| `zfsprops_test.go` | Custom ZFS properties via StorageClass |
+| `properties_test.go` | Custom filesystem properties via StorageClass |
 
 #### Shared Test Suite (`tests/e2e/`)
 
 | Test File | Description |
 |-----------|-------------|
 | `snapshot_restore_test.go` | Snapshot creation and restoration (all protocols) |
-| `detached_snapshot_advanced_test.go` | Detached snapshots via zfs send/receive, DR scenario testing |
+| `detached_snapshot_advanced_test.go` | Independent snapshot testing, DR scenario testing |
 | `stress_test.go` | Volume stress testing |
 | `name_templating_test.go` | Custom volume naming templates |
 | `error_handling_test.go` | Error condition handling |
@@ -247,7 +247,7 @@ make test-e2e-iscsi
 - **Concurrent Operations** - Race condition detection
 - **Connection Resilience** - WebSocket reconnection
 - **Resource Cleanup** - Orphaned resource detection
-- **ZFS Properties** - Custom compression, recordsize, etc.
+- **Filesystem Properties** - Custom compression, recordsize, etc.
 - **Block Mode** - Raw block device support (NVMe-oF)
 
 ### What's Not Yet Tested
@@ -302,7 +302,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for details.
 - Verify port 3260 is accessible
 
 **Test cleanup fails:**
-- May need to manually delete datasets/shares in NASty UI
+- May need to manually delete subvolumes/shares in NASty UI
 
 **Ginkgo-specific issues:**
 - Use `-v -vv` for verbose output

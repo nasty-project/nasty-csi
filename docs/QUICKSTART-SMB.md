@@ -84,7 +84,7 @@ The CSI driver automatically creates and deletes SMB shares for each volume. You
 +-------------------------------------------------------------+
 |                    NASty SMB                               |
 +-------------------------------------------------------------+
-|  Dataset (per volume)     <- CSI driver creates/deletes     |
+|  Subvolume (per volume)   <- CSI driver creates/deletes     |
 |    +-- SMB Share          <- CSI driver creates/deletes     |
 +-------------------------------------------------------------+
 ```
@@ -134,7 +134,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 **Replace these values:**
 - `YOUR-NASTY-IP` - Your NASty server IP address
 - `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
-- `YOUR-POOL-NAME` - ZFS pool name (e.g., `tank`, `storage`)
+- `YOUR-POOL-NAME` - Pool name (e.g., `tank`, `storage`)
 
 ### Verify Installation
 
@@ -228,7 +228,7 @@ parameters:
   pool: tank
   csi.storage.k8s.io/node-stage-secret-name: smb-credentials
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
-  # ZFS properties
+  # Filesystem properties
   zfs.compression: lz4
 allowVolumeExpansion: true
 reclaimPolicy: Delete
@@ -260,7 +260,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 ### Encryption
 
-Enable ZFS native encryption for SMB volumes:
+Enable native encryption for SMB volumes:
 
 ```yaml
 apiVersion: storage.k8s.io/v1

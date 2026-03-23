@@ -23,7 +23,7 @@ NVMe-oF requires real kernel modules and block device support that isn't availab
 - ✅ Native performance on Apple Silicon
 
 **What's tested:**
-- Volume provisioning (ZVOL → Subsystem → Namespace)
+- Volume provisioning (Block Subvolume -> Subsystem -> Namespace)
 - NVMe-oF target discovery and connection
 - Block device mounting in pods
 - I/O operations
@@ -90,7 +90,7 @@ NASty requires a static IP - DHCP interfaces won't appear in NVMe-oF configurati
 That's it! The CSI driver will automatically:
 - Create a dedicated subsystem for each volume (NQN: `nqn.2026-02.io.nasty.csi:<volume-name>`)
 - Bind the subsystem to the first available port
-- Create a namespace with the ZVOL
+- Create a namespace with the block subvolume
 - Clean up everything when the volume is deleted
 
 **Why only a port is required?**
@@ -107,7 +107,7 @@ That's it! The CSI driver will automatically:
 │  Port (pre-configured)          ← Admin creates once            │
 │    └── Subsystem (per volume)   ← CSI driver creates/deletes   │
 │          └── Namespace (NSID=1) ← CSI driver creates/deletes   │
-│                └── ZVOL         ← CSI driver creates/deletes   │
+│                └── Block subvol ← CSI driver creates/deletes   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -326,7 +326,7 @@ kubectl apply -f deploy/example-pvc.yaml
                   │   NASty Scale  │
                   │  - NVMe-oF Target│
                   │  - NFS Server    │
-                  │  - ZFS Pools     │
+                  │  - Pools         │
                   └──────────────────┘
 ```
 

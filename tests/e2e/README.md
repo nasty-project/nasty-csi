@@ -159,7 +159,7 @@ var _ = Describe("My Feature", func() {
 | `f.K8s.WaitForPodReady(ctx, name, timeout)` | Wait for Pod to be ready |
 | `f.K8s.ExecInPod(ctx, name, cmd)` | Execute command in pod |
 | `f.K8s.ExpandPVC(ctx, name, size)` | Expand PVC capacity |
-| `f.VerifyNAStyCleanup(ctx, dataset, timeout)` | Verify backend cleanup |
+| `f.VerifyNAStyCleanup(ctx, subvolume, timeout)` | Verify backend cleanup |
 
 ### Using Eventually for Async Operations
 
