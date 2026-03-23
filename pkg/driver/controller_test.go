@@ -806,7 +806,6 @@ func TestControllerExpandVolume(t *testing.T) {
 						Properties: map[string]string{
 							nastyapi.PropertyManagedBy:  nastyapi.ManagedByValue,
 							nastyapi.PropertyProtocol:   ProtocolNFS,
-							nastyapi.PropertyNFSShareID: "uuid-nfs-share",
 						},
 					}, nil
 				}
@@ -1240,7 +1239,6 @@ func TestDeleteVolumeRPC(t *testing.T) {
 						Properties: map[string]string{
 							nastyapi.PropertyManagedBy:  nastyapi.ManagedByValue,
 							nastyapi.PropertyProtocol:   ProtocolNFS,
-							nastyapi.PropertyNFSShareID: "uuid-nfs-share",
 						},
 					}, nil
 				}
@@ -1313,7 +1311,6 @@ func TestIsVolumeAdoptable(t *testing.T) {
 				nastyapi.PropertyManagedBy:      nastyapi.ManagedByValue,
 				nastyapi.PropertySchemaVersion:  nastyapi.SchemaVersionV1,
 				nastyapi.PropertyProtocol:       nastyapi.ProtocolNFS,
-				nastyapi.PropertyNFSSharePath:   "/mnt/tank/csi/pvc-123",
 				nastyapi.PropertyCSIVolumeName:  "pvc-123",
 				nastyapi.PropertyCapacityBytes:  "1073741824",
 				nastyapi.PropertyDeleteStrategy: nastyapi.DeleteStrategyDelete,
@@ -1323,37 +1320,33 @@ func TestIsVolumeAdoptable(t *testing.T) {
 		{
 			name: "valid NVMe-oF volume with all properties",
 			props: map[string]string{
-				nastyapi.PropertyManagedBy:        nastyapi.ManagedByValue,
-				nastyapi.PropertySchemaVersion:    nastyapi.SchemaVersionV1,
-				nastyapi.PropertyProtocol:         nastyapi.ProtocolNVMeOF,
-				nastyapi.PropertyNVMeSubsystemNQN: "nqn.2024.io.nasty:nvme:pvc-123",
-				nastyapi.PropertyCSIVolumeName:    "pvc-123",
+				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+				nastyapi.PropertySchemaVersion: nastyapi.SchemaVersionV1,
+				nastyapi.PropertyProtocol:      nastyapi.ProtocolNVMeOF,
+				nastyapi.PropertyCSIVolumeName: "pvc-123",
 			},
 			want: true,
 		},
 		{
 			name: "NFS volume without schema version (still valid)",
 			props: map[string]string{
-				nastyapi.PropertyManagedBy:    nastyapi.ManagedByValue,
-				nastyapi.PropertyProtocol:     nastyapi.ProtocolNFS,
-				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+				nastyapi.PropertyProtocol:  nastyapi.ProtocolNFS,
 			},
 			want: true,
 		},
 		{
 			name: "missing managed_by property",
 			props: map[string]string{
-				nastyapi.PropertyProtocol:     nastyapi.ProtocolNFS,
-				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyProtocol: nastyapi.ProtocolNFS,
 			},
 			want: false,
 		},
 		{
 			name: "wrong managed_by value",
 			props: map[string]string{
-				nastyapi.PropertyManagedBy:    "other-csi-driver",
-				nastyapi.PropertyProtocol:     nastyapi.ProtocolNFS,
-				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy: "other-csi-driver",
+				nastyapi.PropertyProtocol:  nastyapi.ProtocolNFS,
 			},
 			want: false,
 		},
@@ -1363,33 +1356,31 @@ func TestIsVolumeAdoptable(t *testing.T) {
 				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
 				nastyapi.PropertySchemaVersion: "99",
 				nastyapi.PropertyProtocol:      nastyapi.ProtocolNFS,
-				nastyapi.PropertyNFSSharePath:  "/mnt/tank/csi/pvc-123",
 			},
 			want: false,
 		},
 		{
 			name: "missing protocol",
 			props: map[string]string{
-				nastyapi.PropertyManagedBy:    nastyapi.ManagedByValue,
-				nastyapi.PropertyNFSSharePath: "/mnt/tank/csi/pvc-123",
+				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
 			},
 			want: false,
 		},
 		{
-			name: "NFS volume missing share path",
+			name: "NFS volume is adoptable without share path",
 			props: map[string]string{
 				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
 				nastyapi.PropertyProtocol:  nastyapi.ProtocolNFS,
 			},
-			want: false,
+			want: true,
 		},
 		{
-			name: "NVMe-oF volume missing NQN",
+			name: "NVMe-oF volume is adoptable without NQN",
 			props: map[string]string{
 				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
 				nastyapi.PropertyProtocol:  nastyapi.ProtocolNVMeOF,
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name:  "empty properties",
@@ -1410,15 +1401,13 @@ func TestIsVolumeAdoptable(t *testing.T) {
 
 func TestGetAdoptionInfo(t *testing.T) {
 	props := map[string]string{
-		nastyapi.PropertyCSIVolumeName:    "pvc-12345678",
-		nastyapi.PropertyProtocol:         nastyapi.ProtocolNFS,
-		nastyapi.PropertyCapacityBytes:    "10737418240",
-		nastyapi.PropertyDeleteStrategy:   nastyapi.DeleteStrategyRetain,
-		nastyapi.PropertyPVCName:          "my-data",
-		nastyapi.PropertyPVCNamespace:     "production",
-		nastyapi.PropertyStorageClass:     "nasty-nfs",
-		nastyapi.PropertyNFSSharePath:     "/mnt/tank/csi/pvc-12345678",
-		nastyapi.PropertyNVMeSubsystemNQN: "nqn.test",
+		nastyapi.PropertyCSIVolumeName:  "pvc-12345678",
+		nastyapi.PropertyProtocol:       nastyapi.ProtocolNFS,
+		nastyapi.PropertyCapacityBytes:  "10737418240",
+		nastyapi.PropertyDeleteStrategy: nastyapi.DeleteStrategyRetain,
+		nastyapi.PropertyPVCName:        "my-data",
+		nastyapi.PropertyPVCNamespace:   "production",
+		nastyapi.PropertyStorageClass:   "nasty-nfs",
 	}
 
 	info := GetAdoptionInfo(props)
@@ -1431,8 +1420,6 @@ func TestGetAdoptionInfo(t *testing.T) {
 		"pvcName":        "my-data",
 		"pvcNamespace":   "production",
 		"storageClass":   "nasty-nfs",
-		"nfsSharePath":   "/mnt/tank/csi/pvc-12345678",
-		"nvmeofNQN":      "nqn.test",
 	}
 
 	for key, want := range expectedFields {

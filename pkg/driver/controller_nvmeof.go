@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -250,8 +251,6 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
-		SubsystemIDStr: subsystem.ID,
-		SubsystemNQN:   subsystem.NQN,
 		PVCName:        params.pvcName,
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
@@ -293,23 +292,20 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 			params.volumeName, existingCapacity, params.requestedCapacity)
 	}
 
-	// Check if subsystem exists by stored NQN
-	var storedNQN string
-	if existingSubvol.Properties != nil {
-		storedNQN = existingSubvol.Properties[nastyapi.PropertyNVMeSubsystemNQN]
-	}
-
-	if storedNQN != "" {
-		subsystem, err := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, storedNQN)
-		if err == nil && subsystem != nil {
-			klog.V(4).Infof("NVMe-oF volume already exists (subsystem: %s, NQN: %s), returning existing volume",
-				subsystem.ID, subsystem.NQN)
-			resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, existingSubvol, subsystem, existingCapacity)
-			injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
-			timer.ObserveSuccess()
-			return resp, true, nil
+	// Scan NVMe-oF subsystems by NQN pattern derived from volume name
+	subsystems, listErr := s.apiClient.ListNVMeOFSubsystems(ctx)
+	if listErr == nil {
+		suffix := ":" + params.volumeName
+		for i := range subsystems {
+			if strings.HasSuffix(subsystems[i].NQN, suffix) {
+				klog.V(4).Infof("NVMe-oF volume already exists (subsystem: %s, NQN: %s), returning existing volume",
+					subsystems[i].ID, subsystems[i].NQN)
+				resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, existingSubvol, &subsystems[i], existingCapacity)
+				injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
+				timer.ObserveSuccess()
+				return resp, true, nil
+			}
 		}
-		klog.V(4).Infof("Stored subsystem NQN %s not found, will recreate: %v", storedNQN, err)
 	}
 
 	// Subvolume exists but no subsystem — signal caller to proceed with subsystem creation
@@ -356,17 +352,6 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 			return &csi.DeleteVolumeResponse{}, nil
 		}
 
-		// Update metadata with stored subsystem UUID
-		if storedSubsystemID, ok := props[nastyapi.PropertyNVMeSubsystemID]; ok && storedSubsystemID != "" {
-			if meta.NVMeOFSubsystemUUID == "" {
-				meta.NVMeOFSubsystemUUID = storedSubsystemID
-			}
-		}
-		if storedNQN, ok := props[nastyapi.PropertyNVMeSubsystemNQN]; ok && storedNQN != "" {
-			if meta.NVMeOFNQN == "" {
-				meta.NVMeOFNQN = storedNQN
-			}
-		}
 	}
 
 	// Step 1: Delete subvolume first (prevents orphaning NVMe-oF subsystem)
@@ -493,14 +478,16 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 		requestedCapacity = 1 * 1024 * 1024 * 1024 // 1 GiB default
 	}
 
-	// Try to find existing subsystem by stored NQN in subvolume properties
+	// Find existing subsystem by scanning for NQN matching the volume name
 	var subsystem *nastyapi.NVMeOFSubsystem
-	if subvol.Properties != nil {
-		if storedNQN := subvol.Properties[nastyapi.PropertyNVMeSubsystemNQN]; storedNQN != "" {
-			existingSubsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, storedNQN)
-			if lookupErr == nil && existingSubsystem != nil {
-				subsystem = existingSubsystem
+	subsystems, listErr := s.apiClient.ListNVMeOFSubsystems(ctx)
+	if listErr == nil {
+		suffix := ":" + volumeName
+		for i := range subsystems {
+			if strings.HasSuffix(subsystems[i].NQN, suffix) {
+				subsystem = &subsystems[i]
 				klog.Infof("Found existing NVMe-oF subsystem for adopted volume: ID=%s, NQN=%s", subsystem.ID, subsystem.NQN)
+				break
 			}
 		}
 	}
@@ -546,8 +533,6 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,
-		SubsystemIDStr: subsystem.ID,
-		SubsystemNQN:   subsystem.NQN,
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],

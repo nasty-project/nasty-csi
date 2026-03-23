@@ -299,26 +299,6 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvol
 		meta.Protocol = protocol
 	}
 
-	// Extract protocol-specific IDs
-	if nfsShareID, ok := props[nastyapi.PropertyNFSShareID]; ok && nfsShareID != "" {
-		meta.NFSShareUUID = nfsShareID
-	}
-	if nvmeSubsystemID, ok := props[nastyapi.PropertyNVMeSubsystemID]; ok && nvmeSubsystemID != "" {
-		meta.NVMeOFSubsystemUUID = nvmeSubsystemID
-	}
-	if nvmeNQN, ok := props[nastyapi.PropertyNVMeSubsystemNQN]; ok {
-		meta.NVMeOFNQN = nvmeNQN
-	}
-	if iscsiTargetID, ok := props[nastyapi.PropertyISCSITargetID]; ok && iscsiTargetID != "" {
-		meta.ISCSITargetUUID = iscsiTargetID
-	}
-	if iscsiIQN, ok := props[nastyapi.PropertyISCSIIQN]; ok {
-		meta.ISCSIIQN = iscsiIQN
-	}
-	if smbShareID, ok := props[nastyapi.PropertySMBShareID]; ok && smbShareID != "" {
-		meta.SMBShareUUID = smbShareID
-	}
-
 	klog.V(4).Infof("Found volume: %s (subvolume=%s, protocol=%s)", volumeID, subvolumeID, meta.Protocol)
 	return meta, nil
 }
@@ -861,14 +841,6 @@ func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.List
 			continue
 		}
 
-		// Skip detached snapshots — they are not volumes
-		if detached, ok := props[nastyapi.PropertyDetachedSnapshot]; ok && detached == "true" {
-			continue
-		}
-		if _, ok := props[nastyapi.PropertySnapshotID]; ok {
-			continue
-		}
-
 		volumeID := sv.Pool + "/" + sv.Name
 		meta, err := extractVolumeMetadataFromSubvolume(volumeID, sv)
 		if err != nil {
@@ -968,24 +940,10 @@ func IsVolumeAdoptable(props map[string]string) bool {
 		return false
 	}
 
-	// Verify protocol-specific required properties exist
+	// Verify protocol is a known value
 	switch protocol {
-	case nastyapi.ProtocolNFS:
-		if _, ok := props[nastyapi.PropertyNFSSharePath]; !ok {
-			return false
-		}
-	case nastyapi.ProtocolNVMeOF:
-		if _, ok := props[nastyapi.PropertyNVMeSubsystemNQN]; !ok {
-			return false
-		}
-	case nastyapi.ProtocolISCSI:
-		if _, ok := props[nastyapi.PropertyISCSIIQN]; !ok {
-			return false
-		}
-	case nastyapi.ProtocolSMB:
-		if _, ok := props[nastyapi.PropertySMBShareName]; !ok {
-			return false
-		}
+	case nastyapi.ProtocolNFS, nastyapi.ProtocolNVMeOF, nastyapi.ProtocolISCSI, nastyapi.ProtocolSMB:
+		// Known protocol
 	default:
 		return false
 	}
@@ -1011,10 +969,6 @@ func GetAdoptionInfo(props map[string]string) map[string]string {
 	extract(nastyapi.PropertyPVCName, "pvcName")
 	extract(nastyapi.PropertyPVCNamespace, "pvcNamespace")
 	extract(nastyapi.PropertyStorageClass, "storageClass")
-	extract(nastyapi.PropertyNFSSharePath, "nfsSharePath")
-	extract(nastyapi.PropertyNVMeSubsystemNQN, "nvmeofNQN")
-	extract(nastyapi.PropertyISCSIIQN, "iscsiIQN")
-	extract(nastyapi.PropertyISCSITargetID, "iscsiTargetID")
 
 	return info
 }

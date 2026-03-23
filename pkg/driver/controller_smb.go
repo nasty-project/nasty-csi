@@ -176,8 +176,6 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
-		ShareIDStr:     smbShare.ID,
-		ShareName:      smbShare.Name,
 		PVCName:        params.pvcName,
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
@@ -273,15 +271,6 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
 						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.DatasetName)
-				}
-			}
-
-			if storedShareID, ok := props[nastyapi.PropertySMBShareID]; ok && storedShareID != "" {
-				if shareUUID == "" {
-					shareUUID = storedShareID
-				} else if storedShareID != shareUUID {
-					klog.Warningf("SMB share UUID mismatch: stored=%s, metadata=%s (using stored)", storedShareID, shareUUID)
-					shareUUID = storedShareID
 				}
 			}
 
@@ -393,8 +382,6 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,
-		ShareIDStr:     smbShare.ID,
-		ShareName:      smbShare.Name,
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],

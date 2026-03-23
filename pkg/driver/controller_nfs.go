@@ -175,14 +175,12 @@ func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *nast
 }
 
 // nfsPropertiesV1 builds xattr property map for an NFS subvolume.
-func nfsPropertiesV1(params *nfsVolumeParams, shareID, sharePath, clusterID string) map[string]string {
+func nfsPropertiesV1(params *nfsVolumeParams, clusterID string) map[string]string {
 	return nastyapi.NFSVolumePropertiesV1(nastyapi.NFSVolumeParams{
 		VolumeID:       params.volumeName,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
-		ShareIDStr:     shareID,
-		SharePath:      sharePath,
 		PVCName:        params.pvcName,
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
@@ -262,7 +260,7 @@ func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, pa
 	}
 
 	klog.Infof("Recovering missing xattr properties on subvolume %s/%s (orphaned from interrupted creation)", subvol.Pool, subvol.Name)
-	props := nfsPropertiesV1(params, share.ID, share.Path, s.clusterID)
+	props := nfsPropertiesV1(params, s.clusterID)
 	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
 		klog.Warningf("Failed to recover xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
 	} else {
@@ -297,7 +295,7 @@ func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subv
 	klog.V(4).Infof("Created NFS share with ID: %s for path: %s", nfsShare.ID, nfsShare.Path)
 
 	// Store xattr properties for CSI metadata tracking (Schema v1)
-	props := nfsPropertiesV1(params, nfsShare.ID, nfsShare.Path, s.clusterID)
+	props := nfsPropertiesV1(params, s.clusterID)
 	klog.V(4).Infof("Storing xattr properties on subvolume %s/%s: deleteStrategy=%q", subvol.Pool, subvol.Name, params.deleteStrategy)
 	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
 		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
@@ -426,16 +424,6 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
 						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.DatasetName)
-				}
-			}
-
-			// Read stored share UUID (may differ from metadata if share was re-created)
-			if storedShareID, ok := props[nastyapi.PropertyNFSShareID]; ok && storedShareID != "" {
-				if shareUUID == "" {
-					shareUUID = storedShareID
-				} else if storedShareID != shareUUID {
-					klog.Warningf("NFS share UUID mismatch: stored=%s, metadata=%s (using stored)", storedShareID, shareUUID)
-					shareUUID = storedShareID
 				}
 			}
 
@@ -586,8 +574,6 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,
-		ShareIDStr:     nfsShare.ID,
-		SharePath:      nfsShare.Path,
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],

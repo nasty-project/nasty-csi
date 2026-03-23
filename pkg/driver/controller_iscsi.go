@@ -237,8 +237,6 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
-		TargetIDStr:    target.ID,
-		TargetIQN:      target.IQN,
 		PVCName:        params.pvcName,
 		PVCNamespace:   params.pvcNamespace,
 		StorageClass:   params.storageClass,
@@ -278,25 +276,19 @@ func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, pa
 			params.volumeName, existingCapacity, params.requestedCapacity)
 	}
 
-	// Check if target exists for this volume by stored IQN in properties
-	var storedTargetID string
-	var storedIQN string
-	if existingSubvol.Properties != nil {
-		storedTargetID = existingSubvol.Properties[nastyapi.PropertyISCSITargetID]
-		storedIQN = existingSubvol.Properties[nastyapi.PropertyISCSIIQN]
-	}
-
-	if storedTargetID != "" {
-		// Try to find the existing target
-		target, err := s.apiClient.GetISCSITargetByIQN(ctx, storedIQN)
-		if err == nil && target != nil {
-			klog.V(4).Infof("iSCSI volume already exists (target: %s, IQN: %s), returning existing volume",
-				target.ID, target.IQN)
-			resp := buildISCSIVolumeResponse(params.volumeName, params.server, existingSubvol, target, existingCapacity)
-			timer.ObserveSuccess()
-			return resp, true, nil
+	// Scan iSCSI targets by IQN pattern derived from volume name
+	expectedIQN := generateIQN(params.volumeName)
+	targets, listErr := s.apiClient.ListISCSITargets(ctx)
+	if listErr == nil {
+		for i := range targets {
+			if targets[i].IQN == expectedIQN {
+				klog.V(4).Infof("iSCSI volume already exists (target: %s, IQN: %s), returning existing volume",
+					targets[i].ID, targets[i].IQN)
+				resp := buildISCSIVolumeResponse(params.volumeName, params.server, existingSubvol, &targets[i], existingCapacity)
+				timer.ObserveSuccess()
+				return resp, true, nil
+			}
 		}
-		klog.V(4).Infof("Stored target %s not found (IQN: %s), will recreate: %v", storedTargetID, storedIQN, err)
 	}
 
 	// Subvolume exists but no target — signal caller to proceed with target creation
@@ -337,14 +329,6 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 			return "", false, status.Errorf(codes.FailedPrecondition,
 				"Subvolume %s volume name mismatch (stored=%s, requested=%s)", meta.DatasetID, volumeName, meta.DatasetName)
 		}
-	}
-
-	// Update metadata with stored target UUID (handles ID changes across clusters)
-	if storedTargetID, ok := props[nastyapi.PropertyISCSITargetID]; ok && storedTargetID != "" {
-		if meta.ISCSITargetUUID != "" && storedTargetID != meta.ISCSITargetUUID {
-			klog.Warningf("iSCSI target ID mismatch: stored=%s, metadata=%s (using stored ID)", storedTargetID, meta.ISCSITargetUUID)
-		}
-		meta.ISCSITargetUUID = storedTargetID
 	}
 
 	if strategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && strategy != "" {
@@ -581,29 +565,16 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 		requestedCapacity = 1 * 1024 * 1024 * 1024 // 1 GiB default
 	}
 
-	// Try to find existing target by stored IQN in subvolume properties
+	// Find existing target by scanning all targets for IQN matching the volume name
 	var target *nastyapi.ISCSITarget
-	if subvol.Properties != nil {
-		if storedIQN := subvol.Properties[nastyapi.PropertyISCSIIQN]; storedIQN != "" {
-			existingTarget, lookupErr := s.apiClient.GetISCSITargetByIQN(ctx, storedIQN)
-			if lookupErr == nil && existingTarget != nil {
-				target = existingTarget
-				klog.Infof("Found existing target for adopted volume: ID=%s, IQN=%s", target.ID, target.IQN)
-			}
-		}
-	}
-
-	// If no target found by IQN, try by volume name (scan all targets)
-	if target == nil {
-		targets, listErr := s.apiClient.ListISCSITargets(ctx)
-		if listErr == nil {
-			expectedIQN := generateIQN(volumeName)
-			for i := range targets {
-				if targets[i].IQN == expectedIQN {
-					target = &targets[i]
-					klog.Infof("Found existing target by IQN match: ID=%s, IQN=%s", target.ID, target.IQN)
-					break
-				}
+	targets, listErr := s.apiClient.ListISCSITargets(ctx)
+	if listErr == nil {
+		expectedIQN := generateIQN(volumeName)
+		for i := range targets {
+			if targets[i].IQN == expectedIQN {
+				target = &targets[i]
+				klog.Infof("Found existing target by IQN match: ID=%s, IQN=%s", target.ID, target.IQN)
+				break
 			}
 		}
 	}
@@ -652,8 +623,6 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,
-		TargetIDStr:    target.ID,
-		TargetIQN:      target.IQN,
 		PVCName:        params["csi.storage.k8s.io/pvc/name"],
 		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
 		StorageClass:   params["csi.storage.k8s.io/sc/name"],
