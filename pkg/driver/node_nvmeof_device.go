@@ -70,21 +70,20 @@ func (s *NodeService) attemptNVMeConnect(ctx context.Context, params *nvmeOFConn
 	connectCtx, connectCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer connectCancel()
 
-	// NVMe-oF connection with resilience and performance options:
-	// --reconnect-delay=2: Wait 2 seconds before reconnecting after connection loss
-	// --ctrl-loss-tmo=60: Keep retrying for 60 seconds before giving up
-	// --keep-alive-tmo=5: Send keepalive every 5 seconds to detect dead connections
-	// --nr-io-queues: Number of I/O queues (default 4; configurable via StorageClass)
-	// --queue-size: Queue depth per I/O queue (kernel default 127; configurable via StorageClass)
+	// NVMe-oF connection with resilience options:
+	// --reconnect-delay=5: Wait 5s before reconnecting after connection loss
+	// --ctrl-loss-tmo=120: Keep retrying for 120s before returning I/O errors
+	// --keep-alive-tmo=15: Send keepalive every 15s (tolerates brief I/O stalls
+	//   during bcachefs snapshots without declaring the connection dead)
 	connectArgs := []string{
 		"connect",
 		"-t", params.transport,
 		"-n", params.nqn,
 		"-a", params.server,
 		"-s", params.port,
-		"--reconnect-delay=2",
-		"--ctrl-loss-tmo=60",
-		"--keep-alive-tmo=5",
+		"--reconnect-delay=5",
+		"--ctrl-loss-tmo=120",
+		"--keep-alive-tmo=15",
 	}
 
 	if params.nrIOQueues != "" {
