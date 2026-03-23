@@ -219,7 +219,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	}
 	blockDevice := *subvol.BlockDevice
 
-	// Step 2: Create NVMe-oF subsystem with namespace (NASty quick-create API)
+	// Step 2: Create NVMe-oF subsystem with namespace and port
 	subsystemParams := nastyapi.NVMeOFCreateParams{
 		Name:       params.volumeName,
 		DevicePath: blockDevice,

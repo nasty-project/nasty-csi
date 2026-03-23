@@ -502,8 +502,8 @@ func (m *MockClient) CreateNVMeOFSubsystem(_ context.Context, params nastyapi.NV
 		NQN:          "nqn.2024-01.io.nasty:" + params.Name,
 		Namespaces:   []nastyapi.NVMeOFNamespace{{NSID: 1, DevicePath: params.DevicePath, Enabled: true}},
 		Ports:        []nastyapi.NVMeOFPort{{PortID: 1, Transport: "tcp", Addr: params.Addr}},
-		AllowedHosts: params.Hosts,
-		AllowAnyHost: len(params.Hosts) == 0,
+		AllowedHosts: params.AllowedHosts,
+		AllowAnyHost: len(params.AllowedHosts) == 0,
 		Enabled:      true,
 	}
 	m.nvmeofSubsystems[id] = subsystem

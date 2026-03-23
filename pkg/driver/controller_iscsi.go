@@ -193,11 +193,11 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 	blockDevice := *subvol.BlockDevice
 
-	// Step 2: Create iSCSI target
-	targetParams := nastyapi.ISCSITargetCreateParams{
-		Name: params.volumeName,
-	}
-	target, err := s.apiClient.CreateISCSITarget(ctx, targetParams)
+	// Step 2: Create iSCSI target with LUN in one atomic call
+	target, err := s.apiClient.CreateISCSITarget(ctx, nastyapi.ISCSITargetCreateParams{
+		Name:       params.volumeName,
+		DevicePath: blockDevice,
+	})
 	if err != nil {
 		// Cleanup: only delete subvolume if we just created it
 		if subvolIsNew {
@@ -212,26 +212,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target '%s': %v", params.volumeName, err)
 	}
 
-	// Step 3: Add LUN to target (points to block device)
-	target, err = s.apiClient.AddISCSILun(ctx, target.ID, blockDevice)
-	if err != nil {
-		// Cleanup: delete target (always new), only delete subvolume if newly created
-		klog.Errorf("Failed to add iSCSI LUN, cleaning up: %v", err)
-		if delErr := s.apiClient.DeleteISCSITarget(ctx, target.ID); delErr != nil {
-			klog.Errorf("Failed to cleanup iSCSI target: %v", delErr)
-		}
-		if subvolIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
-				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
-			}
-		} else {
-			klog.Warningf("Skipping subvolume cleanup — volume was pre-existing")
-		}
-		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to add LUN to iSCSI target '%s': %v", target.ID, err)
-	}
-
-	// Step 4: Store xattr properties for metadata tracking
+	// Step 3: Store xattr properties for metadata tracking
 	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       params.volumeName,
 		Protocol:       nastyapi.ProtocolISCSI,
@@ -587,26 +568,17 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	}
 	blockDevice := *subvol.BlockDevice
 
-	// If no target found, create new one
+	// If no target found, create new one with LUN in one atomic call
 	if target == nil {
 		klog.Infof("Creating new iSCSI target for adopted volume: %s", volumeName)
 
 		newTarget, createErr := s.apiClient.CreateISCSITarget(ctx, nastyapi.ISCSITargetCreateParams{
-			Name: volumeName,
+			Name:       volumeName,
+			DevicePath: blockDevice,
 		})
 		if createErr != nil {
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target for adopted volume: %v", createErr)
-		}
-
-		// Add LUN to target
-		newTarget, createErr = s.apiClient.AddISCSILun(ctx, newTarget.ID, blockDevice)
-		if createErr != nil {
-			if delErr := s.apiClient.DeleteISCSITarget(ctx, newTarget.ID); delErr != nil {
-				klog.Errorf("Failed to cleanup iSCSI target after LUN add failure: %v", delErr)
-			}
-			timer.ObserveError()
-			return nil, status.Errorf(codes.Internal, "Failed to add LUN to iSCSI target for adopted volume: %v", createErr)
 		}
 		target = newTarget
 		klog.Infof("Created iSCSI target for adopted volume: ID=%s, IQN=%s", target.ID, target.IQN)
