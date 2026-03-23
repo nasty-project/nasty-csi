@@ -215,46 +215,47 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 		klog.Infof("iSCSI discovery successful at %s, discovered targets:\n%s", portal, string(output))
 	}
 
-	// Step 2: Find the discovered portal and rewrite it to the reachable address.
-	// In NAT/DNAT environments (e.g., Oracle Cloud), the target reports its private IP
-	// (e.g., 10.0.0.22) during discovery, but the initiator can only reach the public IP
-	// (e.g., 152.70.42.159). We parse the discovery output to find the reported portal,
-	// then update the node database entry to use the reachable address.
+	// Step 2: Fix portal address for NAT/DNAT environments.
+	// Discovery stores the target's self-reported IP (e.g., 10.0.0.22) in the node database,
+	// but we may only be able to reach the public IP (e.g., 152.70.42.159).
+	// iscsiadm won't let us update node.conn[0].address (it's a lookup key), so we delete
+	// the discovered entry and create a new one with the reachable portal.
 	discoveredPortal := findDiscoveredPortal(string(output), params.iqn)
 	if discoveredPortal != "" && discoveredPortal != portal {
-		klog.Infof("iSCSI: Target reported portal %s, rewriting to reachable address %s", discoveredPortal, portal)
-		updateCtx, updateCancel := context.WithTimeout(ctx, 5*time.Second)
-		defer updateCancel()
-		updateCmd := iscsiadmCmd(updateCtx, "-m", "node", "-T", params.iqn, "-p", discoveredPortal,
-			"--op", "update", "-n", "node.conn[0].address", "-v", params.server)
-		if updateOutput, updateErr := updateCmd.CombinedOutput(); updateErr != nil {
-			klog.Warningf("Failed to rewrite iSCSI portal address: %v, output: %s", updateErr, string(updateOutput))
+		klog.Infof("iSCSI: Target reported portal %s, replacing with reachable address %s", discoveredPortal, portal)
+
+		// Delete the entry with the unreachable portal
+		delCtx, delCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer delCancel()
+		delCmd := iscsiadmCmd(delCtx, "-m", "node", "-T", params.iqn, "-p", discoveredPortal, "--op", "delete")
+		if delOutput, delErr := delCmd.CombinedOutput(); delErr != nil {
+			klog.V(4).Infof("Failed to delete old node entry (may not exist): %v, output: %s", delErr, string(delOutput))
+		}
+
+		// Create a new entry with the reachable portal
+		newCtx, newCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer newCancel()
+		newCmd := iscsiadmCmd(newCtx, "-m", "node", "--op", "new", "-T", params.iqn, "-p", portal)
+		if newOutput, newErr := newCmd.CombinedOutput(); newErr != nil {
+			klog.Warningf("Failed to create node entry with reachable portal: %v, output: %s", newErr, string(newOutput))
+		}
+
+		// Disable authentication on the new entry (same as targetcli default)
+		authCtx, authCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer authCancel()
+		authCmd := iscsiadmCmd(authCtx, "-m", "node", "-T", params.iqn, "-p", portal,
+			"--op", "update", "-n", "node.session.auth.authmethod", "-v", "None")
+		if authOutput, authErr := authCmd.CombinedOutput(); authErr != nil {
+			klog.V(4).Infof("Failed to set auth method (may be default): %v, output: %s", authErr, string(authOutput))
 		}
 	}
 
-	// Step 3: Check if target is in node database (using discovered portal which is in the DB)
-	lookupPortal := portal
-	if discoveredPortal != "" {
-		lookupPortal = discoveredPortal
-	}
-	klog.Infof("iSCSI: Checking if target '%s' is in node database (portal: %s)", params.iqn, lookupPortal)
-	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer checkCancel()
-	checkCmd := iscsiadmCmd(checkCtx, "-m", "node", "-T", params.iqn, "-p", lookupPortal)
-	checkOutput, checkErr := checkCmd.CombinedOutput()
-	if checkErr != nil {
-		klog.Errorf("iSCSI target '%s' not found in node database: %v, output: %s",
-			params.iqn, checkErr, string(checkOutput))
-		return fmt.Errorf("%w - check that NASty iSCSI service is running and target is properly configured: %s", ErrISCSITargetNotInDB, string(checkOutput))
-	}
-	klog.Infof("iSCSI target '%s' found in node database", params.iqn)
-
-	// Step 4: Login using the discovered portal (now rewritten to the reachable address)
-	klog.Infof("Logging into iSCSI target: %s (portal: %s)", params.iqn, lookupPortal)
+	// Step 3: Login using the reachable portal
+	klog.Infof("Logging into iSCSI target: %s (portal: %s)", params.iqn, portal)
 	loginCtx, loginCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer loginCancel()
 
-	loginCmd := iscsiadmCmd(loginCtx, "-m", "node", "-T", params.iqn, "-p", lookupPortal, "--login")
+	loginCmd := iscsiadmCmd(loginCtx, "-m", "node", "-T", params.iqn, "-p", portal, "--login")
 	output, err = loginCmd.CombinedOutput()
 	if err != nil {
 		// Check if already logged in
