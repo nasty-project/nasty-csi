@@ -372,11 +372,15 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 	if smbShare == nil {
 		klog.Infof("Creating SMB share for adopted volume: %s", subvol.Path)
 		comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", volumeName, requestedCapacity)
-		newShare, createErr := s.apiClient.CreateSMBShare(ctx, nastyapi.SMBShareCreateParams{
+		adoptCreateParams := nastyapi.SMBShareCreateParams{
 			Name:    volumeName,
 			Path:    subvol.Path,
 			Comment: comment,
-		})
+		}
+		if smbUsername := params["smbUsername"]; smbUsername != "" {
+			adoptCreateParams.ValidUsers = []string{smbUsername}
+		}
+		newShare, createErr := s.apiClient.CreateSMBShare(ctx, adoptCreateParams)
 		if createErr != nil {
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Internal, "Failed to create SMB share for adopted volume: %v", createErr)

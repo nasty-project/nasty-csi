@@ -219,14 +219,13 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 	}
 
 	// Step 2: Check if target is in node database
-	// Note: Don't specify portal here because NASty may report a different portal IP
-	// than the hostname we used for discovery (e.g., discovery with hostname, but NASty
-	// reports its IP). The node database stores the portal from the discovery response.
+	// Note: Specify the public portal so we check/login against the reachable address,
+	// not the private IP that the target may report back during discovery.
 	klog.Infof("iSCSI: Checking if target '%s' is in node database", params.iqn)
 	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer checkCancel()
-	checkCmd := iscsiadmCmd(checkCtx, "-m", "node", "-T", params.iqn)
-	klog.Infof("iSCSI: Running node check command: iscsiadm -m node -T %s", params.iqn)
+	checkCmd := iscsiadmCmd(checkCtx, "-m", "node", "-T", params.iqn, "-p", portal)
+	klog.Infof("iSCSI: Running node check command: iscsiadm -m node -T %s -p %s", params.iqn, portal)
 	checkOutput, checkErr := checkCmd.CombinedOutput()
 	if checkErr != nil {
 		klog.Errorf("iSCSI target '%s' not found in node database: %v, output: %s",
@@ -236,12 +235,12 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 	klog.Infof("iSCSI target '%s' found in node database: %s", params.iqn, string(checkOutput))
 
 	// Step 3: Login
-	// Don't specify portal - login to the target on whatever portal it was discovered
+	// Specify the public portal to avoid using the private IP from discovery
 	klog.Infof("Logging into iSCSI target: %s", params.iqn)
 	loginCtx, loginCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer loginCancel()
 
-	loginCmd := iscsiadmCmd(loginCtx, "-m", "node", "-T", params.iqn, "--login")
+	loginCmd := iscsiadmCmd(loginCtx, "-m", "node", "-T", params.iqn, "-p", portal, "--login")
 	output, err = loginCmd.CombinedOutput()
 	if err != nil {
 		// Check if already logged in
