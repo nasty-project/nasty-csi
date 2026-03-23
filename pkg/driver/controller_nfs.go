@@ -377,8 +377,6 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 }
 
 // deleteNFSVolume deletes an NFS volume with ownership verification.
-//
-//nolint:gocognit // Complexity from ownership checks + CSI snapshot guard + idempotency
 func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (subvolumeID: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
