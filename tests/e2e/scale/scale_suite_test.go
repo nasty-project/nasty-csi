@@ -26,10 +26,10 @@ import (
 )
 
 const (
-	defaultNoiseDatasetCount = 30
+	defaultNoiseDatasetCount     = 30
 	defaultNoiseBlockSubvolCount = 10
-	snapshotsPerDataset      = 2
-	nfsShareCount            = 5
+	snapshotsPerDataset          = 2
+	nfsShareCount                = 5
 )
 
 var (
@@ -38,7 +38,7 @@ var (
 	noisePool     string
 
 	// Actual counts (may be overridden by env vars).
-	actualDatasetCount int
+	actualDatasetCount     int
 	actualBlockSubvolCount int
 )
 

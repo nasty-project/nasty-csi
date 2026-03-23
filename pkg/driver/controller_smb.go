@@ -89,6 +89,8 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 }
 
 // buildSMBVolumeResponse builds the CreateVolumeResponse for an SMB volume.
+//
+//nolint:dupl // Protocol-specific response builders intentionally follow the same pattern
 func buildSMBVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, smbShare *nastyapi.SMBShare, capacity int64) *csi.CreateVolumeResponse {
 	volumeID := subvol.Pool + "/" + subvol.Name
 	meta := VolumeMetadata{
@@ -240,8 +242,6 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 }
 
 // deleteSMBVolume deletes an SMB volume with ownership verification.
-//
-//nolint:gocognit // Complexity from ownership checks + idempotency
 func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "delete")
 	klog.V(4).Infof("Deleting SMB volume: %s (dataset: %s, share UUID: %s)", meta.Name, meta.DatasetName, meta.SMBShareUUID)
@@ -455,11 +455,11 @@ func (s *ControllerService) expandSMBVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	// Resize the underlying subvolume
-//nolint:gosec // G115: CSI capacity is always non-negative
-	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); err != nil {
-		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, err)
+	//nolint:gosec // G115: CSI capacity is always non-negative
+	if _, resizeErr := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); resizeErr != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, resizeErr)
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", resizeErr)
 	}
 
 	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{

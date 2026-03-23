@@ -53,9 +53,9 @@ const (
 
 // Static errors for controller operations.
 var (
-	ErrVolumeNotFound    = errors.New("volume not found")
-	ErrDatasetNotFound   = errors.New("dataset not found for share")
-	ErrInvalidVolumeID   = errors.New("invalid subvolume ID")
+	ErrVolumeNotFound  = errors.New("volume not found")
+	ErrDatasetNotFound = errors.New("dataset not found for share")
+	ErrInvalidVolumeID = errors.New("invalid subvolume ID")
 )
 
 // capacityErrorSubstrings are error message patterns that indicate insufficient pool capacity.
@@ -1363,6 +1363,8 @@ func (s *ControllerService) ControllerGetVolume(ctx context.Context, req *csi.Co
 }
 
 // getNFSVolumeInfo retrieves volume information and health status for an NFS volume.
+//
+//nolint:dupl // Each protocol's health check has unique verification logic despite similar structure
 func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
 	klog.V(4).Infof("Getting NFS volume info: %s (subvolume: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
@@ -1434,6 +1436,8 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 }
 
 // getNVMeOFVolumeInfo retrieves volume information and health status for an NVMe-oF volume.
+//
+//nolint:dupl // Each protocol's health check has unique verification logic despite similar structure
 func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
 	klog.V(4).Infof("Getting NVMe-oF volume info: %s (subvolume: %s, NQN: %s)",
 		meta.Name, meta.DatasetID, meta.NVMeOFNQN)
@@ -1466,13 +1470,14 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 	// Check 2: Verify NVMe-oF subsystem exists by NQN
 	if meta.NVMeOFNQN != "" {
 		foundSubsystem, err := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, meta.NVMeOFNQN)
-		if err != nil {
+		switch {
+		case err != nil:
 			abnormal = true
 			messages = append(messages, fmt.Sprintf("NVMe-oF subsystem not found for NQN %s: %v", meta.NVMeOFNQN, err))
-		} else if foundSubsystem == nil {
+		case foundSubsystem == nil:
 			abnormal = true
 			messages = append(messages, "NVMe-oF subsystem not found for NQN "+meta.NVMeOFNQN)
-		} else {
+		default:
 			klog.V(4).Infof("NVMe-oF subsystem %s is healthy (NQN: %s)", foundSubsystem.ID, foundSubsystem.NQN)
 		}
 	}

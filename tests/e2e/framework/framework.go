@@ -302,6 +302,8 @@ func NewFramework() (*Framework, error) {
 // SMBStorageClassParams returns base parameters for creating an SMB StorageClass.
 // Tests that create custom StorageClasses should merge their extra params into this map
 // to ensure smbUsername and credentials are always set.
+//
+//nolint:gosec // G101: false positive — these are Kubernetes secret reference names, not credentials
 func (f *Framework) SMBStorageClassParams() map[string]string {
 	params := map[string]string{
 		"protocol": "smb",
@@ -618,6 +620,7 @@ func dumpDeployDiagnostics() {
 	}
 }
 
+// SetupProtocol switches the CSI driver to the specified protocol by redeploying via Helm.
 func (f *Framework) SetupProtocol(protocol string) error {
 	f.protocol = protocol
 	klog.Infof("Switching to protocol %s", protocol)

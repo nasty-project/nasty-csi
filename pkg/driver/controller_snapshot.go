@@ -130,47 +130,51 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Check idempotency: if snapshot already exists on this subvolume, return it.
 	// If it exists on a DIFFERENT volume, return ALREADY_EXISTS per CSI spec.
-	if managedSubvols, findErr := s.apiClient.FindManagedSubvolumes(ctx, ""); findErr == nil {
-		for _, sv := range managedSubvols {
+	managedSubvols, findErr := s.apiClient.FindManagedSubvolumes(ctx, "")
+	if findErr == nil {
+		for i := range managedSubvols {
+			sv := &managedSubvols[i]
 			for _, snap := range sv.Snapshots {
-				if snap == snapshotName && (sv.Pool != pool || sv.Name != subvolumeName) {
-					timer.ObserveError()
-					return nil, status.Errorf(codes.AlreadyExists,
-						"snapshot %q already exists on different volume %s/%s", snapshotName, sv.Pool, sv.Name)
+				if snap != snapshotName || (sv.Pool == pool && sv.Name == subvolumeName) {
+					continue
 				}
+				timer.ObserveError()
+				return nil, status.Errorf(codes.AlreadyExists,
+					"snapshot %q already exists on different volume %s/%s", snapshotName, sv.Pool, sv.Name)
 			}
 		}
 	}
 
 	for _, existingSnap := range subvol.Snapshots {
-		if existingSnap == snapshotName {
-			klog.Infof("Snapshot %s already exists on volume %s (idempotent)", snapshotName, sourceVolumeID)
-			snapshotMeta := SnapshotMetadata{
-				SnapshotName: snapshotName,
-				SourceVolume: sourceVolumeID,
-				Protocol:     protocol,
-				CreatedAt:    time.Now().Unix(),
-			}
-			snapshotID, encodeErr := encodeSnapshotID(snapshotMeta)
-			if encodeErr != nil {
-				timer.ObserveError()
-				return nil, status.Errorf(codes.Internal, "Failed to encode snapshot ID: %v", encodeErr)
-			}
-			var sizeBytes int64
-			if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
-				sizeBytes = nastyapi.StringToInt64(capStr)
-			}
-			timer.ObserveSuccess()
-			return &csi.CreateSnapshotResponse{
-				Snapshot: &csi.Snapshot{
-					SnapshotId:     snapshotID,
-					SourceVolumeId: sourceVolumeID,
-					CreationTime:   timestamppb.New(time.Now()),
-					ReadyToUse:     true,
-					SizeBytes:      sizeBytes,
-				},
-			}, nil
+		if existingSnap != snapshotName {
+			continue
 		}
+		klog.Infof("Snapshot %s already exists on volume %s (idempotent)", snapshotName, sourceVolumeID)
+		snapshotMeta := SnapshotMetadata{
+			SnapshotName: snapshotName,
+			SourceVolume: sourceVolumeID,
+			Protocol:     protocol,
+			CreatedAt:    time.Now().Unix(),
+		}
+		snapshotID, encodeErr := encodeSnapshotID(snapshotMeta)
+		if encodeErr != nil {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal, "Failed to encode snapshot ID: %v", encodeErr)
+		}
+		var sizeBytes int64
+		if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
+			sizeBytes = nastyapi.StringToInt64(capStr)
+		}
+		timer.ObserveSuccess()
+		return &csi.CreateSnapshotResponse{
+			Snapshot: &csi.Snapshot{
+				SnapshotId:     snapshotID,
+				SourceVolumeId: sourceVolumeID,
+				CreationTime:   timestamppb.New(time.Now()),
+				ReadyToUse:     true,
+				SizeBytes:      sizeBytes,
+			},
+		}, nil
 	}
 
 	// Create snapshot

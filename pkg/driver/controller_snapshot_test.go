@@ -478,8 +478,8 @@ func TestIsNotFoundError(t *testing.T) {
 func TestEncodeSnapshotToken(t *testing.T) {
 	tests := []struct {
 		name   string
-		offset int
 		want   string
+		offset int
 	}{
 		{name: "zero offset", offset: 0, want: "0"},
 		{name: "positive offset", offset: 5, want: "5"},

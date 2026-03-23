@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -291,7 +292,7 @@ func (v *NAStyVerifier) GetSubvolumeProperty(ctx context.Context, datasetPath, p
 		}
 	case "volsize":
 		if subvol.VolsizeBytes != nil {
-			return fmt.Sprintf("%d", *subvol.VolsizeBytes), nil
+			return strconv.FormatUint(*subvol.VolsizeBytes, 10), nil
 		}
 	}
 	return "", nil

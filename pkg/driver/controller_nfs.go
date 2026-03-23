@@ -19,7 +19,6 @@ import (
 
 // nfsVolumeParams holds validated parameters for NFS volume creation.
 type nfsVolumeParams struct {
-	nfsClients        []nastyapi.NFSClient
 	pool              string
 	volumeName        string
 	subvolumeName     string // short name within pool (e.g., "pvc-xxx")
@@ -31,6 +30,7 @@ type nfsVolumeParams struct {
 	pvcName           string
 	pvcNamespace      string
 	storageClass      string
+	nfsClients        []nastyapi.NFSClient
 	requestedCapacity int64
 	markAdoptable     bool
 }
@@ -145,6 +145,8 @@ func parseCapacityFromComment(comment string) int64 {
 }
 
 // buildNFSVolumeResponseFromSubvolume builds the CreateVolumeResponse for an NFS volume.
+//
+//nolint:dupl // Protocol-specific response builders intentionally follow the same pattern
 func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *nastyapi.Subvolume, nfsShare *nastyapi.NFSShare, capacity int64) *csi.CreateVolumeResponse {
 	volumeID := subvol.Pool + "/" + subvol.Name
 
@@ -500,7 +502,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 }
 
 // splitSubvolumeID splits "pool/name" into (pool, name).
-func splitSubvolumeID(subvolumeID string) (pool string, name string, err error) {
+func splitSubvolumeID(subvolumeID string) (pool, name string, err error) {
 	idx := strings.Index(subvolumeID, "/")
 	if idx < 0 || idx == len(subvolumeID)-1 {
 		return "", "", fmt.Errorf("%w: %q expected pool/name format", ErrInvalidVolumeID, subvolumeID)
@@ -624,7 +626,6 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 }
 
 // expandNFSVolume expands an NFS volume by updating the subvolume capacity.
-//
 func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMetadata, requiredBytes int64) (*csi.ControllerExpandVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "expand")
 	klog.V(4).Infof("Expanding NFS volume: %s (subvolumeID: %s) to %d bytes", meta.Name, meta.DatasetID, requiredBytes)
@@ -644,11 +645,11 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 	klog.V(4).Infof("Expanding NFS subvolume %s/%s to %d bytes", pool, subvolName, requiredBytes)
 
 	// Resize the underlying subvolume
-//nolint:gosec // G115: CSI capacity is always non-negative
-	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); err != nil {
-		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, err)
+	//nolint:gosec // G115: CSI capacity is always non-negative
+	if _, resizeErr := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); resizeErr != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, resizeErr)
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", resizeErr)
 	}
 
 	// Update capacity via xattr property (NASty handles quota enforcement via xattr)

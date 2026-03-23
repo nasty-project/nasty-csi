@@ -4,6 +4,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,18 +116,18 @@ func buildISCSIVolumeResponse(volumeName, server string, subvol *nastyapi.Subvol
 	volumeID := subvol.Pool + "/" + subvol.Name
 
 	meta := VolumeMetadata{
-		Name:             volumeName,
-		Protocol:         ProtocolISCSI,
-		DatasetID:        volumeID,
-		DatasetName:      subvol.Name,
-		Server:           server,
-		ISCSITargetUUID:  target.ID,
-		ISCSIIQN:         target.IQN,
+		Name:            volumeName,
+		Protocol:        ProtocolISCSI,
+		DatasetID:       volumeID,
+		DatasetName:     subvol.Name,
+		Server:          server,
+		ISCSITargetUUID: target.ID,
+		ISCSIIQN:        target.IQN,
 	}
 
 	// Build volume context with all necessary metadata
 	volumeContext := buildVolumeContext(meta)
-	volumeContext[VolumeContextKeyExpectedCapacity] = fmt.Sprintf("%d", capacity)
+	volumeContext[VolumeContextKeyExpectedCapacity] = strconv.FormatInt(capacity, 10)
 
 	// Record volume capacity metric
 	metrics.SetVolumeCapacity(volumeID, metrics.ProtocolISCSI, capacity)
@@ -354,12 +355,12 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 	return deleteStrategy, false, nil
 }
 
+const deleteStrategyDelete = "delete"
+
 // deleteISCSIVolume deletes an iSCSI volume and all associated resources.
 // Subvolume is deleted first; if it fails, iSCSI target is preserved to prevent orphaning.
 //
-//nolint:gocognit // Complexity from ownership verification + dependent data guard + subvolume-first delete order
-const deleteStrategyDelete = "delete"
-
+//nolint:dupl // Delete pattern shared with NVMe-oF
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, deleteStrategyDelete)
 	klog.Infof("Deleting iSCSI volume: %s (subvolume: %s, target: %s)",
@@ -453,7 +454,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 	}
 
 	// Resize the underlying subvolume
-//nolint:gosec // G115: CSI capacity is always non-negative
+	//nolint:gosec // G115: CSI capacity is always non-negative
 	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
 		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
 		timer.ObserveError()
@@ -462,7 +463,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 
 	// Update capacity via xattr property
 	props := map[string]string{
-		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	}
 	_, err := s.apiClient.SetSubvolumeProperties(ctx, pool, name, props)
 	if err != nil {

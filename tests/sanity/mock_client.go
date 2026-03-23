@@ -34,13 +34,13 @@ var (
 
 // MockClient is a mock implementation of the NASty API client for sanity testing.
 type MockClient struct {
-	mu               sync.Mutex
 	subvolumes       map[string]*nastyapi.Subvolume       // key: "pool/name"
 	snapshots        map[string]*nastyapi.Snapshot        // key: "pool/subvolume@name"
 	nfsShares        map[string]*nastyapi.NFSShare        // key: UUID
 	smbShares        map[string]*nastyapi.SMBShare        // key: UUID
 	iscsiTargets     map[string]*nastyapi.ISCSITarget     // key: UUID
 	nvmeofSubsystems map[string]*nastyapi.NVMeOFSubsystem // key: UUID
+	mu               sync.Mutex
 	nextID           uint64
 }
 

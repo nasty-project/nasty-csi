@@ -4,7 +4,7 @@ package driver
 import (
 	"context"
 	"fmt"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -151,7 +151,7 @@ func buildNVMeOFVolumeResponse(volumeName, server string, subvol *nastyapi.Subvo
 	volumeContext := buildVolumeContext(meta)
 	// NSID is always 1 with independent subsystem architecture (one subsystem per volume)
 	volumeContext[VolumeContextKeyNSID] = "1"
-	volumeContext[VolumeContextKeyExpectedCapacity] = fmt.Sprintf("%d", capacity)
+	volumeContext[VolumeContextKeyExpectedCapacity] = strconv.FormatInt(capacity, 10)
 
 	// Record volume capacity metric
 	metrics.SetVolumeCapacity(volumeID, metrics.ProtocolNVMeOF, capacity)
@@ -246,17 +246,17 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 
 	// Step 3: Store xattr properties for metadata tracking
 	props := nastyapi.NVMeOFVolumePropertiesV1(nastyapi.NVMeOFVolumeParams{
-		VolumeID:        params.volumeName,
-		CapacityBytes:   params.requestedCapacity,
-		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy:  params.deleteStrategy,
-		SubsystemIDStr:  subsystem.ID,
-		SubsystemNQN:    subsystem.NQN,
-		PVCName:         params.pvcName,
-		PVCNamespace:    params.pvcNamespace,
-		StorageClass:    params.storageClass,
-		Adoptable:       params.markAdoptable,
-		ClusterID:       s.clusterID,
+		VolumeID:       params.volumeName,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		SubsystemIDStr: subsystem.ID,
+		SubsystemNQN:   subsystem.NQN,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if _, err := s.apiClient.SetSubvolumeProperties(ctx, params.pool, params.subvolumeName, props); err != nil {
 		klog.Warningf("Failed to set xattr properties on %s: %v (volume created successfully)", params.subvolumeName, err)
@@ -319,7 +319,7 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 // deleteNVMeOFVolume deletes an NVMe-oF volume and all associated resources.
 // Subvolume is deleted first; if it fails, NVMe-oF subsystem is preserved to prevent orphaning.
 //
-//nolint:gocognit // Complexity from ownership verification + subvolume-first delete order
+//nolint:gocyclo,dupl // Complexity from ownership verification; delete pattern shared with iSCSI
 func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "delete")
 	klog.Infof("Deleting NVMe-oF volume: %s (subvolume: %s, subsystem: %s)",
@@ -442,7 +442,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 	}
 
 	// Resize the underlying subvolume
-//nolint:gosec // G115: CSI capacity is always non-negative
+	//nolint:gosec // G115: CSI capacity is always non-negative
 	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
 		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
 		timer.ObserveError()
@@ -451,7 +451,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 
 	// Update capacity via xattr property
 	props := map[string]string{
-		nastyapi.PropertyCapacityBytes: fmt.Sprintf("%d", requiredBytes),
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	}
 	_, err := s.apiClient.SetSubvolumeProperties(ctx, pool, name, props)
 	if err != nil {
@@ -548,17 +548,17 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
 	props := nastyapi.NVMeOFVolumePropertiesV1(nastyapi.NVMeOFVolumeParams{
-		VolumeID:        volumeName,
-		CapacityBytes:   requestedCapacity,
-		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy:  deleteStrategy,
-		SubsystemIDStr:  subsystem.ID,
-		SubsystemNQN:    subsystem.NQN,
-		PVCName:         params["csi.storage.k8s.io/pvc/name"],
-		PVCNamespace:    params["csi.storage.k8s.io/pvc/namespace"],
-		StorageClass:    params["csi.storage.k8s.io/sc/name"],
-		Adoptable:       markAdoptable,
-		ClusterID:       s.clusterID,
+		VolumeID:       volumeName,
+		CapacityBytes:  requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: deleteStrategy,
+		SubsystemIDStr: subsystem.ID,
+		SubsystemNQN:   subsystem.NQN,
+		PVCName:        params["csi.storage.k8s.io/pvc/name"],
+		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
+		StorageClass:   params["csi.storage.k8s.io/sc/name"],
+		Adoptable:      markAdoptable,
+		ClusterID:      s.clusterID,
 	})
 	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); propErr != nil {
 		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Pool, subvol.Name, propErr)
@@ -576,16 +576,4 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	injectQueueParams(resp.Volume.VolumeContext, nrIOQueues, queueSize)
 
 	return resp, nil
-}
-
-// isDependentClonesError checks if an error is due to dependent clones preventing deletion.
-// NASty returns specific error messages when a subvolume has dependent snapshots.
-func isDependentClonesError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := strings.ToLower(err.Error())
-	return strings.Contains(errStr, "dependent") ||
-		strings.Contains(errStr, "clone") ||
-		strings.Contains(errStr, "snapshot exists")
 }

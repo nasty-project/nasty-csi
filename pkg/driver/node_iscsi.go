@@ -275,7 +275,7 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 }
 
 // findDiscoveredPortal parses iscsiadm discovery output to find the portal for a given IQN.
-// Discovery output format: "10.0.0.22:3260,1 iqn.2137-04.storage.nasty:volume-name"
+// Discovery output format: "10.0.0.22:3260,1 iqn.2137-04.storage.nasty:volume-name".
 func findDiscoveredPortal(discoveryOutput, iqn string) string {
 	for _, line := range strings.Split(discoveryOutput, "\n") {
 		line = strings.TrimSpace(line)

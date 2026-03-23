@@ -8,36 +8,62 @@ package dashboard
 import dashlib "github.com/nasty-project/nasty-go/dashboard"
 
 type (
-	Data                   = dashlib.Data
-	SummaryData            = dashlib.SummaryData
-	VolumeInfo             = dashlib.VolumeInfo
-	SnapshotInfo           = dashlib.SnapshotInfo
-	CloneInfo              = dashlib.CloneInfo
-	UnmanagedVolume        = dashlib.UnmanagedVolume
-	HealthStatus           = dashlib.HealthStatus
-	VolumeHealth           = dashlib.VolumeHealth
-	HealthReport           = dashlib.HealthReport
-	HealthSummary          = dashlib.HealthSummary
-	HealthResourceMaps     = dashlib.HealthResourceMaps
-	K8sVolumeBinding       = dashlib.K8sVolumeBinding
-	K8sEnrichmentResult    = dashlib.K8sEnrichmentResult
-	VolumeDetails          = dashlib.VolumeDetails
-	NFSShareDetails        = dashlib.NFSShareDetails
+	// Data holds the full dashboard data payload.
+	Data = dashlib.Data
+	// SummaryData holds aggregated summary statistics.
+	SummaryData = dashlib.SummaryData
+	// VolumeInfo holds volume information for the dashboard.
+	VolumeInfo = dashlib.VolumeInfo
+	// SnapshotInfo holds snapshot information for the dashboard.
+	SnapshotInfo = dashlib.SnapshotInfo
+	// CloneInfo holds clone information for the dashboard.
+	CloneInfo = dashlib.CloneInfo
+	// UnmanagedVolume holds information about non-CSI-managed volumes.
+	UnmanagedVolume = dashlib.UnmanagedVolume
+	// HealthStatus represents the health status of a resource.
+	HealthStatus = dashlib.HealthStatus
+	// VolumeHealth holds health information for a volume.
+	VolumeHealth = dashlib.VolumeHealth
+	// HealthReport holds a full health report.
+	HealthReport = dashlib.HealthReport
+	// HealthSummary holds aggregated health statistics.
+	HealthSummary = dashlib.HealthSummary
+	// HealthResourceMaps holds resource maps for health checking.
+	HealthResourceMaps = dashlib.HealthResourceMaps
+	// K8sVolumeBinding holds Kubernetes PV/PVC binding information.
+	K8sVolumeBinding = dashlib.K8sVolumeBinding
+	// K8sEnrichmentResult holds the result of Kubernetes data enrichment.
+	K8sEnrichmentResult = dashlib.K8sEnrichmentResult
+	// VolumeDetails holds detailed volume information.
+	VolumeDetails = dashlib.VolumeDetails
+	// NFSShareDetails holds NFS share details.
+	NFSShareDetails = dashlib.NFSShareDetails
+	// NVMeOFSubsystemDetails holds NVMe-oF subsystem details.
 	NVMeOFSubsystemDetails = dashlib.NVMeOFSubsystemDetails
-	SMBShareDetails        = dashlib.SMBShareDetails
-	ISCSITargetDetails     = dashlib.ISCSITargetDetails
-	MetricsSummary         = dashlib.MetricsSummary
-	PaginationParams       = dashlib.PaginationParams
-	PaginatedVolumes       = dashlib.PaginatedVolumes
-	PaginatedSnapshots     = dashlib.PaginatedSnapshots
-	PaginatedClones        = dashlib.PaginatedClones
-	PaginatedUnmanaged     = dashlib.PaginatedUnmanaged
+	// SMBShareDetails holds SMB share details.
+	SMBShareDetails = dashlib.SMBShareDetails
+	// ISCSITargetDetails holds iSCSI target details.
+	ISCSITargetDetails = dashlib.ISCSITargetDetails
+	// MetricsSummary holds metrics summary data.
+	MetricsSummary = dashlib.MetricsSummary
+	// PaginationParams holds pagination parameters.
+	PaginationParams = dashlib.PaginationParams
+	// PaginatedVolumes holds a paginated list of volumes.
+	PaginatedVolumes = dashlib.PaginatedVolumes
+	// PaginatedSnapshots holds a paginated list of snapshots.
+	PaginatedSnapshots = dashlib.PaginatedSnapshots
+	// PaginatedClones holds a paginated list of clones.
+	PaginatedClones = dashlib.PaginatedClones
+	// PaginatedUnmanaged holds a paginated list of unmanaged volumes.
+	PaginatedUnmanaged = dashlib.PaginatedUnmanaged
 )
 
 const (
 	// HealthStatusHealthy indicates a healthy status.
-	HealthStatusHealthy   = dashlib.HealthStatusHealthy
-	HealthStatusDegraded  = dashlib.HealthStatusDegraded
+	HealthStatusHealthy = dashlib.HealthStatusHealthy
+	// HealthStatusDegraded indicates a degraded status.
+	HealthStatusDegraded = dashlib.HealthStatusDegraded
+	// HealthStatusUnhealthy indicates an unhealthy status.
 	HealthStatusUnhealthy = dashlib.HealthStatusUnhealthy
 )
 

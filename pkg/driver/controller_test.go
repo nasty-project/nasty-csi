@@ -1466,8 +1466,8 @@ func TestGetAdoptionInfo_Partial(t *testing.T) {
 
 func TestIsMultiNodeMode(t *testing.T) {
 	tests := []struct {
-		mode csi.VolumeCapability_AccessMode_Mode
 		name string
+		mode csi.VolumeCapability_AccessMode_Mode
 		want bool
 	}{
 		{

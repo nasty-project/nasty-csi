@@ -232,7 +232,8 @@ func (s *ControllerService) listAllSnapshots(ctx context.Context, req *csi.ListS
 
 	// Collect all snapshots from all managed subvolumes
 	var allEntries []*csi.ListSnapshotsResponse_Entry
-	for _, subvol := range subvols {
+	for i := range subvols {
+		subvol := &subvols[i]
 		protocol := subvol.Properties[nastyapi.PropertyProtocol]
 		if protocol == "" {
 			protocol = ProtocolNFS

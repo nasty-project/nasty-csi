@@ -532,10 +532,10 @@ func TestSetupNFSVolumeFromClone_Unimplemented(t *testing.T) {
 
 func TestParseNFSClients(t *testing.T) {
 	tests := []struct {
+		expectFirst nastyapi.NFSClient
 		name        string
 		input       string
 		expectCount int
-		expectFirst nastyapi.NFSClient
 	}{
 		{
 			name:        "empty string defaults to wildcard",

@@ -150,35 +150,7 @@ func TestGenerateIQN(t *testing.T) {
 }
 
 func TestBuildISCSIVolumeResponse(t *testing.T) {
-	volumeName := "test-volume"
-	server := "192.168.1.100"
-	capacity := int64(5 * 1024 * 1024 * 1024)
-
-	subvol := &MockSubvolume{
-		pool: "tank",
-		name: "csi/test-volume",
-	}
-	target := &MockISCSITarget{
-		id:  "some-uuid",
-		iqn: "iqn.2024-01.io.nasty.csi:test-volume",
-	}
-
-	_ = volumeName
-	_ = server
-	_ = capacity
-	_ = subvol
-	_ = target
 	// buildISCSIVolumeResponse uses nastyapi.Subvolume and nastyapi.ISCSITarget directly;
 	// tested indirectly via integration. This placeholder ensures compilation.
-}
-
-// MockSubvolume and MockISCSITarget are lightweight helpers for test assertions.
-type MockSubvolume struct {
-	pool string
-	name string
-}
-
-type MockISCSITarget struct {
-	id  string
-	iqn string
+	t.Log("buildISCSIVolumeResponse is tested indirectly via integration tests")
 }
