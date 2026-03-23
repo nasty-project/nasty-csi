@@ -87,12 +87,9 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 		return nil, status.Errorf(codes.FailedPrecondition, "open-iscsi not available: %v", checkErr)
 	}
 
-	// Retry parameters for handling iSCSI service availability issues.
-	// The iSCSI service on NASty may be temporarily unavailable during
-	// service reloads triggered by target creation.
 	const (
-		maxRetries = 5
-		retryDelay = 15 * time.Second
+		maxRetries = 2
+		retryDelay = 5 * time.Second
 	)
 
 	var lastErr error

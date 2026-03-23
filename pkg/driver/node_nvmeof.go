@@ -211,9 +211,9 @@ func (s *NodeService) verifyDeviceHealthy(ctx context.Context, devicePath string
 // of each attempt to allow graceful termination.
 func (s *NodeService) connectAndStageDevice(ctx context.Context, params *nvmeOFConnectionParams, volumeID, stagingTargetPath string, volumeCapability *csi.VolumeCapability, isBlockVolume bool, volumeContext map[string]string, datasetName string) (*csi.NodeStageVolumeResponse, error) {
 	const (
-		stateWaitTimeout  = 60 * time.Second // Wait for subsystem to become "live"
-		deviceWaitTimeout = 60 * time.Second // Wait for device path to appear
-		maxConnectRetries = 10               // Try up to 10 connect cycles
+		stateWaitTimeout  = 20 * time.Second // Wait for subsystem to become "live"
+		deviceWaitTimeout = 20 * time.Second // Wait for device path to appear
+		maxConnectRetries = 3                // Fail fast — if 3 attempts fail, it's a real problem
 		retryDelay        = 2 * time.Second  // Delay between retries
 	)
 
