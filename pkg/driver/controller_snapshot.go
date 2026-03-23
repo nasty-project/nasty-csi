@@ -128,7 +128,20 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		protocol = ProtocolNFS
 	}
 
-	// Check idempotency: if snapshot already exists on this subvolume, return it
+	// Check idempotency: if snapshot already exists on this subvolume, return it.
+	// If it exists on a DIFFERENT volume, return ALREADY_EXISTS per CSI spec.
+	if managedSubvols, findErr := s.apiClient.FindManagedSubvolumes(ctx, ""); findErr == nil {
+		for _, sv := range managedSubvols {
+			for _, snap := range sv.Snapshots {
+				if snap == snapshotName && (sv.Pool != pool || sv.Name != subvolumeName) {
+					timer.ObserveError()
+					return nil, status.Errorf(codes.AlreadyExists,
+						"snapshot %q already exists on different volume %s/%s", snapshotName, sv.Pool, sv.Name)
+				}
+			}
+		}
+	}
+
 	for _, existingSnap := range subvol.Snapshots {
 		if existingSnap == snapshotName {
 			klog.Infof("Snapshot %s already exists on volume %s (idempotent)", snapshotName, sourceVolumeID)

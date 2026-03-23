@@ -242,6 +242,12 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 		ReadOnly:  params.ReadOnly,
 	}
 	m.snapshots[snapKey] = snap
+
+	// Update the parent subvolume's snapshot list (used by CSI for idempotency checks)
+	if sv, exists := m.subvolumes[svKey]; exists {
+		sv.Snapshots = append(sv.Snapshots, params.Name)
+	}
+
 	return snap, nil
 }
 
@@ -255,6 +261,18 @@ func (m *MockClient) DeleteSnapshot(_ context.Context, pool, subvolume, name str
 		return ErrSnapshotNotFound
 	}
 	delete(m.snapshots, snapKey)
+
+	// Update the parent subvolume's snapshot list
+	svKey := pool + "/" + subvolume
+	if sv, exists := m.subvolumes[svKey]; exists {
+		for i, s := range sv.Snapshots {
+			if s == name {
+				sv.Snapshots = append(sv.Snapshots[:i], sv.Snapshots[i+1:]...)
+				break
+			}
+		}
+	}
+
 	return nil
 }
 

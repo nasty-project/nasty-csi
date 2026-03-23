@@ -34,7 +34,7 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 	// 1. Decode snapshot ID to get source metadata
 	meta, err := decodeSnapshotID(snapshotID)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid snapshot ID %q: %v", snapshotID, err)
+		return nil, status.Errorf(codes.NotFound, "snapshot %q not found: %v", snapshotID, err)
 	}
 
 	pool, parentSubvolume, err := splitSubvolumeID(meta.SourceVolume)
