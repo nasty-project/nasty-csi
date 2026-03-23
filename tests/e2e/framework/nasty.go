@@ -236,7 +236,7 @@ func (v *NAStyVerifier) GetDatasetOrigin(ctx context.Context, datasetPath string
 	if subvol == nil {
 		return "", fmt.Errorf("%s: %w", datasetPath, ErrDatasetNotFound)
 	}
-	// bcachefs doesn't track clone origin the same way ZFS does.
+	// bcachefs doesn't track clone origin.
 	// Return empty — clone detection is not needed for NASty tests.
 	return "", nil
 }
@@ -269,9 +269,9 @@ func (v *NAStyVerifier) GetDatasetProperty(ctx context.Context, datasetPath, pro
 	return subvol.Properties[propertyName], nil
 }
 
-// GetZFSProperty retrieves a subvolume field by name.
-// Maps common ZFS property names to NASty subvolume fields.
-func (v *NAStyVerifier) GetZFSProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
+// GetSubvolumeProperty retrieves a subvolume field by name.
+// Maps common property names to NASty subvolume fields.
+func (v *NAStyVerifier) GetSubvolumeProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
 	pool, name, err := parseDatasetPath(datasetPath)
 	if err != nil {
 		return "", err

@@ -278,7 +278,7 @@ func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVe
 			klog.Warningf("Failed to cleanup retained NFS share %s: %v", sharePath, err)
 		}
 		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
-			klog.Warningf("Failed to cleanup retained NFS dataset %s: %v", volumeHandle, err)
+			klog.Warningf("Failed to cleanup retained NFS subvolume %s: %v", volumeHandle, err)
 		}
 	case "nvmeof":
 		if subsystemNQN != "" {
@@ -287,7 +287,7 @@ func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVe
 			}
 		}
 		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
-			klog.Warningf("Failed to cleanup retained ZVOL %s: %v", volumeHandle, err)
+			klog.Warningf("Failed to cleanup retained block subvolume %s: %v", volumeHandle, err)
 		}
 	case "iscsi":
 		targetName := path.Base(volumeHandle)
@@ -298,7 +298,7 @@ func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVe
 			klog.Warningf("Failed to cleanup retained iSCSI extent %s: %v", targetName, err)
 		}
 		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
-			klog.Warningf("Failed to cleanup retained ZVOL %s: %v", volumeHandle, err)
+			klog.Warningf("Failed to cleanup retained block subvolume %s: %v", volumeHandle, err)
 		}
 	case "smb":
 		sharePath := "/storage/" + volumeHandle
@@ -306,7 +306,7 @@ func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVe
 			klog.Warningf("Failed to cleanup retained SMB share %s: %v", sharePath, err)
 		}
 		if err := nasty.DeleteDataset(ctx, volumeHandle); err != nil {
-			klog.Warningf("Failed to cleanup retained SMB dataset %s: %v", volumeHandle, err)
+			klog.Warningf("Failed to cleanup retained SMB subvolume %s: %v", volumeHandle, err)
 		}
 	}
 }

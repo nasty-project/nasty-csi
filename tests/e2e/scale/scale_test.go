@@ -57,12 +57,12 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			err = f.K8s.WaitForPVCBound(ctx, pvc.Name, 2*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Getting the volume handle (dataset path) for later verification")
+			By("Getting the volume handle (subvolume path) for later verification")
 			pvName, err := f.K8s.GetPVName(ctx, pvc.Name)
 			Expect(err).NotTo(HaveOccurred())
 			datasetPath, err := f.K8s.GetVolumeHandle(ctx, pvName)
 			Expect(err).NotTo(HaveOccurred())
-			GinkgoWriter.Printf("Volume handle (dataset path): %s\n", datasetPath)
+			GinkgoWriter.Printf("Volume handle (subvolume path): %s\n", datasetPath)
 
 			By("Creating a pod and writing data")
 			pod, err := f.CreatePod(ctx, framework.PodOptions{
@@ -108,12 +108,12 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			err = f.K8s.WaitForPVDeleted(ctx, pvName, 3*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Verifying the ZFS dataset was deleted from NASty backend")
+			By("Verifying the subvolume was deleted from NASty backend")
 			Expect(f.NASty).NotTo(BeNil(), "NASty verifier should be available")
 			time.Sleep(5 * time.Second) // Give NASty a moment to finalize
 			exists, err := f.NASty.DatasetExists(ctx, datasetPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(exists).To(BeFalse(), "Dataset %s should be deleted from NASty", datasetPath)
+			Expect(exists).To(BeFalse(), "Subvolume %s should be deleted from NASty", datasetPath)
 
 			By("Verifying NFS share was cleaned up")
 			nfsSharePath := "/storage/" + datasetPath
@@ -162,7 +162,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred(), "Failed to create PVC %s", vi.pvcName)
 			}
 
-			By("Waiting for all PVCs to become Bound and capturing dataset paths")
+			By("Waiting for all PVCs to become Bound and capturing subvolume paths")
 			for i := range volumeCount {
 				vi := &volumes[i]
 				err := f.K8s.WaitForPVCBound(ctx, vi.pvcName, 2*time.Minute)
@@ -172,7 +172,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred())
 				vi.datasetPath, err = f.K8s.GetVolumeHandle(ctx, vi.pvName)
 				Expect(err).NotTo(HaveOccurred())
-				GinkgoWriter.Printf("Volume %d: PV=%s, dataset=%s\n", i, vi.pvName, vi.datasetPath)
+				GinkgoWriter.Printf("Volume %d: PV=%s, subvolume=%s\n", i, vi.pvName, vi.datasetPath)
 			}
 
 			By("Creating pods and writing data to each volume")
@@ -232,14 +232,14 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 				Expect(err).NotTo(HaveOccurred(), "PV %s was not deleted in time", vi.pvName)
 			}
 
-			By("Verifying all ZFS datasets were cleaned up from NASty backend")
+			By("Verifying all subvolumes were cleaned up from NASty backend")
 			Expect(f.NASty).NotTo(BeNil())
 			time.Sleep(5 * time.Second)
 			for i := range volumeCount {
 				vi := &volumes[i]
 				exists, err := f.NASty.DatasetExists(ctx, vi.datasetPath)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(exists).To(BeFalse(), "Dataset %s should be deleted", vi.datasetPath)
+				Expect(exists).To(BeFalse(), "Subvolume %s should be deleted", vi.datasetPath)
 			}
 
 			GinkgoWriter.Printf("SUCCESS: %d volumes with snapshots created and deleted amid noise data\n", volumeCount)
@@ -347,17 +347,17 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			err = f.K8s.WaitForPVDeleted(ctx, srcPVName, 3*time.Minute)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Verifying both datasets are gone from NASty")
+			By("Verifying both subvolumes are gone from NASty")
 			Expect(f.NASty).NotTo(BeNil())
 			time.Sleep(5 * time.Second)
 
 			exists, err := f.NASty.DatasetExists(ctx, srcDatasetPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(exists).To(BeFalse(), "Source dataset %s should be deleted", srcDatasetPath)
+			Expect(exists).To(BeFalse(), "Source subvolume %s should be deleted", srcDatasetPath)
 
 			exists, err = f.NASty.DatasetExists(ctx, restoreDatasetPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(exists).To(BeFalse(), "Restored dataset %s should be deleted", restoreDatasetPath)
+			Expect(exists).To(BeFalse(), "Restored subvolume %s should be deleted", restoreDatasetPath)
 
 			GinkgoWriter.Printf("SUCCESS: Volume -> snapshot -> restore -> delete all, amid noise data\n")
 		})
@@ -369,27 +369,27 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			Expect(noiseVerifier).NotTo(BeNil(), "Noise verifier should be available")
 			ctx := context.Background()
 
-			By("Verifying noise parent dataset still exists")
+			By("Verifying noise parent subvolume still exists")
 			exists, err := noiseVerifier.DatasetExists(ctx, noiseParent)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(exists).To(BeTrue(), "Noise parent dataset %s should still exist", noiseParent)
+			Expect(exists).To(BeTrue(), "Noise parent subvolume %s should still exist", noiseParent)
 
-			By("Verifying noise filesystem datasets still exist")
+			By("Verifying noise filesystem subvolumes still exist")
 			fsParent := noiseParent + "/datasets"
 			for i := 1; i <= actualDatasetCount; i++ {
 				dsName := fmt.Sprintf("%s/ds-%03d", fsParent, i)
 				exists, err := noiseVerifier.DatasetExists(ctx, dsName)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(exists).To(BeTrue(), "Noise dataset %s should still exist", dsName)
+				Expect(exists).To(BeTrue(), "Noise subvolume %s should still exist", dsName)
 			}
 
-			By("Verifying noise zvols still exist")
+			By("Verifying noise block subvolumes still exist")
 			zvolParent := noiseParent + "/zvols"
-			for i := 1; i <= actualZvolCount; i++ {
+			for i := 1; i <= actualBlockSubvolCount; i++ {
 				zvolName := fmt.Sprintf("%s/zvol-%03d", zvolParent, i)
 				exists, err := noiseVerifier.DatasetExists(ctx, zvolName)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(exists).To(BeTrue(), "Noise zvol %s should still exist", zvolName)
+				Expect(exists).To(BeTrue(), "Noise block subvolume %s should still exist", zvolName)
 			}
 
 			By("Verifying noise NFS shares still exist")
@@ -400,8 +400,8 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 				Expect(exists).To(BeTrue(), "Noise NFS share for %s should still exist", sharePath)
 			}
 
-			GinkgoWriter.Printf("Verified: %d datasets, %d zvols, %d NFS shares remain intact\n",
-				actualDatasetCount, actualZvolCount, nfsShareCount)
+			GinkgoWriter.Printf("Verified: %d subvolumes, %d block subvolumes, %d NFS shares remain intact\n",
+				actualDatasetCount, actualBlockSubvolCount, nfsShareCount)
 		})
 	})
 })

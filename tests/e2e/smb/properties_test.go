@@ -1,4 +1,5 @@
-package iscsi_test
+// Package smb contains E2E tests for SMB protocol support.
+package smb
 
 import (
 	"context"
@@ -12,14 +13,14 @@ import (
 	"github.com/nasty-project/nasty-csi/tests/e2e/framework"
 )
 
-var _ = Describe("iSCSI Storage Properties", func() {
+var _ = Describe("SMB Storage Properties", func() {
 	var f *framework.Framework
 	var ctx context.Context
 	var err error
 
 	const (
-		pvcTimeout = 360 * time.Second
-		podTimeout = 360 * time.Second
+		pvcTimeout = 120 * time.Second
+		podTimeout = 120 * time.Second
 	)
 
 	BeforeEach(func() {
@@ -27,7 +28,7 @@ var _ = Describe("iSCSI Storage Properties", func() {
 		f, err = framework.NewFramework()
 		Expect(err).NotTo(HaveOccurred())
 
-		err = f.Setup("iscsi")
+		err = f.Setup("smb")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -38,28 +39,23 @@ var _ = Describe("iSCSI Storage Properties", func() {
 	})
 
 	It("should create volume with custom storage properties", func() {
-		By("Creating StorageClass with storage properties for iSCSI")
-		storageClass := "nasty-csi-iscsi-props"
-		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, storageClass, "nasty.csi.io", map[string]string{
-			"protocol":    "iscsi",
-			"server":      f.Config.NAStyHost,
-			"pool":        f.Config.NAStyPool,
-			"port":        "3260",
-			"fsType":      "ext4",
-			"compression": "lz4",
-		}, "Immediate")
+		By("Creating StorageClass with storage properties")
+		storageClass := "nasty-csi-smb-props"
+		scParams := f.SMBStorageClassParams()
+		scParams["compression"] = "lz4"
+		err = f.K8s.CreateStorageClassWithParams(ctx, storageClass, "nasty.csi.io", scParams)
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(ctx, storageClass)
 		})
 
 		By("Creating PVC")
-		pvcName := "test-pvc-iscsi-props"
+		pvcName := "test-pvc-smb-props"
 		pvc, err := f.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
 			StorageClassName: storageClass,
 			Size:             "1Gi",
-			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pvc).NotTo(BeNil())
@@ -68,7 +64,7 @@ var _ = Describe("iSCSI Storage Properties", func() {
 		})
 
 		By("Creating POD to trigger provisioning")
-		podName := "test-pod-iscsi-props"
+		podName := "test-pod-smb-props"
 		pod, err := f.CreatePod(ctx, framework.PodOptions{
 			Name:      podName,
 			PVCName:   pvcName,
@@ -85,7 +81,7 @@ var _ = Describe("iSCSI Storage Properties", func() {
 		err = f.K8s.WaitForPVCBound(ctx, pvcName, pvcTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Getting dataset path from PV")
+		By("Getting subvolume path from PV")
 		pvName, err := f.K8s.GetPVName(ctx, pvcName)
 		Expect(err).NotTo(HaveOccurred())
 		datasetPath, err := f.K8s.GetVolumeHandle(ctx, pvName)
@@ -93,13 +89,13 @@ var _ = Describe("iSCSI Storage Properties", func() {
 		Expect(datasetPath).NotTo(BeEmpty())
 
 		By("Verifying compression is set to lz4")
-		compression, err := f.NASty.GetZFSProperty(ctx, datasetPath, "compression")
+		compression, err := f.NASty.GetSubvolumeProperty(ctx, datasetPath, "compression")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(strings.ToLower(compression)).To(Equal("lz4"), "compression should be lz4")
 
 		By("Verifying cluster_id user property is set")
 		clusterID, err := f.NASty.GetDatasetProperty(ctx, datasetPath, "nasty-csi:cluster_id")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(clusterID).To(Equal(f.Config.ClusterID), "Dataset should have nasty-csi:cluster_id matching configured cluster ID")
+		Expect(clusterID).To(Equal(f.Config.ClusterID), "Subvolume should have nasty-csi:cluster_id matching configured cluster ID")
 	})
 })

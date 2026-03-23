@@ -738,7 +738,7 @@ func (k *KubernetesClient) WaitForSnapshotReady(ctx context.Context, snapshotNam
 }
 
 // DeleteVolumeSnapshot deletes a VolumeSnapshot and waits for it to be fully removed.
-// This ensures the CSI DeleteSnapshot has completed and the ZFS snapshot is gone
+// This ensures the CSI DeleteSnapshot has completed and the snapshot is gone
 // before returning, preventing race conditions with subsequent PVC deletions.
 func (k *KubernetesClient) DeleteVolumeSnapshot(ctx context.Context, snapshotName string) error {
 	args := []string{

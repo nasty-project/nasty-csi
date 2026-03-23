@@ -16,7 +16,7 @@ This directory contains end-to-end tests for the NASty CSI driver using [Ginkgo]
 |----------|----------|---------|-------------|
 | `NASTY_HOST` | Yes | - | NASty server hostname (e.g., `nasty.local`) |
 | `NASTY_API_KEY` | Yes | - | NASty API key for authentication |
-| `NASTY_POOL` | No | `csi` | ZFS pool to use for test volumes |
+| `NASTY_POOL` | No | `csi` | Pool to use for test volumes |
 | `CSI_IMAGE_REPO` | No | `ghcr.io/fenio/nasty-csi` | Docker image repository |
 | `CSI_IMAGE_TAG` | No | `latest` | Docker image tag |
 | `KUBECONFIG` | No | `~/.kube/config` | Path to kubeconfig file |

@@ -15,7 +15,7 @@ import (
 
 // This test verifies that snapshots are independent of their source volume.
 // In bcachefs, all snapshots are first-class subvolumes — deleting the source
-// does not affect the snapshot. This is fundamentally simpler than ZFS.
+// does not affect the snapshot.
 
 var _ = Describe("Snapshot Independence", func() {
 	var f *framework.Framework

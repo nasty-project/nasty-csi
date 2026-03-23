@@ -85,7 +85,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
 		if f.Verbose() {
-			GinkgoWriter.Printf("Expected ZVOL path on NASty: %s\n", zvolPath)
+			GinkgoWriter.Printf("Expected block subvolume path on NASty: %s\n", zvolPath)
 		}
 
 		By("Creating a POD to write test data")
@@ -125,13 +125,13 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying ZVOL still exists on NASty")
+		By("Verifying block subvolume still exists on NASty")
 		Expect(f.NASty).NotTo(BeNil(), "NASty verifier must be available for this test")
 		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "ZVOL should still exist on NASty after PVC deletion with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "Block subvolume should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
-		By("Deleting the iSCSI target and extent to simulate orphaned volume (ZVOL exists, but iSCSI resources are missing)")
+		By("Deleting the iSCSI target and extent to simulate orphaned volume (block subvolume exists, but iSCSI resources are missing)")
 		err = f.NASty.DeleteISCSITarget(ctx, volumeHandle)
 		Expect(err).NotTo(HaveOccurred())
 		err = f.NASty.DeleteISCSIExtent(ctx, volumeHandle)
@@ -145,7 +145,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(extentExists).To(BeFalse(), "iSCSI extent should be deleted")
 		if f.Verbose() {
-			GinkgoWriter.Printf("Volume is now orphaned: ZVOL exists at %s but iSCSI resources are missing\n", zvolPath)
+			GinkgoWriter.Printf("Volume is now orphaned: block subvolume exists at %s but iSCSI resources are missing\n", zvolPath)
 		}
 
 		By("Creating StorageClass with adoptExisting=true for adoption")
@@ -215,12 +215,12 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		// The adopted PVC cleanup (via RegisterPVCCleanup) triggers CSI DeleteVolume
-		// which cleans up the NEW iSCSI target/extent and ZVOL. However, the ORIGINAL
-		// retained ZVOL (zvolPath) is left behind because adoption creates a new
-		// dataset path. Clean up the original retained ZVOL explicitly.
-		By("Cleaning up original retained ZVOL from NASty")
+		// which cleans up the NEW iSCSI target/extent and block subvolume. However, the ORIGINAL
+		// retained block subvolume (zvolPath) is left behind because adoption creates a new
+		// subvolume path. Clean up the original retained block subvolume explicitly.
+		By("Cleaning up original retained block subvolume from NASty")
 		err = f.NASty.DeleteDataset(ctx, zvolPath)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained ZVOL")
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained block subvolume")
 	})
 
 	It("should mark a volume as adoptable when markAdoptable=true", func() {
@@ -266,16 +266,16 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
 		if f.Verbose() {
-			GinkgoWriter.Printf("ZVOL path: %s\n", zvolPath)
+			GinkgoWriter.Printf("Block subvolume path: %s\n", zvolPath)
 		}
 
-		By("Verifying adoptable property is set on NASty dataset")
+		By("Verifying adoptable property is set on NASty subvolume")
 		Expect(f.NASty).NotTo(BeNil())
 		adoptableValue, err := f.NASty.GetDatasetProperty(ctx, zvolPath, "nasty-csi:adoptable")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(adoptableValue).To(Equal("true"), "Dataset should have nasty-csi:adoptable=true")
+		Expect(adoptableValue).To(Equal("true"), "Subvolume should have nasty-csi:adoptable=true")
 		if f.Verbose() {
-			GinkgoWriter.Printf("Dataset %s has adoptable property set to: %s\n", zvolPath, adoptableValue)
+			GinkgoWriter.Printf("Subvolume %s has adoptable property set to: %s\n", zvolPath, adoptableValue)
 		}
 
 		By("Deleting PVC to trigger retain (not delete)")
@@ -286,10 +286,10 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying dataset still exists on NASty after deletion")
+		By("Verifying subvolume still exists on NASty after deletion")
 		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "Dataset should be retained with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "Subvolume should be retained with deleteStrategy=retain")
 
 		By("Cleaning up retained resources from NASty")
 		err = f.NASty.DeleteISCSITarget(ctx, volumeHandle)
@@ -299,7 +299,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
 		if f.Verbose() {
-			GinkgoWriter.Printf("Cleaned up retained dataset: %s\n", zvolPath)
+			GinkgoWriter.Printf("Cleaned up retained subvolume: %s\n", zvolPath)
 		}
 	})
 })

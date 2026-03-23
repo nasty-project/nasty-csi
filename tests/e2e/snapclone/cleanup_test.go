@@ -185,9 +185,9 @@ var _ = Describe("Complex Cleanup", func() {
 								}
 							}
 
-							// Check ZFS origin (is it a clone?)
+							// Check origin (is it a clone?)
 							if origin, originErr := f.NASty.GetDatasetOrigin(ctx, dsName); originErr == nil && origin != "" {
-								fmt.Fprintf(&diag, "\n  ZFS origin = %s", origin)
+								fmt.Fprintf(&diag, "\n  origin = %s", origin)
 							}
 
 							// Check for snapshots on the leaked dataset
@@ -198,7 +198,7 @@ var _ = Describe("Complex Cleanup", func() {
 										matchingSnaps = append(matchingSnaps, s.Name)
 									}
 								}
-								fmt.Fprintf(&diag, "\n  Snapshots on dataset: %d", len(matchingSnaps))
+								fmt.Fprintf(&diag, "\n  Snapshots on subvolume: %d", len(matchingSnaps))
 								for _, snapName := range matchingSnaps {
 									fmt.Fprintf(&diag, "\n    - %s (subvolume=%s)", snapName, dsName)
 								}

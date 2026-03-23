@@ -1,7 +1,7 @@
 // Package scale contains E2E tests that validate CSI operations work correctly
-// when NASty has a large number of non-CSI-managed datasets, zvols, snapshots,
-// and NFS shares. This simulates a real-world environment where users have
-// pre-existing data on the same pool used by the CSI driver.
+// when NASty has a large number of non-CSI-managed subvolumes, block subvolumes,
+// snapshots, and NFS shares. This simulates a real-world environment where users
+// have pre-existing data on the same pool used by the CSI driver.
 //
 // This test suite is intended to be run manually via the "Scale Tests" workflow,
 // not as part of regular CI. It populates NASty with noise data, runs CSI
@@ -27,19 +27,19 @@ import (
 
 const (
 	defaultNoiseDatasetCount = 30
-	defaultNoiseZvolCount    = 10
+	defaultNoiseBlockSubvolCount = 10
 	snapshotsPerDataset      = 2
 	nfsShareCount            = 5
 )
 
 var (
 	noiseVerifier *framework.NAStyVerifier
-	noiseParent   string // Parent dataset path for all noise data
+	noiseParent   string // Parent subvolume path for all noise data
 	noisePool     string
 
 	// Actual counts (may be overridden by env vars).
 	actualDatasetCount int
-	actualZvolCount    int
+	actualBlockSubvolCount int
 )
 
 func TestScale(t *testing.T) {
@@ -88,7 +88,7 @@ func createNoiseData() {
 
 	noisePool = cfg.NAStyPool
 	actualDatasetCount = getEnvInt("NOISE_DATASET_COUNT", defaultNoiseDatasetCount)
-	actualZvolCount = getEnvInt("NOISE_ZVOL_COUNT", defaultNoiseZvolCount)
+	actualBlockSubvolCount = getEnvInt("NOISE_BLOCK_SUBVOL_COUNT", defaultNoiseBlockSubvolCount)
 
 	noiseVerifier, err = framework.NewNAStyVerifier(cfg.NAStyHost, cfg.NAStyAPIKey)
 	Expect(err).NotTo(HaveOccurred(), "Failed to connect to NASty for noise creation")
@@ -97,8 +97,8 @@ func createNoiseData() {
 	ctx := context.Background()
 
 	noiseParent = fmt.Sprintf("%s/e2e-noise-%d", noisePool, time.Now().UnixNano())
-	klog.Infof("Creating noise data under %s (%d datasets, %d zvols)",
-		noiseParent, actualDatasetCount, actualZvolCount)
+	klog.Infof("Creating noise data under %s (%d subvolumes, %d block subvolumes)",
+		noiseParent, actualDatasetCount, actualBlockSubvolCount)
 
 	// Parent subvolume
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
@@ -151,7 +151,7 @@ func createNoiseData() {
 		Expect(shareErr).NotTo(HaveOccurred(), "Failed to create noise NFS share for %s", sharePath)
 	}
 
-	// Block subvolumes (zvols) with snapshots
+	// Block subvolumes with snapshots
 	zvolParentName := parseSubvolName(noiseParent) + "/zvols"
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 		Pool:          noisePool,
@@ -160,9 +160,9 @@ func createNoiseData() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	klog.Infof("Creating %d noise block subvolumes with %d snapshots each", actualZvolCount, snapshotsPerDataset)
+	klog.Infof("Creating %d noise block subvolumes with %d snapshots each", actualBlockSubvolCount, snapshotsPerDataset)
 	volsize := uint64(1073741824) // 1 GiB
-	for i := 1; i <= actualZvolCount; i++ {
+	for i := 1; i <= actualBlockSubvolCount; i++ {
 		zvolSubvolName := fmt.Sprintf("%s/zvol-%03d", zvolParentName, i)
 		_, zvolErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
 			Pool:          noisePool,
@@ -182,10 +182,10 @@ func createNoiseData() {
 		}
 	}
 
-	totalSnapshots := (actualDatasetCount + actualZvolCount) * snapshotsPerDataset
-	totalResources := actualDatasetCount + actualZvolCount + totalSnapshots + nfsShareCount
-	klog.Infof("Noise data creation complete: %d resources (%d subvolumes, %d block vols, %d snapshots, %d NFS shares)",
-		totalResources, actualDatasetCount, actualZvolCount, totalSnapshots, nfsShareCount)
+	totalSnapshots := (actualDatasetCount + actualBlockSubvolCount) * snapshotsPerDataset
+	totalResources := actualDatasetCount + actualBlockSubvolCount + totalSnapshots + nfsShareCount
+	klog.Infof("Noise data creation complete: %d resources (%d subvolumes, %d block subvolumes, %d snapshots, %d NFS shares)",
+		totalResources, actualDatasetCount, actualBlockSubvolCount, totalSnapshots, nfsShareCount)
 }
 
 // cleanupNoiseData removes all noise data. NFS shares first, then recursive subvolume delete.

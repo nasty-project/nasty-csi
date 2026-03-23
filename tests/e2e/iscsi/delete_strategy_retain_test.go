@@ -83,7 +83,7 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		// Volume handle is the full dataset path (e.g., pool/parent/pvc-xxx)
 		zvolPath := volumeHandle
 		GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
-		GinkgoWriter.Printf("Expected ZVOL path on NASty: %s\n", zvolPath)
+		GinkgoWriter.Printf("Expected block subvolume path on NASty: %s\n", zvolPath)
 
 		By("Creating a POD to verify volume works")
 		podName := "test-pod-retain"
@@ -122,14 +122,14 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		err = f.K8s.WaitForPVDeleted(ctx, pvName, deleteTimeout)
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Verifying ZVOL still exists on NASty")
+		By("Verifying block subvolume still exists on NASty")
 		Expect(f.NASty).NotTo(BeNil(), "NASty verifier must be available for this test")
 		exists, err := f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeTrue(), "ZVOL should still exist on NASty after PVC deletion with deleteStrategy=retain")
+		Expect(exists).To(BeTrue(), "Block subvolume should still exist on NASty after PVC deletion with deleteStrategy=retain")
 
-		By("ZVOL confirmed to still exist on NASty - retain strategy working correctly")
-		GinkgoWriter.Printf("Successfully verified ZVOL %s was retained on NASty\n", zvolPath)
+		By("Block subvolume confirmed to still exist on NASty - retain strategy working correctly")
+		GinkgoWriter.Printf("Successfully verified block subvolume %s was retained on NASty\n", zvolPath)
 
 		By("Cleaning up retained iSCSI target from NASty")
 		targetName := path.Base(volumeHandle)
@@ -140,16 +140,16 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		err = f.NASty.DeleteISCSIExtent(ctx, targetName)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained iSCSI extent from NASty")
 
-		By("Cleaning up retained ZVOL from NASty")
+		By("Cleaning up retained block subvolume from NASty")
 		err = f.NASty.DeleteDataset(ctx, zvolPath)
-		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained ZVOL from NASty")
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained block subvolume from NASty")
 
-		By("Verifying ZVOL was successfully deleted from NASty")
+		By("Verifying block subvolume was successfully deleted from NASty")
 		exists, err = f.NASty.DatasetExists(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(exists).To(BeFalse(), "ZVOL should no longer exist on NASty after cleanup")
+		Expect(exists).To(BeFalse(), "Block subvolume should no longer exist on NASty after cleanup")
 
-		By("Cleanup verified - ZVOL and iSCSI resources successfully removed from NASty")
-		GinkgoWriter.Printf("Successfully cleaned up ZVOL %s from NASty\n", zvolPath)
+		By("Cleanup verified - block subvolume and iSCSI resources successfully removed from NASty")
+		GinkgoWriter.Printf("Successfully cleaned up block subvolume %s from NASty\n", zvolPath)
 	})
 })
