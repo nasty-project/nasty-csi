@@ -215,29 +215,46 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 		klog.Infof("iSCSI discovery successful at %s, discovered targets:\n%s", portal, string(output))
 	}
 
-	// Step 2: Check if target is in node database
-	// Note: Specify the public portal so we check/login against the reachable address,
-	// not the private IP that the target may report back during discovery.
-	klog.Infof("iSCSI: Checking if target '%s' is in node database", params.iqn)
+	// Step 2: Find the discovered portal and rewrite it to the reachable address.
+	// In NAT/DNAT environments (e.g., Oracle Cloud), the target reports its private IP
+	// (e.g., 10.0.0.22) during discovery, but the initiator can only reach the public IP
+	// (e.g., 152.70.42.159). We parse the discovery output to find the reported portal,
+	// then update the node database entry to use the reachable address.
+	discoveredPortal := findDiscoveredPortal(string(output), params.iqn)
+	if discoveredPortal != "" && discoveredPortal != portal {
+		klog.Infof("iSCSI: Target reported portal %s, rewriting to reachable address %s", discoveredPortal, portal)
+		updateCtx, updateCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer updateCancel()
+		updateCmd := iscsiadmCmd(updateCtx, "-m", "node", "-T", params.iqn, "-p", discoveredPortal,
+			"--op", "update", "-n", "node.conn[0].address", "-v", params.server)
+		if updateOutput, updateErr := updateCmd.CombinedOutput(); updateErr != nil {
+			klog.Warningf("Failed to rewrite iSCSI portal address: %v, output: %s", updateErr, string(updateOutput))
+		}
+	}
+
+	// Step 3: Check if target is in node database (using discovered portal which is in the DB)
+	lookupPortal := portal
+	if discoveredPortal != "" {
+		lookupPortal = discoveredPortal
+	}
+	klog.Infof("iSCSI: Checking if target '%s' is in node database (portal: %s)", params.iqn, lookupPortal)
 	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer checkCancel()
-	checkCmd := iscsiadmCmd(checkCtx, "-m", "node", "-T", params.iqn, "-p", portal)
-	klog.Infof("iSCSI: Running node check command: iscsiadm -m node -T %s -p %s", params.iqn, portal)
+	checkCmd := iscsiadmCmd(checkCtx, "-m", "node", "-T", params.iqn, "-p", lookupPortal)
 	checkOutput, checkErr := checkCmd.CombinedOutput()
 	if checkErr != nil {
 		klog.Errorf("iSCSI target '%s' not found in node database: %v, output: %s",
 			params.iqn, checkErr, string(checkOutput))
 		return fmt.Errorf("%w - check that NASty iSCSI service is running and target is properly configured: %s", ErrISCSITargetNotInDB, string(checkOutput))
 	}
-	klog.Infof("iSCSI target '%s' found in node database: %s", params.iqn, string(checkOutput))
+	klog.Infof("iSCSI target '%s' found in node database", params.iqn)
 
-	// Step 3: Login
-	// Specify the public portal to avoid using the private IP from discovery
-	klog.Infof("Logging into iSCSI target: %s", params.iqn)
+	// Step 4: Login using the discovered portal (now rewritten to the reachable address)
+	klog.Infof("Logging into iSCSI target: %s (portal: %s)", params.iqn, lookupPortal)
 	loginCtx, loginCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer loginCancel()
 
-	loginCmd := iscsiadmCmd(loginCtx, "-m", "node", "-T", params.iqn, "-p", portal, "--login")
+	loginCmd := iscsiadmCmd(loginCtx, "-m", "node", "-T", params.iqn, "-p", lookupPortal, "--login")
 	output, err = loginCmd.CombinedOutput()
 	if err != nil {
 		// Check if already logged in
@@ -254,6 +271,27 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 
 	klog.Infof("Successfully logged into iSCSI target: %s, output: %s", params.iqn, string(output))
 	return nil
+}
+
+// findDiscoveredPortal parses iscsiadm discovery output to find the portal for a given IQN.
+// Discovery output format: "10.0.0.22:3260,1 iqn.2137-04.storage.nasty:volume-name"
+func findDiscoveredPortal(discoveryOutput, iqn string) string {
+	for _, line := range strings.Split(discoveryOutput, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, iqn) {
+			// Format: "ip:port,tpg iqn"
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				// Strip the ",tpg" suffix from "ip:port,1"
+				portalWithTPG := parts[0]
+				if idx := strings.LastIndex(portalWithTPG, ","); idx != -1 {
+					return portalWithTPG[:idx]
+				}
+				return portalWithTPG
+			}
+		}
+	}
+	return ""
 }
 
 // logoutISCSITarget logs out from an iSCSI target.
