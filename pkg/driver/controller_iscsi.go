@@ -232,8 +232,9 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 
 	// Step 4: Store xattr properties for metadata tracking
-	props := nastyapi.ISCSIVolumePropertiesV1(nastyapi.ISCSIVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       params.volumeName,
+		Protocol:       nastyapi.ProtocolISCSI,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
@@ -618,8 +619,9 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := nastyapi.ISCSIVolumePropertiesV1(nastyapi.ISCSIVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       volumeName,
+		Protocol:       nastyapi.ProtocolISCSI,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,

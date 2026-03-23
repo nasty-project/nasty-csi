@@ -246,8 +246,9 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	time.Sleep(namespaceInitDelay)
 
 	// Step 3: Store xattr properties for metadata tracking
-	props := nastyapi.NVMeOFVolumePropertiesV1(nastyapi.NVMeOFVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       params.volumeName,
+		Protocol:       nastyapi.ProtocolNVMeOF,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
@@ -528,8 +529,9 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := nastyapi.NVMeOFVolumePropertiesV1(nastyapi.NVMeOFVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       volumeName,
+		Protocol:       nastyapi.ProtocolNVMeOF,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,

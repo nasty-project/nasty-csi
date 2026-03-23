@@ -171,8 +171,9 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 
 	klog.V(4).Infof("Created SMB share %q with ID: %s for path: %s", smbShare.Name, smbShare.ID, smbShare.Path)
 
-	props := nastyapi.SMBVolumePropertiesV1(nastyapi.SMBVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       params.volumeName,
+		Protocol:       nastyapi.ProtocolSMB,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
@@ -377,8 +378,9 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := nastyapi.SMBVolumePropertiesV1(nastyapi.SMBVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       volumeName,
+		Protocol:       nastyapi.ProtocolSMB,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,

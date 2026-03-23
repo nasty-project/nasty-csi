@@ -176,8 +176,9 @@ func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *nast
 
 // nfsPropertiesV1 builds xattr property map for an NFS subvolume.
 func nfsPropertiesV1(params *nfsVolumeParams, clusterID string) map[string]string {
-	return nastyapi.NFSVolumePropertiesV1(nastyapi.NFSVolumeParams{
+	return nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       params.volumeName,
+		Protocol:       nastyapi.ProtocolNFS,
 		CapacityBytes:  params.requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: params.deleteStrategy,
@@ -569,8 +570,9 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 	}
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 
-	props := nastyapi.NFSVolumePropertiesV1(nastyapi.NFSVolumeParams{
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
 		VolumeID:       volumeName,
+		Protocol:       nastyapi.ProtocolNFS,
 		CapacityBytes:  requestedCapacity,
 		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
 		DeleteStrategy: deleteStrategy,

@@ -927,13 +927,6 @@ func IsVolumeAdoptable(props map[string]string) bool {
 		return false
 	}
 
-	// Check schema version (optional for v1, but good practice)
-	schemaVersion, hasSchema := props[nastyapi.PropertySchemaVersion]
-	if hasSchema && schemaVersion != nastyapi.SchemaVersionV1 {
-		// Unknown schema version - don't adopt
-		return false
-	}
-
 	// Check protocol is set
 	protocol, ok := props[nastyapi.PropertyProtocol]
 	if !ok || protocol == "" {

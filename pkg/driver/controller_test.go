@@ -1309,7 +1309,6 @@ func TestIsVolumeAdoptable(t *testing.T) {
 			name: "valid NFS volume with all properties",
 			props: map[string]string{
 				nastyapi.PropertyManagedBy:      nastyapi.ManagedByValue,
-				nastyapi.PropertySchemaVersion:  nastyapi.SchemaVersionV1,
 				nastyapi.PropertyProtocol:       nastyapi.ProtocolNFS,
 				nastyapi.PropertyCSIVolumeName:  "pvc-123",
 				nastyapi.PropertyCapacityBytes:  "1073741824",
@@ -1321,14 +1320,13 @@ func TestIsVolumeAdoptable(t *testing.T) {
 			name: "valid NVMe-oF volume with all properties",
 			props: map[string]string{
 				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
-				nastyapi.PropertySchemaVersion: nastyapi.SchemaVersionV1,
 				nastyapi.PropertyProtocol:      nastyapi.ProtocolNVMeOF,
 				nastyapi.PropertyCSIVolumeName: "pvc-123",
 			},
 			want: true,
 		},
 		{
-			name: "NFS volume without schema version (still valid)",
+			name: "NFS volume with minimal properties",
 			props: map[string]string{
 				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
 				nastyapi.PropertyProtocol:  nastyapi.ProtocolNFS,
@@ -1351,11 +1349,10 @@ func TestIsVolumeAdoptable(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "unknown schema version",
+			name: "empty protocol value",
 			props: map[string]string{
-				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
-				nastyapi.PropertySchemaVersion: "99",
-				nastyapi.PropertyProtocol:      nastyapi.ProtocolNFS,
+				nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+				nastyapi.PropertyProtocol:  "",
 			},
 			want: false,
 		},
