@@ -561,12 +561,6 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 	}, nil
 }
 
-// setupISCSIVolumeFromClone sets up iSCSI infrastructure for a cloned volume.
-// TODO: Implement when NASty supports subvolume cloning.
-func (s *ControllerService) setupISCSIVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "iSCSI volume cloning is not yet supported by the NASty backend")
-}
-
 // adoptISCSIVolume adopts an orphaned iSCSI volume by recreating missing NASty resources.
 // This enables GitOps workflows where clusters are recreated and need to adopt existing volumes.
 func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {

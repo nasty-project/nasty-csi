@@ -328,12 +328,6 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-// setupSMBVolumeFromClone sets up an SMB share for a cloned subvolume.
-// TODO: Clone-from-snapshot operations are not yet supported by the NASty API.
-func (s *ControllerService) setupSMBVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "TODO: clone-from-snapshot not yet supported by NASty API")
-}
-
 // adoptSMBVolume adopts an orphaned SMB volume by re-creating its SMB share.
 func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "adopt")

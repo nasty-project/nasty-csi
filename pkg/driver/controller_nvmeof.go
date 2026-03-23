@@ -473,12 +473,6 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 	}, nil
 }
 
-// setupNVMeOFVolumeFromClone sets up NVMe-oF infrastructure for a cloned volume.
-// TODO: Implement when NASty supports subvolume cloning.
-func (s *ControllerService) setupNVMeOFVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "NVMe-oF volume cloning is not yet supported by the NASty backend")
-}
-
 // adoptNVMeOFVolume adopts an orphaned NVMe-oF volume by recreating missing NASty resources.
 // This enables GitOps workflows where clusters are recreated and need to adopt existing volumes.
 func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {

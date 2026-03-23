@@ -322,58 +322,6 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvol
 	klog.V(4).Infof("Found volume: %s (subvolume=%s, protocol=%s)", volumeID, subvolumeID, meta.Protocol)
 	return meta, nil
 }
-
-// subvolumeHasCSIManagedSnapshots checks if a subvolume has any CSI-managed snapshots.
-// This is used as a pre-deletion guard to prevent destroying snapshots that other tools depend on.
-// When CSI-managed snapshots exist, DeleteVolume should return FAILED_PRECONDITION
-// so Kubernetes retries until the snapshots are explicitly removed via DeleteSnapshot.
-func (s *ControllerService) subvolumeHasCSIManagedSnapshots(ctx context.Context, pool, name string) (bool, error) {
-	snapshots, err := s.apiClient.ListSnapshots(ctx, pool)
-	if err != nil {
-		return false, fmt.Errorf("failed to list snapshots for %s/%s: %w", pool, name, err)
-	}
-
-	for _, snap := range snapshots {
-		if snap.Subvolume != name {
-			continue
-		}
-		// A snapshot is CSI-managed if its name starts with "csi-" prefix convention.
-		// TODO: When NASty supports snapshot properties/xattrs, use PropertySnapshotID instead.
-		if strings.HasPrefix(snap.Name, "csi-") {
-			klog.Infof("Subvolume %s/%s has CSI-managed snapshot: %s", pool, name, snap.Name)
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// deleteSubvolumeSnapshots deletes all non-CSI snapshots on a subvolume before deleting it.
-// This is best-effort cleanup; errors are logged and skipped.
-func (s *ControllerService) deleteSubvolumeSnapshots(ctx context.Context, pool, name string) {
-	klog.V(4).Infof("Checking for non-CSI snapshots on subvolume %s/%s before deletion", pool, name)
-
-	snapshots, err := s.apiClient.ListSnapshots(ctx, pool)
-	if err != nil {
-		klog.Warningf("Failed to list snapshots for %s/%s: %v (skipping snapshot cleanup)", pool, name, err)
-		return
-	}
-
-	for _, snap := range snapshots {
-		if snap.Subvolume != name {
-			continue
-		}
-		// Skip CSI-managed snapshots — they must be deleted via DeleteSnapshot.
-		if strings.HasPrefix(snap.Name, "csi-") {
-			klog.Infof("Skipping CSI-managed snapshot %s on %s/%s", snap.Name, pool, name)
-			continue
-		}
-		klog.V(4).Infof("Deleting non-CSI snapshot %s on subvolume %s/%s", snap.Name, pool, name)
-		if err := s.apiClient.DeleteSnapshot(ctx, pool, name, snap.Name); err != nil {
-			klog.Warningf("Failed to delete snapshot %s: %v (continuing)", snap.Name, err)
-		}
-	}
-}
-
 // CreateVolume creates a new volume.
 func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	// Log at Info level (not V(4)) so we can see when CreateVolume is called in CI
