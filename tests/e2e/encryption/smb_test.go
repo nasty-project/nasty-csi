@@ -22,15 +22,10 @@ var _ = Describe("SMB Encryption", func() {
 	)
 
 	smbParams := func(f *framework.Framework) map[string]string {
-		return map[string]string{
-			"protocol":              "smb",
-			"server":                f.Config.NAStyHost,
-			"pool":                  f.Config.NAStyPool,
-			"encryption":            "true",
-			"encryptionGenerateKey": "true",
-			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
-			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-		}
+		params := f.SMBStorageClassParams()
+		params["encryption"] = "true"
+		params["encryptionGenerateKey"] = "true"
+		return params
 	}
 
 	smbParamsWithAlgo := func(f *framework.Framework, algo string) map[string]string {

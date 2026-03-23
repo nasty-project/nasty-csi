@@ -93,21 +93,16 @@ var _ = Describe("Shared Encryption", func() {
 			},
 		}
 		if f.Config.SMBUsername != "" {
+			smbParams := f.SMBStorageClassParams()
+			smbParams["encryption"] = "true"
+			smbParams["encryptionGenerateKey"] = "true"
 			protos = append(protos, protocolConfig{
 				name:       "SMB",
 				id:         "smb",
 				accessMode: corev1.ReadWriteMany,
 				pvcTimeout: 2 * time.Minute,
 				podTimeout: 2 * time.Minute,
-				scParams: map[string]string{
-					"protocol":              "smb",
-					"server":                f.Config.NAStyHost,
-					"pool":                  f.Config.NAStyPool,
-					"encryption":            "true",
-					"encryptionGenerateKey": "true",
-					"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
-					"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-				},
+				scParams:   smbParams,
 			})
 		}
 		return protos

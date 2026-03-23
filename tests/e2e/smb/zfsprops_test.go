@@ -41,14 +41,9 @@ var _ = Describe("SMB Storage Properties", func() {
 	It("should create volume with custom storage properties", func() {
 		By("Creating StorageClass with storage properties")
 		storageClass := "nasty-csi-smb-props"
-		err = f.K8s.CreateStorageClassWithParams(ctx, storageClass, "nasty.csi.io", map[string]string{
-			"protocol":    "smb",
-			"server":      f.Config.NAStyHost,
-			"pool":        f.Config.NAStyPool,
-			"compression": "lz4",
-			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
-			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-		})
+		scParams := f.SMBStorageClassParams()
+		scParams["compression"] = "lz4"
+		err = f.K8s.CreateStorageClassWithParams(ctx, storageClass, "nasty.csi.io", scParams)
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(ctx, storageClass)

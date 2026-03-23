@@ -84,17 +84,18 @@ var _ = Describe("Reclaim Policy", func() {
 
 			By("Creating StorageClass with Delete reclaim policy")
 			scName := "nasty-csi-" + proto.id + "-delete-policy"
-			params := map[string]string{
-				"protocol": proto.id,
-				"pool":     f.Config.NAStyPool,
-				"server":   f.Config.NAStyHost,
-			}
-			if proto.id != "nfs" && proto.id != "smb" {
-				params["fsType"] = "ext4"
-			}
+			var params map[string]string
 			if proto.id == "smb" {
-				params["csi.storage.k8s.io/node-stage-secret-name"] = "nasty-csi-smb-creds"
-				params["csi.storage.k8s.io/node-stage-secret-namespace"] = "kube-system"
+				params = f.SMBStorageClassParams()
+			} else {
+				params = map[string]string{
+					"protocol": proto.id,
+					"pool":     f.Config.NAStyPool,
+					"server":   f.Config.NAStyHost,
+				}
+				if proto.id != "nfs" {
+					params["fsType"] = "ext4"
+				}
 			}
 			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "nasty.csi.io", params, corev1.PersistentVolumeReclaimDelete)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
@@ -164,17 +165,18 @@ var _ = Describe("Reclaim Policy", func() {
 
 			By("Creating StorageClass with Retain reclaim policy")
 			scName := "nasty-csi-" + proto.id + "-retain-policy"
-			params := map[string]string{
-				"protocol": proto.id,
-				"pool":     f.Config.NAStyPool,
-				"server":   f.Config.NAStyHost,
-			}
-			if proto.id != "nfs" && proto.id != "smb" {
-				params["fsType"] = "ext4"
-			}
+			var params map[string]string
 			if proto.id == "smb" {
-				params["csi.storage.k8s.io/node-stage-secret-name"] = "nasty-csi-smb-creds"
-				params["csi.storage.k8s.io/node-stage-secret-namespace"] = "kube-system"
+				params = f.SMBStorageClassParams()
+			} else {
+				params = map[string]string{
+					"protocol": proto.id,
+					"pool":     f.Config.NAStyPool,
+					"server":   f.Config.NAStyHost,
+				}
+				if proto.id != "nfs" {
+					params["fsType"] = "ext4"
+				}
 			}
 			err := f.K8s.CreateStorageClassWithReclaimPolicy(ctx, scName, "nasty.csi.io", params, corev1.PersistentVolumeReclaimRetain)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")

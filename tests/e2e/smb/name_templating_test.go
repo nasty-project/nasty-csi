@@ -37,14 +37,8 @@ var _ = Describe("Name Templating", func() {
 		podTimeout := 2 * time.Minute
 
 		By("Creating StorageClass with nameTemplate parameter")
-		params := map[string]string{
-			"protocol":     "smb",
-			"pool":         f.Config.NAStyPool,
-			"server":       f.Config.NAStyHost,
-			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
-			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
-			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-		}
+		params := f.SMBStorageClassParams()
+		params["nameTemplate"] = "{{ .PVCNamespace }}-{{ .PVCName }}"
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass with nameTemplate")
 		f.Cleanup.Add(func() error {
@@ -110,15 +104,9 @@ var _ = Describe("Name Templating", func() {
 		scName := "nasty-csi-smb-prefix-suffix"
 
 		By("Creating StorageClass with namePrefix and nameSuffix")
-		params := map[string]string{
-			"protocol":   "smb",
-			"pool":       f.Config.NAStyPool,
-			"server":     f.Config.NAStyHost,
-			"namePrefix": "prod-",
-			"nameSuffix": "-data",
-			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
-			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-		}
+		params := f.SMBStorageClassParams()
+		params["namePrefix"] = "prod-"
+		params["nameSuffix"] = "-data"
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass with prefix/suffix")
 		f.Cleanup.Add(func() error {

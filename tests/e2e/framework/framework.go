@@ -299,6 +299,23 @@ func NewFramework() (*Framework, error) {
 	}, nil
 }
 
+// SMBStorageClassParams returns base parameters for creating an SMB StorageClass.
+// Tests that create custom StorageClasses should merge their extra params into this map
+// to ensure smbUsername and credentials are always set.
+func (f *Framework) SMBStorageClassParams() map[string]string {
+	params := map[string]string{
+		"protocol": "smb",
+		"server":   f.Config.NAStyHost,
+		"pool":     f.Config.NAStyPool,
+		"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
+		"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
+	}
+	if f.Config.SMBUsername != "" {
+		params["smbUsername"] = f.Config.SMBUsername
+	}
+	return params
+}
+
 // Setup initializes the framework for testing.
 // It creates a unique namespace and sets up the K8s client.
 // Helm deployment is handled at suite level via SetupSuite.

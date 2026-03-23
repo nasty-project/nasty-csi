@@ -43,14 +43,9 @@ var _ = Describe("SMB Delete Strategy Retain", func() {
 	It("should retain NASty resources when deleteStrategy=retain is set", func() {
 		By("Creating StorageClass with deleteStrategy=retain")
 		retainStorageClass := "nasty-csi-smb-retain"
-		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
-			"protocol":       "smb",
-			"server":         f.Config.NAStyHost,
-			"pool":           f.Config.NAStyPool,
-			"deleteStrategy": "retain",
-			"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
-			"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
-		})
+		scParams := f.SMBStorageClassParams()
+		scParams["deleteStrategy"] = "retain"
+		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", scParams)
 		Expect(err).NotTo(HaveOccurred())
 		f.Cleanup.Add(func() error {
 			return f.K8s.DeleteStorageClass(ctx, retainStorageClass)
