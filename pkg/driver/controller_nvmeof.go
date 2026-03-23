@@ -298,14 +298,15 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 	if listErr == nil {
 		suffix := ":" + params.volumeName
 		for i := range subsystems {
-			if strings.HasSuffix(subsystems[i].NQN, suffix) {
-				klog.V(4).Infof("NVMe-oF volume already exists (subsystem: %s, NQN: %s), returning existing volume",
-					subsystems[i].ID, subsystems[i].NQN)
-				resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, existingSubvol, &subsystems[i], existingCapacity)
-				injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
-				timer.ObserveSuccess()
-				return resp, true, nil
+			if !strings.HasSuffix(subsystems[i].NQN, suffix) {
+				continue
 			}
+			klog.V(4).Infof("NVMe-oF volume already exists (subsystem: %s, NQN: %s), returning existing volume",
+				subsystems[i].ID, subsystems[i].NQN)
+			resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, existingSubvol, &subsystems[i], existingCapacity)
+			injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
+			timer.ObserveSuccess()
+			return resp, true, nil
 		}
 	}
 
@@ -316,7 +317,7 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 // deleteNVMeOFVolume deletes an NVMe-oF volume and all associated resources.
 // Subvolume is deleted first; if it fails, NVMe-oF subsystem is preserved to prevent orphaning.
 //
-//nolint:gocyclo,dupl // Complexity from ownership verification; delete pattern shared with iSCSI
+//nolint:dupl // Delete pattern shared with iSCSI
 func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "delete")
 	klog.Infof("Deleting NVMe-oF volume: %s (subvolume: %s, subsystem: %s)",
@@ -352,7 +353,6 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 			timer.ObserveSuccess()
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-
 	}
 
 	// Step 1: Delete subvolume first (prevents orphaning NVMe-oF subsystem)

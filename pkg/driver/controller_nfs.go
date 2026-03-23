@@ -247,7 +247,7 @@ func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, para
 }
 
 // ensureNFSSubvolumeProperties checks if xattr properties are set and sets them if missing.
-func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *nastyapi.Subvolume, share *nastyapi.NFSShare) {
+func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *nastyapi.Subvolume, _ *nastyapi.NFSShare) {
 	// Read current properties from subvolume
 	existing, err := s.apiClient.GetSubvolume(ctx, subvol.Pool, subvol.Name)
 	if err != nil {
@@ -378,7 +378,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 
 // deleteNFSVolume deletes an NFS volume with ownership verification.
 //
-//nolint:gocyclo,gocognit // Complexity from ownership checks + CSI snapshot guard + idempotency
+//nolint:gocognit // Complexity from ownership checks + CSI snapshot guard + idempotency
 func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (subvolumeID: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)

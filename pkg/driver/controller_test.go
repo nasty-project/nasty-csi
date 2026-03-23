@@ -804,8 +804,8 @@ func TestControllerExpandVolume(t *testing.T) {
 					return &nastyapi.Subvolume{
 						Name: name, Pool: pool,
 						Properties: map[string]string{
-							nastyapi.PropertyManagedBy:  nastyapi.ManagedByValue,
-							nastyapi.PropertyProtocol:   ProtocolNFS,
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
 						},
 					}, nil
 				}
@@ -1237,8 +1237,8 @@ func TestDeleteVolumeRPC(t *testing.T) {
 					return &nastyapi.Subvolume{
 						Name: name, Pool: pool,
 						Properties: map[string]string{
-							nastyapi.PropertyManagedBy:  nastyapi.ManagedByValue,
-							nastyapi.PropertyProtocol:   ProtocolNFS,
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
 						},
 					}, nil
 				}

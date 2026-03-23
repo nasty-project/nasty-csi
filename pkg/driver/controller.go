@@ -302,6 +302,7 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvol
 	klog.V(4).Infof("Found volume: %s (subvolume=%s, protocol=%s)", volumeID, subvolumeID, meta.Protocol)
 	return meta, nil
 }
+
 // CreateVolume creates a new volume.
 func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	// Log at Info level (not V(4)) so we can see when CreateVolume is called in CI
