@@ -86,9 +86,21 @@ var _ = Describe("Snapshot Stress", func() {
 			snapshotName := fmt.Sprintf("snapshot-stress-%d-nvmeof", i+1)
 			snapshotNames[i] = snapshotName
 
+			// Check mount health before write
+			mountOutput, mountErr := f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "mount | grep /data; cat /proc/mounts | grep /data"})
+			GinkgoWriter.Printf("[DEBUG] Mount state before snapshot %d write:\n%s\n(err: %v)\n", i+1, mountOutput, mountErr)
+
 			// Write unique data before each snapshot
 			_, err = f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c",
 				fmt.Sprintf("echo 'Snapshot %d Data' > /data/snapshot-%d.txt && sync", i+1, i+1)})
+			if err != nil {
+				// Capture diagnostics on failure
+				dmesgOut, _ := f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "dmesg | tail -20"})
+				mountAfter, _ := f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "mount | grep /data; cat /proc/mounts | grep /data"})
+				GinkgoWriter.Printf("[DEBUG] Write failed for snapshot %d!\n", i+1)
+				GinkgoWriter.Printf("[DEBUG] dmesg (last 20 lines):\n%s\n", dmesgOut)
+				GinkgoWriter.Printf("[DEBUG] Mount state after failure:\n%s\n", mountAfter)
+			}
 			Expect(err).NotTo(HaveOccurred(), "Failed to write data for snapshot %d", i+1)
 
 			// Create snapshot

@@ -110,7 +110,18 @@ var _ = Describe("Snapshot Restore", func() {
 		Expect(err).NotTo(HaveOccurred(), "First snapshot did not become ready")
 
 		By("Writing version 2 data (modifying source)")
+		// Check mount health before post-snapshot write
+		mountOutput, mountErr := f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "mount | grep /data; cat /proc/mounts | grep /data"})
+		GinkgoWriter.Printf("[DEBUG] Mount state before v2 write:\n%s\n(err: %v)\n", mountOutput, mountErr)
+
 		_, err = f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "echo 'Version 2 data' > /data/version.txt && sync"})
+		if err != nil {
+			dmesgOut, _ := f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "dmesg | tail -30"})
+			mountAfter, _ := f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "mount | grep /data; cat /proc/mounts | grep /data"})
+			GinkgoWriter.Printf("[DEBUG] v2 write failed!\n")
+			GinkgoWriter.Printf("[DEBUG] dmesg:\n%s\n", dmesgOut)
+			GinkgoWriter.Printf("[DEBUG] Mount state after failure:\n%s\n", mountAfter)
+		}
 		Expect(err).NotTo(HaveOccurred(), "Failed to write version 2 data")
 		_, err = f.K8s.ExecInPod(ctx, pod.Name, []string{"sh", "-c", "mkdir -p /data/v2 && for i in 1 2 3; do echo \"File $i version 2\" > /data/v2/file$i.txt; done && sync"})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create v2 files")
