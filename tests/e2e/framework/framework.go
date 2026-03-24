@@ -136,8 +136,8 @@ func SetupSuite(protocol string) error {
 	klog.Infof("Pre-flight: NASty is reachable")
 
 	// Log deployment details for debugging
-	klog.Infof("Deploy config: image=%s:%s pool=%s url=wss://%s/ws",
-		config.CSIImageRepo, config.CSIImageTag, config.NAStyPool, config.NAStyHost)
+	klog.Infof("Deploy config: image=%s:%s filesystem=%s url=wss://%s/ws",
+		config.CSIImageRepo, config.CSIImageTag, config.NAStyFilesystem, config.NAStyHost)
 
 	// Create SMB credentials secret before Helm deploy (StorageClass references it)
 	if (protocol == protocolSMB || protocol == protocolAll || protocol == protocolBoth) && config.SMBUsername != "" {
@@ -218,7 +218,7 @@ func SetupSuite(protocol string) error {
 	// Take "before" resource snapshot for leak detection
 	if suite.nasty != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		snap := suite.nasty.SnapshotResources(ctx, config.NAStyPool)
+		snap := suite.nasty.SnapshotResources(ctx, config.NAStyFilesystem)
 		cancel()
 		suite.beforeSnapshot = snap
 		LogSnapshot("Before suite (pre-existing)", snap)
@@ -240,7 +240,7 @@ func TeardownSuite() {
 	// Take "after" resource snapshot and diff against "before" for leak detection
 	if suite.nasty != nil && suite.beforeSnapshot != nil && suite.config != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		afterSnap := suite.nasty.SnapshotResources(ctx, suite.config.NAStyPool)
+		afterSnap := suite.nasty.SnapshotResources(ctx, suite.config.NAStyFilesystem)
 		cancel()
 		LogSnapshot("After suite", afterSnap)
 		LogResourceDiff(suite.beforeSnapshot, afterSnap)
@@ -308,7 +308,7 @@ func (f *Framework) SMBStorageClassParams() map[string]string {
 	params := map[string]string{
 		"protocol": "smb",
 		"server":   f.Config.NAStyHost,
-		"pool":     f.Config.NAStyPool,
+		"filesystem":     f.Config.NAStyFilesystem,
 		"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 		"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
 	}
@@ -560,7 +560,7 @@ func (f *Framework) GetDatasetPathFromPV(pv *corev1.PersistentVolume) string {
 	}
 
 	// Fallback: try to extract from volume handle
-	// Volume handle format is typically: pool/path/to/dataset
+	// Volume handle format is typically: filesystem/path/to/dataset
 	return pv.Spec.CSI.VolumeHandle
 }
 

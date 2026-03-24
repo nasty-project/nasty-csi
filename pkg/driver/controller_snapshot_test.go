@@ -119,10 +119,10 @@ func TestCreateSnapshot(t *testing.T) {
 				SourceVolumeId: volumeID,
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
 						Name:      name,
-						Pool:      pool,
+						Filesystem:      filesystem,
 						Snapshots: []string{},
 						Properties: map[string]string{
 							nastyapi.PropertyProtocol:      ProtocolNFS,
@@ -134,7 +134,7 @@ func TestCreateSnapshot(t *testing.T) {
 					return &nastyapi.Snapshot{
 						Name:      params.Name,
 						Subvolume: params.Subvolume,
-						Pool:      params.Pool,
+						Filesystem:      params.Filesystem,
 					}, nil
 				}
 			},
@@ -163,10 +163,10 @@ func TestCreateSnapshot(t *testing.T) {
 				SourceVolumeId: volumeID,
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
 						Name:      name,
-						Pool:      pool,
+						Filesystem:      filesystem,
 						Snapshots: []string{"existing-snap"},
 						Properties: map[string]string{
 							nastyapi.PropertyProtocol: ProtocolNFS,
@@ -219,7 +219,7 @@ func TestCreateSnapshot(t *testing.T) {
 				SourceVolumeId: "tank/csi/nonexistent",
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("not found")
 				}
 			},
@@ -291,7 +291,7 @@ func TestDeleteSnapshot(t *testing.T) {
 				SnapshotId: "nfs:tank/csi/test-volume@my-snapshot",
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.DeleteSnapshotFunc = func(ctx context.Context, pool, subvolume, name string) error {
+				m.DeleteSnapshotFunc = func(ctx context.Context, filesystem, subvolume, name string) error {
 					return nil
 				}
 			},
@@ -303,7 +303,7 @@ func TestDeleteSnapshot(t *testing.T) {
 				SnapshotId: "nfs:tank/csi/test-volume@nonexistent-snap",
 			},
 			mockSetup: func(m *mockAPIClient) {
-				m.DeleteSnapshotFunc = func(ctx context.Context, pool, subvolume, name string) error {
+				m.DeleteSnapshotFunc = func(ctx context.Context, filesystem, subvolume, name string) error {
 					return errors.New("not found")
 				}
 			},
@@ -343,10 +343,10 @@ func TestListSnapshots(t *testing.T) {
 	t.Run("list by snapshot ID - found", func(t *testing.T) {
 		snapshotID := "nfs:tank/csi/test-volume@my-snap"
 		mockClient := &mockAPIClient{
-			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+			GetSubvolumeFunc: func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 				return &nastyapi.Subvolume{
 					Name:      name,
-					Pool:      pool,
+					Filesystem:      filesystem,
 					Snapshots: []string{"my-snap"},
 					Properties: map[string]string{
 						nastyapi.PropertyCapacityBytes: "1073741824",
@@ -369,10 +369,10 @@ func TestListSnapshots(t *testing.T) {
 	t.Run("list by snapshot ID - not found", func(t *testing.T) {
 		snapshotID := "nfs:tank/csi/test-volume@nonexistent"
 		mockClient := &mockAPIClient{
-			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+			GetSubvolumeFunc: func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 				return &nastyapi.Subvolume{
 					Name:      name,
-					Pool:      pool,
+					Filesystem:      filesystem,
 					Snapshots: []string{"other-snap"},
 				}, nil
 			},
@@ -392,10 +392,10 @@ func TestListSnapshots(t *testing.T) {
 	t.Run("list by source volume ID", func(t *testing.T) {
 		volumeID := "tank/csi/test-volume"
 		mockClient := &mockAPIClient{
-			GetSubvolumeFunc: func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+			GetSubvolumeFunc: func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 				return &nastyapi.Subvolume{
 					Name:      name,
-					Pool:      pool,
+					Filesystem:      filesystem,
 					Snapshots: []string{"snap1", "snap2"},
 					Properties: map[string]string{
 						nastyapi.PropertyProtocol:      ProtocolNFS,
@@ -416,7 +416,7 @@ func TestListSnapshots(t *testing.T) {
 		}
 	})
 
-	t.Run("list all - empty when no pool configured", func(t *testing.T) {
+	t.Run("list all - empty when no filesystem configured", func(t *testing.T) {
 		service := NewControllerService(&mockAPIClient{}, NewNodeRegistry(), "")
 		resp, err := service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{})
 		if err != nil {
@@ -542,26 +542,26 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 
 	clonedSubvol := &nastyapi.Subvolume{
 		Name:       "restored-volume",
-		Pool:       "tank",
+		Filesystem:       "tank",
 		Path:       "/tank/restored-volume",
 		Properties: map[string]string{},
 		Snapshots:  []string{},
 	}
 
 	mockClient := &mockAPIClient{
-		GetSubvolumeFunc: func(_ context.Context, pool, name string) (*nastyapi.Subvolume, error) {
-			if pool == "tank" && name == "restored-volume" {
+		GetSubvolumeFunc: func(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
+			if filesystem == "tank" && name == "restored-volume" {
 				return clonedSubvol, nil
 			}
 			return nil, nastyapi.ErrDatasetNotFound
 		},
 		CloneSnapshotFunc: func(_ context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error) {
-			if params.Pool != "tank" || params.Subvolume != "source-vol" || params.Snapshot != "snap1" || params.NewName != "restored-volume" {
+			if params.Filesystem != "tank" || params.Subvolume != "source-vol" || params.Snapshot != "snap1" || params.NewName != "restored-volume" {
 				t.Errorf("Unexpected clone params: %+v", params)
 			}
 			return clonedSubvol, nil
 		},
-		SetSubvolumePropertiesFunc: func(_ context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+		SetSubvolumePropertiesFunc: func(_ context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 			return clonedSubvol, nil
 		},
 		ListNFSSharesFunc: func(_ context.Context) ([]nastyapi.NFSShare, error) {
@@ -581,7 +581,7 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	req := &csi.CreateVolumeRequest{
 		Name: "restored-volume",
 		Parameters: map[string]string{
-			"pool":     "tank",
+			"filesystem":     "tank",
 			"protocol": "nfs",
 		},
 		VolumeCapabilities: []*csi.VolumeCapability{

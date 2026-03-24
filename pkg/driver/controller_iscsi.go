@@ -29,7 +29,7 @@ type iscsiVolumeParams struct {
 	comment           string
 	compression       string
 	server            string
-	pool              string
+	filesystem              string
 	requestedCapacity int64
 	markAdoptable     bool
 }
@@ -44,9 +44,9 @@ func generateIQN(volumeName string) string {
 func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, error) {
 	params := req.GetParameters()
 
-	pool := params["pool"]
-	if pool == "" {
-		return nil, status.Error(codes.InvalidArgument, "pool parameter is required for iSCSI volumes")
+	filesystem := params["filesystem"]
+	if filesystem == "" {
+		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for iSCSI volumes")
 	}
 
 	server := params["server"]
@@ -95,7 +95,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 
 	return &iscsiVolumeParams{
 		requestedCapacity: requestedCapacity,
-		pool:              pool,
+		filesystem:              filesystem,
 		server:            server,
 		volumeName:        volumeName,
 		subvolumeName:     volumeName,
@@ -112,8 +112,8 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 
 // buildISCSIVolumeResponse constructs a CSI CreateVolumeResponse for an iSCSI volume.
 func buildISCSIVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, target *nastyapi.ISCSITarget, capacity int64) *csi.CreateVolumeResponse {
-	// Volume ID is pool/subvolumeName for O(1) lookups
-	volumeID := subvol.Pool + "/" + subvol.Name
+	// Volume ID is filesystem/subvolumeName for O(1) lookups
+	volumeID := subvol.Filesystem + "/" + subvol.Name
 
 	meta := VolumeMetadata{
 		Name:            volumeName,
@@ -156,7 +156,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	klog.V(4).Infof("Creating iSCSI volume: %s with size: %d bytes", params.volumeName, params.requestedCapacity)
 
 	// Check if subvolume already exists (idempotency)
-	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.pool, params.subvolumeName)
+	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.filesystem, params.subvolumeName)
 	if err != nil && !isNotFoundError(err) {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to check for existing subvolume: %v", err)
@@ -175,7 +175,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 
 	// Step 1: Create or reuse block subvolume
-	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.pool, params.subvolumeName,
+	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
 		"block", params.comment, params.compression, params.requestedCapacity, timer)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	// Determine block device path for the LUN
 	if subvol.BlockDevice == nil || *subvol.BlockDevice == "" {
 		if subvolIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
 				klog.Errorf("Failed to cleanup newly-created block subvolume: %v", delErr)
 			}
 		}
@@ -202,7 +202,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		// Cleanup: only delete subvolume if we just created it
 		if subvolIsNew {
 			klog.Errorf("Failed to create iSCSI target, cleaning up newly-created subvolume: %v", err)
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
 				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
 			}
 		} else {
@@ -226,12 +226,12 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		ClusterID:      s.clusterID,
 	})
 
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, params.pool, params.subvolumeName, props); propErr != nil {
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, params.filesystem, params.subvolumeName, props); propErr != nil {
 		klog.Warningf("Failed to set xattr properties on %s: %v (volume created successfully)", params.subvolumeName, propErr)
 	}
 
 	klog.Infof("Created iSCSI volume: %s (subvolume: %s/%s, target: %s, IQN: %s)",
-		params.volumeName, params.pool, params.subvolumeName, target.ID, target.IQN)
+		params.volumeName, params.filesystem, params.subvolumeName, target.ID, target.IQN)
 
 	timer.ObserveSuccess()
 	return buildISCSIVolumeResponse(params.volumeName, params.server, subvol, target, params.requestedCapacity), nil
@@ -282,12 +282,12 @@ func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, pa
 func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *VolumeMetadata) (deleteStrategy string, notFound bool, err error) {
 	deleteStrategy = nastyapi.DeleteStrategyDelete
 
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
 		return deleteStrategy, false, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
 	}
 
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	if err != nil {
 		if isNotFoundError(err) {
 			return "", true, nil
@@ -350,7 +350,7 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 		return &csi.DeleteVolumeResponse{}, nil
 	}
 
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
@@ -358,7 +358,7 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 
 	// Step 1: Delete subvolume first (prevents orphaning iSCSI resources)
 	// If the subvolume can't be deleted, bail immediately to prevent orphaning the iSCSI target.
-	firstErr := s.apiClient.DeleteSubvolume(ctx, pool, name)
+	firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
 	if firstErr != nil && !isNotFoundError(firstErr) {
 		// Retry with snapshot cleanup
 		klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
@@ -366,7 +366,7 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 
 		retryConfig := retry.DeletionConfig("delete-iscsi-subvol")
 		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-			deleteErr := s.apiClient.DeleteSubvolume(ctx, pool, name)
+			deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
 			if deleteErr != nil && isNotFoundError(deleteErr) {
 				return nil
 			}
@@ -413,7 +413,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 		return nil, status.Error(codes.InvalidArgument, "subvolume ID not found in volume metadata")
 	}
 
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
@@ -421,8 +421,8 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 
 	// Resize the underlying subvolume
 	//nolint:gosec // G115: CSI capacity is always non-negative
-	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
-		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
+	if _, err := s.apiClient.ResizeSubvolume(ctx, filesystem, name, uint64(requiredBytes)); err != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", filesystem, name, err)
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", err)
 	}
@@ -431,7 +431,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 	props := map[string]string{
 		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	}
-	_, err := s.apiClient.SetSubvolumeProperties(ctx, pool, name, props)
+	_, err := s.apiClient.SetSubvolumeProperties(ctx, filesystem, name, props)
 	if err != nil {
 		klog.Errorf("Failed to expand iSCSI subvolume %s: %v", meta.DatasetID, err)
 		timer.ObserveError()
@@ -459,23 +459,23 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 	abnormal := false
 	var messages []string
 
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
 	}
 
 	// Check 1: Verify block subvolume exists
 	var subvol *nastyapi.Subvolume
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	switch {
 	case err != nil && isNotFoundError(err):
 		abnormal = true
-		messages = append(messages, fmt.Sprintf("Block subvolume %s/%s not found", pool, name))
+		messages = append(messages, fmt.Sprintf("Block subvolume %s/%s not found", filesystem, name))
 	case err != nil:
 		abnormal = true
-		messages = append(messages, fmt.Sprintf("Block subvolume %s/%s query failed: %v", pool, name, err))
+		messages = append(messages, fmt.Sprintf("Block subvolume %s/%s query failed: %v", filesystem, name, err))
 	default:
-		klog.V(4).Infof("Block subvolume %s/%s exists", pool, name)
+		klog.V(4).Infof("Block subvolume %s/%s exists", filesystem, name)
 	}
 
 	// Check 2: Verify iSCSI target exists
@@ -532,7 +532,7 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, "adopt")
 	volumeName := req.GetName()
-	klog.Infof("Adopting iSCSI volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
+	klog.Infof("Adopting iSCSI volume: %s (subvolume=%s/%s)", volumeName, subvol.Filesystem, subvol.Name)
 
 	// Get server parameter
 	server := params["server"]
@@ -564,7 +564,7 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	// Ensure block device path is available
 	if subvol.BlockDevice == nil || *subvol.BlockDevice == "" {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Block subvolume %s/%s has no block device path", subvol.Pool, subvol.Name)
+		return nil, status.Errorf(codes.Internal, "Block subvolume %s/%s has no block device path", subvol.Filesystem, subvol.Name)
 	}
 	blockDevice := *subvol.BlockDevice
 
@@ -603,8 +603,8 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 		Adoptable:      markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); propErr != nil {
-		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Pool, subvol.Name, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); propErr != nil {
+		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Filesystem, subvol.Name, propErr)
 	}
 
 	klog.Infof("Successfully adopted iSCSI volume: %s (target=%s, IQN=%s)", volumeName, target.ID, target.IQN)

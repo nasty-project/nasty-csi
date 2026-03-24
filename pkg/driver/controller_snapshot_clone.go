@@ -21,7 +21,7 @@ type cloneInfo struct {
 // createVolumeFromSnapshot creates a new volume from a snapshot by cloning.
 //
 // The approach:
-//  1. Decode the snapshot ID to get pool, parent subvolume, snapshot name, and protocol.
+//  1. Decode the snapshot ID to get filesystem, parent subvolume, snapshot name, and protocol.
 //  2. Resolve the new subvolume name from the CSI request (same naming as normal create).
 //  3. Clone the snapshot into a new writable subvolume.
 //  4. Set CSI metadata properties on the new subvolume.
@@ -37,14 +37,14 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		return nil, status.Errorf(codes.NotFound, "snapshot %q not found: %v", snapshotID, err)
 	}
 
-	pool, parentSubvolume, err := splitSubvolumeID(meta.SourceVolume)
+	filesystem, parentSubvolume, err := splitSubvolumeID(meta.SourceVolume)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid source volume ID %q: %v", meta.SourceVolume, err)
 	}
 
 	protocol := meta.Protocol
-	klog.V(4).Infof("Snapshot clone: pool=%s, parentSubvolume=%s, snapshot=%s, protocol=%s",
-		pool, parentSubvolume, meta.SnapshotName, protocol)
+	klog.V(4).Infof("Snapshot clone: filesystem=%s, parentSubvolume=%s, snapshot=%s, protocol=%s",
+		filesystem, parentSubvolume, meta.SnapshotName, protocol)
 
 	// 2. Resolve the new subvolume name using the same naming conventions as normal volume creation
 	params := req.GetParameters()
@@ -54,31 +54,31 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 	}
 
 	// 3. Check if the subvolume already exists (idempotency — clone may have already succeeded)
-	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, pool, newName)
+	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, newName)
 	if getErr != nil && !isNotFoundError(getErr) {
-		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", pool, newName, getErr)
+		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", filesystem, newName, getErr)
 	}
 
 	if existingSubvol == nil {
 		// Clone the snapshot to create the new subvolume
 		klog.V(4).Infof("Cloning snapshot %s/%s@%s into new subvolume %s/%s",
-			pool, parentSubvolume, meta.SnapshotName, pool, newName)
+			filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
 
 		_, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
-			Pool:      pool,
+			Filesystem:      filesystem,
 			Subvolume: parentSubvolume,
 			Snapshot:  meta.SnapshotName,
 			NewName:   newName,
 		})
 		if cloneErr != nil {
-			klog.Errorf("Failed to clone snapshot %s/%s@%s: %v", pool, parentSubvolume, meta.SnapshotName, cloneErr)
+			klog.Errorf("Failed to clone snapshot %s/%s@%s: %v", filesystem, parentSubvolume, meta.SnapshotName, cloneErr)
 			return nil, status.Errorf(codes.Internal, "failed to clone snapshot: %v", cloneErr)
 		}
 
 		klog.Infof("Successfully cloned snapshot %s/%s@%s into subvolume %s/%s",
-			pool, parentSubvolume, meta.SnapshotName, pool, newName)
+			filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
 	} else {
-		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", pool, newName)
+		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", filesystem, newName)
 	}
 
 	// 4. Set CSI metadata properties on the cloned subvolume
@@ -93,8 +93,8 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
 		nastyapi.PropertyProtocol:      protocol,
 	}
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, pool, newName, csiProps); propErr != nil {
-		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", pool, newName, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, filesystem, newName, csiProps); propErr != nil {
+		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", filesystem, newName, propErr)
 	}
 
 	// 5. Delegate to protocol-specific create to set up sharing

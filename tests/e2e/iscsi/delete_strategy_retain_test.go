@@ -46,7 +46,7 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "iscsi",
 			"server":         f.Config.NAStyHost,
-			"pool":           f.Config.NAStyPool,
+			"filesystem":           f.Config.NAStyFilesystem,
 			"port":           "3260",
 			"fsType":         "ext4",
 			"deleteStrategy": "retain",
@@ -80,7 +80,7 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(volumeHandle).NotTo(BeEmpty())
 
-		// Volume handle is the full dataset path (e.g., pool/parent/pvc-xxx)
+		// Volume handle is the full dataset path (e.g., filesystem/parent/pvc-xxx)
 		zvolPath := volumeHandle
 		GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		GinkgoWriter.Printf("Expected block subvolume path on NASty: %s\n", zvolPath)

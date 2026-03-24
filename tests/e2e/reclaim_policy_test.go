@@ -90,7 +90,7 @@ var _ = Describe("Reclaim Policy", func() {
 			} else {
 				params = map[string]string{
 					"protocol": proto.id,
-					"pool":     f.Config.NAStyPool,
+					"filesystem":     f.Config.NAStyFilesystem,
 					"server":   f.Config.NAStyHost,
 				}
 				if proto.id != "nfs" {
@@ -171,7 +171,7 @@ var _ = Describe("Reclaim Policy", func() {
 			} else {
 				params = map[string]string{
 					"protocol": proto.id,
-					"pool":     f.Config.NAStyPool,
+					"filesystem":     f.Config.NAStyFilesystem,
 					"server":   f.Config.NAStyHost,
 				}
 				if proto.id != "nfs" {

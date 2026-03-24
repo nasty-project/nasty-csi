@@ -29,7 +29,7 @@ type Config struct {
 	APIKey                    string
 	MetricsAddr               string // Address to expose Prometheus metrics (e.g., ":8080")
 	DashboardAddr             string // Address for in-cluster dashboard (e.g., ":9090", empty = disabled)
-	DashboardPool             string // Pool for unmanaged volume discovery in dashboard
+	DashboardFilesystem       string // Filesystem for unmanaged volume discovery in dashboard
 	ClusterID                 string // Unique identifier for this cluster (for multi-cluster NASty sharing)
 	TestMode                  bool   // Enable test mode for sanity tests (skips actual mounts)
 	SkipTLSVerify             bool   // Skip TLS certificate verification (for self-signed certs)
@@ -123,7 +123,7 @@ func (d *Driver) Run() error {
 
 	// Start dashboard server if configured
 	if d.config.DashboardAddr != "" {
-		dashSrv, dashErr := dashboard.NewServer(d.apiClient, d.config.DashboardPool, d.config.Version, d.config.ClusterID)
+		dashSrv, dashErr := dashboard.NewServer(d.apiClient, d.config.DashboardFilesystem, d.config.Version, d.config.ClusterID)
 		if dashErr != nil {
 			klog.Errorf("Failed to create dashboard server: %v", dashErr)
 		} else {

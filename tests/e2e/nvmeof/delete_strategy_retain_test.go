@@ -45,7 +45,7 @@ var _ = Describe("NVMe-oF Delete Strategy Retain", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "nvmeof",
 			"server":         f.Config.NAStyHost,
-			"pool":           f.Config.NAStyPool,
+			"filesystem":           f.Config.NAStyFilesystem,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",
@@ -80,7 +80,7 @@ var _ = Describe("NVMe-oF Delete Strategy Retain", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(volumeHandle).NotTo(BeEmpty())
 
-		// Volume handle is the full dataset path (e.g., pool/parent/pvc-xxx)
+		// Volume handle is the full dataset path (e.g., filesystem/parent/pvc-xxx)
 		zvolPath := volumeHandle
 		pv, err := f.K8s.GetPV(ctx, pvName)
 		Expect(err).NotTo(HaveOccurred())

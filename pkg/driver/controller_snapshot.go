@@ -28,7 +28,7 @@ var (
 // SnapshotMetadata contains information needed to manage a snapshot.
 type SnapshotMetadata struct {
 	SnapshotName string `json:"snapshotName"` // Snapshot name (bare name, not full path)
-	SourceVolume string `json:"sourceVolume"` // Source volume ID (pool/name)
+	SourceVolume string `json:"sourceVolume"` // Source volume ID (filesystem/name)
 	Protocol     string `json:"protocol"`     // Protocol (nfs, nvmeof, iscsi, smb)
 	CreatedAt    int64  `json:"-"`            // Creation timestamp (Unix epoch)
 }
@@ -109,15 +109,15 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 	snapshotName := req.GetName()
 	sourceVolumeID := req.GetSourceVolumeId()
 
-	// source volume ID must be pool/name format
-	pool, subvolumeName, err := splitSubvolumeID(sourceVolumeID)
+	// source volume ID must be filesystem/name format
+	filesystem, subvolumeName, err := splitSubvolumeID(sourceVolumeID)
 	if err != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid source volume ID %q: %v", sourceVolumeID, err)
 	}
 
 	// Look up source subvolume to get protocol
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, subvolumeName)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, subvolumeName)
 	if err != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.NotFound, "Source volume %s not found: %v", sourceVolumeID, err)
@@ -135,12 +135,12 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		for i := range managedSubvols {
 			sv := &managedSubvols[i]
 			for _, snap := range sv.Snapshots {
-				if snap != snapshotName || (sv.Pool == pool && sv.Name == subvolumeName) {
+				if snap != snapshotName || (sv.Filesystem == filesystem && sv.Name == subvolumeName) {
 					continue
 				}
 				timer.ObserveError()
 				return nil, status.Errorf(codes.AlreadyExists,
-					"snapshot %q already exists on different volume %s/%s", snapshotName, sv.Pool, sv.Name)
+					"snapshot %q already exists on different volume %s/%s", snapshotName, sv.Filesystem, sv.Name)
 			}
 		}
 	}
@@ -179,7 +179,7 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Create snapshot
 	snap, err := s.apiClient.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-		Pool:      pool,
+		Filesystem:      filesystem,
 		Subvolume: subvolumeName,
 		Name:      snapshotName,
 		ReadOnly:  true,
@@ -242,18 +242,18 @@ func (s *ControllerService) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return &csi.DeleteSnapshotResponse{}, nil
 	}
 
-	pool, subvolumeName, err := splitSubvolumeID(snapshotMeta.SourceVolume)
+	filesystem, subvolumeName, err := splitSubvolumeID(snapshotMeta.SourceVolume)
 	if err != nil {
 		klog.Warningf("Failed to parse source volume ID %s: %v. Assuming snapshot doesn't exist.", snapshotMeta.SourceVolume, err)
 		timer.ObserveSuccess()
 		return &csi.DeleteSnapshotResponse{}, nil
 	}
 
-	klog.Infof("Deleting snapshot %s on volume %s/%s", snapshotMeta.SnapshotName, pool, subvolumeName)
+	klog.Infof("Deleting snapshot %s on volume %s/%s", snapshotMeta.SnapshotName, filesystem, subvolumeName)
 
-	if err := s.apiClient.DeleteSnapshot(ctx, pool, subvolumeName, snapshotMeta.SnapshotName); err != nil {
+	if err := s.apiClient.DeleteSnapshot(ctx, filesystem, subvolumeName, snapshotMeta.SnapshotName); err != nil {
 		if isNotFoundError(err) {
-			klog.Infof("Snapshot %s not found on %s/%s, assuming already deleted", snapshotMeta.SnapshotName, pool, subvolumeName)
+			klog.Infof("Snapshot %s not found on %s/%s, assuming already deleted", snapshotMeta.SnapshotName, filesystem, subvolumeName)
 			timer.ObserveSuccess()
 			return &csi.DeleteSnapshotResponse{}, nil
 		}
@@ -261,7 +261,7 @@ func (s *ControllerService) DeleteSnapshot(ctx context.Context, req *csi.DeleteS
 		return nil, status.Errorf(codes.Internal, "Failed to delete snapshot: %v", err)
 	}
 
-	klog.Infof("Successfully deleted snapshot %s on volume %s/%s", snapshotMeta.SnapshotName, pool, subvolumeName)
+	klog.Infof("Successfully deleted snapshot %s on volume %s/%s", snapshotMeta.SnapshotName, filesystem, subvolumeName)
 	timer.ObserveSuccess()
 	return &csi.DeleteSnapshotResponse{}, nil
 }

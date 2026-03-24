@@ -45,7 +45,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "iscsi",
 			"server":         f.Config.NAStyHost,
-			"pool":           f.Config.NAStyPool,
+			"filesystem":           f.Config.NAStyFilesystem,
 			"port":           "3260",
 			"fsType":         "ext4",
 			"deleteStrategy": "retain",
@@ -153,7 +153,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":      "iscsi",
 			"server":        f.Config.NAStyHost,
-			"pool":          f.Config.NAStyPool,
+			"filesystem":          f.Config.NAStyFilesystem,
 			"port":          "3260",
 			"fsType":        "ext4",
 			"adoptExisting": "true",
@@ -229,7 +229,7 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "iscsi",
 			"server":         f.Config.NAStyHost,
-			"pool":           f.Config.NAStyPool,
+			"filesystem":           f.Config.NAStyFilesystem,
 			"port":           "3260",
 			"fsType":         "ext4",
 			"deleteStrategy": "retain",

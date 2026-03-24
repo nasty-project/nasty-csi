@@ -20,13 +20,13 @@ type Server struct {
 	client    nastyapi.ClientInterface
 	templates *template.Template
 	httpSrv   *http.Server
-	pool      string
+	filesystem      string
 	version   string
 	clusterID string
 }
 
 // NewServer creates a new dashboard server.
-func NewServer(client nastyapi.ClientInterface, pool, version, clusterID string) (*Server, error) {
+func NewServer(client nastyapi.ClientInterface, filesystem, version, clusterID string) (*Server, error) {
 	funcMap := template.FuncMap{
 		"add": func(a, b int) int { return a + b },
 		"sub": func(a, b int) int { return a - b },
@@ -40,7 +40,7 @@ func NewServer(client nastyapi.ClientInterface, pool, version, clusterID string)
 	return &Server{
 		client:    client,
 		templates: tmpl,
-		pool:      pool,
+		filesystem:      filesystem,
 		version:   version,
 		clusterID: clusterID,
 	}, nil

@@ -24,7 +24,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"pool":           "tank",
+					"filesystem":           "tank",
 					"server":         "192.168.1.100",
 					"deleteStrategy": "retain",
 				},
@@ -35,8 +35,8 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			wantErr: false,
 			check: func(t *testing.T, params *nvmeofVolumeParams) {
 				t.Helper()
-				if params.pool != "tank" {
-					t.Errorf("Expected pool 'tank', got %s", params.pool)
+				if params.filesystem != "tank" {
+					t.Errorf("Expected filesystem 'tank', got %s", params.filesystem)
 				}
 				if params.server != "192.168.1.100" {
 					t.Errorf("Expected server '192.168.1.100', got %s", params.server)
@@ -54,7 +54,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"pool":   "tank",
+					"filesystem":   "tank",
 					"server": "192.168.1.100",
 				},
 			},
@@ -72,7 +72,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			},
 		},
 		{
-			name: "missing pool parameter",
+			name: "missing filesystem parameter",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
@@ -87,7 +87,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"pool": "tank",
+					"filesystem": "tank",
 				},
 			},
 			wantErr:  true,
@@ -167,7 +167,7 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			name: "missing pool parameter",
+			name: "missing filesystem parameter",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				VolumeCapabilities: []*csi.VolumeCapability{
@@ -202,7 +202,7 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					"protocol": "nvmeof",
-					"pool":     "tank",
+					"filesystem":     "tank",
 				},
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {},
@@ -225,7 +225,7 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					"protocol": "nvmeof",
-					"pool":     "tank",
+					"filesystem":     "tank",
 					"server":   "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{
@@ -233,11 +233,11 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 				},
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return nil, nastyapi.ErrDatasetNotFound
 				}
 				m.CreateSubvolumeFunc = func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
-					return nil, errors.New("insufficient space on pool")
+					return nil, errors.New("insufficient space on filesystem")
 				}
 			},
 			wantErr:  true,
@@ -302,14 +302,14 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 				NVMeOFSubsystemUUID: "some-uuid",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
-						Pool:       pool,
+						Filesystem:       filesystem,
 						Name:       name,
 						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil
 				}
-				m.DeleteSubvolumeFunc = func(ctx context.Context, pool, name string) error {
+				m.DeleteSubvolumeFunc = func(ctx context.Context, filesystem, name string) error {
 					return nil
 				}
 				m.DeleteNVMeOFSubsystemFunc = func(ctx context.Context, id string) error {
@@ -326,7 +326,7 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 				DatasetID: "tank/csi/missing-volume",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.GetSubvolumeFunc = func(ctx context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return nil, nastyapi.ErrDatasetNotFound
 				}
 			},
@@ -393,8 +393,8 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			},
 			requiredBytes: 10 * 1024 * 1024 * 1024, // 10GB
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
-					return &nastyapi.Subvolume{Pool: pool, Name: name}, nil
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{Filesystem: filesystem, Name: name}, nil
 				}
 			},
 			wantErr: false,
@@ -421,7 +421,7 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			},
 			requiredBytes: 10 * 1024 * 1024 * 1024,
 			mockSetup: func(m *MockAPIClientForSnapshots) {
-				m.SetSubvolumePropertiesFunc = func(ctx context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+				m.SetSubvolumePropertiesFunc = func(ctx context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 					return nil, errors.New("subvolume not found")
 				}
 			},

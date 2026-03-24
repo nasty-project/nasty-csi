@@ -18,7 +18,7 @@ import (
 
 // smbVolumeParams holds validated parameters for SMB volume creation.
 type smbVolumeParams struct {
-	pool              string
+	filesystem              string
 	volumeName        string
 	subvolumeName     string
 	deleteStrategy    string
@@ -37,9 +37,9 @@ type smbVolumeParams struct {
 func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 	params := req.GetParameters()
 
-	pool := params["pool"]
-	if pool == "" {
-		return nil, status.Error(codes.InvalidArgument, "pool parameter is required for SMB volumes")
+	filesystem := params["filesystem"]
+	if filesystem == "" {
+		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for SMB volumes")
 	}
 
 	server := params["server"]
@@ -72,7 +72,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 	compression := params["compression"]
 
 	return &smbVolumeParams{
-		pool:              pool,
+		filesystem:              filesystem,
 		server:            server,
 		requestedCapacity: requestedCapacity,
 		volumeName:        volumeName,
@@ -92,7 +92,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 //
 //nolint:dupl // Protocol-specific response builders intentionally follow the same pattern
 func buildSMBVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, smbShare *nastyapi.SMBShare, capacity int64) *csi.CreateVolumeResponse {
-	volumeID := subvol.Pool + "/" + subvol.Name
+	volumeID := subvol.Filesystem + "/" + subvol.Name
 	meta := VolumeMetadata{
 		Name:         volumeName,
 		Protocol:     ProtocolSMB,
@@ -118,7 +118,7 @@ func buildSMBVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolum
 
 // handleExistingSMBSubvolume handles the case when a subvolume already exists (idempotency).
 func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, params *smbVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
-	klog.V(4).Infof("Subvolume %s/%s already exists, checking idempotency for SMB", existingSubvol.Pool, existingSubvol.Name)
+	klog.V(4).Infof("Subvolume %s/%s already exists, checking idempotency for SMB", existingSubvol.Filesystem, existingSubvol.Name)
 
 	shares, err := s.apiClient.ListSMBShares(ctx)
 	if err != nil {
@@ -157,16 +157,16 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 	}
 	smbShare, err := s.apiClient.CreateSMBShare(ctx, createParams)
 	if err != nil {
-		klog.Errorf("Failed to create SMB share '%s' for subvolume %s/%s (path: %s): %v", params.volumeName, subvol.Pool, subvol.Name, subvol.Path, err)
+		klog.Errorf("Failed to create SMB share '%s' for subvolume %s/%s (path: %s): %v", params.volumeName, subvol.Filesystem, subvol.Name, subvol.Path, err)
 		if subvolumeIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Pool, subvol.Name); delErr != nil {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Filesystem, subvol.Name); delErr != nil {
 				klog.Errorf("Failed to cleanup subvolume after SMB share creation failure: %v", delErr)
 			}
 		} else {
 			klog.Warningf("Skipping subvolume cleanup — subvolume was pre-existing")
 		}
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create SMB share '%s' for subvolume %s/%s: %v", params.volumeName, subvol.Pool, subvol.Name, err)
+		return nil, status.Errorf(codes.Internal, "Failed to create SMB share '%s' for subvolume %s/%s: %v", params.volumeName, subvol.Filesystem, subvol.Name, err)
 	}
 
 	klog.V(4).Infof("Created SMB share %q with ID: %s for path: %s", smbShare.Name, smbShare.ID, smbShare.Path)
@@ -183,8 +183,8 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 		Adoptable:      params.markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
-		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
+	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
+		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
 	}
 
 	return smbShare, nil
@@ -201,10 +201,10 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		return nil, err
 	}
 
-	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.pool, params.subvolumeName, params.requestedCapacity)
+	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.filesystem, params.subvolumeName, params.requestedCapacity)
 
 	// Check if subvolume already exists (idempotency)
-	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.pool, params.subvolumeName)
+	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.filesystem, params.subvolumeName)
 	if err != nil && !isNotFoundError(err) {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to query existing subvolume: %v", err)
@@ -221,7 +221,7 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no SMB share - continue with share creation
 	} else {
 		// Create new subvolume
-		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.pool, params.subvolumeName, "filesystem", params.comment, params.compression, params.requestedCapacity, timer)
+		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, "filesystem", params.comment, params.compression, params.requestedCapacity, timer)
 		if createErr != nil {
 			return nil, createErr
 		}
@@ -248,12 +248,12 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 	deleteStrategy := nastyapi.DeleteStrategyDelete
 	shareUUID := meta.SMBShareUUID
 
-	pool, subvolName, parseErr := splitSubvolumeID(meta.DatasetID)
-	if parseErr == nil && pool != "" && subvolName != "" {
-		subvol, getErr := s.apiClient.GetSubvolume(ctx, pool, subvolName)
+	filesystem, subvolName, parseErr := splitSubvolumeID(meta.DatasetID)
+	if parseErr == nil && filesystem != "" && subvolName != "" {
+		subvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, subvolName)
 		if getErr != nil {
 			if isNotFoundError(getErr) {
-				klog.V(4).Infof("Subvolume %s/%s not found, assuming already deleted (idempotency)", pool, subvolName)
+				klog.V(4).Infof("Subvolume %s/%s not found, assuming already deleted (idempotency)", filesystem, subvolName)
 				timer.ObserveSuccess()
 				return &csi.DeleteVolumeResponse{}, nil
 			}
@@ -264,14 +264,14 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 			if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
 				timer.ObserveError()
 				return nil, status.Errorf(codes.FailedPrecondition,
-					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", pool, subvolName, managedBy)
+					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", filesystem, subvolName, managedBy)
 			}
 
 			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
 				if volumeName != meta.DatasetName {
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
-						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.DatasetName)
+						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", filesystem, subvolName, volumeName, meta.DatasetName)
 				}
 			}
 
@@ -302,14 +302,14 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	// Step 2: Delete subvolume
-	if parseErr == nil && pool != "" && subvolName != "" {
-		klog.V(4).Infof("Deleting subvolume: %s/%s", pool, subvolName)
-		firstErr := s.apiClient.DeleteSubvolume(ctx, pool, subvolName)
+	if parseErr == nil && filesystem != "" && subvolName != "" {
+		klog.V(4).Infof("Deleting subvolume: %s/%s", filesystem, subvolName)
+		firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, subvolName)
 		if firstErr != nil && !isNotFoundError(firstErr) {
 			timer.ObserveError()
-			return nil, status.Errorf(codes.Internal, "Failed to delete subvolume %s/%s: %v", pool, subvolName, firstErr)
+			return nil, status.Errorf(codes.Internal, "Failed to delete subvolume %s/%s: %v", filesystem, subvolName, firstErr)
 		}
-		klog.V(4).Infof("Successfully deleted subvolume %s/%s", pool, subvolName)
+		klog.V(4).Infof("Successfully deleted subvolume %s/%s", filesystem, subvolName)
 	}
 
 	klog.Infof("Deleted SMB volume: %s", meta.Name)
@@ -322,7 +322,7 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "adopt")
 	volumeName := req.GetName()
-	klog.Infof("Adopting SMB volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
+	klog.Infof("Adopting SMB volume: %s (subvolume=%s/%s)", volumeName, subvol.Filesystem, subvol.Name)
 
 	server := params["server"]
 	if server == "" {
@@ -336,12 +336,12 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 
 	if subvol.Path == "" {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Pool, subvol.Name)
+		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Filesystem, subvol.Name)
 	}
 
 	existingShares, err := s.apiClient.ListSMBShares(ctx)
 	if err != nil {
-		klog.Warningf("Failed to list SMB shares for %s/%s: %v", subvol.Pool, subvol.Name, err)
+		klog.Warningf("Failed to list SMB shares for %s/%s: %v", subvol.Filesystem, subvol.Name, err)
 	}
 
 	var smbShare *nastyapi.SMBShare
@@ -390,11 +390,11 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 		Adoptable:      markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); propErr != nil {
-		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Pool, subvol.Name, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); propErr != nil {
+		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Filesystem, subvol.Name, propErr)
 	}
 
-	volumeID := subvol.Pool + "/" + subvol.Name
+	volumeID := subvol.Filesystem + "/" + subvol.Name
 	meta := VolumeMetadata{
 		Name:         volumeName,
 		Protocol:     ProtocolSMB,
@@ -431,7 +431,7 @@ func (s *ControllerService) expandSMBVolume(ctx context.Context, meta *VolumeMet
 		return nil, status.Error(codes.InvalidArgument, "subvolume ID not found in volume metadata")
 	}
 
-	pool, subvolName, err := splitSubvolumeID(meta.DatasetID)
+	filesystem, subvolName, err := splitSubvolumeID(meta.DatasetID)
 	if err != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "invalid subvolume ID %q: %v", meta.DatasetID, err)
@@ -439,19 +439,19 @@ func (s *ControllerService) expandSMBVolume(ctx context.Context, meta *VolumeMet
 
 	// Resize the underlying subvolume
 	//nolint:gosec // G115: CSI capacity is always non-negative
-	if _, resizeErr := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); resizeErr != nil {
-		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, resizeErr)
+	if _, resizeErr := s.apiClient.ResizeSubvolume(ctx, filesystem, subvolName, uint64(requiredBytes)); resizeErr != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", filesystem, subvolName, resizeErr)
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", resizeErr)
 	}
 
-	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
+	_, err = s.apiClient.SetSubvolumeProperties(ctx, filesystem, subvolName, map[string]string{
 		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	})
 	if err != nil {
-		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)
+		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", filesystem, subvolName, err)
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to update capacity for '%s/%s': %v", pool, subvolName, err)
+		return nil, status.Errorf(codes.Internal, "Failed to update capacity for '%s/%s': %v", filesystem, subvolName, err)
 	}
 
 	klog.Infof("Expanded SMB volume: %s to %d bytes", meta.Name, requiredBytes)
@@ -471,12 +471,12 @@ func (s *ControllerService) getSMBVolumeInfo(ctx context.Context, meta *VolumeMe
 	abnormal := false
 	var messages []string
 
-	pool, subvolName, err := splitSubvolumeID(meta.DatasetID)
+	filesystem, subvolName, err := splitSubvolumeID(meta.DatasetID)
 	if err == nil {
-		subvol, getErr := s.apiClient.GetSubvolume(ctx, pool, subvolName)
+		subvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, subvolName)
 		if getErr != nil || subvol == nil {
 			abnormal = true
-			messages = append(messages, fmt.Sprintf("Subvolume %s/%s not accessible: %v", pool, subvolName, getErr))
+			messages = append(messages, fmt.Sprintf("Subvolume %s/%s not accessible: %v", filesystem, subvolName, getErr))
 		}
 	}
 

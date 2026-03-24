@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	errPoolNotConfigured = errors.New("pool not configured")
+	errFilesystemNotConfigured = errors.New("filesystem not configured")
 	errVolumeIDRequired  = errors.New("volume ID required")
 )
 
@@ -227,14 +227,14 @@ func (s *Server) handlePartialUnmanaged(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	params := ParsePaginationParams(r)
 
-	if s.pool == "" {
+	if s.filesystem == "" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		//nolint:errcheck,gosec // Best effort response
-		w.Write([]byte(`<div class="empty-state">Pool not configured. Start dashboard with --dashboard-pool flag to see unmanaged volumes.</div>`))
+		w.Write([]byte(`<div class="empty-state">Filesystem not configured. Start dashboard with --dashboard-filesystem flag to see unmanaged volumes.</div>`))
 		return
 	}
 
-	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.pool, false, s.clusterID)
+	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.filesystem, false, s.clusterID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -251,12 +251,12 @@ func (s *Server) handlePartialUnmanaged(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleAPIUnmanaged(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if s.pool == "" {
-		writeJSONError(w, errPoolNotConfigured)
+	if s.filesystem == "" {
+		writeJSONError(w, errFilesystemNotConfigured)
 		return
 	}
 
-	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.pool, false, s.clusterID)
+	unmanaged, err := FindUnmanagedVolumes(ctx, s.client, s.filesystem, false, s.clusterID)
 	if err != nil {
 		writeJSONError(w, err)
 		return

@@ -34,8 +34,8 @@ var (
 
 // MockClient is a mock implementation of the NASty API client for sanity testing.
 type MockClient struct {
-	subvolumes       map[string]*nastyapi.Subvolume       // key: "pool/name"
-	snapshots        map[string]*nastyapi.Snapshot        // key: "pool/subvolume@name"
+	subvolumes       map[string]*nastyapi.Subvolume       // key: "filesystem/name"
+	snapshots        map[string]*nastyapi.Snapshot        // key: "filesystem/subvolume@name"
 	nfsShares        map[string]*nastyapi.NFSShare        // key: UUID
 	smbShares        map[string]*nastyapi.SMBShare        // key: UUID
 	iscsiTargets     map[string]*nastyapi.ISCSITarget     // key: UUID
@@ -63,12 +63,12 @@ func (m *MockClient) genID() string {
 // Close is a no-op for the mock client.
 func (m *MockClient) Close() {}
 
-// QueryPool returns a fake pool for testing.
-func (m *MockClient) QueryPool(_ context.Context, poolName string) (*nastyapi.Pool, error) {
+// QueryFilesystem returns a fake filesystem for testing.
+func (m *MockClient) QueryFilesystem(_ context.Context, fsName string) (*nastyapi.Filesystem, error) {
 	total := uint64(10 * 1024 * 1024 * 1024)
 	used := uint64(1 * 1024 * 1024 * 1024)
-	return &nastyapi.Pool{
-		Name:           poolName,
+	return &nastyapi.Filesystem{
+		Name:           fsName,
 		Mounted:        true,
 		TotalBytes:     total,
 		UsedBytes:      used,
@@ -81,23 +81,23 @@ func (m *MockClient) CreateSubvolume(_ context.Context, params nastyapi.Subvolum
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := params.Pool + "/" + params.Name
+	key := params.Filesystem + "/" + params.Name
 	if _, exists := m.subvolumes[key]; exists {
 		return nil, ErrDatasetExists
 	}
 
 	sv := &nastyapi.Subvolume{
 		Name:          params.Name,
-		Pool:          params.Pool,
+		Filesystem:          params.Filesystem,
 		SubvolumeType: params.SubvolumeType,
-		Path:          "/" + params.Pool + "/" + params.Name,
+		Path:          "/" + params.Filesystem + "/" + params.Name,
 		Properties:    make(map[string]string),
 		Snapshots:     []string{},
 	}
 	if params.VolsizeBytes != nil {
 		sv.VolsizeBytes = params.VolsizeBytes
 		if params.SubvolumeType == "block" {
-			dev := "/dev/zvol/" + params.Pool + "/" + params.Name
+			dev := "/dev/zvol/" + params.Filesystem + "/" + params.Name
 			sv.BlockDevice = &dev
 		}
 	}
@@ -107,11 +107,11 @@ func (m *MockClient) CreateSubvolume(_ context.Context, params nastyapi.Subvolum
 }
 
 // DeleteSubvolume removes a subvolume from the mock.
-func (m *MockClient) DeleteSubvolume(_ context.Context, pool, name string) error {
+func (m *MockClient) DeleteSubvolume(_ context.Context, filesystem, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := pool + "/" + name
+	key := filesystem + "/" + name
 	if _, exists := m.subvolumes[key]; !exists {
 		return ErrDatasetNotFound
 	}
@@ -119,12 +119,12 @@ func (m *MockClient) DeleteSubvolume(_ context.Context, pool, name string) error
 	return nil
 }
 
-// GetSubvolume retrieves a subvolume by pool and name.
-func (m *MockClient) GetSubvolume(_ context.Context, pool, name string) (*nastyapi.Subvolume, error) {
+// GetSubvolume retrieves a subvolume by filesystem and name.
+func (m *MockClient) GetSubvolume(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := pool + "/" + name
+	key := filesystem + "/" + name
 	sv, exists := m.subvolumes[key]
 	if !exists {
 		return nil, ErrDatasetNotFound
@@ -133,14 +133,14 @@ func (m *MockClient) GetSubvolume(_ context.Context, pool, name string) (*nastya
 	return &cp, nil
 }
 
-// ListAllSubvolumes lists all subvolumes in a pool.
-func (m *MockClient) ListAllSubvolumes(_ context.Context, pool string) ([]nastyapi.Subvolume, error) {
+// ListAllSubvolumes lists all subvolumes in a filesystem.
+func (m *MockClient) ListAllSubvolumes(_ context.Context, filesystem string) ([]nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	var result []nastyapi.Subvolume
 	for key, sv := range m.subvolumes {
-		if pool == "" || sv.Pool == pool {
+		if filesystem == "" || sv.Filesystem == filesystem {
 			_ = key
 			result = append(result, *sv)
 		}
@@ -149,11 +149,11 @@ func (m *MockClient) ListAllSubvolumes(_ context.Context, pool string) ([]nastya
 }
 
 // SetSubvolumeProperties sets xattr properties on a subvolume.
-func (m *MockClient) SetSubvolumeProperties(_ context.Context, pool, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+func (m *MockClient) SetSubvolumeProperties(_ context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := pool + "/" + name
+	key := filesystem + "/" + name
 	sv, exists := m.subvolumes[key]
 	if !exists {
 		return nil, ErrDatasetNotFound
@@ -169,11 +169,11 @@ func (m *MockClient) SetSubvolumeProperties(_ context.Context, pool, name string
 }
 
 // RemoveSubvolumeProperties removes xattr properties from a subvolume.
-func (m *MockClient) RemoveSubvolumeProperties(_ context.Context, pool, name string, keys []string) (*nastyapi.Subvolume, error) {
+func (m *MockClient) RemoveSubvolumeProperties(_ context.Context, filesystem, name string, keys []string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := pool + "/" + name
+	key := filesystem + "/" + name
 	sv, exists := m.subvolumes[key]
 	if !exists {
 		return nil, ErrDatasetNotFound
@@ -186,13 +186,13 @@ func (m *MockClient) RemoveSubvolumeProperties(_ context.Context, pool, name str
 }
 
 // FindSubvolumesByProperty finds subvolumes by xattr property key/value pair.
-func (m *MockClient) FindSubvolumesByProperty(_ context.Context, propKey, propValue, pool string) ([]nastyapi.Subvolume, error) {
+func (m *MockClient) FindSubvolumesByProperty(_ context.Context, propKey, propValue, filesystem string) ([]nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	var result []nastyapi.Subvolume
 	for _, sv := range m.subvolumes {
-		if pool != "" && sv.Pool != pool {
+		if filesystem != "" && sv.Filesystem != filesystem {
 			continue
 		}
 		if sv.Properties[propKey] == propValue {
@@ -203,13 +203,13 @@ func (m *MockClient) FindSubvolumesByProperty(_ context.Context, propKey, propVa
 }
 
 // FindManagedSubvolumes finds all subvolumes managed by nasty-csi.
-func (m *MockClient) FindManagedSubvolumes(ctx context.Context, pool string) ([]nastyapi.Subvolume, error) {
-	return m.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, pool)
+func (m *MockClient) FindManagedSubvolumes(ctx context.Context, filesystem string) ([]nastyapi.Subvolume, error) {
+	return m.FindSubvolumesByProperty(ctx, nastyapi.PropertyManagedBy, nastyapi.ManagedByValue, filesystem)
 }
 
 // FindSubvolumeByCSIVolumeName finds a subvolume by its CSI volume name xattr.
-func (m *MockClient) FindSubvolumeByCSIVolumeName(ctx context.Context, pool, volumeName string) (*nastyapi.Subvolume, error) {
-	subvols, err := m.FindSubvolumesByProperty(ctx, nastyapi.PropertyCSIVolumeName, volumeName, pool)
+func (m *MockClient) FindSubvolumeByCSIVolumeName(ctx context.Context, filesystem, volumeName string) (*nastyapi.Subvolume, error) {
+	subvols, err := m.FindSubvolumesByProperty(ctx, nastyapi.PropertyCSIVolumeName, volumeName, filesystem)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	svKey := params.Pool + "/" + params.Subvolume
+	svKey := params.Filesystem + "/" + params.Subvolume
 	if _, exists := m.subvolumes[svKey]; !exists {
 		return nil, ErrDatasetNotFound
 	}
@@ -237,8 +237,8 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 	snap := &nastyapi.Snapshot{
 		Name:      params.Name,
 		Subvolume: params.Subvolume,
-		Pool:      params.Pool,
-		Path:      "/" + params.Pool + "/" + params.Subvolume + "@" + params.Name,
+		Filesystem:      params.Filesystem,
+		Path:      "/" + params.Filesystem + "/" + params.Subvolume + "@" + params.Name,
 		ReadOnly:  params.ReadOnly,
 	}
 	m.snapshots[snapKey] = snap
@@ -252,18 +252,18 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 }
 
 // DeleteSnapshot deletes a snapshot.
-func (m *MockClient) DeleteSnapshot(_ context.Context, pool, subvolume, name string) error {
+func (m *MockClient) DeleteSnapshot(_ context.Context, filesystem, subvolume, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	snapKey := pool + "/" + subvolume + "@" + name
+	snapKey := filesystem + "/" + subvolume + "@" + name
 	if _, exists := m.snapshots[snapKey]; !exists {
 		return ErrSnapshotNotFound
 	}
 	delete(m.snapshots, snapKey)
 
 	// Update the parent subvolume's snapshot list
-	svKey := pool + "/" + subvolume
+	svKey := filesystem + "/" + subvolume
 	if sv, exists := m.subvolumes[svKey]; exists {
 		for i, s := range sv.Snapshots {
 			if s == name {
@@ -276,14 +276,14 @@ func (m *MockClient) DeleteSnapshot(_ context.Context, pool, subvolume, name str
 	return nil
 }
 
-// ListSnapshots lists all snapshots in a pool.
-func (m *MockClient) ListSnapshots(_ context.Context, pool string) ([]nastyapi.Snapshot, error) {
+// ListSnapshots lists all snapshots in a filesystem.
+func (m *MockClient) ListSnapshots(_ context.Context, filesystem string) ([]nastyapi.Snapshot, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	var result []nastyapi.Snapshot
 	for _, snap := range m.snapshots {
-		if pool == "" || snap.Pool == pool {
+		if filesystem == "" || snap.Filesystem == filesystem {
 			result = append(result, *snap)
 		}
 	}
@@ -549,11 +549,11 @@ func (m *MockClient) GetNVMeOFSubsystemByNQN(_ context.Context, nqn string) (*na
 }
 
 // ResizeSubvolume resizes a subvolume.
-func (m *MockClient) ResizeSubvolume(_ context.Context, pool, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error) {
+func (m *MockClient) ResizeSubvolume(_ context.Context, filesystem, name string, volsizeBytes uint64) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := pool + "/" + name
+	key := filesystem + "/" + name
 	sv, exists := m.subvolumes[key]
 	if !exists {
 		return nil, ErrDatasetNotFound
@@ -569,19 +569,19 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 	defer m.mu.Unlock()
 
 	// Verify the source snapshot exists
-	snapKey := params.Pool + "/" + params.Subvolume + "@" + params.Snapshot
+	snapKey := params.Filesystem + "/" + params.Subvolume + "@" + params.Snapshot
 	if _, exists := m.snapshots[snapKey]; !exists {
 		return nil, ErrSnapshotNotFound
 	}
 
 	// Create the new subvolume as a clone
-	newKey := params.Pool + "/" + params.NewName
+	newKey := params.Filesystem + "/" + params.NewName
 	if _, exists := m.subvolumes[newKey]; exists {
 		return nil, ErrDatasetExists
 	}
 
 	// Copy properties from parent subvolume if it exists
-	parentKey := params.Pool + "/" + params.Subvolume
+	parentKey := params.Filesystem + "/" + params.Subvolume
 	var props map[string]string
 	if parent, exists := m.subvolumes[parentKey]; exists && parent.Properties != nil {
 		props = make(map[string]string)
@@ -594,8 +594,8 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 
 	sv := &nastyapi.Subvolume{
 		Name:       params.NewName,
-		Pool:       params.Pool,
-		Path:       "/" + params.Pool + "/" + params.NewName,
+		Filesystem:       params.Filesystem,
+		Path:       "/" + params.Filesystem + "/" + params.NewName,
 		Properties: props,
 		Snapshots:  []string{},
 	}
@@ -605,17 +605,17 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 }
 
 // CloneSubvolume creates a COW clone of a subvolume.
-func (m *MockClient) CloneSubvolume(_ context.Context, pool, name, newName string) (*nastyapi.Subvolume, error) {
+func (m *MockClient) CloneSubvolume(_ context.Context, filesystem, name, newName string) (*nastyapi.Subvolume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	sourceKey := pool + "/" + name
+	sourceKey := filesystem + "/" + name
 	source, exists := m.subvolumes[sourceKey]
 	if !exists {
 		return nil, ErrDatasetNotFound
 	}
 
-	newKey := pool + "/" + newName
+	newKey := filesystem + "/" + newName
 	if _, exists := m.subvolumes[newKey]; exists {
 		return nil, ErrDatasetExists
 	}
@@ -630,9 +630,9 @@ func (m *MockClient) CloneSubvolume(_ context.Context, pool, name, newName strin
 
 	sv := &nastyapi.Subvolume{
 		Name:          newName,
-		Pool:          pool,
+		Filesystem:          filesystem,
 		SubvolumeType: source.SubvolumeType,
-		Path:          "/" + pool + "/" + newName,
+		Path:          "/" + filesystem + "/" + newName,
 		VolsizeBytes:  source.VolsizeBytes,
 		Compression:   source.Compression,
 		Properties:    props,

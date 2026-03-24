@@ -19,10 +19,10 @@ import (
 
 // nfsVolumeParams holds validated parameters for NFS volume creation.
 type nfsVolumeParams struct {
-	pool              string
+	filesystem              string
 	volumeName        string
-	subvolumeName     string // short name within pool (e.g., "pvc-xxx")
-	subvolumeID       string // full identifier: "pool/subvolumeName"
+	subvolumeName     string // short name within filesystem (e.g., "pvc-xxx")
+	subvolumeID       string // full identifier: "filesystem/subvolumeName"
 	deleteStrategy    string
 	server            string
 	comment           string
@@ -63,9 +63,9 @@ func parseNFSClients(clientsParam string) []nastyapi.NFSClient {
 func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	params := req.GetParameters()
 
-	pool := params["pool"]
-	if pool == "" {
-		return nil, status.Error(codes.InvalidArgument, "pool parameter is required for NFS volumes")
+	filesystem := params["filesystem"]
+	if filesystem == "" {
+		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for NFS volumes")
 	}
 
 	// Server parameter - optional for testing with default value
@@ -113,11 +113,11 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	compression := params["compression"]
 
 	return &nfsVolumeParams{
-		pool:              pool,
+		filesystem:              filesystem,
 		server:            server,
 		volumeName:        volumeName,
 		subvolumeName:     volumeName,
-		subvolumeID:       pool + "/" + volumeName,
+		subvolumeID:       filesystem + "/" + volumeName,
 		requestedCapacity: requestedCapacity,
 		deleteStrategy:    deleteStrategy,
 		markAdoptable:     markAdoptable,
@@ -148,7 +148,7 @@ func parseCapacityFromComment(comment string) int64 {
 //
 //nolint:dupl // Protocol-specific response builders intentionally follow the same pattern
 func buildNFSVolumeResponseFromSubvolume(volumeName, server string, subvol *nastyapi.Subvolume, nfsShare *nastyapi.NFSShare, capacity int64) *csi.CreateVolumeResponse {
-	volumeID := subvol.Pool + "/" + subvol.Name
+	volumeID := subvol.Filesystem + "/" + subvol.Name
 
 	meta := VolumeMetadata{
 		Name:         volumeName,
@@ -249,9 +249,9 @@ func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, para
 // ensureNFSSubvolumeProperties checks if xattr properties are set and sets them if missing.
 func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *nastyapi.Subvolume, _ *nastyapi.NFSShare) {
 	// Read current properties from subvolume
-	existing, err := s.apiClient.GetSubvolume(ctx, subvol.Pool, subvol.Name)
+	existing, err := s.apiClient.GetSubvolume(ctx, subvol.Filesystem, subvol.Name)
 	if err != nil {
-		klog.Warningf("Failed to check properties on subvolume %s/%s: %v (skipping property recovery)", subvol.Pool, subvol.Name, err)
+		klog.Warningf("Failed to check properties on subvolume %s/%s: %v (skipping property recovery)", subvol.Filesystem, subvol.Name, err)
 		return
 	}
 	if existing.Properties != nil {
@@ -260,12 +260,12 @@ func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, pa
 		}
 	}
 
-	klog.Infof("Recovering missing xattr properties on subvolume %s/%s (orphaned from interrupted creation)", subvol.Pool, subvol.Name)
+	klog.Infof("Recovering missing xattr properties on subvolume %s/%s (orphaned from interrupted creation)", subvol.Filesystem, subvol.Name)
 	props := nfsPropertiesV1(params, s.clusterID)
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
-		klog.Warningf("Failed to recover xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
+	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
+		klog.Warningf("Failed to recover xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
 	} else {
-		klog.Infof("Successfully recovered xattr properties on subvolume %s/%s", subvol.Pool, subvol.Name)
+		klog.Infof("Successfully recovered xattr properties on subvolume %s/%s", subvol.Filesystem, subvol.Name)
 	}
 }
 
@@ -281,27 +281,27 @@ func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subv
 		Enabled: &enabled,
 	})
 	if err != nil {
-		klog.Errorf("Failed to create NFS share for subvolume %s/%s (path: %s): %v", subvol.Pool, subvol.Name, subvol.Path, err)
+		klog.Errorf("Failed to create NFS share for subvolume %s/%s (path: %s): %v", subvol.Filesystem, subvol.Name, subvol.Path, err)
 		if subvolumeIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Pool, subvol.Name); delErr != nil {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Filesystem, subvol.Name); delErr != nil {
 				klog.Errorf("Failed to cleanup subvolume after NFS share creation failure: %v", delErr)
 			}
 		} else {
 			klog.Warningf("Skipping subvolume cleanup — subvolume was pre-existing")
 		}
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for subvolume %s/%s: %v", subvol.Pool, subvol.Name, err)
+		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for subvolume %s/%s: %v", subvol.Filesystem, subvol.Name, err)
 	}
 
 	klog.V(4).Infof("Created NFS share with ID: %s for path: %s", nfsShare.ID, nfsShare.Path)
 
 	// Store xattr properties for CSI metadata tracking (Schema v1)
 	props := nfsPropertiesV1(params, s.clusterID)
-	klog.V(4).Infof("Storing xattr properties on subvolume %s/%s: deleteStrategy=%q", subvol.Pool, subvol.Name, params.deleteStrategy)
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); err != nil {
-		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Pool, subvol.Name, err)
+	klog.V(4).Infof("Storing xattr properties on subvolume %s/%s: deleteStrategy=%q", subvol.Filesystem, subvol.Name, params.deleteStrategy)
+	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
+		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
 	} else {
-		klog.V(4).Infof("Successfully stored xattr properties on subvolume %s/%s", subvol.Pool, subvol.Name)
+		klog.V(4).Infof("Successfully stored xattr properties on subvolume %s/%s", subvol.Filesystem, subvol.Name)
 	}
 
 	return nfsShare, nil
@@ -319,10 +319,10 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		return nil, err
 	}
 
-	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.pool, params.subvolumeName, params.requestedCapacity)
+	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.filesystem, params.subvolumeName, params.requestedCapacity)
 
 	// Check if subvolume already exists (idempotency)
-	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.pool, params.subvolumeName)
+	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.filesystem, params.subvolumeName)
 	if err != nil && !isNotFoundError(err) {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to query existing subvolume: %v", err)
@@ -340,7 +340,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 	} else {
 		// Create new subvolume
 		createParams := nastyapi.SubvolumeCreateParams{
-			Pool:          params.pool,
+			Filesystem:          params.filesystem,
 			Name:          params.subvolumeName,
 			SubvolumeType: "filesystem",
 			Comments:      params.comment,
@@ -356,10 +356,10 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		newSubvol, createErr := s.apiClient.CreateSubvolume(ctx, createParams)
 		if createErr != nil {
 			timer.ObserveError()
-			return nil, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", params.pool, params.subvolumeName, params.requestedCapacity), createErr)
+			return nil, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", params.filesystem, params.subvolumeName, params.requestedCapacity), createErr)
 		}
 		existingSubvol = newSubvol
-		klog.V(4).Infof("Created subvolume: %s/%s with path: %s", existingSubvol.Pool, existingSubvol.Name, existingSubvol.Path)
+		klog.V(4).Infof("Created subvolume: %s/%s with path: %s", existingSubvol.Filesystem, existingSubvol.Name, existingSubvol.Path)
 	}
 
 	// Create NFS share for the subvolume
@@ -371,7 +371,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 
 	// Build and return response
 	resp := buildNFSVolumeResponseFromSubvolume(params.volumeName, params.server, existingSubvol, nfsShare, params.requestedCapacity)
-	klog.Infof("Created NFS volume: %s (subvolume: %s/%s)", params.volumeName, params.pool, params.subvolumeName)
+	klog.Infof("Created NFS volume: %s (subvolume: %s/%s)", params.volumeName, params.filesystem, params.subvolumeName)
 	timer.ObserveSuccess()
 	return resp, nil
 }
@@ -381,11 +381,11 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (subvolumeID: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
-	// Parse pool and subvolume name from DatasetID ("pool/name")
-	pool, subvolName, err := splitSubvolumeID(meta.DatasetID)
+	// Parse filesystem and subvolume name from DatasetID ("filesystem/name")
+	filesystem, subvolName, err := splitSubvolumeID(meta.DatasetID)
 	if err != nil {
 		// Fallback for legacy volumes: try by name
-		pool = ""
+		filesystem = ""
 		subvolName = meta.Name
 		klog.V(4).Infof("Cannot parse subvolumeID %q, falling back to name %q", meta.DatasetID, meta.Name)
 	}
@@ -394,11 +394,11 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	deleteStrategy := nastyapi.DeleteStrategyDelete // Default
 	shareUUID := meta.NFSShareUUID
 
-	if pool != "" && subvolName != "" {
-		subvol, getErr := s.apiClient.GetSubvolume(ctx, pool, subvolName)
+	if filesystem != "" && subvolName != "" {
+		subvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, subvolName)
 		if getErr != nil {
 			if isNotFoundError(getErr) {
-				klog.V(4).Infof("Subvolume %s/%s not found, assuming already deleted (idempotency)", pool, subvolName)
+				klog.V(4).Infof("Subvolume %s/%s not found, assuming already deleted (idempotency)", filesystem, subvolName)
 				timer.ObserveSuccess()
 				return &csi.DeleteVolumeResponse{}, nil
 			}
@@ -408,21 +408,21 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 
 			// Verify ownership if properties exist
 			if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
-				klog.Errorf("Subvolume %s/%s is not managed by nasty-csi (managed_by=%s), refusing to delete", pool, subvolName, managedBy)
+				klog.Errorf("Subvolume %s/%s is not managed by nasty-csi (managed_by=%s), refusing to delete", filesystem, subvolName, managedBy)
 				timer.ObserveError()
 				return nil, status.Errorf(codes.FailedPrecondition,
-					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", pool, subvolName, managedBy)
+					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", filesystem, subvolName, managedBy)
 			}
 
 			// Verify volume name matches — compare stored CSI name against
 			// the subvolume name (DatasetName), not the full volume ID (Name)
-			// which includes the pool prefix.
+			// which includes the filesystem prefix.
 			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
 				if volumeName != meta.DatasetName {
-					klog.Errorf("Subvolume %s/%s volume name mismatch: property=%s, requested=%s", pool, subvolName, volumeName, meta.DatasetName)
+					klog.Errorf("Subvolume %s/%s volume name mismatch: property=%s, requested=%s", filesystem, subvolName, volumeName, meta.DatasetName)
 					timer.ObserveError()
 					return nil, status.Errorf(codes.FailedPrecondition,
-						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", pool, subvolName, volumeName, meta.DatasetName)
+						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", filesystem, subvolName, volumeName, meta.DatasetName)
 				}
 			}
 
@@ -431,7 +431,7 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 				deleteStrategy = strategy
 			}
 
-			klog.V(4).Infof("Ownership verified for subvolume %s/%s via xattr properties", pool, subvolName)
+			klog.V(4).Infof("Ownership verified for subvolume %s/%s via xattr properties", filesystem, subvolName)
 		}
 	}
 
@@ -458,16 +458,16 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	// Step 2: Delete subvolume
-	if pool == "" || subvolName == "" {
-		klog.V(4).Infof("No subvolume pool/name available, skipping subvolume deletion")
+	if filesystem == "" || subvolName == "" {
+		klog.V(4).Infof("No subvolume filesystem/name available, skipping subvolume deletion")
 	} else {
-		klog.V(4).Infof("Deleting subvolume: %s/%s", pool, subvolName)
+		klog.V(4).Infof("Deleting subvolume: %s/%s", filesystem, subvolName)
 
-		firstErr := s.apiClient.DeleteSubvolume(ctx, pool, subvolName)
+		firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, subvolName)
 		if firstErr != nil && !isNotFoundError(firstErr) {
 			retryConfig := retry.DeletionConfig("delete-nfs-subvolume")
 			retryErr := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-				deleteErr := s.apiClient.DeleteSubvolume(ctx, pool, subvolName)
+				deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, subvolName)
 				if deleteErr != nil && isNotFoundError(deleteErr) {
 					return nil
 				}
@@ -476,10 +476,10 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 
 			if retryErr != nil {
 				timer.ObserveError()
-				return nil, status.Errorf(codes.Internal, "Failed to delete subvolume %s/%s: %v", pool, subvolName, retryErr)
+				return nil, status.Errorf(codes.Internal, "Failed to delete subvolume %s/%s: %v", filesystem, subvolName, retryErr)
 			}
 		}
-		klog.V(4).Infof("Successfully deleted subvolume %s/%s", pool, subvolName)
+		klog.V(4).Infof("Successfully deleted subvolume %s/%s", filesystem, subvolName)
 	}
 
 	klog.Infof("Deleted NFS volume: %s", meta.Name)
@@ -488,11 +488,11 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-// splitSubvolumeID splits "pool/name" into (pool, name).
-func splitSubvolumeID(subvolumeID string) (pool, name string, err error) {
+// splitSubvolumeID splits "filesystem/name" into (filesystem, name).
+func splitSubvolumeID(subvolumeID string) (filesystem, name string, err error) {
 	idx := strings.Index(subvolumeID, "/")
 	if idx < 0 || idx == len(subvolumeID)-1 {
-		return "", "", fmt.Errorf("%w: %q expected pool/name format", ErrInvalidVolumeID, subvolumeID)
+		return "", "", fmt.Errorf("%w: %q expected filesystem/name format", ErrInvalidVolumeID, subvolumeID)
 	}
 	return subvolumeID[:idx], subvolumeID[idx+1:], nil
 }
@@ -507,7 +507,7 @@ func (s *ControllerService) setupNFSVolumeFromClone(_ context.Context, _ *csi.Cr
 func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "adopt")
 	volumeName := req.GetName()
-	klog.Infof("Adopting NFS volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
+	klog.Infof("Adopting NFS volume: %s (subvolume=%s/%s)", volumeName, subvol.Filesystem, subvol.Name)
 
 	// Get server parameter
 	server := params["server"]
@@ -522,7 +522,7 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 
 	if subvol.Path == "" {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Pool, subvol.Name)
+		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Filesystem, subvol.Name)
 	}
 
 	// Check if an NFS share already exists for this path
@@ -580,15 +580,15 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		Adoptable:      markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); propErr != nil {
-		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Pool, subvol.Name, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); propErr != nil {
+		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Filesystem, subvol.Name, propErr)
 	}
 
 	// Build response
 	meta := VolumeMetadata{
 		Name:         volumeName,
 		Protocol:     ProtocolNFS,
-		DatasetID:    subvol.Pool + "/" + subvol.Name,
+		DatasetID:    subvol.Filesystem + "/" + subvol.Name,
 		DatasetName:  subvol.Name,
 		Server:       server,
 		NFSShareUUID: nfsShare.ID,
@@ -604,7 +604,7 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 
 	return &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId:      subvol.Pool + "/" + subvol.Name,
+			VolumeId:      subvol.Filesystem + "/" + subvol.Name,
 			CapacityBytes: requestedCapacity,
 			VolumeContext: volumeContext,
 		},
@@ -621,29 +621,29 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 		return nil, status.Error(codes.InvalidArgument, "subvolume ID not found in volume metadata")
 	}
 
-	pool, subvolName, err := splitSubvolumeID(meta.DatasetID)
+	filesystem, subvolName, err := splitSubvolumeID(meta.DatasetID)
 	if err != nil {
 		klog.Warningf("Cannot parse subvolumeID %q for expansion: %v", meta.DatasetID, err)
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "invalid subvolume ID %q: %v", meta.DatasetID, err)
 	}
 
-	klog.V(4).Infof("Expanding NFS subvolume %s/%s to %d bytes", pool, subvolName, requiredBytes)
+	klog.V(4).Infof("Expanding NFS subvolume %s/%s to %d bytes", filesystem, subvolName, requiredBytes)
 
 	// Resize the underlying subvolume
 	//nolint:gosec // G115: CSI capacity is always non-negative
-	if _, resizeErr := s.apiClient.ResizeSubvolume(ctx, pool, subvolName, uint64(requiredBytes)); resizeErr != nil {
-		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, subvolName, resizeErr)
+	if _, resizeErr := s.apiClient.ResizeSubvolume(ctx, filesystem, subvolName, uint64(requiredBytes)); resizeErr != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", filesystem, subvolName, resizeErr)
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", resizeErr)
 	}
 
 	// Update capacity via xattr property (NASty handles quota enforcement via xattr)
-	_, err = s.apiClient.SetSubvolumeProperties(ctx, pool, subvolName, map[string]string{
+	_, err = s.apiClient.SetSubvolumeProperties(ctx, filesystem, subvolName, map[string]string{
 		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	})
 	if err != nil {
-		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", pool, subvolName, err)
+		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", filesystem, subvolName, err)
 	}
 
 	klog.Infof("Expanded NFS volume: %s to %d bytes", meta.Name, requiredBytes)
@@ -658,21 +658,21 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 // getOrCreateSubvolume gets an existing subvolume or creates a new one.
 // Returns (subvolume, isNewlyCreated, error).
-func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, pool, name, subvolumeType, comment, compression string, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
+func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem, name, subvolumeType, comment, compression string, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
 	// Try to get existing subvolume
-	existing, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	existing, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	if err == nil && existing != nil {
-		klog.V(4).Infof("Using existing subvolume: %s/%s with path: %s", pool, name, existing.Path)
+		klog.V(4).Infof("Using existing subvolume: %s/%s with path: %s", filesystem, name, existing.Path)
 		return existing, false, nil
 	}
 	if err != nil && !isNotFoundError(err) {
 		timer.ObserveError()
-		return nil, false, status.Errorf(codes.Internal, "Failed to query subvolume %s/%s: %v", pool, name, err)
+		return nil, false, status.Errorf(codes.Internal, "Failed to query subvolume %s/%s: %v", filesystem, name, err)
 	}
 
 	// Build creation parameters
 	createParams := nastyapi.SubvolumeCreateParams{
-		Pool:          pool,
+		Filesystem:          filesystem,
 		Name:          name,
 		SubvolumeType: subvolumeType,
 		Comments:      comment,
@@ -688,9 +688,9 @@ func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, pool, name
 	subvol, err := s.apiClient.CreateSubvolume(ctx, createParams)
 	if err != nil {
 		timer.ObserveError()
-		return nil, false, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", pool, name, requestedCapacity), err)
+		return nil, false, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", filesystem, name, requestedCapacity), err)
 	}
 
-	klog.V(4).Infof("Created subvolume: %s/%s with path: %s", pool, name, subvol.Path)
+	klog.V(4).Infof("Created subvolume: %s/%s with path: %s", filesystem, name, subvol.Path)
 	return subvol, true, nil
 }

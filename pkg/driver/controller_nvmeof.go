@@ -33,7 +33,7 @@ type nvmeofVolumeParams struct {
 	nrIOQueues        string
 	storageClass      string
 	server            string
-	pool              string
+	filesystem              string
 	pvcName           string
 	pvcNamespace      string
 	compression       string
@@ -63,9 +63,9 @@ func injectQueueParams(volumeContext map[string]string, nrIOQueues, queueSize st
 func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, error) {
 	params := req.GetParameters()
 
-	pool := params["pool"]
-	if pool == "" {
-		return nil, status.Error(codes.InvalidArgument, "pool parameter is required for NVMe-oF volumes")
+	filesystem := params["filesystem"]
+	if filesystem == "" {
+		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for NVMe-oF volumes")
 	}
 
 	server := params["server"]
@@ -115,7 +115,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	compression := params["compression"]
 
 	return &nvmeofVolumeParams{
-		pool:              pool,
+		filesystem:              filesystem,
 		server:            server,
 		requestedCapacity: requestedCapacity,
 		volumeName:        volumeName,
@@ -135,8 +135,8 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 
 // buildNVMeOFVolumeResponse builds the CreateVolumeResponse for an NVMe-oF volume.
 func buildNVMeOFVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolume, subsystem *nastyapi.NVMeOFSubsystem, capacity int64) *csi.CreateVolumeResponse {
-	// Volume ID is pool/subvolumeName for O(1) lookups
-	volumeID := subvol.Pool + "/" + subvol.Name
+	// Volume ID is filesystem/subvolumeName for O(1) lookups
+	volumeID := subvol.Filesystem + "/" + subvol.Name
 
 	meta := VolumeMetadata{
 		Name:                volumeName,
@@ -182,7 +182,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		params.volumeName, params.requestedCapacity, params.subsystemNQN)
 
 	// Check if subvolume already exists (idempotency)
-	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.pool, params.subvolumeName)
+	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.filesystem, params.subvolumeName)
 	if err != nil && !isNotFoundError(err) {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to check for existing subvolume: %v", err)
@@ -201,7 +201,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	}
 
 	// Step 1: Create or reuse block subvolume
-	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.pool, params.subvolumeName,
+	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
 		"block", params.comment, params.compression, params.requestedCapacity, timer)
 	if err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	// Determine block device path
 	if subvol.BlockDevice == nil || *subvol.BlockDevice == "" {
 		if subvolIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
 				klog.Errorf("Failed to cleanup newly-created block subvolume: %v", delErr)
 			}
 		}
@@ -230,7 +230,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		// Cleanup: only delete subvolume if we just created it
 		if subvolIsNew {
 			klog.Errorf("Failed to create NVMe-oF subsystem, cleaning up newly-created subvolume: %v", err)
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.pool, params.subvolumeName); delErr != nil {
+			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
 				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
 			}
 		} else {
@@ -258,12 +258,12 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		Adoptable:      params.markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, params.pool, params.subvolumeName, props); err != nil {
+	if _, err := s.apiClient.SetSubvolumeProperties(ctx, params.filesystem, params.subvolumeName, props); err != nil {
 		klog.Warningf("Failed to set xattr properties on %s: %v (volume created successfully)", params.subvolumeName, err)
 	}
 
 	klog.Infof("Created NVMe-oF volume: %s (subvolume: %s/%s, subsystem: %s, NQN: %s)",
-		params.volumeName, params.pool, params.subvolumeName, subsystem.ID, subsystem.NQN)
+		params.volumeName, params.filesystem, params.subvolumeName, subsystem.ID, subsystem.NQN)
 
 	resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, subvol, subsystem, params.requestedCapacity)
 	injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
@@ -323,14 +323,14 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	klog.Infof("Deleting NVMe-oF volume: %s (subvolume: %s, subsystem: %s)",
 		meta.Name, meta.DatasetID, meta.NVMeOFSubsystemUUID)
 
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
 	}
 
 	// Step 0: Verify ownership via xattr properties before deletion
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	if err != nil {
 		if isNotFoundError(err) {
 			klog.V(4).Infof("Subvolume %s not found, assuming already deleted (idempotency)", meta.DatasetID)
@@ -356,7 +356,7 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	}
 
 	// Step 1: Delete subvolume first (prevents orphaning NVMe-oF subsystem)
-	firstErr := s.apiClient.DeleteSubvolume(ctx, pool, name)
+	firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
 	if firstErr != nil && !isNotFoundError(firstErr) {
 		// Retry after snapshot cleanup
 		klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
@@ -364,7 +364,7 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 
 		retryConfig := retry.DeletionConfig("delete-nvmeof-subvol")
 		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-			deleteErr := s.apiClient.DeleteSubvolume(ctx, pool, name)
+			deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
 			if deleteErr != nil && isNotFoundError(deleteErr) {
 				return nil
 			}
@@ -421,7 +421,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 		return nil, status.Error(codes.InvalidArgument, "subvolume ID not found in volume metadata")
 	}
 
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
 		timer.ObserveError()
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
@@ -429,8 +429,8 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 
 	// Resize the underlying subvolume
 	//nolint:gosec // G115: CSI capacity is always non-negative
-	if _, err := s.apiClient.ResizeSubvolume(ctx, pool, name, uint64(requiredBytes)); err != nil {
-		klog.Errorf("Failed to resize subvolume %s/%s: %v", pool, name, err)
+	if _, err := s.apiClient.ResizeSubvolume(ctx, filesystem, name, uint64(requiredBytes)); err != nil {
+		klog.Errorf("Failed to resize subvolume %s/%s: %v", filesystem, name, err)
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to resize subvolume: %v", err)
 	}
@@ -439,7 +439,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 	props := map[string]string{
 		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requiredBytes, 10),
 	}
-	_, err := s.apiClient.SetSubvolumeProperties(ctx, pool, name, props)
+	_, err := s.apiClient.SetSubvolumeProperties(ctx, filesystem, name, props)
 	if err != nil {
 		klog.Errorf("Failed to expand NVMe-oF subvolume %s: %v", meta.DatasetID, err)
 		timer.ObserveError()
@@ -464,7 +464,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "adopt")
 	volumeName := req.GetName()
-	klog.Infof("Adopting NVMe-oF volume: %s (subvolume=%s/%s)", volumeName, subvol.Pool, subvol.Name)
+	klog.Infof("Adopting NVMe-oF volume: %s (subvolume=%s/%s)", volumeName, subvol.Filesystem, subvol.Name)
 
 	// Get server parameter
 	server := params["server"]
@@ -496,7 +496,7 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	// Ensure block device path is available
 	if subvol.BlockDevice == nil || *subvol.BlockDevice == "" {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Block subvolume %s/%s has no block device path", subvol.Pool, subvol.Name)
+		return nil, status.Errorf(codes.Internal, "Block subvolume %s/%s has no block device path", subvol.Filesystem, subvol.Name)
 	}
 	blockDevice := *subvol.BlockDevice
 
@@ -541,8 +541,8 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 		Adoptable:      markAdoptable,
 		ClusterID:      s.clusterID,
 	})
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Pool, subvol.Name, props); propErr != nil {
-		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Pool, subvol.Name, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); propErr != nil {
+		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Filesystem, subvol.Name, propErr)
 	}
 
 	klog.Infof("Successfully adopted NVMe-oF volume: %s (subsystem=%s, NQN=%s)", volumeName, subsystem.ID, subsystem.NQN)

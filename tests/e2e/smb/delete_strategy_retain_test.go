@@ -75,7 +75,7 @@ var _ = Describe("SMB Delete Strategy Retain", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(volumeHandle).NotTo(BeEmpty())
 
-		// Volume handle is the full dataset path (e.g., pool/parent/pvc-xxx)
+		// Volume handle is the full dataset path (e.g., filesystem/parent/pvc-xxx)
 		datasetPath := volumeHandle
 		// SMB share path format: /mnt/<datasetPath>
 		smbSharePath := "/storage/" + volumeHandle

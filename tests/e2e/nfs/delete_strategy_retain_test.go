@@ -45,7 +45,7 @@ var _ = Describe("NFS Delete Strategy Retain", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "nfs",
 			"server":         f.Config.NAStyHost,
-			"pool":           f.Config.NAStyPool,
+			"filesystem":           f.Config.NAStyFilesystem,
 			"deleteStrategy": "retain",
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -77,9 +77,9 @@ var _ = Describe("NFS Delete Strategy Retain", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(volumeHandle).NotTo(BeEmpty())
 
-		// Volume handle is the full dataset path (e.g., pool/parent/pvc-xxx)
+		// Volume handle is the full dataset path (e.g., filesystem/parent/pvc-xxx)
 		datasetPath := volumeHandle
-		// NFS share path format: /storage/<pool>/<subvolume>
+		// NFS share path format: /storage/<filesystem>/<subvolume>
 		nfsSharePath := "/storage/" + volumeHandle
 		GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		GinkgoWriter.Printf("Expected dataset path on NASty: %s\n", datasetPath)

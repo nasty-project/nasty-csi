@@ -80,7 +80,7 @@ func (s *ControllerService) listSnapshotByID(ctx context.Context, req *csi.ListS
 		return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
 	}
 
-	pool, subvolumeName, err := splitSubvolumeID(snapshotMeta.SourceVolume)
+	filesystem, subvolumeName, err := splitSubvolumeID(snapshotMeta.SourceVolume)
 	if err != nil {
 		klog.V(4).Infof("Invalid source volume ID %q in snapshot %q: %v - returning empty list",
 			snapshotMeta.SourceVolume, req.GetSnapshotId(), err)
@@ -88,7 +88,7 @@ func (s *ControllerService) listSnapshotByID(ctx context.Context, req *csi.ListS
 	}
 
 	// Look up the subvolume to verify snapshot existence and get capacity
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, subvolumeName)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, subvolumeName)
 	if err != nil {
 		klog.V(4).Infof("Source volume %s not found: %v - returning empty list", snapshotMeta.SourceVolume, err)
 		return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
@@ -132,13 +132,13 @@ func (s *ControllerService) listSnapshotByID(ctx context.Context, req *csi.ListS
 func (s *ControllerService) listSnapshotsBySourceVolume(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	sourceVolumeID := req.GetSourceVolumeId()
 
-	pool, subvolumeName, err := splitSubvolumeID(sourceVolumeID)
+	filesystem, subvolumeName, err := splitSubvolumeID(sourceVolumeID)
 	if err != nil {
 		klog.V(4).Infof("Invalid source volume ID %q: %v - returning empty list", sourceVolumeID, err)
 		return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
 	}
 
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, subvolumeName)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, subvolumeName)
 	if err != nil {
 		klog.V(4).Infof("Source volume %s not found: %v - returning empty list", sourceVolumeID, err)
 		return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
@@ -244,7 +244,7 @@ func (s *ControllerService) listAllSnapshots(ctx context.Context, req *csi.ListS
 			sizeBytes = nastyapi.StringToInt64(capStr)
 		}
 
-		sourceVolumeID := subvol.Pool + "/" + subvol.Name
+		sourceVolumeID := subvol.Filesystem + "/" + subvol.Name
 
 		for _, snapName := range subvol.Snapshots {
 			snapshotID, encodeErr := encodeSnapshotID(SnapshotMetadata{

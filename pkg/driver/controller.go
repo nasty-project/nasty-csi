@@ -58,8 +58,8 @@ var (
 	ErrInvalidVolumeID = errors.New("invalid subvolume ID")
 )
 
-// capacityErrorSubstrings are error message patterns that indicate insufficient pool capacity.
-// NASty returns these when a pool or dataset doesn't have enough free space.
+// capacityErrorSubstrings are error message patterns that indicate insufficient filesystem capacity.
+// NASty returns these when a filesystem or dataset doesn't have enough free space.
 
 var capacityErrorSubstrings = []string{
 	"insufficient space",
@@ -201,20 +201,20 @@ func NewControllerService(apiClient nastyapi.ClientInterface, nodeRegistry *Node
 }
 
 // isDatasetPathVolumeID returns true if the volume ID is a full dataset path (new format).
-// New-format IDs contain "/" (e.g., "pool/parent/pvc-xxx"), while legacy IDs are plain names ("pvc-xxx").
+// New-format IDs contain "/" (e.g., "filesystem/parent/pvc-xxx"), while legacy IDs are plain names ("pvc-xxx").
 func isDatasetPathVolumeID(volumeID string) bool {
 	return strings.Contains(volumeID, "/")
 }
 
 // lookupVolumeByCSIName finds a volume by its CSI volume name using xattr properties.
 // This is the preferred method for volume discovery as it uses the source of truth (xattr properties).
-// For new-format volume IDs (containing "/"), uses O(1) direct subvolume lookup (pool/name).
+// For new-format volume IDs (containing "/"), uses O(1) direct subvolume lookup (filesystem/name).
 // For legacy volume IDs (plain names), falls back to O(n) property scan.
 // Returns nil, nil if volume not found; returns error only on API failures.
 func (s *ControllerService) lookupVolumeByCSIName(ctx context.Context, volumeName string) (*VolumeMetadata, error) {
 	klog.V(4).Infof("Looking up volume by CSI name: %s", volumeName)
 
-	// New-format volume IDs contain "/" (e.g., "pool/pvc-xxx") — use O(1) direct lookup
+	// New-format volume IDs contain "/" (e.g., "filesystem/pvc-xxx") — use O(1) direct lookup
 	if isDatasetPathVolumeID(volumeName) {
 		return s.lookupVolumeBySubvolumePath(ctx, volumeName)
 	}
@@ -223,16 +223,16 @@ func (s *ControllerService) lookupVolumeByCSIName(ctx context.Context, volumeNam
 	return s.lookupVolumeByPropertyScan(ctx, "", volumeName)
 }
 
-// lookupVolumeBySubvolumePath looks up a volume by its full subvolume path "pool/name" (O(1) lookup).
+// lookupVolumeBySubvolumePath looks up a volume by its full subvolume path "filesystem/name" (O(1) lookup).
 func (s *ControllerService) lookupVolumeBySubvolumePath(ctx context.Context, subvolumePath string) (*VolumeMetadata, error) {
 	klog.V(4).Infof("Looking up volume by subvolume path (O(1)): %s", subvolumePath)
 
-	pool, name, err := splitSubvolumeID(subvolumePath)
+	filesystem, name, err := splitSubvolumeID(subvolumePath)
 	if err != nil {
 		return nil, fmt.Errorf("invalid subvolume path %s: %w", subvolumePath, err)
 	}
 
-	subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+	subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	if err != nil {
 		if isNotFoundError(err) {
 			klog.V(4).Infof("Subvolume not found: %s", subvolumePath)
@@ -249,10 +249,10 @@ func (s *ControllerService) lookupVolumeBySubvolumePath(ctx context.Context, sub
 }
 
 // lookupVolumeByPropertyScan finds a volume by scanning subvolumes for matching CSI volume name property (O(n)).
-func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, pool, volumeName string) (*VolumeMetadata, error) {
-	klog.V(4).Infof("Looking up volume by property scan (O(n)): %s (pool: %s)", volumeName, pool)
+func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, filesystem, volumeName string) (*VolumeMetadata, error) {
+	klog.V(4).Infof("Looking up volume by property scan (O(n)): %s (filesystem: %s)", volumeName, filesystem)
 
-	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, pool, volumeName)
+	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, filesystem, volumeName)
 	if err != nil {
 		if errors.Is(err, nastyapi.ErrDatasetNotFound) || isNotFoundError(err) {
 			klog.V(4).Infof("Volume not found by CSI name (property scan): %s", volumeName)
@@ -265,7 +265,7 @@ func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, pool
 		return nil, nil //nolint:nilnil // nil, nil indicates "not found" - callers check for nil result
 	}
 
-	volumeID := subvol.Pool + "/" + subvol.Name
+	volumeID := subvol.Filesystem + "/" + subvol.Name
 	return extractVolumeMetadataFromSubvolume(volumeID, subvol)
 }
 
@@ -275,17 +275,17 @@ func (s *ControllerService) lookupVolumeByPropertyScan(ctx context.Context, pool
 func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvolume) (*VolumeMetadata, error) {
 	props := subvol.Properties
 	if props == nil {
-		klog.Warningf("Subvolume %s/%s has no properties, may not be managed by nasty-csi", subvol.Pool, subvol.Name)
+		klog.Warningf("Subvolume %s/%s has no properties, may not be managed by nasty-csi", subvol.Filesystem, subvol.Name)
 		return nil, nil //nolint:nilnil // Subvolume exists but no properties - treat as not found
 	}
 
 	// Verify ownership
 	if managedBy, ok := props[nastyapi.PropertyManagedBy]; !ok || managedBy != nastyapi.ManagedByValue {
-		klog.Warningf("Subvolume %s/%s not managed by nasty-csi (managed_by=%s)", subvol.Pool, subvol.Name, managedBy)
+		klog.Warningf("Subvolume %s/%s not managed by nasty-csi (managed_by=%s)", subvol.Filesystem, subvol.Name, managedBy)
 		return nil, nil //nolint:nilnil // Not our volume - treat as not found
 	}
 
-	subvolumeID := subvol.Pool + "/" + subvol.Name
+	subvolumeID := subvol.Filesystem + "/" + subvol.Name
 
 	// Build VolumeMetadata from properties
 	meta := &VolumeMetadata{
@@ -523,7 +523,7 @@ func (s *ControllerService) checkExistingVolume(_ context.Context, _ *csi.Create
 func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
 	klog.Infof("createVolumeFromVolume called for volume %s from source %s", req.GetName(), sourceVolumeID)
 
-	// 1. Look up the source volume to get pool, name, and protocol
+	// 1. Look up the source volume to get filesystem, name, and protocol
 	sourceMeta, err := s.lookupVolumeByCSIName(ctx, sourceVolumeID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to lookup source volume %s: %v", sourceVolumeID, err)
@@ -532,13 +532,13 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 		return nil, status.Errorf(codes.NotFound, "source volume %s not found", sourceVolumeID)
 	}
 
-	pool, sourceSubvolName, err := splitSubvolumeID(sourceMeta.DatasetID)
+	filesystem, sourceSubvolName, err := splitSubvolumeID(sourceMeta.DatasetID)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid source volume dataset ID %q: %v", sourceMeta.DatasetID, err)
 	}
 
 	protocol := sourceMeta.Protocol
-	klog.V(4).Infof("Volume clone: pool=%s, sourceSubvolume=%s, protocol=%s", pool, sourceSubvolName, protocol)
+	klog.V(4).Infof("Volume clone: filesystem=%s, sourceSubvolume=%s, protocol=%s", filesystem, sourceSubvolName, protocol)
 
 	// 2. Resolve the new subvolume name
 	params := req.GetParameters()
@@ -548,24 +548,24 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	}
 
 	// 3. Check if the subvolume already exists (idempotency)
-	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, pool, newName)
+	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, newName)
 	if getErr != nil && !isNotFoundError(getErr) {
-		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", pool, newName, getErr)
+		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", filesystem, newName, getErr)
 	}
 
 	if existingSubvol == nil {
 		// Native COW clone — O(1), no temporary snapshot needed
-		klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", pool, sourceSubvolName, pool, newName)
+		klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
 
-		_, cloneErr := s.apiClient.CloneSubvolume(ctx, pool, sourceSubvolName, newName)
+		_, cloneErr := s.apiClient.CloneSubvolume(ctx, filesystem, sourceSubvolName, newName)
 		if cloneErr != nil {
-			klog.Errorf("Failed to clone subvolume %s/%s: %v", pool, sourceSubvolName, cloneErr)
+			klog.Errorf("Failed to clone subvolume %s/%s: %v", filesystem, sourceSubvolName, cloneErr)
 			return nil, status.Errorf(codes.Internal, "failed to clone volume: %v", cloneErr)
 		}
 
-		klog.Infof("Cloned subvolume %s/%s to %s/%s", pool, sourceSubvolName, pool, newName)
+		klog.Infof("Cloned subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
 	} else {
-		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", pool, newName)
+		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", filesystem, newName)
 	}
 
 	// 4. Set CSI metadata properties on the cloned subvolume
@@ -580,8 +580,8 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
 		nastyapi.PropertyProtocol:      protocol,
 	}
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, pool, newName, csiProps); propErr != nil {
-		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", pool, newName, propErr)
+	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, filesystem, newName, csiProps); propErr != nil {
+		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", filesystem, newName, propErr)
 	}
 
 	// 5. Delegate to protocol-specific create to set up sharing
@@ -824,10 +824,10 @@ func (s *ControllerService) ListVolumes(ctx context.Context, req *csi.ListVolume
 func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.ListVolumesResponse_Entry, error) {
 	klog.V(5).Info("Listing all managed volumes via FindManagedSubvolumes")
 
-	// TODO: pool name should come from configuration — for now list from empty pool to trigger scan
+	// TODO: filesystem name should come from configuration — for now list from empty filesystem to trigger scan
 	// When NASty API supports listing managed subvolumes across all pools, use that.
-	// For now, return empty to avoid requiring pool configuration here.
-	// This can be enhanced once pool configuration is available.
+	// For now, return empty to avoid requiring filesystem configuration here.
+	// This can be enhanced once filesystem configuration is available.
 	subvols, err := s.apiClient.FindManagedSubvolumes(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to find managed subvolumes: %w", err)
@@ -842,10 +842,10 @@ func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.List
 			continue
 		}
 
-		volumeID := sv.Pool + "/" + sv.Name
+		volumeID := sv.Filesystem + "/" + sv.Name
 		meta, err := extractVolumeMetadataFromSubvolume(volumeID, sv)
 		if err != nil {
-			klog.Warningf("Skipping subvolume %s/%s: failed to extract metadata: %v", sv.Pool, sv.Name, err)
+			klog.Warningf("Skipping subvolume %s/%s: failed to extract metadata: %v", sv.Filesystem, sv.Name, err)
 			continue
 		}
 		if meta == nil {
@@ -871,37 +871,37 @@ func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.List
 	return entries, nil
 }
 
-// GetCapacity returns the capacity of the storage pool.
+// GetCapacity returns the capacity of the storage filesystem.
 func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacityRequest) (*csi.GetCapacityResponse, error) {
 	klog.V(4).Infof("GetCapacity called with request: %+v", req)
 
-	// Extract pool name from StorageClass parameters
+	// Extract filesystem name from StorageClass parameters
 	params := req.GetParameters()
 	if params == nil {
-		klog.Warning("GetCapacity called without parameters, cannot determine pool")
+		klog.Warning("GetCapacity called without parameters, cannot determine filesystem")
 		return &csi.GetCapacityResponse{}, nil
 	}
 
-	poolName := params["pool"]
-	if poolName == "" {
-		klog.Warning("GetCapacity called without pool parameter")
+	fsName := params["filesystem"]
+	if fsName == "" {
+		klog.Warning("GetCapacity called without filesystem parameter")
 		return &csi.GetCapacityResponse{}, nil
 	}
 
-	// Query pool capacity from NASty
-	pool, err := s.apiClient.QueryPool(ctx, poolName)
+	// Query filesystem capacity from NASty
+	fs, err := s.apiClient.QueryFilesystem(ctx, fsName)
 	if err != nil {
-		klog.Errorf("Failed to query pool %s: %v", poolName, err)
-		return nil, status.Errorf(codes.Internal, "Failed to query pool capacity: %v", err)
+		klog.Errorf("Failed to query filesystem %s: %v", fsName, err)
+		return nil, status.Errorf(codes.Internal, "Failed to query filesystem capacity: %v", err)
 	}
 
 	// Return available capacity in bytes
-	availableCapacity := int64(pool.AvailableBytes) //nolint:gosec // uint64 to int64 safe for realistic pool sizes
+	availableCapacity := int64(fs.AvailableBytes) //nolint:gosec // uint64 to int64 safe for realistic filesystem sizes
 	klog.V(4).Infof("Pool %s capacity: total=%d bytes, available=%d bytes, used=%d bytes",
-		poolName,
-		pool.TotalBytes,
+		fsName,
+		fs.TotalBytes,
 		availableCapacity,
-		pool.UsedBytes)
+		fs.UsedBytes)
 
 	return &csi.GetCapacityResponse{
 		AvailableCapacity: availableCapacity,
@@ -974,12 +974,12 @@ func GetAdoptionInfo(props map[string]string) map[string]string {
 func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.CreateVolumeRequest, params map[string]string, protocol string) (*csi.CreateVolumeResponse, bool, error) {
 	volumeName := req.GetName()
 	adoptExisting := params["adoptExisting"] == VolumeContextValueTrue
-	pool := params["pool"]
+	filesystem := params["filesystem"]
 
 	klog.V(4).Infof("Checking for adoptable volume: %s (adoptExisting=%v)", volumeName, adoptExisting)
 
 	// Search for subvolume by CSI volume name
-	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, pool, volumeName)
+	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, filesystem, volumeName)
 	if err != nil {
 		klog.V(4).Infof("Error searching for orphaned volume %s: %v", volumeName, err)
 		return nil, false, nil // Not found or error - continue with normal creation
@@ -992,13 +992,13 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	// Found a subvolume with matching CSI volume name - check if adoption is allowed
 	props := subvol.Properties
 	if props == nil {
-		klog.V(4).Infof("Subvolume %s/%s has no properties, cannot adopt", subvol.Pool, subvol.Name)
+		klog.V(4).Infof("Subvolume %s/%s has no properties, cannot adopt", subvol.Filesystem, subvol.Name)
 		return nil, false, nil
 	}
 
 	// Verify it's managed by nasty-csi
 	if !IsVolumeAdoptable(props) {
-		klog.V(4).Infof("Subvolume %s/%s is not adoptable (missing required properties)", subvol.Pool, subvol.Name)
+		klog.V(4).Infof("Subvolume %s/%s is not adoptable (missing required properties)", subvol.Filesystem, subvol.Name)
 		return nil, false, nil
 	}
 
@@ -1021,7 +1021,7 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	}
 
 	klog.Infof("Found adoptable volume %s (subvolume=%s/%s, protocol=%s, adoptable=%v, adoptExisting=%v)",
-		volumeName, subvol.Pool, subvol.Name, volumeProtocol, volumeAdoptable, adoptExisting)
+		volumeName, subvol.Filesystem, subvol.Name, volumeProtocol, volumeAdoptable, adoptExisting)
 
 	// Adopt the volume: re-create missing NASty resources based on protocol
 	switch protocol {
@@ -1269,9 +1269,9 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 	var capacityBytes int64
 
 	// Check 1: Verify subvolume exists
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr == nil {
-		subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+		subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 		switch {
 		case err != nil && isNotFoundError(err):
 			abnormal = true
@@ -1280,7 +1280,7 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 			abnormal = true
 			messages = append(messages, fmt.Sprintf("Subvolume %s query failed: %v", meta.DatasetID, err))
 		default:
-			klog.V(4).Infof("Subvolume %s/%s exists", pool, name)
+			klog.V(4).Infof("Subvolume %s/%s exists", filesystem, name)
 			if subvol.Properties != nil {
 				if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
 					capacityBytes = nastyapi.StringToInt64(capStr)
@@ -1343,9 +1343,9 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 	var capacityBytes int64
 
 	// Check 1: Verify block subvolume exists
-	pool, name, splitErr := splitSubvolumeID(meta.DatasetID)
+	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr == nil {
-		subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+		subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 		switch {
 		case err != nil && isNotFoundError(err):
 			abnormal = true
@@ -1354,7 +1354,7 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 			abnormal = true
 			messages = append(messages, fmt.Sprintf("Block subvolume %s query failed: %v", meta.DatasetID, err))
 		default:
-			klog.V(4).Infof("Block subvolume %s/%s exists", pool, name)
+			klog.V(4).Infof("Block subvolume %s/%s exists", filesystem, name)
 			if subvol.Properties != nil {
 				if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
 					capacityBytes = nastyapi.StringToInt64(capStr)

@@ -21,7 +21,7 @@ func TestValidateISCSIParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-iscsi-volume",
 				Parameters: map[string]string{
-					"pool":           "tank",
+					"filesystem":           "tank",
 					"server":         "192.168.1.100",
 					"deleteStrategy": "retain",
 				},
@@ -32,8 +32,8 @@ func TestValidateISCSIParams(t *testing.T) {
 			wantErr: false,
 			check: func(t *testing.T, params *iscsiVolumeParams) {
 				t.Helper()
-				if params.pool != "tank" {
-					t.Errorf("Expected pool 'tank', got %s", params.pool)
+				if params.filesystem != "tank" {
+					t.Errorf("Expected filesystem 'tank', got %s", params.filesystem)
 				}
 				if params.server != "192.168.1.100" {
 					t.Errorf("Expected server '192.168.1.100', got %s", params.server)
@@ -51,7 +51,7 @@ func TestValidateISCSIParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-iscsi-volume",
 				Parameters: map[string]string{
-					"pool":   "tank",
+					"filesystem":   "tank",
 					"server": "192.168.1.100",
 				},
 			},
@@ -69,7 +69,7 @@ func TestValidateISCSIParams(t *testing.T) {
 			},
 		},
 		{
-			name: "missing pool parameter",
+			name: "missing filesystem parameter",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-iscsi-volume",
 				Parameters: map[string]string{
@@ -84,7 +84,7 @@ func TestValidateISCSIParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-iscsi-volume",
 				Parameters: map[string]string{
-					"pool": "tank",
+					"filesystem": "tank",
 				},
 			},
 			wantErr:  true,

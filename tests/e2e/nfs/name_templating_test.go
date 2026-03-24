@@ -39,7 +39,7 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with nameTemplate parameter")
 		params := map[string]string{
 			"protocol":     "nfs",
-			"pool":         f.Config.NAStyPool,
+			"filesystem":         f.Config.NAStyFilesystem,
 			"server":       f.Config.NAStyHost,
 			"nameTemplate": "{{ .PVCNamespace }}-{{ .PVCName }}",
 		}
@@ -110,7 +110,7 @@ var _ = Describe("Name Templating", func() {
 		By("Creating StorageClass with namePrefix and nameSuffix")
 		params := map[string]string{
 			"protocol":   "nfs",
-			"pool":       f.Config.NAStyPool,
+			"filesystem":       f.Config.NAStyFilesystem,
 			"server":     f.Config.NAStyHost,
 			"namePrefix": "prod-",
 			"nameSuffix": "-data",

@@ -45,7 +45,7 @@ var _ = Describe("NFS Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":              "nfs",
 				"server":                f.Config.NAStyHost,
-				"pool":                  f.Config.NAStyPool,
+				"filesystem":                  f.Config.NAStyFilesystem,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -113,7 +113,7 @@ var _ = Describe("NFS Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":              "nfs",
 				"server":                f.Config.NAStyHost,
-				"pool":                  f.Config.NAStyPool,
+				"filesystem":                  f.Config.NAStyFilesystem,
 				"encryption":            "true",
 				"encryptionAlgorithm":   "AES-128-CCM",
 				"encryptionGenerateKey": "true",
@@ -168,7 +168,7 @@ var _ = Describe("NFS Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":              "nfs",
 				"server":                f.Config.NAStyHost,
-				"pool":                  f.Config.NAStyPool,
+				"filesystem":                  f.Config.NAStyFilesystem,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -244,7 +244,7 @@ var _ = Describe("NFS Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":              "nfs",
 				"server":                f.Config.NAStyHost,
-				"pool":                  f.Config.NAStyPool,
+				"filesystem":                  f.Config.NAStyFilesystem,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -341,7 +341,7 @@ var _ = Describe("NFS Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":              "nfs",
 				"server":                f.Config.NAStyHost,
-				"pool":                  f.Config.NAStyPool,
+				"filesystem":                  f.Config.NAStyFilesystem,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})
@@ -429,7 +429,7 @@ var _ = Describe("NFS Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":              "nfs",
 				"server":                f.Config.NAStyHost,
-				"pool":                  f.Config.NAStyPool,
+				"filesystem":                  f.Config.NAStyFilesystem,
 				"encryption":            "true",
 				"encryptionGenerateKey": "true",
 			})

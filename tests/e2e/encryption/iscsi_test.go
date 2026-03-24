@@ -45,7 +45,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -115,7 +115,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -172,7 +172,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -268,7 +268,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -346,7 +346,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -451,7 +451,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -536,7 +536,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",
@@ -610,7 +610,7 @@ var _ = Describe("iSCSI Encryption", func() {
 			err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", map[string]string{
 				"protocol":                  "iscsi",
 				"server":                    f.Config.NAStyHost,
-				"pool":                      f.Config.NAStyPool,
+				"filesystem":                      f.Config.NAStyFilesystem,
 				"port":                      "3260",
 				"csi.storage.k8s.io/fstype": "ext4",
 				"encryption":                "true",

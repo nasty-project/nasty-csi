@@ -43,7 +43,7 @@ var _ = Describe("NFS Storage Properties", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, storageClass, "nasty.csi.io", map[string]string{
 			"protocol":    "nfs",
 			"server":      f.Config.NAStyHost,
-			"pool":        f.Config.NAStyPool,
+			"filesystem":        f.Config.NAStyFilesystem,
 			"compression": "lz4",
 		})
 		Expect(err).NotTo(HaveOccurred())

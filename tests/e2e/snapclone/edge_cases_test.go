@@ -163,7 +163,7 @@ var _ = Describe("Edge Cases", func() {
 				var beforeSnap *framework.ResourceSnapshot
 				if f.NASty != nil {
 					By("Taking NASty resource snapshot before rapid cycles")
-					beforeSnap = f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
+					beforeSnap = f.NASty.SnapshotResources(ctx, f.Config.NAStyFilesystem)
 				}
 
 				// Run 5 rapid snapshot create-delete cycles
@@ -223,7 +223,7 @@ var _ = Describe("Edge Cases", func() {
 				if f.NASty != nil && beforeSnap != nil {
 					By("Verifying zero resource leaks after rapid cycles")
 					time.Sleep(5 * time.Second)
-					afterSnap := f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
+					afterSnap := f.NASty.SnapshotResources(ctx, f.Config.NAStyFilesystem)
 
 					for dsName := range afterSnap.Datasets {
 						if _, existed := beforeSnap.Datasets[dsName]; !existed {

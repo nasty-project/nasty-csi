@@ -21,7 +21,7 @@ var ErrDatasetDeleteTimeout = errors.New("timeout waiting for dataset to be dele
 // ErrDatasetNotFound is returned when a requested dataset doesn't exist.
 var ErrDatasetNotFound = errors.New("dataset not found")
 
-// ErrInvalidDatasetPath is returned when a dataset path doesn't have pool/name format.
+// ErrInvalidDatasetPath is returned when a dataset path doesn't have filesystem/name format.
 var ErrInvalidDatasetPath = errors.New("invalid dataset path")
 
 // NAStyVerifier provides methods for verifying NASty backend state.
@@ -51,8 +51,8 @@ func (v *NAStyVerifier) Client() *nastyapi.Client {
 	return v.client
 }
 
-// parseDatasetPath splits a "pool/name" path into pool and name.
-func parseDatasetPath(datasetPath string) (pool, name string, err error) {
+// parseDatasetPath splits a "filesystem/name" path into filesystem and name.
+func parseDatasetPath(datasetPath string) (filesystem, name string, err error) {
 	parts := strings.SplitN(datasetPath, "/", 2)
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("%w: %q", ErrInvalidDatasetPath, datasetPath)
@@ -62,11 +62,11 @@ func parseDatasetPath(datasetPath string) (pool, name string, err error) {
 
 // DatasetExists checks if a subvolume exists on NASty.
 func (v *NAStyVerifier) DatasetExists(ctx context.Context, datasetPath string) (bool, error) {
-	pool, name, err := parseDatasetPath(datasetPath)
+	filesystem, name, err := parseDatasetPath(datasetPath)
 	if err != nil {
 		return false, err
 	}
-	subvol, err := v.client.GetSubvolume(ctx, pool, name)
+	subvol, err := v.client.GetSubvolume(ctx, filesystem, name)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return false, nil
@@ -124,11 +124,11 @@ func (v *NAStyVerifier) NVMeOFSubsystemExists(ctx context.Context, nqn string) (
 
 // DeleteDataset deletes a subvolume from NASty.
 func (v *NAStyVerifier) DeleteDataset(ctx context.Context, datasetPath string) error {
-	pool, name, err := parseDatasetPath(datasetPath)
+	filesystem, name, err := parseDatasetPath(datasetPath)
 	if err != nil {
 		return err
 	}
-	if delErr := v.client.DeleteSubvolume(ctx, pool, name); delErr != nil {
+	if delErr := v.client.DeleteSubvolume(ctx, filesystem, name); delErr != nil {
 		if strings.Contains(delErr.Error(), "not found") {
 			return nil // Already deleted
 		}
@@ -226,11 +226,11 @@ func (v *NAStyVerifier) DeleteISCSIExtent(_ context.Context, _ string) error {
 // For bcachefs, clones are snapshots promoted to subvolumes — we check
 // if the subvolume was created from a snapshot by looking at properties.
 func (v *NAStyVerifier) GetDatasetOrigin(ctx context.Context, datasetPath string) (string, error) {
-	pool, name, err := parseDatasetPath(datasetPath)
+	filesystem, name, err := parseDatasetPath(datasetPath)
 	if err != nil {
 		return "", err
 	}
-	subvol, getErr := v.client.GetSubvolume(ctx, pool, name)
+	subvol, getErr := v.client.GetSubvolume(ctx, filesystem, name)
 	if getErr != nil {
 		return "", fmt.Errorf("failed to query subvolume: %w", getErr)
 	}
@@ -253,11 +253,11 @@ func (v *NAStyVerifier) IsDatasetClone(ctx context.Context, datasetPath string) 
 
 // GetDatasetProperty retrieves a CSI xattr property from a subvolume.
 func (v *NAStyVerifier) GetDatasetProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
-	pool, name, err := parseDatasetPath(datasetPath)
+	filesystem, name, err := parseDatasetPath(datasetPath)
 	if err != nil {
 		return "", err
 	}
-	subvol, getErr := v.client.GetSubvolume(ctx, pool, name)
+	subvol, getErr := v.client.GetSubvolume(ctx, filesystem, name)
 	if getErr != nil {
 		return "", fmt.Errorf("failed to query subvolume: %w", getErr)
 	}
@@ -273,11 +273,11 @@ func (v *NAStyVerifier) GetDatasetProperty(ctx context.Context, datasetPath, pro
 // GetSubvolumeProperty retrieves a subvolume field by name.
 // Maps common property names to NASty subvolume fields.
 func (v *NAStyVerifier) GetSubvolumeProperty(ctx context.Context, datasetPath, propertyName string) (string, error) {
-	pool, name, err := parseDatasetPath(datasetPath)
+	filesystem, name, err := parseDatasetPath(datasetPath)
 	if err != nil {
 		return "", err
 	}
-	subvol, getErr := v.client.GetSubvolume(ctx, pool, name)
+	subvol, getErr := v.client.GetSubvolume(ctx, filesystem, name)
 	if getErr != nil {
 		return "", fmt.Errorf("failed to query subvolume: %w", getErr)
 	}
@@ -336,11 +336,11 @@ func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string
 				info.Protocol = sv.Properties[nastyapi.PropertyProtocol]
 				info.CreatedAt = sv.Properties[nastyapi.PropertyCreatedAt]
 			}
-			snap.Datasets[sv.Pool+"/"+sv.Name] = info
+			snap.Datasets[sv.Filesystem+"/"+sv.Name] = info
 		}
 	}
 
-	// NFS shares — filter to shares under the pool mount path
+	// NFS shares — filter to shares under the filesystem mount path
 	nfsShares, err := v.client.ListNFSShares(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query NFS shares: %v", err)
@@ -353,7 +353,7 @@ func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string
 		}
 	}
 
-	// SMB shares — filter to shares under the pool mount path
+	// SMB shares — filter to shares under the filesystem mount path
 	smbShares, err := v.client.ListSMBShares(ctx)
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query SMB shares: %v", err)

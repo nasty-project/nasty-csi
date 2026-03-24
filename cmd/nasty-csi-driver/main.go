@@ -32,7 +32,7 @@ var (
 	enableNVMeDiscovery       = flag.Bool("enable-nvme-discovery", false, "Run nvme discover before nvme connect (default: false, all connection params are known from volume context)")
 	maxConcurrentNVMeConnects = flag.Int("max-concurrent-nvme-connects", 5, "Maximum number of concurrent NVMe-oF connect operations per node (limits kernel NVMe subsystem lock contention)")
 	dashboardAddr             = flag.String("dashboard-addr", "", "Address for in-cluster web dashboard (e.g., ':2137', empty = disabled)")
-	dashboardPool             = flag.String("dashboard-pool", "", "ZFS pool for unmanaged volume discovery in dashboard")
+	dashboardFilesystem       = flag.String("dashboard-filesystem", "", "Filesystem for unmanaged volume discovery in dashboard")
 	clusterID                 = flag.String("cluster-id", "", "Unique identifier for this cluster (for multi-cluster NASty sharing)")
 )
 
@@ -87,7 +87,7 @@ func main() {
 		EnableNVMeDiscovery:       *enableNVMeDiscovery,
 		MaxConcurrentNVMeConnects: *maxConcurrentNVMeConnects,
 		DashboardAddr:             *dashboardAddr,
-		DashboardPool:             *dashboardPool,
+		DashboardFilesystem:       *dashboardFilesystem,
 		ClusterID:                 *clusterID,
 	})
 	if err != nil {

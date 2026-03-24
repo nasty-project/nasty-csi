@@ -81,7 +81,7 @@ func TestSanity(t *testing.T) {
 	// Configure volume parameters for NFS testing
 	sanityCfg.TestVolumeParameters = map[string]string{
 		"protocol": "nfs",
-		"pool":     "tank",
+		"filesystem":     "tank",
 		"server":   "nasty.local",
 	}
 

@@ -444,8 +444,8 @@ func (s *NodeService) getExpectedCapacity(ctx context.Context, devicePath, datas
 
 	// Query NASty API if not in volumeContext
 	if datasetName != "" && s.apiClient != nil {
-		// datasetName is "pool/name" format
-		pool, name, splitErr := func(s string) (string, string, error) {
+		// datasetName is "filesystem/name" format
+		filesystem, name, splitErr := func(s string) (string, string, error) {
 			idx := strings.Index(s, "/")
 			if idx < 0 || idx == len(s)-1 {
 				return "", "", fmt.Errorf("%w: %q", ErrInvalidVolumeID, s)
@@ -454,7 +454,7 @@ func (s *NodeService) getExpectedCapacity(ctx context.Context, devicePath, datas
 		}(datasetName)
 		if splitErr == nil {
 			klog.V(4).Infof("Querying NASty API for block device size of %s", datasetName)
-			subvol, err := s.apiClient.GetSubvolume(ctx, pool, name)
+			subvol, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 			if err != nil {
 				klog.Warningf("Failed to query block device size from NASty API for %s: %v", datasetName, err)
 				return 0

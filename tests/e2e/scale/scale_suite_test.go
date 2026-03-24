@@ -1,7 +1,7 @@
 // Package scale contains E2E tests that validate CSI operations work correctly
 // when NASty has a large number of non-CSI-managed subvolumes, block subvolumes,
 // snapshots, and NFS shares. This simulates a real-world environment where users
-// have pre-existing data on the same pool used by the CSI driver.
+// have pre-existing data on the same filesystem used by the CSI driver.
 //
 // This test suite is intended to be run manually via the "Scale Tests" workflow,
 // not as part of regular CI. It populates NASty with noise data, runs CSI
@@ -35,7 +35,7 @@ const (
 var (
 	noiseVerifier *framework.NAStyVerifier
 	noiseParent   string // Parent subvolume path for all noise data
-	noisePool     string
+	noiseFilesystem     string
 
 	// Actual counts (may be overridden by env vars).
 	actualDatasetCount     int
@@ -69,9 +69,9 @@ func getEnvInt(key string, defaultVal int) int {
 	return defaultVal
 }
 
-// parsePoolName extracts the pool name (first component) from a path like "pool/subvol/child".
+// parseFilesystemName extracts the filesystem name (first component) from a path like "filesystem/subvol/child".
 
-// parseSubvolName extracts the subvolume name (rest after first /) from a path like "pool/subvol/child".
+// parseSubvolName extracts the subvolume name (rest after first /) from a path like "filesystem/subvol/child".
 func parseSubvolName(path string) string {
 	parts := strings.SplitN(path, "/", 2)
 	if len(parts) < 2 {
@@ -86,7 +86,7 @@ func createNoiseData() {
 	cfg, err := framework.NewConfig()
 	Expect(err).NotTo(HaveOccurred())
 
-	noisePool = cfg.NAStyPool
+	noiseFilesystem = cfg.NAStyFilesystem
 	actualDatasetCount = getEnvInt("NOISE_DATASET_COUNT", defaultNoiseDatasetCount)
 	actualBlockSubvolCount = getEnvInt("NOISE_BLOCK_SUBVOL_COUNT", defaultNoiseBlockSubvolCount)
 
@@ -96,13 +96,13 @@ func createNoiseData() {
 	client := noiseVerifier.Client()
 	ctx := context.Background()
 
-	noiseParent = fmt.Sprintf("%s/e2e-noise-%d", noisePool, time.Now().UnixNano())
+	noiseParent = fmt.Sprintf("%s/e2e-noise-%d", noiseFilesystem, time.Now().UnixNano())
 	klog.Infof("Creating noise data under %s (%d subvolumes, %d block subvolumes)",
 		noiseParent, actualDatasetCount, actualBlockSubvolCount)
 
 	// Parent subvolume
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-		Pool:          noisePool,
+		Filesystem:          noiseFilesystem,
 		Name:          parseSubvolName(noiseParent),
 		SubvolumeType: "filesystem",
 	})
@@ -111,7 +111,7 @@ func createNoiseData() {
 	// Filesystem subvolumes with snapshots
 	fsParentName := parseSubvolName(noiseParent) + "/datasets"
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-		Pool:          noisePool,
+		Filesystem:          noiseFilesystem,
 		Name:          fsParentName,
 		SubvolumeType: "filesystem",
 	})
@@ -122,7 +122,7 @@ func createNoiseData() {
 	for i := 1; i <= actualDatasetCount; i++ {
 		dsSubvolName := fmt.Sprintf("%s/ds-%03d", fsParentName, i)
 		_, dsErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-			Pool:          noisePool,
+			Filesystem:          noiseFilesystem,
 			Name:          dsSubvolName,
 			SubvolumeType: "filesystem",
 		})
@@ -130,7 +130,7 @@ func createNoiseData() {
 
 		for j := 1; j <= snapshotsPerDataset; j++ {
 			_, snapErr := client.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-				Pool:      noisePool,
+				Filesystem:      noiseFilesystem,
 				Subvolume: dsSubvolName,
 				Name:      fmt.Sprintf("snap-%03d", j),
 			})
@@ -142,7 +142,7 @@ func createNoiseData() {
 	klog.Infof("Creating %d noise NFS shares", nfsShareCount)
 	enabled := true
 	for i := 1; i <= nfsShareCount; i++ {
-		sharePath := fmt.Sprintf("/mnt/%s/%s/ds-%03d", noisePool, fsParentName, i)
+		sharePath := fmt.Sprintf("/mnt/%s/%s/ds-%03d", noiseFilesystem, fsParentName, i)
 		_, shareErr := client.CreateNFSShare(ctx, nastyapi.NFSShareCreateParams{
 			Path:    sharePath,
 			Enabled: &enabled,
@@ -154,7 +154,7 @@ func createNoiseData() {
 	// Block subvolumes with snapshots
 	zvolParentName := parseSubvolName(noiseParent) + "/zvols"
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-		Pool:          noisePool,
+		Filesystem:          noiseFilesystem,
 		Name:          zvolParentName,
 		SubvolumeType: "filesystem",
 	})
@@ -165,7 +165,7 @@ func createNoiseData() {
 	for i := 1; i <= actualBlockSubvolCount; i++ {
 		zvolSubvolName := fmt.Sprintf("%s/zvol-%03d", zvolParentName, i)
 		_, zvolErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-			Pool:          noisePool,
+			Filesystem:          noiseFilesystem,
 			Name:          zvolSubvolName,
 			SubvolumeType: "block",
 			VolsizeBytes:  &volsize,
@@ -174,7 +174,7 @@ func createNoiseData() {
 
 		for j := 1; j <= snapshotsPerDataset; j++ {
 			_, snapErr := client.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-				Pool:      noisePool,
+				Filesystem:      noiseFilesystem,
 				Subvolume: zvolSubvolName,
 				Name:      fmt.Sprintf("snap-%03d", j),
 			})
@@ -201,14 +201,14 @@ func cleanupNoiseData() {
 	// Delete NFS shares first (they reference subvolume paths)
 	fsParentName := parseSubvolName(noiseParent) + "/datasets"
 	for i := 1; i <= nfsShareCount; i++ {
-		sharePath := fmt.Sprintf("/mnt/%s/%s/ds-%03d", noisePool, fsParentName, i)
+		sharePath := fmt.Sprintf("/mnt/%s/%s/ds-%03d", noiseFilesystem, fsParentName, i)
 		if err := noiseVerifier.DeleteNFSShare(ctx, sharePath); err != nil {
 			klog.Warningf("Failed to delete noise NFS share %s: %v", sharePath, err)
 		}
 	}
 
 	// Delete parent subvolume recursively (handles all children, snapshots)
-	if err := noiseVerifier.Client().DeleteSubvolume(ctx, noisePool, parseSubvolName(noiseParent)); err != nil {
+	if err := noiseVerifier.Client().DeleteSubvolume(ctx, noiseFilesystem, parseSubvolName(noiseParent)); err != nil {
 		klog.Errorf("Failed to delete noise parent subvolume %s: %v", noiseParent, err)
 	} else {
 		klog.Infof("Noise data cleanup complete")

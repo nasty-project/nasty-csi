@@ -34,15 +34,15 @@ var _ = Describe("Error Handling", func() {
 
 	// This test verifies that the CSI driver handles invalid parameters gracefully.
 	// PVCs with invalid parameters should stay in Pending state with appropriate error events.
-	It("should handle invalid pool name gracefully", func() {
+	It("should handle invalid filesystem name gracefully", func() {
 		ctx := context.Background()
-		scName := "nasty-csi-invalid-pool"
+		scName := "nasty-csi-invalid-filesystem"
 
-		By("Creating StorageClass with non-existent pool")
+		By("Creating StorageClass with non-existent filesystem")
 		params := map[string]string{
 			"protocol": "nfs",
 			"server":   f.Config.NAStyHost,
-			"pool":     "nonexistent-pool-xyz-12345",
+			"filesystem":     "nonexistent-pool-xyz-12345",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
@@ -50,8 +50,8 @@ var _ = Describe("Error Handling", func() {
 			return f.K8s.DeleteStorageClass(context.Background(), scName)
 		})
 
-		By("Creating PVC with invalid pool StorageClass")
-		pvcName := "pvc-invalid-pool"
+		By("Creating PVC with invalid filesystem StorageClass")
+		pvcName := "pvc-invalid-filesystem"
 		_, err = f.K8s.CreatePVC(ctx, framework.PVCOptions{
 			Name:             pvcName,
 			StorageClassName: scName,
@@ -70,25 +70,25 @@ var _ = Describe("Error Handling", func() {
 		pvc, err := f.K8s.GetPVC(ctx, pvcName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(pvc.Status.Phase).To(Equal(corev1.ClaimPending),
-			"PVC should stay in Pending state with invalid pool")
+			"PVC should stay in Pending state with invalid filesystem")
 
 		By("Checking controller logs for error messages")
 		logs, err := f.K8s.GetControllerLogs(ctx, 100)
 		Expect(err).NotTo(HaveOccurred())
 
-		// The controller should log an error about the invalid pool
-		hasPoolError := strings.Contains(strings.ToLower(logs), "pool") &&
+		// The controller should log an error about the invalid filesystem
+		hasPoolError := strings.Contains(strings.ToLower(logs), "filesystem") &&
 			(strings.Contains(strings.ToLower(logs), "error") ||
 				strings.Contains(strings.ToLower(logs), "failed") ||
 				strings.Contains(strings.ToLower(logs), "not found"))
 
 		if f.Verbose() {
 			if hasPoolError {
-				GinkgoWriter.Printf("Controller logged error for invalid pool as expected\n")
+				GinkgoWriter.Printf("Controller logged error for invalid filesystem as expected\n")
 			} else {
-				GinkgoWriter.Printf("Note: No specific pool error found in recent logs\n")
+				GinkgoWriter.Printf("Note: No specific filesystem error found in recent logs\n")
 			}
-			GinkgoWriter.Printf("Invalid pool test completed - PVC correctly stays Pending\n")
+			GinkgoWriter.Printf("Invalid filesystem test completed - PVC correctly stays Pending\n")
 		}
 	})
 
@@ -99,7 +99,7 @@ var _ = Describe("Error Handling", func() {
 		By("Creating StorageClass without server parameter")
 		params := map[string]string{
 			"protocol": "nfs",
-			"pool":     f.Config.NAStyPool,
+			"filesystem":     f.Config.NAStyFilesystem,
 			// server parameter intentionally omitted
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
@@ -163,7 +163,7 @@ var _ = Describe("Error Handling", func() {
 		params := map[string]string{
 			"protocol": "foobar", // Invalid - not a supported protocol
 			"server":   f.Config.NAStyHost,
-			"pool":     f.Config.NAStyPool,
+			"filesystem":     f.Config.NAStyFilesystem,
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
@@ -218,7 +218,7 @@ var _ = Describe("Error Handling", func() {
 		invalidParams := map[string]string{
 			"protocol": "nfs",
 			"server":   f.Config.NAStyHost,
-			"pool":     "nonexistent-pool-recovery",
+			"filesystem":     "nonexistent-pool-recovery",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, invalidSCName, "nasty.csi.io", invalidParams)
 		Expect(err).NotTo(HaveOccurred())
@@ -247,7 +247,7 @@ var _ = Describe("Error Handling", func() {
 		validParams := map[string]string{
 			"protocol": "nfs",
 			"server":   f.Config.NAStyHost,
-			"pool":     f.Config.NAStyPool,
+			"filesystem":     f.Config.NAStyFilesystem,
 		}
 		err = f.K8s.CreateStorageClassWithParams(ctx, validSCName, "nasty.csi.io", validParams)
 		Expect(err).NotTo(HaveOccurred())

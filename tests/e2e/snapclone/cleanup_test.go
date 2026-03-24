@@ -105,7 +105,7 @@ var _ = Describe("Complex Cleanup", func() {
 				var beforeSnap *framework.ResourceSnapshot
 				if f.NASty != nil {
 					By("Taking NASty resource snapshot before cleanup")
-					beforeSnap = f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
+					beforeSnap = f.NASty.SnapshotResources(ctx, f.Config.NAStyFilesystem)
 				}
 
 				// Record PV names and dataset paths before manual cleanup
@@ -166,7 +166,7 @@ var _ = Describe("Complex Cleanup", func() {
 					By("Taking NASty resource snapshot after cleanup and verifying zero leaks")
 					// Wait briefly for NASty to process all deletions
 					time.Sleep(5 * time.Second)
-					afterSnap := f.NASty.SnapshotResources(ctx, f.Config.NAStyPool)
+					afterSnap := f.NASty.SnapshotResources(ctx, f.Config.NAStyFilesystem)
 
 					// Verify no new resources were leaked (after should have <= before)
 					for dsName := range afterSnap.Datasets {
