@@ -617,7 +617,7 @@ func (s *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 	volumeID := req.GetVolumeId()
 	klog.V(4).Infof("Deleting volume %s", volumeID)
 
-	// Try property-based lookup first (preferred method - uses ZFS properties as source of truth)
+	// Try property-based lookup first (preferred method - uses xattr properties as source of truth)
 	// Pass empty prefix to search all datasets across all pools
 	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil {
@@ -768,7 +768,7 @@ func (s *ControllerService) ValidateVolumeCapabilities(ctx context.Context, req 
 func (s *ControllerService) ListVolumes(ctx context.Context, req *csi.ListVolumesRequest) (*csi.ListVolumesResponse, error) {
 	klog.V(4).Infof("ListVolumes called with request: %+v", req)
 
-	// Single API call: get all CSI-managed datasets with their ZFS properties
+	// Single API call: get all CSI-managed datasets with their xattr properties
 	entries, err := s.listManagedVolumes(ctx)
 	if err != nil {
 		klog.Errorf("Failed to list managed volumes: %v", err)
@@ -1187,7 +1187,7 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 
 	klog.Infof("ControllerExpandVolume: Expanding volume %s to %d bytes", volumeID, requiredBytes)
 
-	// Look up volume using ZFS properties as source of truth
+	// Look up volume using xattr properties as source of truth
 	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("ControllerExpandVolume: Property-based lookup failed for volume %s: %v", volumeID, err)
@@ -1232,7 +1232,7 @@ func (s *ControllerService) ControllerGetVolume(ctx context.Context, req *csi.Co
 	volumeID := req.GetVolumeId()
 	klog.V(4).Infof("Getting volume info for: %s", volumeID)
 
-	// Look up volume using ZFS properties as source of truth
+	// Look up volume using xattr properties as source of truth
 	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("ControllerGetVolume: Property-based lookup failed for volume %s: %v", volumeID, err)

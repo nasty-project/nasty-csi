@@ -69,8 +69,8 @@ var (
 	ErrVolumeNameInvalid = errors.New("invalid volume name: must start with alphanumeric and contain only alphanumeric, hyphen, underscore, colon, or period")
 )
 
-// validNameRegex matches valid ZFS dataset/zvol names.
-// ZFS names can contain alphanumeric characters, hyphens, underscores, colons, and periods.
+// validNameRegex matches valid subvolume names.
+// Names can contain alphanumeric characters, hyphens, underscores, colons, and periods.
 // They cannot start with a hyphen.
 var validNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]*$`)
 
@@ -123,7 +123,7 @@ func extractVolumeNameContext(params map[string]string, pvName string) VolumeNam
 
 // renderVolumeName generates the final volume name using template configuration.
 // If no templating is configured, returns the original pvName.
-// The rendered name is sanitized to be valid for ZFS datasets/zvols.
+// The rendered name is sanitized to be valid for subvolume names.
 func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string, error) {
 	var name string
 
@@ -144,7 +144,7 @@ func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string
 		name = config.prefix + ctx.PVName + config.suffix
 	}
 
-	// Sanitize the name for ZFS compatibility
+	// Sanitize the name for bcachefs compatibility
 	name = sanitizeVolumeName(name)
 
 	// Validate the final name
@@ -158,7 +158,7 @@ func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string
 	return name, nil
 }
 
-// sanitizeVolumeName cleans up a volume name to be valid for ZFS.
+// sanitizeVolumeName cleans up a volume name to be valid for bcachefs.
 // It replaces invalid characters with hyphens, removes leading hyphens,
 // and truncates to 63 characters for K8s label compatibility.
 func sanitizeVolumeName(name string) string {
@@ -195,7 +195,7 @@ func sanitizeVolumeName(name string) string {
 	)
 	name = replacer.Replace(name)
 
-	// Remove leading hyphens (ZFS names can't start with hyphen)
+	// Remove leading hyphens (names can't start with hyphen)
 	name = strings.TrimLeft(name, "-")
 
 	// Collapse multiple consecutive hyphens into one
@@ -216,7 +216,7 @@ func sanitizeVolumeName(name string) string {
 	return name
 }
 
-// validateVolumeName checks if a volume name is valid for ZFS.
+// validateVolumeName checks if a volume name is valid for bcachefs.
 func validateVolumeName(name string) error {
 	if name == "" {
 		return ErrVolumeNameEmpty

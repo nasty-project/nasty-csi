@@ -231,9 +231,9 @@ func IsRetryableError(err error) bool {
 // where resources may be temporarily in use.
 //
 // Common busy error patterns from NASty:
-//   - "dataset is busy" - ZFS dataset has active operations
+//   - "dataset is busy" - subvolume has active operations
 //   - "target is busy" - NVMe-oF/iSCSI target has active connections
-//   - "filesystem has dependent clones" - ZFS clone dependency
+//   - "filesystem has dependent clones" - clone dependency
 //   - "resource busy" - Generic busy state
 //   - "EBUSY" - POSIX busy error.
 func IsBusyResourceError(err error) bool {

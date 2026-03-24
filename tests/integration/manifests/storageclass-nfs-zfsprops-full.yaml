@@ -1,5 +1,5 @@
-# StorageClass with comprehensive ZFS properties
-# Tests all supported ZFS properties that can be set via StorageClass
+# StorageClass with comprehensive filesystem properties
+# Tests all supported filesystem properties that can be set via StorageClass
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

@@ -6,7 +6,7 @@
 # Required environment variables:
 #   NASTY_HOST       - NASty server hostname/IP
 #   NASTY_API_KEY    - NASty API key
-#   NASTY_POOL       - ZFS pool name
+#   NASTY_POOL       - Pool name
 #   CSI_IMAGE_TAG      - Image tag for the current build
 #   PREV_CHART_VERSION - Previous Helm chart version (e.g., "0.8.0")
 #

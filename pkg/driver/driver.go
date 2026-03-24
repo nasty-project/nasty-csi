@@ -29,7 +29,7 @@ type Config struct {
 	APIKey                    string
 	MetricsAddr               string // Address to expose Prometheus metrics (e.g., ":8080")
 	DashboardAddr             string // Address for in-cluster dashboard (e.g., ":9090", empty = disabled)
-	DashboardPool             string // ZFS pool for unmanaged volume discovery in dashboard
+	DashboardPool             string // Pool for unmanaged volume discovery in dashboard
 	ClusterID                 string // Unique identifier for this cluster (for multi-cluster NASty sharing)
 	TestMode                  bool   // Enable test mode for sanity tests (skips actual mounts)
 	SkipTLSVerify             bool   // Skip TLS certificate verification (for self-signed certs)

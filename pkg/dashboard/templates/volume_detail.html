@@ -135,10 +135,6 @@
             <dd class="mono">{{.OriginSnapshot}}</dd>
             {{end}}
 
-            {{if .ZFSOrigin}}
-            <dt>ZFS Origin</dt>
-            <dd class="mono">{{.ZFSOrigin}}</dd>
-            {{end}}
         </dl>
     </div>
     {{end}}
@@ -202,7 +198,7 @@
 
     {{if .Properties}}
     <div class="detail-section">
-        <h4>ZFS Properties</h4>
+        <h4>Properties</h4>
         <dl class="detail-grid properties-grid">
             {{range $key, $value := .Properties}}
             <dt>{{$key}}</dt>
