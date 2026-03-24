@@ -74,9 +74,6 @@ func (s *NodeService) attemptNVMeConnect(ctx context.Context, params *nvmeOFConn
 	// --keep-alive-tmo=15: Send keepalive every 15s (tolerates brief I/O stalls)
 	// --ctrl-loss-tmo=120: Keep retrying for 120s before giving up entirely
 	// --reconnect-delay=5: Wait 5s before reconnecting after connection loss
-	// --fast-io-fail-tmo=30: Queue I/O for up to 30s during transient errors
-	//   instead of immediately returning I/O errors to ext4 (which causes
-	//   read-only remount). This is critical for snapshot-during-write scenarios.
 	connectArgs := []string{
 		"connect",
 		"-t", params.transport,
@@ -86,7 +83,6 @@ func (s *NodeService) attemptNVMeConnect(ctx context.Context, params *nvmeOFConn
 		"--keep-alive-tmo=15",
 		"--ctrl-loss-tmo=120",
 		"--reconnect-delay=5",
-		"--fast-io-fail-tmo=30",
 	}
 
 	if params.nrIOQueues != "" {
