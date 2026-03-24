@@ -36,6 +36,15 @@ jobs:
       - uses: ./.github/actions/setup-snapshots
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+      - name: Verify NASty engine version
+        env:
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+        run: |
+          # Quick API call to verify engine is reachable and check version
+          echo '{"jsonrpc":"2.0","method":"system.info","id":1}' | \
+            websocat -1 --header "Authorization: Bearer ${NASTY_API_KEY}" \
+            "wss://${NASTY_HOST}/ws" -k 2>/dev/null || echo "websocat not available, skipping version check"
       - name: Run failing NVMe-oF snapshot tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -45,11 +54,21 @@ jobs:
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
-          echo "=== NVMe-oF Snapshot Repro ==="
-          echo "Focus: Snapshot Stress + Snapshot Restore"
-          ginkgo -v --timeout=15m \
-            --focus="Snapshot Stress|Snapshot Restore" \
+          echo "=== NVMe-oF Snapshot I/O Repro ==="
+          ginkgo -v --timeout=10m \
+            --focus="Snapshot I/O Repro" \
             ./tests/e2e/nvmeof/...
+      - name: Check NASty engine logs for nocow
+        if: always()
+        env:
+          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
+          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+        run: |
+          echo "=== Checking if vol.img files have nocow set ==="
+          echo "Querying NASty for block subvolumes..."
+          # Use the CSI controller to list subvolumes — the engine logs will show nocow
+          kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 2>/dev/null | grep -i "nocow\|vol.img\|block subvolume\|set-file-option" || echo "No nocow-related logs found in controller"
       - name: Collect diagnostic logs
         if: always()
         run: |
