@@ -54,7 +54,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
 ```
 

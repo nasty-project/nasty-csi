@@ -115,7 +115,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
   deleteStrategy: "retain"  # Volumes kept on NASty when PVC deleted
 allowVolumeExpansion: true
@@ -167,7 +167,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
 mountOptions:
   - hard
@@ -187,7 +187,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nvmeof
-  pool: tank
+  filesystem: first
   server: nasty.local
   subsystemNQN: nqn.2025-01.com.nasty:csi
 mountOptions:
@@ -510,7 +510,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
   # Filesystem properties
   zfs.compression: "lz4"
@@ -529,7 +529,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nvmeof
-  pool: tank
+  filesystem: first
   server: nasty.local
   transport: tcp
   port: "4420"
@@ -619,7 +619,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
   encryption: "true"
   encryptionGenerateKey: "true"
@@ -636,7 +636,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nvmeof
-  pool: tank
+  filesystem: first
   server: nasty.local
   transport: tcp
   port: "4420"
@@ -744,7 +744,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   parentDataset: csi
   server: nasty.local
   markAdoptable: "true"    # New volumes can be adopted by future clusters
@@ -889,7 +889,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
   # Volume name templating
   nameTemplate: "{{ .PVCNamespace }}-{{ .PVCName }}"
@@ -908,7 +908,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
   # Subvolume comment visible in NASty UI
   commentTemplate: "{{ .PVCNamespace }}/{{ .PVCName }}"
@@ -927,7 +927,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
-  pool: tank
+  filesystem: first
   server: nasty.local
   namePrefix: "k8s-"
   nameSuffix: "-vol"
@@ -1115,7 +1115,7 @@ reclaimPolicy: Delete
 ## Roadmap / Future Considerations
 
 ### Under Consideration (Not Committed)
-- **Multi-pool Support**: Advanced scheduling across multiple NASty pools
+- **Multi-pool Support**: Advanced scheduling across multiple NASty filesystems
 - **Topology Awareness**: Multi-zone deployments
 - **Volume Migration**: Move volumes between protocols/pools
 - **Quota Management**: Advanced quota and reservation features
@@ -1216,7 +1216,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -1231,7 +1231,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -1246,7 +1246,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 

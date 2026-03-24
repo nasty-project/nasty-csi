@@ -125,7 +125,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system"
@@ -134,7 +134,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 **Replace these values:**
 - `YOUR-NASTY-IP` - Your NASty server IP address
 - `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
-- `YOUR-POOL-NAME` - Pool name (e.g., `tank`, `storage`)
+- `YOUR-FS-NAME` - Pool name (e.g., `tank`, `storage`)
 
 ### Verify Installation
 
@@ -225,7 +225,7 @@ provisioner: nasty.csi.io
 parameters:
   protocol: smb
   server: YOUR-NASTY-IP
-  pool: tank
+  filesystem: first
   csi.storage.k8s.io/node-stage-secret-name: smb-credentials
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   # Filesystem properties
@@ -251,7 +251,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system" \
@@ -271,7 +271,7 @@ provisioner: nasty.csi.io
 parameters:
   protocol: smb
   server: YOUR-NASTY-IP
-  pool: tank
+  filesystem: first
   csi.storage.k8s.io/node-stage-secret-name: smb-credentials
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   encryption: "true"

@@ -83,7 +83,7 @@ This guide explains how to deploy the NASty Scale CSI driver on a Kubernetes clu
 
 ### 1.2 Create Storage Pool
 
-If you don't already have a pool:
+If you don't already have a filesystem:
 1. Navigate to **Storage** > **Create Pool**
 2. Follow the wizard to create a pool (e.g., "pool1")
 
@@ -296,7 +296,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -311,7 +311,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].subsystemNQN="nqn.2005-03.org.nasty:csi"
 ```
@@ -329,7 +329,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -346,7 +346,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system"
@@ -369,7 +369,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -451,7 +451,7 @@ Edit `deploy/storageclass.yaml` and configure parameters:
 ```yaml
 parameters:
   protocol: "nfs"
-  pool: "pool1"              # Your NASty pool name
+  filesystem: "pool1"              # Your NASty filesystem name
   # parentDataset: "pool1/k8s"  # Optional parent subvolume
   server: "YOUR-NASTY-IP"     # Your NASty IP/hostname
   # Optional parameters:
@@ -464,7 +464,7 @@ parameters:
 ```yaml
 parameters:
   protocol: "nvmeof"
-  pool: "storage"                                          # Your NASty pool name
+  filesystem: "storage"                                          # Your NASty filesystem name
   server: "YOUR-NASTY-IP"                                # Your NASty IP/hostname
   subsystemNQN: "nqn.2005-03.org.nasty:csi"              # REQUIRED: The subsystem NQN from Step 1.4
   # Optional parameters:
@@ -478,7 +478,7 @@ parameters:
 ```yaml
 parameters:
   protocol: "iscsi"
-  pool: "storage"                                          # Your NASty pool name
+  filesystem: "storage"                                          # Your NASty filesystem name
   server: "YOUR-NASTY-IP"                                # Your NASty IP/hostname
   # Optional parameters:
   # port: "3260"                                           # iSCSI port (default: 3260)
@@ -492,7 +492,7 @@ parameters:
 ```yaml
 parameters:
   protocol: "smb"
-  pool: "storage"                                          # Your NASty pool name
+  filesystem: "storage"                                          # Your NASty filesystem name
   server: "YOUR-NASTY-IP"                                # Your NASty IP/hostname
   csi.storage.k8s.io/node-stage-secret-name: smb-credentials
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
@@ -696,7 +696,7 @@ kubectl logs -n kube-system nasty-csi-node-xxxxx -c nasty-csi-plugin
 2. **PVC stuck in Pending**
    - Check controller logs
    - Verify NASty credentials in secret
-   - Check NASty pool has available space
+   - Check NASty filesystem has available space
 
 3. **Authentication failures**
    - Verify API key is correct
@@ -961,7 +961,7 @@ kubectl get pvc upgrade-test
 
 4. **Monitoring**: Set up monitoring for CSI driver metrics; enable Grafana dashboard and/or in-cluster web dashboard
 
-5. **Backup**: Ensure NASty pool has proper backup strategy
+5. **Backup**: Ensure NASty filesystem has proper backup strategy
 
 ## Protocol Support
 

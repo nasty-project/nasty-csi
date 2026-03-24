@@ -115,7 +115,7 @@ This is expected if:
 Check:
 1. NASty connectivity from runner
 2. API key validity
-3. Storage pool availability
+3. Filesystem availability
 
 ## Development
 

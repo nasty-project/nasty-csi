@@ -16,7 +16,7 @@ The NASty CSI Driver is tested comprehensively using **real infrastructure** - n
 
 **Real NASty Scale Server:**
 - Physical NASty Scale 25.10+ installation
-- Real storage pools with bcachefs
+- Real bcachefs filesystems with bcachefs
 - Actual NFS shares and NVMe-oF subsystems
 - Real network I/O and protocol operations
 
@@ -254,7 +254,7 @@ make test-e2e-iscsi
 
 - **Multi-node scenarios** - Tests run on single-node k3s
 - **Network partitions** - Not tested yet
-- **Storage pool failures** - Not tested yet
+- **Filesystem failures** - Not tested yet
 - **Long-running workloads** - No soak tests yet
 - **Performance benchmarks** - No formal performance testing
 

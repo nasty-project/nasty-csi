@@ -145,10 +145,10 @@ Shows clone mode and helps understand what can and cannot be deleted:
 List volumes not managed by nasty-csi (useful for discovering volumes to import).
 
 ```bash
-kubectl nasty-csi list-unmanaged --pool storage
+kubectl nasty-csi list-unmanaged --filesystem storage
 kubectl nasty-csi list-unmanaged --parent storage/k8s
-kubectl nasty-csi list-unmanaged --pool storage --all    # Include system datasets
-kubectl nasty-csi list-unmanaged --pool storage -o json
+kubectl nasty-csi list-unmanaged --filesystem storage --all    # Include system datasets
+kubectl nasty-csi list-unmanaged --filesystem storage -o json
 ```
 
 Shows:
@@ -160,7 +160,7 @@ Shows:
 
 | Flag | Description |
 |------|-------------|
-| `--pool` | ZFS pool to search in |
+| `--filesystem` | filesystem to search in |
 | `--parent` | Parent dataset path to search under |
 | `--all` | Show all datasets including system datasets |
 
@@ -306,8 +306,8 @@ kubectl nasty-csi serve
 # Start on custom port
 kubectl nasty-csi serve --port 9090
 
-# With pool for unmanaged volume discovery
-kubectl nasty-csi serve --pool storage
+# With filesystem for unmanaged volume discovery
+kubectl nasty-csi serve --filesystem storage
 ```
 
 The dashboard provides:
@@ -315,7 +315,7 @@ The dashboard provides:
 - **Volumes tab** - All managed volumes with protocol, capacity, and adoptable status
 - **Snapshots tab** - All snapshots with source volume and type (attached/detached)
 - **Clones tab** - Cloned volumes with dependency information
-- **Unmanaged tab** - Volumes not managed by nasty-csi (requires `--pool` flag)
+- **Unmanaged tab** - Volumes not managed by nasty-csi (requires `--filesystem` flag)
 
 Features:
 - Dark theme UI
@@ -326,7 +326,7 @@ Features:
 | Flag | Description |
 |------|-------------|
 | `--port` | Port to listen on (default: 2137) |
-| `--pool` | ZFS pool to search for unmanaged volumes |
+| `--filesystem` | filesystem to search for unmanaged volumes |
 
 Access the dashboard at `http://localhost:2137` after starting.
 

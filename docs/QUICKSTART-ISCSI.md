@@ -104,14 +104,14 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **Replace these values:**
 - `YOUR-NASTY-IP` - Your NASty server IP address
 - `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
-- `YOUR-POOL-NAME` - Pool name (e.g., `tank`, `storage`)
+- `YOUR-FS-NAME` - Pool name (e.g., `tank`, `storage`)
 
 ### Verify Installation
 
@@ -238,7 +238,7 @@ provisioner: nasty.csi.io
 parameters:
   protocol: iscsi
   server: YOUR-NASTY-IP
-  pool: tank
+  filesystem: first
   port: "3260"
   csi.storage.k8s.io/fstype: ext4
   # Filesystem properties
@@ -262,7 +262,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-iscsi" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="iscsi" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set "storageClasses[0].parameters.deleteStrategy=retain"
 ```
@@ -280,7 +280,7 @@ provisioner: nasty.csi.io
 parameters:
   protocol: iscsi
   server: YOUR-NASTY-IP
-  pool: tank
+  filesystem: first
   port: "3260"
   csi.storage.k8s.io/fstype: ext4
   encryption: "true"

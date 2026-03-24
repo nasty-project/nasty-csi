@@ -9,7 +9,7 @@ This driver is in early development phase. Use only for testing and evaluation e
 - Helm 3.0+
 - **NASty Scale 25.10 or later** (required for full feature support including NVMe-oF)
 - NASty API key (create in NASty UI: Settings > API Keys)
-- Storage pool available on NASty
+- Filesystem available on NASty
 - For NFS: `nfs-common` package on all nodes (Debian/Ubuntu)
 
 **OpenShift users:** Add `--set openshift.enabled=true` to all Helm commands below. This creates the required SecurityContextConstraints for the node DaemonSet. See [DEPLOYMENT.md](DEPLOYMENT.md#openshift) for details.
@@ -30,14 +30,14 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **Replace these values:**
 - `YOUR-NASTY-IP` - Your NASty server IP address
 - `YOUR-API-KEY` - API key from NASty (Settings > API Keys)
-- `YOUR-POOL-NAME` - Pool name (e.g., `tank`, `storage`)
+- `YOUR-FS-NAME` - Filesystem name (e.g., `first`, `storage`)
 
 That's it! The driver is now installed and ready to use.
 
@@ -66,7 +66,7 @@ helm install nasty-csi ./charts/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -295,7 +295,7 @@ storageClasses:
   - name: nasty-csi-nfs
     enabled: true
     protocol: nfs
-    pool: "tank"
+    filesystem: "first"
     server: "YOUR-NASTY-IP"
     # Optional: specify parent subvolume (must exist on NASty)
     # parentDataset: "k8s-volumes"
@@ -336,7 +336,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nfs" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nfs" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set "storageClasses[0].parameters.deleteStrategy=retain"
 ```
@@ -366,7 +366,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-nvmeof" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="nvmeof" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
@@ -394,7 +394,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].name="nasty-csi-smb" \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol="smb" \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FS-NAME" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name="smb-credentials" \
   --set storageClasses[0].smbCredentialsSecret.namespace="kube-system"
