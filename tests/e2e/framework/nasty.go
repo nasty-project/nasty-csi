@@ -345,7 +345,7 @@ func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query NFS shares: %v", err)
 	} else {
-		mountPrefix := "/storage/" + poolPrefix
+		mountPrefix := "/fs/" + poolPrefix
 		for _, s := range nfsShares {
 			if strings.HasPrefix(s.Path, mountPrefix) {
 				snap.NFSShares[s.Path] = true
@@ -358,7 +358,7 @@ func (v *NAStyVerifier) SnapshotResources(ctx context.Context, poolPrefix string
 	if err != nil {
 		klog.Warningf("Resource snapshot: failed to query SMB shares: %v", err)
 	} else {
-		mountPrefix := "/storage/" + poolPrefix
+		mountPrefix := "/fs/" + poolPrefix
 		for _, s := range smbShares {
 			if strings.HasPrefix(s.Path, mountPrefix) {
 				snap.SMBShares[s.Path] = true

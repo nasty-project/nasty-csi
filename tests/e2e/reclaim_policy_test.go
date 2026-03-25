@@ -273,7 +273,7 @@ var _ = Describe("Reclaim Policy", func() {
 func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVerifier, protocol, volumeHandle, subsystemNQN string) {
 	switch protocol {
 	case "nfs":
-		sharePath := "/storage/" + volumeHandle
+		sharePath := "/fs/" + volumeHandle
 		if err := nasty.DeleteNFSShare(ctx, sharePath); err != nil {
 			klog.Warningf("Failed to cleanup retained NFS share %s: %v", sharePath, err)
 		}
@@ -301,7 +301,7 @@ func cleanupRetainedNAStyResources(ctx context.Context, nasty *framework.NAStyVe
 			klog.Warningf("Failed to cleanup retained block subvolume %s: %v", volumeHandle, err)
 		}
 	case "smb":
-		sharePath := "/storage/" + volumeHandle
+		sharePath := "/fs/" + volumeHandle
 		if err := nasty.DeleteSMBShare(ctx, sharePath); err != nil {
 			klog.Warningf("Failed to cleanup retained SMB share %s: %v", sharePath, err)
 		}

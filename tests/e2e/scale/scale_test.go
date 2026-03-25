@@ -116,7 +116,7 @@ var _ = Describe("CSI Operations with Non-CSI Data", Ordered, func() {
 			Expect(exists).To(BeFalse(), "Subvolume %s should be deleted from NASty", datasetPath)
 
 			By("Verifying NFS share was cleaned up")
-			nfsSharePath := "/storage/" + datasetPath
+			nfsSharePath := "/fs/" + datasetPath
 			shareExists, err := f.NASty.NFSShareExists(ctx, nfsSharePath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(shareExists).To(BeFalse(), "NFS share for %s should be deleted", nfsSharePath)

@@ -79,7 +79,7 @@ var _ = Describe("NFS Volume Adoption", func() {
 		Expect(volumeHandle).NotTo(BeEmpty())
 
 		datasetPath := volumeHandle
-		nfsSharePath := "/storage/" + volumeHandle
+		nfsSharePath := "/fs/" + volumeHandle
 		if f.Verbose() {
 			GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		}
@@ -378,7 +378,7 @@ var _ = Describe("NFS Volume Adoption", func() {
 		Expect(exists).To(BeTrue(), "Dataset should be retained with deleteStrategy=retain")
 
 		By("Cleaning up retained resources from NASty")
-		nfsSharePath := "/storage/" + volumeHandle
+		nfsSharePath := "/fs/" + volumeHandle
 		err = f.NASty.DeleteNFSShare(ctx, nfsSharePath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete retained NFS share from NASty")
 		err = f.NASty.DeleteDataset(ctx, datasetPath)
