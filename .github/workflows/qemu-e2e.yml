@@ -12,7 +12,7 @@ name: "QEMU E2E Tests"
 #
 # Prerequisites:
 #   - NASty must be reachable from GitHub-hosted runners (public IP or tunnel)
-#   - Repository secrets: NASTY_HOST, NASTY_API_KEY, NASTY_POOL
+#   - Repository secrets: NASTY_HOST, NASTY_API_KEY, NASTY_FILESYSTEM
 #   - Optional secrets: SMB_USERNAME, SMB_PASSWORD (for SMB protocol tests)
 
 on:
@@ -291,7 +291,7 @@ jobs:
           KUBECONFIG: /tmp/kubeconfig
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
@@ -309,7 +309,7 @@ jobs:
             --wait --timeout 8m
             --set "nasty.url=wss://${NASTY_HOST}/api/current"
             --set "nasty.apiKey=${NASTY_API_KEY}"
-            --set "nasty.pool=${NASTY_POOL}"
+            --set "nasty.filesystem=${NASTY_FILESYSTEM}"
             --set "nasty.skipTLSVerify=true"
             --set "image.repository=ghcr.io/fenio/nasty-csi"
             --set "image.tag=qemu-test"
@@ -318,20 +318,20 @@ jobs:
             --set "storageClasses[0].name=nasty-csi-nfs"
             --set "storageClasses[0].enabled=true"
             --set "storageClasses[0].protocol=nfs"
-            --set "storageClasses[0].pool=${NASTY_POOL}"
+            --set "storageClasses[0].filesystem=${NASTY_FILESYSTEM}"
             --set "storageClasses[0].server=${NASTY_HOST}"
 
             --set "storageClasses[1].name=nasty-csi-nvmeof"
             --set "storageClasses[1].enabled=true"
             --set "storageClasses[1].protocol=nvmeof"
-            --set "storageClasses[1].pool=${NASTY_POOL}"
+            --set "storageClasses[1].filesystem=${NASTY_FILESYSTEM}"
             --set "storageClasses[1].server=${NASTY_HOST}"
             --set "storageClasses[1].transport=tcp"
             --set "storageClasses[1].port=4420"
             --set "storageClasses[2].name=nasty-csi-iscsi"
             --set "storageClasses[2].enabled=true"
             --set "storageClasses[2].protocol=iscsi"
-            --set "storageClasses[2].pool=${NASTY_POOL}"
+            --set "storageClasses[2].filesystem=${NASTY_FILESYSTEM}"
             --set "storageClasses[2].server=${NASTY_HOST}"
             --set "storageClasses[2].port=3260"
           )
@@ -342,7 +342,7 @@ jobs:
               --set "storageClasses[3].name=nasty-csi-smb"
               --set "storageClasses[3].enabled=true"
               --set "storageClasses[3].protocol=smb"
-              --set "storageClasses[3].pool=${NASTY_POOL}"
+              --set "storageClasses[3].filesystem=${NASTY_FILESYSTEM}"
               --set "storageClasses[3].server=${NASTY_HOST}"
               --set "storageClasses[3].smbCredentialsSecret.name=nasty-csi-smb-creds"
               --set "storageClasses[3].smbCredentialsSecret.namespace=kube-system"
@@ -360,7 +360,7 @@ jobs:
           KUBECONFIG: /tmp/kubeconfig
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_REPO: ghcr.io/fenio/nasty-csi
           CSI_IMAGE_TAG: qemu-test
           CSI_IMAGE_PULL_POLICY: Never

@@ -77,7 +77,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ steps.versions.outputs.to_tag }}
           PREV_CHART_VERSION: ${{ steps.versions.outputs.from_chart }}
           PREV_VERSION: ${{ steps.versions.outputs.from_tag }}

@@ -49,7 +49,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: latest
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
@@ -63,7 +63,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
         run: |
           echo "=== Checking if vol.img files have nocow set ==="
           echo "Querying NASty for block subvolumes..."

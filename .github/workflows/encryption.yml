@@ -103,7 +103,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
         run: |
@@ -141,7 +141,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
         run: |
@@ -179,7 +179,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
         run: |
@@ -217,7 +217,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
@@ -257,7 +257,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}

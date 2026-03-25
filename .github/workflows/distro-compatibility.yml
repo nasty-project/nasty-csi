@@ -82,7 +82,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
         run: ./tests/integration/test-distro-basic.sh
@@ -104,7 +104,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
         run: ./tests/integration/test-distro-basic.sh
@@ -126,7 +126,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
         run: ./tests/integration/test-distro-basic.sh
@@ -151,7 +151,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/lib/k0s/kubelet
@@ -174,7 +174,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/lib/k0s/kubelet
@@ -197,7 +197,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/lib/k0s/kubelet
@@ -232,7 +232,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/lib/kubesolo/kubelet
@@ -264,7 +264,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/lib/kubesolo/kubelet
@@ -296,7 +296,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/lib/kubesolo/kubelet
@@ -322,7 +322,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
         run: ./tests/integration/test-distro-basic.sh
@@ -344,7 +344,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
         run: ./tests/integration/test-distro-basic.sh
@@ -366,7 +366,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
         run: ./tests/integration/test-distro-basic.sh
@@ -391,7 +391,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/lib/kubelet
@@ -416,7 +416,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/lib/kubelet
@@ -442,7 +442,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/lib/kubelet
@@ -466,7 +466,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/snap/microk8s/common/var/lib/kubelet
@@ -487,7 +487,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/snap/microk8s/common/var/lib/kubelet
@@ -508,7 +508,7 @@ jobs:
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-          NASTY_POOL: ${{ secrets.NASTY_POOL }}
+          NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/snap/microk8s/common/var/lib/kubelet

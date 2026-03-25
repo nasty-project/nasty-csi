@@ -47,7 +47,7 @@ func NewConfig() (*Config, error) {
 	cfg := &Config{
 		NAStyHost:          os.Getenv("NASTY_HOST"),
 		NAStyAPIKey:        os.Getenv("NASTY_API_KEY"),
-		NAStyFilesystem:          getEnvOrDefault("NASTY_POOL", "csi"),
+		NAStyFilesystem:          getEnvOrDefault("NASTY_FILESYSTEM", "csi"),
 		CSIImageRepo:       getEnvOrDefault("CSI_IMAGE_REPO", "ghcr.io/nasty-project/nasty-csi"),
 		CSIImageTag:        getEnvOrDefault("CSI_IMAGE_TAG", "latest"),
 		CSIImagePullPolicy: getEnvOrDefault("CSI_IMAGE_PULL_POLICY", "Always"),
