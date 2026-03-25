@@ -31,7 +31,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestDeletionConfig(t *testing.T) {
-	config := DeletionConfig("delete-dataset")
+	config := DeletionConfig("delete-subvolume")
 
 	if config.MaxAttempts != 12 {
 		t.Errorf("Expected MaxAttempts=12, got %d", config.MaxAttempts)
@@ -48,8 +48,8 @@ func TestDeletionConfig(t *testing.T) {
 	if config.RetryableFunc == nil {
 		t.Error("Expected RetryableFunc to be set for deletion config")
 	}
-	if config.OperationName != "delete-dataset" {
-		t.Errorf("Expected OperationName='delete-dataset', got %q", config.OperationName)
+	if config.OperationName != "delete-subvolume" {
+		t.Errorf("Expected OperationName='delete-subvolume', got %q", config.OperationName)
 	}
 }
 
@@ -516,8 +516,8 @@ func TestIsBusyResourceError(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "dataset is busy",
-			err:  errors.New("cannot destroy 'tank/dataset': dataset is busy"),
+			name: "subvolume is busy",
+			err:  errors.New("subvolume is busy"),
 			want: true,
 		},
 		{
@@ -541,11 +541,6 @@ func TestIsBusyResourceError(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "pool is busy",
-			err:  errors.New("cannot export pool: pool is busy"),
-			want: true,
-		},
-		{
 			name: "filesystem is busy",
 			err:  errors.New("cannot unmount: filesystem is busy"),
 			want: true,
@@ -557,7 +552,7 @@ func TestIsBusyResourceError(t *testing.T) {
 		},
 		{
 			name: "not found error",
-			err:  errors.New("dataset not found"),
+			err:  errors.New("subvolume not found"),
 			want: false,
 		},
 	}
@@ -586,7 +581,7 @@ func TestIsRetryableDeletionError(t *testing.T) {
 		},
 		{
 			name: "busy resource error",
-			err:  errors.New("dataset is busy"),
+			err:  errors.New("subvolume is busy"),
 			want: true,
 		},
 		{

@@ -24,7 +24,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"filesystem":           "tank",
+					"filesystem":           "first",
 					"server":         "192.168.1.100",
 					"deleteStrategy": "retain",
 				},
@@ -35,8 +35,8 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			wantErr: false,
 			check: func(t *testing.T, params *nvmeofVolumeParams) {
 				t.Helper()
-				if params.filesystem != "tank" {
-					t.Errorf("Expected filesystem 'tank', got %s", params.filesystem)
+				if params.filesystem != "first" {
+					t.Errorf("Expected filesystem 'first', got %s", params.filesystem)
 				}
 				if params.server != "192.168.1.100" {
 					t.Errorf("Expected server '192.168.1.100', got %s", params.server)
@@ -54,7 +54,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"filesystem":   "tank",
+					"filesystem":   "first",
 					"server": "192.168.1.100",
 				},
 			},
@@ -87,7 +87,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"filesystem": "tank",
+					"filesystem": "first",
 				},
 			},
 			wantErr:  true,
@@ -202,7 +202,7 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					"protocol": "nvmeof",
-					"filesystem":     "tank",
+					"filesystem":     "first",
 				},
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {},
@@ -225,7 +225,7 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					"protocol": "nvmeof",
-					"filesystem":     "tank",
+					"filesystem":     "first",
 					"server":   "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{
@@ -298,7 +298,7 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 			meta: &VolumeMetadata{
 				Name:                "test-volume",
 				Protocol:            ProtocolNVMeOF,
-				DatasetID:           "tank/csi/test-volume",
+				DatasetID:           "first/test-volume",
 				NVMeOFSubsystemUUID: "some-uuid",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
@@ -323,7 +323,7 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 			meta: &VolumeMetadata{
 				Name:      "missing-volume",
 				Protocol:  ProtocolNVMeOF,
-				DatasetID: "tank/csi/missing-volume",
+				DatasetID: "first/missing-volume",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
@@ -388,8 +388,8 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			meta: &VolumeMetadata{
 				Name:        "test-volume",
 				Protocol:    ProtocolNVMeOF,
-				DatasetID:   "tank/csi/test-volume",
-				DatasetName: "tank/csi/test-volume",
+				DatasetID:   "first/test-volume",
+				DatasetName: "first/test-volume",
 			},
 			requiredBytes: 10 * 1024 * 1024 * 1024, // 10GB
 			mockSetup: func(m *MockAPIClientForSnapshots) {
@@ -416,8 +416,8 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			meta: &VolumeMetadata{
 				Name:        "missing-volume",
 				Protocol:    ProtocolNVMeOF,
-				DatasetID:   "tank/csi/missing-volume",
-				DatasetName: "tank/csi/missing-volume",
+				DatasetID:   "first/missing-volume",
+				DatasetName: "first/missing-volume",
 			},
 			requiredBytes: 10 * 1024 * 1024 * 1024,
 			mockSetup: func(m *MockAPIClientForSnapshots) {

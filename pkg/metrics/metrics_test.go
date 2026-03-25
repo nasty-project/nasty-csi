@@ -19,7 +19,7 @@ func TestMetricsAvailability(t *testing.T) {
 	SetWSConnectionStatus(true)
 	RecordWSReconnection()
 	RecordWSMessage("sent")
-	RecordWSMessageDuration("pool.dataset.create", 100*time.Millisecond)
+	RecordWSMessageDuration("fs.subvolume.create", 100*time.Millisecond)
 	SetWSConnectionDuration(5 * time.Minute)
 	SetVolumeCapacity("test-vol", ProtocolNFS, 1024*1024*1024)
 
@@ -113,7 +113,7 @@ func TestWebSocketMetrics(t *testing.T) {
 	RecordWSMessage("received")
 
 	// Test message duration
-	RecordWSMessageDuration("pool.dataset.create", 100*time.Millisecond)
+	RecordWSMessageDuration("fs.subvolume.create", 100*time.Millisecond)
 
 	// Test connection duration
 	SetWSConnectionDuration(5 * time.Minute)
@@ -151,7 +151,7 @@ func TestOperationTimer(t *testing.T) {
 }
 
 func TestWSMessageTimer(t *testing.T) {
-	timer := NewWSMessageTimer("pool.dataset.query")
+	timer := NewWSMessageTimer("fs.subvolume.get")
 	time.Sleep(10 * time.Millisecond)
 	timer.Observe()
 

@@ -229,25 +229,17 @@ func IsRetryableError(err error) bool {
 // IsBusyResourceError returns true if the error indicates a resource is busy
 // and the operation should be retried. This is used for deletion operations
 // where resources may be temporarily in use.
-//
-// Common busy error patterns from NASty:
-//   - "dataset is busy" - subvolume has active operations
-//   - "target is busy" - NVMe-oF/iSCSI target has active connections
-//   - "filesystem has dependent clones" - clone dependency
-//   - "resource busy" - Generic busy state
-//   - "EBUSY" - POSIX busy error.
 func IsBusyResourceError(err error) bool {
 	if err == nil {
 		return false
 	}
 	errStr := err.Error()
 	return contains(errStr,
-		"dataset is busy",
+		"subvolume is busy",
 		"target is busy",
 		"resource busy",
 		"EBUSY",
 		"Device or resource busy",
-		"pool is busy",
 		"filesystem is busy",
 	)
 }

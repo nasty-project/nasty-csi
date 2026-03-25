@@ -887,11 +887,11 @@ func TestGetCapacity(t *testing.T) {
 		{
 			name: "successful capacity query",
 			params: map[string]string{
-				"filesystem": "tank",
+				"filesystem": "first",
 			},
 			mockQueryFilesystem: func(ctx context.Context, fsName string) (*nastyapi.Filesystem, error) {
 				return &nastyapi.Filesystem{
-					Name:           "tank",
+					Name:           "first",
 					TotalBytes:     1000000000000,
 					UsedBytes:      400000000000,
 					AvailableBytes: 600000000000,
@@ -1086,7 +1086,7 @@ func TestCreateVolumeRPC(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					"protocol": "unsupported-protocol",
-					"filesystem":     "tank",
+					"filesystem":     "first",
 					"server":   "192.168.1.100",
 				},
 			},
@@ -1117,7 +1117,7 @@ func TestCreateVolumeRPC(t *testing.T) {
 				},
 				Parameters: map[string]string{
 					"protocol": "nfs",
-					"filesystem":     "tank",
+					"filesystem":     "first",
 					"server":   "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{

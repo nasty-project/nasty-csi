@@ -79,7 +79,7 @@ var _ = Describe("NFS Delete Strategy Retain", func() {
 
 		// Volume handle is the full dataset path (e.g., filesystem/parent/pvc-xxx)
 		datasetPath := volumeHandle
-		// NFS share path format: /storage/<filesystem>/<subvolume>
+		// NFS share path format: /fs/<filesystem>/<subvolume>
 		nfsSharePath := "/fs/" + volumeHandle
 		GinkgoWriter.Printf("Volume handle: %s\n", volumeHandle)
 		GinkgoWriter.Printf("Expected dataset path on NASty: %s\n", datasetPath)
