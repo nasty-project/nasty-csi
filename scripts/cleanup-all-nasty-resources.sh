@@ -1,16 +1,16 @@
 #!/bin/bash
 # Cleanup script for NASty
-# Removes test subvolumes, snapshots, and shares from a specified pool.
+# Removes test subvolumes, snapshots, and shares from a specified filesystem.
 #
 # Usage:
 #   ./scripts/cleanup-all-nasty-resources.sh              # Safe mode: only test-* artifacts
-#   ./scripts/cleanup-all-nasty-resources.sh --all         # ALL subvolumes in pool (DANGEROUS!)
+#   ./scripts/cleanup-all-nasty-resources.sh --all         # ALL subvolumes in filesystem (DANGEROUS!)
 #   ./scripts/cleanup-all-nasty-resources.sh --dry-run     # Show what would be deleted
 #
 # Required environment variables:
 #   NASTY_HOST      NASty hostname/IP
 #   NASTY_API_KEY   API token for authentication
-#   NASTY_POOL      Pool name (default: tank)
+#   NASTY_FILESYSTEM      Filesystem name (default: first)
 
 set -e
 
@@ -31,7 +31,7 @@ for arg in "$@"; do
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --all       Remove ALL subvolumes and shares in the pool (DANGEROUS!)"
+            echo "  --all       Remove ALL subvolumes and shares in the filesystem (DANGEROUS!)"
             echo "  --dry-run   Show what would be deleted without actually deleting"
             echo "  --help      Show this help message"
             echo ""
@@ -40,7 +40,7 @@ for arg in "$@"; do
             echo "Required environment variables:"
             echo "  NASTY_HOST      NASty hostname/IP"
             echo "  NASTY_API_KEY   API token for authentication"
-            echo "  NASTY_POOL      Pool name (default: tank)"
+            echo "  NASTY_FILESYSTEM      Filesystem name (default: first)"
             exit 0
             ;;
         *) echo -e "${RED}Unknown option: $arg${NC}"; exit 1 ;;
@@ -49,20 +49,20 @@ done
 
 : "${NASTY_HOST:?NASTY_HOST not set}"
 : "${NASTY_API_KEY:?NASTY_API_KEY not set}"
-: "${NASTY_POOL:=tank}"
+: "${NASTY_FILESYSTEM:=first}"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}NASty Cleanup Script${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 echo -e "${YELLOW}Host:${NC} ${NASTY_HOST}"
-echo -e "${YELLOW}Pool:${NC} ${NASTY_POOL}"
+echo -e "${YELLOW}Filesystem:${NC} ${NASTY_FILESYSTEM}"
 echo -e "${YELLOW}Mode:${NC} ${MODE}"
 $DRY_RUN && echo -e "${YELLOW}Dry Run:${NC} Enabled"
 echo ""
 
 if [ "$MODE" = "all" ]; then
-    echo -e "${RED}WARNING: You are about to delete ALL subvolumes and shares in pool '${NASTY_POOL}'${NC}"
+    echo -e "${RED}WARNING: You are about to delete ALL subvolumes and shares in filesystem '${NASTY_FILESYSTEM}'${NC}"
     read -p "Type 'DELETE ALL' to confirm: " CONFIRM
     if [ "$CONFIRM" != "DELETE ALL" ]; then
         echo -e "${YELLOW}Cancelled${NC}"
@@ -89,7 +89,7 @@ import (
 func main() {
 	host := os.Getenv("NASTY_HOST")
 	apiKey := os.Getenv("NASTY_API_KEY")
-	pool := os.Getenv("NASTY_POOL")
+	filesystem := os.Getenv("NASTY_FILESYSTEM")
 	mode := os.Getenv("CLEANUP_MODE")
 	dryRun := os.Getenv("DRY_RUN") == "true"
 
@@ -115,7 +115,7 @@ func main() {
 	}
 	nfsDeleted := 0
 	for _, s := range nfsShares {
-		if !shouldClean(s.Path, pool, mode) {
+		if !shouldClean(s.Path, filesystem, mode) {
 			continue
 		}
 		fmt.Printf("  %s (ID: %s)\n", s.Path, s.ID)
@@ -138,7 +138,7 @@ func main() {
 	}
 	smbDeleted := 0
 	for _, s := range smbShares {
-		if !shouldClean(s.Path, pool, mode) {
+		if !shouldClean(s.Path, filesystem, mode) {
 			continue
 		}
 		fmt.Printf("  %s (ID: %s)\n", s.Path, s.ID)
@@ -201,7 +201,7 @@ func main() {
 
 	// --- Delete snapshots ---
 	fmt.Println("\n=== Snapshots ===")
-	snapshots, err := client.ListSnapshots(ctx, pool)
+	snapshots, err := client.ListSnapshots(ctx, filesystem)
 	if err != nil {
 		fmt.Printf("Warning: %v\n", err)
 	}
@@ -210,9 +210,9 @@ func main() {
 		if !shouldCleanName(snap.Subvolume, mode) && !shouldCleanName(snap.Name, mode) {
 			continue
 		}
-		fmt.Printf("  %s/%s@%s\n", snap.Pool, snap.Subvolume, snap.Name)
+		fmt.Printf("  %s/%s@%s\n", snap.Filesystem, snap.Subvolume, snap.Name)
 		if !dryRun {
-			if err := client.DeleteSnapshot(ctx, snap.Pool, snap.Subvolume, snap.Name); err != nil {
+			if err := client.DeleteSnapshot(ctx, snap.Filesystem, snap.Subvolume, snap.Name); err != nil {
 				fmt.Printf("    ⚠ %v\n", err)
 			} else {
 				fmt.Printf("    ✓ Deleted\n")
@@ -224,7 +224,7 @@ func main() {
 
 	// --- Delete subvolumes ---
 	fmt.Println("\n=== Subvolumes ===")
-	subvols, err := client.ListAllSubvolumes(ctx, pool)
+	subvols, err := client.ListAllSubvolumes(ctx, filesystem)
 	if err != nil {
 		fmt.Printf("Failed to list subvolumes: %v\n", err)
 		os.Exit(1)
@@ -234,9 +234,9 @@ func main() {
 		if !shouldCleanName(sv.Name, mode) {
 			continue
 		}
-		fmt.Printf("  %s/%s (%s)\n", sv.Pool, sv.Name, sv.SubvolumeType)
+		fmt.Printf("  %s/%s (%s)\n", sv.Filesystem, sv.Name, sv.SubvolumeType)
 		if !dryRun {
-			if err := client.DeleteSubvolume(ctx, sv.Pool, sv.Name); err != nil {
+			if err := client.DeleteSubvolume(ctx, sv.Filesystem, sv.Name); err != nil {
 				fmt.Printf("    ⚠ %v\n", err)
 			} else {
 				fmt.Printf("    ✓ Deleted\n")
@@ -260,9 +260,9 @@ func main() {
 	fmt.Println("\n✓ Cleanup complete!")
 }
 
-func shouldClean(path, pool, mode string) bool {
+func shouldClean(path, filesystem, mode string) bool {
 	if mode == "all" {
-		return strings.Contains(path, "/"+pool+"/")
+		return strings.Contains(path, "/"+filesystem+"/")
 	}
 	return isTestArtifact(path)
 }
