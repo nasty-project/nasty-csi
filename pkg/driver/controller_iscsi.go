@@ -32,6 +32,7 @@ type iscsiVolumeParams struct {
 	filesystem              string
 	requestedCapacity int64
 	markAdoptable     bool
+	encrypted         bool
 }
 
 // generateIQN creates a unique IQN for a volume's dedicated iSCSI target.
@@ -89,6 +90,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 	pvcName := params["csi.storage.k8s.io/pvc/name"]
 	pvcNamespace := params["csi.storage.k8s.io/pvc/namespace"]
 	storageClass := params["csi.storage.k8s.io/sc/name"]
+	encrypted := strings.EqualFold(params["encryption"], "true")
 
 	// Optional compression setting
 	compression := params["compression"]
@@ -107,6 +109,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
+		encrypted:         encrypted,
 	}, nil
 }
 
@@ -224,6 +227,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
 		ClusterID:      s.clusterID,
+		Encrypted:      params.encrypted,
 	})
 
 	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, params.filesystem, params.subvolumeName, props); propErr != nil {

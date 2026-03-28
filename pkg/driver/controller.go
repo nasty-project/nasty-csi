@@ -366,6 +366,25 @@ func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return resp, err
 	}
 
+	// Validate encryption requirement: if StorageClass requests encryption,
+	// verify the target filesystem has bcachefs-level encryption enabled.
+	if strings.EqualFold(params["encryption"], "true") {
+		fsName := params["filesystem"]
+		if fsName == "" {
+			return nil, status.Error(codes.InvalidArgument, "encryption requires a filesystem parameter")
+		}
+		fs, err := s.apiClient.QueryFilesystem(ctx, fsName)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to query filesystem %q for encryption check: %v", fsName, err)
+		}
+		if fs.Options.Encrypted == nil || !*fs.Options.Encrypted {
+			return nil, status.Errorf(codes.InvalidArgument,
+				"StorageClass requires encryption but filesystem %q is not encrypted; "+
+					"create an encrypted filesystem or remove the encryption parameter", fsName)
+		}
+		klog.V(4).Infof("Encryption check passed: filesystem %q is encrypted", fsName)
+	}
+
 	klog.V(4).Infof("Creating volume %s with protocol %s", req.GetName(), protocol)
 
 	return s.createVolumeByProtocol(ctx, req, protocol)

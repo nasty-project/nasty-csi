@@ -39,6 +39,7 @@ type nvmeofVolumeParams struct {
 	compression       string
 	requestedCapacity int64
 	markAdoptable     bool
+	encrypted         bool
 }
 
 // generateNQN creates a unique NQN for a volume's dedicated subsystem.
@@ -110,6 +111,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	pvcName := params["csi.storage.k8s.io/pvc/name"]
 	pvcNamespace := params["csi.storage.k8s.io/pvc/namespace"]
 	storageClass := params["csi.storage.k8s.io/sc/name"]
+	encrypted := strings.EqualFold(params["encryption"], "true")
 
 	// Optional compression setting
 	compression := params["compression"]
@@ -128,6 +130,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
+		encrypted:         encrypted,
 		nrIOQueues:        params["nvmeof.nr-io-queues"],
 		queueSize:         params["nvmeof.queue-size"],
 	}, nil
@@ -257,6 +260,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
 		ClusterID:      s.clusterID,
+		Encrypted:      params.encrypted,
 	})
 	if _, err := s.apiClient.SetSubvolumeProperties(ctx, params.filesystem, params.subvolumeName, props); err != nil {
 		klog.Warningf("Failed to set xattr properties on %s: %v (volume created successfully)", params.subvolumeName, err)

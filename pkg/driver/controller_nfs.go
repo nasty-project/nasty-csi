@@ -33,6 +33,7 @@ type nfsVolumeParams struct {
 	nfsClients        []nastyapi.NFSClient
 	requestedCapacity int64
 	markAdoptable     bool
+	encrypted         bool
 }
 
 // parseNFSClients parses the nfsClients StorageClass parameter into NFSClient slice.
@@ -127,6 +128,7 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
+		encrypted:         strings.EqualFold(params["encryption"], "true"),
 	}, nil
 }
 
@@ -187,6 +189,7 @@ func nfsPropertiesV1(params *nfsVolumeParams, clusterID string) map[string]strin
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
 		ClusterID:      clusterID,
+		Encrypted:      params.encrypted,
 	})
 }
 

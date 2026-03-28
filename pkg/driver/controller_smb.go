@@ -31,6 +31,7 @@ type smbVolumeParams struct {
 	storageClass      string
 	requestedCapacity int64
 	markAdoptable     bool
+	encrypted         bool
 }
 
 // validateSMBParams validates and extracts SMB volume parameters from the request.
@@ -70,6 +71,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 	compression := params["compression"]
+	encrypted := strings.EqualFold(params["encryption"], "true")
 
 	return &smbVolumeParams{
 		filesystem:              filesystem,
@@ -85,6 +87,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 		pvcName:           params["csi.storage.k8s.io/pvc/name"],
 		pvcNamespace:      params["csi.storage.k8s.io/pvc/namespace"],
 		storageClass:      params["csi.storage.k8s.io/sc/name"],
+		encrypted:         encrypted,
 	}, nil
 }
 
@@ -182,6 +185,7 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 		StorageClass:   params.storageClass,
 		Adoptable:      params.markAdoptable,
 		ClusterID:      s.clusterID,
+		Encrypted:      params.encrypted,
 	})
 	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
 		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
