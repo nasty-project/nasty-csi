@@ -356,10 +356,15 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	}
 
 	// Step 1: Delete NVMe-oF subsystem first (must be removed before subvolume)
-	// Try by UUID first, then by NQN
+	// Try by UUID first, then by NQN from metadata, then derive NQN from name
 	subsystemID := meta.NVMeOFSubsystemUUID
-	if subsystemID == "" && meta.NVMeOFNQN != "" {
-		subsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, meta.NVMeOFNQN)
+	nqnToLookup := meta.NVMeOFNQN
+	if nqnToLookup == "" && name != "" {
+		nqnToLookup = "nqn.2137-04.storage.nasty:" + name
+	}
+	if subsystemID == "" && nqnToLookup != "" {
+		klog.Infof("No NVMe-oF subsystem UUID in metadata, looking up by NQN: %s", nqnToLookup)
+		subsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, nqnToLookup)
 		if lookupErr == nil && subsystem != nil {
 			subsystemID = subsystem.ID
 		}

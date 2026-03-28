@@ -357,16 +357,27 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 	}
 
 	// Step 1: Delete iSCSI target first (must be removed before subvolume)
-	if meta.ISCSITargetUUID != "" {
-		if err := s.apiClient.DeleteISCSITarget(ctx, meta.ISCSITargetUUID); err != nil {
+	targetID := meta.ISCSITargetUUID
+	// Fallback: if target UUID is empty, look up by IQN derived from subvolume name
+	if targetID == "" && name != "" {
+		iqn := "iqn.2137-04.storage.nasty:" + name
+		klog.Infof("No iSCSI target UUID in metadata, looking up by IQN: %s", iqn)
+		target, lookupErr := s.apiClient.GetISCSITargetByIQN(ctx, iqn)
+		if lookupErr == nil && target != nil {
+			targetID = target.ID
+		}
+	}
+	if targetID != "" {
+		klog.Infof("Deleting iSCSI target: %s", targetID)
+		if err := s.apiClient.DeleteISCSITarget(ctx, targetID); err != nil {
 			if !isNotFoundError(err) {
-				klog.Errorf("Failed to delete iSCSI target %s: %v", meta.ISCSITargetUUID, err)
+				klog.Errorf("Failed to delete iSCSI target %s: %v", targetID, err)
 				timer.ObserveError()
 				return nil, status.Errorf(codes.Internal,
-					"Failed to delete iSCSI target %s: %v", meta.ISCSITargetUUID, err)
+					"Failed to delete iSCSI target %s: %v", targetID, err)
 			}
 		} else {
-			klog.V(4).Infof("Deleted iSCSI target: %s", meta.ISCSITargetUUID)
+			klog.Infof("Deleted iSCSI target: %s", targetID)
 		}
 	}
 
