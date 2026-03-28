@@ -138,10 +138,15 @@ func (v *NAStyVerifier) DeleteDataset(ctx context.Context, datasetPath string) e
 }
 
 // DeleteNVMeOFSubsystem deletes an NVMe-oF subsystem from NASty by NQN.
-func (v *NAStyVerifier) DeleteNVMeOFSubsystem(ctx context.Context, nqn string) error {
+func (v *NAStyVerifier) DeleteNVMeOFSubsystem(ctx context.Context, nameOrNQN string) error {
+	// If it's a bare name (no NQN prefix), derive the full NQN
+	nqn := nameOrNQN
+	if !strings.Contains(nqn, "nqn.") {
+		nqn = "nqn.2137-04.storage.nasty:" + nameOrNQN
+	}
 	subsystem, err := v.client.GetNVMeOFSubsystemByNQN(ctx, nqn)
 	if err != nil {
-		return fmt.Errorf("failed to query NVMe-oF subsystem: %w", err)
+		return fmt.Errorf("failed to query NVMe-oF subsystem by NQN %s: %w", nqn, err)
 	}
 	if subsystem == nil {
 		return nil
@@ -206,10 +211,15 @@ func (v *NAStyVerifier) ISCSIExtentExists(_ context.Context, _ string) (bool, er
 }
 
 // DeleteISCSITarget deletes an iSCSI target from NASty by IQN.
-func (v *NAStyVerifier) DeleteISCSITarget(ctx context.Context, iqn string) error {
+func (v *NAStyVerifier) DeleteISCSITarget(ctx context.Context, nameOrIQN string) error {
+	// If it's a bare name (no IQN prefix), derive the full IQN
+	iqn := nameOrIQN
+	if !strings.Contains(iqn, "iqn.") {
+		iqn = "iqn.2137-04.storage.nasty:" + nameOrIQN
+	}
 	target, err := v.client.GetISCSITargetByIQN(ctx, iqn)
 	if err != nil {
-		return fmt.Errorf("failed to query iSCSI target: %w", err)
+		return fmt.Errorf("failed to query iSCSI target by IQN %s: %w", iqn, err)
 	}
 	if target == nil {
 		return nil
