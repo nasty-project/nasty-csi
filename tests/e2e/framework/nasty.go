@@ -139,10 +139,12 @@ func (v *NAStyVerifier) DeleteDataset(ctx context.Context, datasetPath string) e
 
 // DeleteNVMeOFSubsystem deletes an NVMe-oF subsystem from NASty by NQN.
 func (v *NAStyVerifier) DeleteNVMeOFSubsystem(ctx context.Context, nameOrNQN string) error {
-	// If it's a bare name (no NQN prefix), derive the full NQN
+	// If it's a bare name or path (no NQN prefix), derive the full NQN
 	nqn := nameOrNQN
 	if !strings.Contains(nqn, "nqn.") {
-		nqn = "nqn.2137-04.storage.nasty:" + nameOrNQN
+		parts := strings.Split(nameOrNQN, "/")
+		baseName := parts[len(parts)-1]
+		nqn = "nqn.2137-04.storage.nasty:" + baseName
 	}
 	subsystem, err := v.client.GetNVMeOFSubsystemByNQN(ctx, nqn)
 	if err != nil {
@@ -212,10 +214,13 @@ func (v *NAStyVerifier) ISCSIExtentExists(_ context.Context, _ string) (bool, er
 
 // DeleteISCSITarget deletes an iSCSI target from NASty by IQN.
 func (v *NAStyVerifier) DeleteISCSITarget(ctx context.Context, nameOrIQN string) error {
-	// If it's a bare name (no IQN prefix), derive the full IQN
+	// If it's a bare name or path (no IQN prefix), derive the full IQN
 	iqn := nameOrIQN
 	if !strings.Contains(iqn, "iqn.") {
-		iqn = "iqn.2137-04.storage.nasty:" + nameOrIQN
+		// Extract base name from path (e.g., "first/pvc-xxx" → "pvc-xxx")
+		parts := strings.Split(nameOrIQN, "/")
+		baseName := parts[len(parts)-1]
+		iqn = "iqn.2137-04.storage.nasty:" + baseName
 	}
 	target, err := v.client.GetISCSITargetByIQN(ctx, iqn)
 	if err != nil {

@@ -3,6 +3,7 @@ package nvmeof_test
 import (
 	"context"
 	"fmt"
+	"path"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -224,6 +225,11 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		// which cleans up the NEW subsystem and namespace. However, the ORIGINAL
 		// retained block subvolume (zvolPath) is left behind because adoption creates a new
 		// subvolume path. Clean up the original retained block subvolume explicitly.
+		By("Cleaning up original retained NVMe-oF subsystem from NASty")
+		origName := path.Base(zvolPath)
+		err = f.NASty.DeleteNVMeOFSubsystem(ctx, origName)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained NVMe-oF subsystem")
+
 		By("Cleaning up original retained block subvolume from NASty")
 		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained block subvolume")

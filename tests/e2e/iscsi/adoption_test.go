@@ -3,6 +3,7 @@ package iscsi_test
 import (
 	"context"
 	"fmt"
+	"path"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -217,7 +218,12 @@ var _ = Describe("iSCSI Volume Adoption", func() {
 		// The adopted PVC cleanup (via RegisterPVCCleanup) triggers CSI DeleteVolume
 		// which cleans up the NEW iSCSI target/extent and block subvolume. However, the ORIGINAL
 		// retained block subvolume (zvolPath) is left behind because adoption creates a new
-		// subvolume path. Clean up the original retained block subvolume explicitly.
+		// subvolume path. Clean up the original retained resources explicitly.
+		By("Cleaning up original retained iSCSI target from NASty")
+		origTargetName := path.Base(zvolPath)
+		err = f.NASty.DeleteISCSITarget(ctx, origTargetName)
+		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained iSCSI target")
+
 		By("Cleaning up original retained block subvolume from NASty")
 		err = f.NASty.DeleteDataset(ctx, zvolPath)
 		Expect(err).NotTo(HaveOccurred(), "Failed to delete original retained block subvolume")
