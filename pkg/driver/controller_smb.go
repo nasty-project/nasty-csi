@@ -289,15 +289,31 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 
 	// Step 1: Delete SMB share
 	if shareUUID != "" {
-		klog.V(4).Infof("Deleting SMB share: UUID=%s", shareUUID)
+		klog.Infof("Deleting SMB share by UUID: %s", shareUUID)
 		err := s.apiClient.DeleteSMBShare(ctx, shareUUID)
 		switch {
 		case err == nil:
-			klog.V(4).Infof("Successfully deleted SMB share %s", shareUUID)
+			klog.Infof("Successfully deleted SMB share %s", shareUUID)
 		case isNotFoundError(err):
-			klog.V(4).Infof("SMB share %s not found, assuming already deleted (idempotency)", shareUUID)
+			klog.Infof("SMB share %s not found, assuming already deleted", shareUUID)
 		default:
-			klog.Warningf("Failed to delete SMB share %s: %v (continuing with subvolume deletion)", shareUUID, err)
+			klog.Warningf("Failed to delete SMB share %s: %v", shareUUID, err)
+		}
+	}
+	// Fallback: if share UUID was empty or deletion failed, try to find and delete by path
+	if parseErr == nil && filesystem != "" && subvolName != "" {
+		sharePath := "/fs/" + filesystem + "/" + subvolName
+		shares, listErr := s.apiClient.ListSMBShares(ctx)
+		if listErr == nil {
+			for _, share := range shares {
+				if share.Path == sharePath {
+					klog.Infof("Found SMB share by path %s (id=%s), deleting", sharePath, share.ID)
+					if err := s.apiClient.DeleteSMBShare(ctx, share.ID); err != nil && !isNotFoundError(err) {
+						klog.Warningf("Failed to delete SMB share %s by path lookup: %v", share.ID, err)
+					}
+					break
+				}
+			}
 		}
 	}
 

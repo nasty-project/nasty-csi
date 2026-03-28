@@ -444,16 +444,33 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 	}
 
 	// Step 1: Delete NFS share first
+	// If share UUID is known, delete by UUID. Otherwise, look up by path.
 	if shareUUID != "" {
-		klog.V(4).Infof("Deleting NFS share: UUID=%s", shareUUID)
+		klog.Infof("Deleting NFS share by UUID: %s", shareUUID)
 		err := s.apiClient.DeleteNFSShare(ctx, shareUUID)
 		switch {
 		case err == nil:
-			klog.V(4).Infof("Successfully deleted NFS share %s", shareUUID)
+			klog.Infof("Successfully deleted NFS share %s", shareUUID)
 		case isNotFoundError(err):
-			klog.V(4).Infof("NFS share %s not found, assuming already deleted (idempotency)", shareUUID)
+			klog.Infof("NFS share %s not found, assuming already deleted", shareUUID)
 		default:
-			klog.Warningf("Failed to delete NFS share %s: %v (continuing with subvolume deletion)", shareUUID, err)
+			klog.Warningf("Failed to delete NFS share %s: %v", shareUUID, err)
+		}
+	}
+	// Fallback: if share UUID was empty or deletion failed, try to find and delete by path
+	if filesystem != "" && subvolName != "" {
+		sharePath := "/fs/" + filesystem + "/" + subvolName
+		shares, listErr := s.apiClient.ListNFSShares(ctx)
+		if listErr == nil {
+			for _, share := range shares {
+				if share.Path == sharePath {
+					klog.Infof("Found NFS share by path %s (id=%s), deleting", sharePath, share.ID)
+					if err := s.apiClient.DeleteNFSShare(ctx, share.ID); err != nil && !isNotFoundError(err) {
+						klog.Warningf("Failed to delete NFS share %s by path lookup: %v", share.ID, err)
+					}
+					break
+				}
+			}
 		}
 	}
 
