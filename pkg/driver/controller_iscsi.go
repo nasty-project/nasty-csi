@@ -356,42 +356,39 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 		return nil, status.Errorf(codes.InvalidArgument, "Invalid volume ID: %v", splitErr)
 	}
 
-	// Step 1: Delete subvolume first (prevents orphaning iSCSI resources)
-	// If the subvolume can't be deleted, bail immediately to prevent orphaning the iSCSI target.
-	firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
-	if firstErr != nil && !isNotFoundError(firstErr) {
-		// Retry with snapshot cleanup
-		klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
-			meta.DatasetID, firstErr)
-
-		retryConfig := retry.DeletionConfig("delete-iscsi-subvol")
-		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-			deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
-			if deleteErr != nil && isNotFoundError(deleteErr) {
-				return nil
-			}
-			return deleteErr
-		})
-
-		if err != nil {
-			klog.Errorf("Subvolume %s deletion failed — skipping iSCSI target cleanup to avoid orphaning: %v", meta.DatasetID, err)
-			timer.ObserveError()
-			return nil, status.Errorf(codes.Internal,
-				"Failed to delete block subvolume %s: %v (iSCSI target preserved to prevent orphaning)", meta.DatasetID, err)
-		}
-	}
-	klog.V(4).Infof("Deleted block subvolume: %s", meta.DatasetID)
-
-	// Step 2: Subvolume is gone — clean up iSCSI target (best effort)
+	// Step 1: Delete iSCSI target first (must be removed before subvolume)
 	if meta.ISCSITargetUUID != "" {
 		if err := s.apiClient.DeleteISCSITarget(ctx, meta.ISCSITargetUUID); err != nil {
 			if !isNotFoundError(err) {
-				klog.Warningf("Failed to delete iSCSI target %s (subvolume already deleted, will retry): %v", meta.ISCSITargetUUID, err)
+				klog.Errorf("Failed to delete iSCSI target %s: %v", meta.ISCSITargetUUID, err)
+				timer.ObserveError()
+				return nil, status.Errorf(codes.Internal,
+					"Failed to delete iSCSI target %s: %v", meta.ISCSITargetUUID, err)
 			}
 		} else {
 			klog.V(4).Infof("Deleted iSCSI target: %s", meta.ISCSITargetUUID)
 		}
 	}
+
+	// Step 2: Delete subvolume (target is gone, no guard will block)
+	deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
+	if deleteErr != nil && !isNotFoundError(deleteErr) {
+		retryConfig := retry.DeletionConfig("delete-iscsi-subvol")
+		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
+			e := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
+			if e != nil && isNotFoundError(e) {
+				return nil
+			}
+			return e
+		})
+		if err != nil {
+			klog.Errorf("Subvolume %s deletion failed: %v", meta.DatasetID, err)
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal,
+				"Failed to delete block subvolume %s: %v", meta.DatasetID, err)
+		}
+	}
+	klog.V(4).Infof("Deleted block subvolume: %s", meta.DatasetID)
 
 	// Clear volume capacity metric
 	metrics.DeleteVolumeCapacity(meta.Name, metrics.ProtocolISCSI)

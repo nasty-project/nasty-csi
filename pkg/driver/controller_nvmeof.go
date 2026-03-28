@@ -355,36 +355,10 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 		}
 	}
 
-	// Step 1: Delete subvolume first (prevents orphaning NVMe-oF subsystem)
-	firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
-	if firstErr != nil && !isNotFoundError(firstErr) {
-		// Retry after snapshot cleanup
-		klog.Infof("Direct deletion failed for %s: %v — cleaning up snapshots before retry",
-			meta.DatasetID, firstErr)
-
-		retryConfig := retry.DeletionConfig("delete-nvmeof-subvol")
-		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
-			deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
-			if deleteErr != nil && isNotFoundError(deleteErr) {
-				return nil
-			}
-			return deleteErr
-		})
-
-		if err != nil {
-			klog.Errorf("Subvolume %s deletion failed — skipping NVMe-oF subsystem cleanup to avoid orphaning: %v", meta.DatasetID, err)
-			timer.ObserveError()
-			return nil, status.Errorf(codes.Internal,
-				"Failed to delete block subvolume %s: %v (NVMe-oF subsystem preserved to prevent orphaning)", meta.DatasetID, err)
-		}
-	}
-	klog.V(4).Infof("Deleted block subvolume: %s", meta.DatasetID)
-
-	// Step 2: Subvolume is gone — clean up NVMe-oF subsystem (best effort)
+	// Step 1: Delete NVMe-oF subsystem first (must be removed before subvolume)
 	// Try by UUID first, then by NQN
 	subsystemID := meta.NVMeOFSubsystemUUID
 	if subsystemID == "" && meta.NVMeOFNQN != "" {
-		// Look up subsystem by NQN
 		subsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, meta.NVMeOFNQN)
 		if lookupErr == nil && subsystem != nil {
 			subsystemID = subsystem.ID
@@ -394,12 +368,35 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	if subsystemID != "" {
 		if err := s.apiClient.DeleteNVMeOFSubsystem(ctx, subsystemID); err != nil {
 			if !isNotFoundError(err) {
-				klog.Warningf("Failed to delete NVMe-oF subsystem %s (subvolume already deleted): %v", subsystemID, err)
+				klog.Errorf("Failed to delete NVMe-oF subsystem %s: %v", subsystemID, err)
+				timer.ObserveError()
+				return nil, status.Errorf(codes.Internal,
+					"Failed to delete NVMe-oF subsystem %s: %v", subsystemID, err)
 			}
 		} else {
 			klog.V(4).Infof("Deleted NVMe-oF subsystem: %s", subsystemID)
 		}
 	}
+
+	// Step 2: Delete subvolume (subsystem is gone, no guard will block)
+	deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
+	if deleteErr != nil && !isNotFoundError(deleteErr) {
+		retryConfig := retry.DeletionConfig("delete-nvmeof-subvol")
+		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {
+			e := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
+			if e != nil && isNotFoundError(e) {
+				return nil
+			}
+			return e
+		})
+		if err != nil {
+			klog.Errorf("Subvolume %s deletion failed: %v", meta.DatasetID, err)
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal,
+				"Failed to delete block subvolume %s: %v", meta.DatasetID, err)
+		}
+	}
+	klog.V(4).Infof("Deleted block subvolume: %s", meta.DatasetID)
 
 	// Clear volume capacity metric
 	metrics.DeleteVolumeCapacity(meta.Name, metrics.ProtocolNVMeOF)
