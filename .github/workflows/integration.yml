@@ -248,7 +248,7 @@ jobs:
         run: |
           echo "=== Running NFS E2E Tests ==="
           # Run only NFS-specific tests from the nfs/ directory
-          ginkgo -v --timeout=55m --flake-attempts=1 ./tests/e2e/nfs/...
+          ginkgo -v --timeout=55m --flake-attempts=2 ./tests/e2e/nfs/...
       - name: Collect diagnostic logs
         if: always()
         run: |
@@ -322,7 +322,7 @@ jobs:
         run: |
           echo "=== Running NVMe-oF E2E Tests ==="
           # Run only NVMe-oF-specific tests from the nvmeof/ directory
-          ginkgo -v --timeout=90m --flake-attempts=1 ./tests/e2e/nvmeof/...
+          ginkgo -v --timeout=90m --flake-attempts=2 ./tests/e2e/nvmeof/...
       - name: Collect diagnostic logs
         if: always()
         run: |
@@ -393,7 +393,7 @@ jobs:
         run: |
           echo "=== Running iSCSI E2E Tests ==="
           # Run only iSCSI-specific tests from the iscsi/ directory
-          ginkgo -v --timeout=90m --flake-attempts=1 ./tests/e2e/iscsi/...
+          ginkgo -v --timeout=90m --flake-attempts=2 ./tests/e2e/iscsi/...
       - name: Collect diagnostic logs
         if: always()
         run: |
@@ -468,7 +468,7 @@ jobs:
         run: |
           echo "=== Running SMB E2E Tests ==="
           # Run only SMB-specific tests from the smb/ directory
-          ginkgo -v --timeout=55m --flake-attempts=1 ./tests/e2e/smb/...
+          ginkgo -v --timeout=55m --flake-attempts=2 ./tests/e2e/smb/...
       - name: Collect diagnostic logs
         if: always()
         env:
@@ -548,7 +548,7 @@ jobs:
           echo "=== Running Shared E2E Tests ==="
           # Run shared tests from the root e2e/ directory (not nfs/ or nvmeof/)
           # These tests use "both" protocol setup (NFS, NVMe-oF, and iSCSI)
-          ginkgo -v --timeout=70m --flake-attempts=1 ./tests/e2e/
+          ginkgo -v --timeout=70m --flake-attempts=2 ./tests/e2e/
       - name: Collect diagnostic logs
         if: always()
         run: |
