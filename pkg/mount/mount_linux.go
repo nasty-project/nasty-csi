@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -59,12 +60,11 @@ func Unmount(ctx context.Context, targetPath string) error {
 	umountCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(umountCtx, "umount", targetPath)
-	output, err := cmd.CombinedOutput()
-	if err == nil {
+	if output, err := cmd.CombinedOutput(); err != nil {
+		klog.Warningf("Normal unmount failed for %s: %v (output: %s) — trying lazy unmount", targetPath, err, strings.TrimSpace(string(output)))
+	} else {
 		return nil
 	}
-
-	klog.Warningf("Normal unmount failed for %s: %v — trying lazy unmount", targetPath, err)
 
 	// Lazy unmount (-l) detaches the filesystem immediately and cleans up
 	// references in the background. This prevents umount from blocking
