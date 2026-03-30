@@ -17,12 +17,12 @@ var templateFS embed.FS
 
 // Server holds the in-cluster dashboard server state.
 type Server struct {
-	client    nastyapi.ClientInterface
-	templates *template.Template
-	httpSrv   *http.Server
-	filesystem      string
-	version   string
-	clusterID string
+	client     nastyapi.ClientInterface
+	templates  *template.Template
+	httpSrv    *http.Server
+	filesystem string
+	version    string
+	clusterID  string
 }
 
 // NewServer creates a new dashboard server.
@@ -38,11 +38,11 @@ func NewServer(client nastyapi.ClientInterface, filesystem, version, clusterID s
 	}
 
 	return &Server{
-		client:    client,
-		templates: tmpl,
-		filesystem:      filesystem,
-		version:   version,
-		clusterID: clusterID,
+		client:     client,
+		templates:  tmpl,
+		filesystem: filesystem,
+		version:    version,
+		clusterID:  clusterID,
 	}, nil
 }
 

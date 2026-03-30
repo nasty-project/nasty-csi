@@ -33,7 +33,7 @@ type nvmeofVolumeParams struct {
 	nrIOQueues        string
 	storageClass      string
 	server            string
-	filesystem              string
+	filesystem        string
 	pvcName           string
 	pvcNamespace      string
 	compression       string
@@ -117,7 +117,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	compression := params["compression"]
 
 	return &nvmeofVolumeParams{
-		filesystem:              filesystem,
+		filesystem:        filesystem,
 		server:            server,
 		requestedCapacity: requestedCapacity,
 		volumeName:        volumeName,
@@ -320,8 +320,6 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 
 // deleteNVMeOFVolume deletes an NVMe-oF volume and all associated resources.
 // Subvolume is deleted first; if it fails, NVMe-oF subsystem is preserved to prevent orphaning.
-//
-//nolint:dupl // Delete pattern shared with iSCSI
 func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "delete")
 	klog.Infof("Deleting NVMe-oF volume: %s (subvolume: %s, subsystem: %s)",

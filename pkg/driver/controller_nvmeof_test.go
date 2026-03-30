@@ -24,7 +24,7 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"filesystem":           "first",
+					"filesystem":     "first",
 					"server":         "192.168.1.100",
 					"deleteStrategy": "retain",
 				},
@@ -54,8 +54,8 @@ func TestValidateNVMeOFParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nvmeof-volume",
 				Parameters: map[string]string{
-					"filesystem":   "first",
-					"server": "192.168.1.100",
+					"filesystem": "first",
+					"server":     "192.168.1.100",
 				},
 			},
 			wantErr: false,
@@ -201,8 +201,8 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nvmeof",
-					"filesystem":     "first",
+					"protocol":   "nvmeof",
+					"filesystem": "first",
 				},
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {},
@@ -224,9 +224,9 @@ func TestCreateNVMeOFVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nvmeof",
-					"filesystem":     "first",
-					"server":   "192.168.1.100",
+					"protocol":   "nvmeof",
+					"filesystem": "first",
+					"server":     "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{
 					RequiredBytes: 5 * 1024 * 1024 * 1024,
@@ -304,7 +304,7 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 			mockSetup: func(m *MockAPIClientForSnapshots) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
-						Filesystem:       filesystem,
+						Filesystem: filesystem,
 						Name:       name,
 						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil

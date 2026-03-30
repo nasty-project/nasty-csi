@@ -46,7 +46,7 @@ var _ = Describe("iSCSI Delete Strategy Retain", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "iscsi",
 			"server":         f.Config.NAStyHost,
-			"filesystem":           f.Config.NAStyFilesystem,
+			"filesystem":     f.Config.NAStyFilesystem,
 			"port":           "3260",
 			"fsType":         "ext4",
 			"deleteStrategy": "retain",

@@ -18,7 +18,7 @@ import (
 
 // smbVolumeParams holds validated parameters for SMB volume creation.
 type smbVolumeParams struct {
-	filesystem              string
+	filesystem        string
 	volumeName        string
 	subvolumeName     string
 	deleteStrategy    string
@@ -74,7 +74,7 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 	encrypted := strings.EqualFold(params["encryption"], "true")
 
 	return &smbVolumeParams{
-		filesystem:              filesystem,
+		filesystem:        filesystem,
 		server:            server,
 		requestedCapacity: requestedCapacity,
 		volumeName:        volumeName,
@@ -245,7 +245,7 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 }
 
 // deleteSMBVolume deletes an SMB volume with ownership verification.
-func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
+func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) { //nolint:gocognit,gocyclo // deletion has many fallback paths by design
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "delete")
 	klog.V(4).Infof("Deleting SMB volume: %s (dataset: %s, share UUID: %s)", meta.Name, meta.DatasetName, meta.SMBShareUUID)
 

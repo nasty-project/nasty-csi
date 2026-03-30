@@ -80,9 +80,9 @@ func TestSanity(t *testing.T) {
 
 	// Configure volume parameters for NFS testing
 	sanityCfg.TestVolumeParameters = map[string]string{
-		"protocol": "nfs",
-		"filesystem":     "first",
-		"server":   "nasty.local",
+		"protocol":   "nfs",
+		"filesystem": "first",
+		"server":     "nasty.local",
 	}
 
 	// Configure custom cleanup functions to properly remove test directories

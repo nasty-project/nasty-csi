@@ -88,7 +88,7 @@ func (m *MockClient) CreateSubvolume(_ context.Context, params nastyapi.Subvolum
 
 	sv := &nastyapi.Subvolume{
 		Name:          params.Name,
-		Filesystem:          params.Filesystem,
+		Filesystem:    params.Filesystem,
 		SubvolumeType: params.SubvolumeType,
 		Path:          "/" + params.Filesystem + "/" + params.Name,
 		Properties:    make(map[string]string),
@@ -235,11 +235,11 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 	}
 
 	snap := &nastyapi.Snapshot{
-		Name:      params.Name,
-		Subvolume: params.Subvolume,
-		Filesystem:      params.Filesystem,
-		Path:      "/" + params.Filesystem + "/" + params.Subvolume + "@" + params.Name,
-		ReadOnly:  params.ReadOnly,
+		Name:       params.Name,
+		Subvolume:  params.Subvolume,
+		Filesystem: params.Filesystem,
+		Path:       "/" + params.Filesystem + "/" + params.Subvolume + "@" + params.Name,
+		ReadOnly:   params.ReadOnly,
 	}
 	m.snapshots[snapKey] = snap
 
@@ -594,7 +594,7 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 
 	sv := &nastyapi.Subvolume{
 		Name:       params.NewName,
-		Filesystem:       params.Filesystem,
+		Filesystem: params.Filesystem,
 		Path:       "/" + params.Filesystem + "/" + params.NewName,
 		Properties: props,
 		Snapshots:  []string{},
@@ -630,7 +630,7 @@ func (m *MockClient) CloneSubvolume(_ context.Context, filesystem, name, newName
 
 	sv := &nastyapi.Subvolume{
 		Name:          newName,
-		Filesystem:          filesystem,
+		Filesystem:    filesystem,
 		SubvolumeType: source.SubvolumeType,
 		Path:          "/" + filesystem + "/" + newName,
 		VolsizeBytes:  source.VolsizeBytes,

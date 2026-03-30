@@ -40,9 +40,9 @@ var _ = Describe("Error Handling", func() {
 
 		By("Creating StorageClass with non-existent filesystem")
 		params := map[string]string{
-			"protocol": "nfs",
-			"server":   f.Config.NAStyHost,
-			"filesystem":     "nonexistent-pool-xyz-12345",
+			"protocol":   "nfs",
+			"server":     f.Config.NAStyHost,
+			"filesystem": "nonexistent-pool-xyz-12345",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
@@ -98,8 +98,8 @@ var _ = Describe("Error Handling", func() {
 
 		By("Creating StorageClass without server parameter")
 		params := map[string]string{
-			"protocol": "nfs",
-			"filesystem":     f.Config.NAStyFilesystem,
+			"protocol":   "nfs",
+			"filesystem": f.Config.NAStyFilesystem,
 			// server parameter intentionally omitted
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
@@ -161,9 +161,9 @@ var _ = Describe("Error Handling", func() {
 
 		By("Creating StorageClass with invalid protocol (foobar)")
 		params := map[string]string{
-			"protocol": "foobar", // Invalid - not a supported protocol
-			"server":   f.Config.NAStyHost,
-			"filesystem":     f.Config.NAStyFilesystem,
+			"protocol":   "foobar", // Invalid - not a supported protocol
+			"server":     f.Config.NAStyHost,
+			"filesystem": f.Config.NAStyFilesystem,
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, scName, "nasty.csi.io", params)
 		Expect(err).NotTo(HaveOccurred(), "Failed to create StorageClass")
@@ -216,9 +216,9 @@ var _ = Describe("Error Handling", func() {
 		By("First creating invalid StorageClass to trigger errors")
 		invalidSCName := "nasty-csi-recovery-invalid"
 		invalidParams := map[string]string{
-			"protocol": "nfs",
-			"server":   f.Config.NAStyHost,
-			"filesystem":     "nonexistent-pool-recovery",
+			"protocol":   "nfs",
+			"server":     f.Config.NAStyHost,
+			"filesystem": "nonexistent-pool-recovery",
 		}
 		err := f.K8s.CreateStorageClassWithParams(ctx, invalidSCName, "nasty.csi.io", invalidParams)
 		Expect(err).NotTo(HaveOccurred())
@@ -245,9 +245,9 @@ var _ = Describe("Error Handling", func() {
 		By("Creating valid StorageClass to verify driver still works")
 		validSCName := "nasty-csi-recovery-valid"
 		validParams := map[string]string{
-			"protocol": "nfs",
-			"server":   f.Config.NAStyHost,
-			"filesystem":     f.Config.NAStyFilesystem,
+			"protocol":   "nfs",
+			"server":     f.Config.NAStyHost,
+			"filesystem": f.Config.NAStyFilesystem,
 		}
 		err = f.K8s.CreateStorageClassWithParams(ctx, validSCName, "nasty.csi.io", validParams)
 		Expect(err).NotTo(HaveOccurred())

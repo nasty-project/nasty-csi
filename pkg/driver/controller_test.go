@@ -641,7 +641,7 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 			mockSetup: func(m *mockAPIClient) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
-						Name: name,
+						Name:       name,
 						Filesystem: filesystem,
 						Properties: map[string]string{
 							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
@@ -876,13 +876,13 @@ func TestControllerExpandVolume(t *testing.T) {
 
 func TestGetCapacity(t *testing.T) {
 	tests := []struct {
-		params            map[string]string
-		mockQueryFilesystem     func(ctx context.Context, fsName string) (*nastyapi.Filesystem, error)
-		name              string
-		wantCapacity      int64
-		wantErrCode       codes.Code
-		wantErr           bool
-		wantEmptyResponse bool
+		params              map[string]string
+		mockQueryFilesystem func(ctx context.Context, fsName string) (*nastyapi.Filesystem, error)
+		name                string
+		wantCapacity        int64
+		wantErrCode         codes.Code
+		wantErr             bool
+		wantEmptyResponse   bool
 	}{
 		{
 			name: "successful capacity query",
@@ -1085,9 +1085,9 @@ func TestCreateVolumeRPC(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "unsupported-protocol",
-					"filesystem":     "first",
-					"server":   "192.168.1.100",
+					"protocol":   "unsupported-protocol",
+					"filesystem": "first",
+					"server":     "192.168.1.100",
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
@@ -1116,9 +1116,9 @@ func TestCreateVolumeRPC(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nfs",
-					"filesystem":     "first",
-					"server":   "192.168.1.100",
+					"protocol":   "nfs",
+					"filesystem": "first",
+					"server":     "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{
 					RequiredBytes: 1 * 1024 * 1024 * 1024,
@@ -1134,7 +1134,7 @@ func TestCreateVolumeRPC(t *testing.T) {
 				m.CreateSubvolumeFunc = func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
 						Name:          params.Name,
-						Filesystem:          params.Filesystem,
+						Filesystem:    params.Filesystem,
 						SubvolumeType: "filesystem",
 						Path:          "/mnt/" + params.Filesystem + "/" + params.Name,
 						Properties:    map[string]string{},

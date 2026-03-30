@@ -43,7 +43,7 @@ var _ = Describe("iSCSI Storage Properties", func() {
 		err = f.K8s.CreateStorageClassWithParamsAndBindingMode(ctx, storageClass, "nasty.csi.io", map[string]string{
 			"protocol":    "iscsi",
 			"server":      f.Config.NAStyHost,
-			"filesystem":        f.Config.NAStyFilesystem,
+			"filesystem":  f.Config.NAStyFilesystem,
 			"port":        "3260",
 			"fsType":      "ext4",
 			"compression": "lz4",

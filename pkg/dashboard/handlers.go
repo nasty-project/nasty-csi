@@ -12,7 +12,7 @@ import (
 
 var (
 	errFilesystemNotConfigured = errors.New("filesystem not configured")
-	errVolumeIDRequired  = errors.New("volume ID required")
+	errVolumeIDRequired        = errors.New("volume ID required")
 )
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {

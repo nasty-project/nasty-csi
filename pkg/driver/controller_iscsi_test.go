@@ -21,7 +21,7 @@ func TestValidateISCSIParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-iscsi-volume",
 				Parameters: map[string]string{
-					"filesystem":           "tank",
+					"filesystem":     "tank",
 					"server":         "192.168.1.100",
 					"deleteStrategy": "retain",
 				},
@@ -51,8 +51,8 @@ func TestValidateISCSIParams(t *testing.T) {
 			req: &csi.CreateVolumeRequest{
 				Name: "test-iscsi-volume",
 				Parameters: map[string]string{
-					"filesystem":   "tank",
-					"server": "192.168.1.100",
+					"filesystem": "tank",
+					"server":     "192.168.1.100",
 				},
 			},
 			wantErr: false,

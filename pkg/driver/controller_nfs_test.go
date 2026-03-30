@@ -37,9 +37,9 @@ func TestCreateNFSVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nfs",
-					"filesystem":     "tank",
-					"server":   "192.168.1.100",
+					"protocol":   "nfs",
+					"filesystem": "tank",
+					"server":     "192.168.1.100",
 				},
 				CapacityRange: &csi.CapacityRange{
 					RequiredBytes: 1 * 1024 * 1024 * 1024, // 1GB
@@ -53,8 +53,8 @@ func TestCreateNFSVolume(t *testing.T) {
 				m.CreateSubvolumeFunc = func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
 						Filesystem: params.Filesystem,
-						Name: params.Name,
-						Path: "/mnt/tank/test-nfs-volume",
+						Name:       params.Name,
+						Path:       "/mnt/tank/test-nfs-volume",
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
@@ -101,9 +101,9 @@ func TestCreateNFSVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nfs",
-					"filesystem":     "tank",
-					"server":   "192.168.1.100",
+					"protocol":   "nfs",
+					"filesystem": "tank",
+					"server":     "192.168.1.100",
 				},
 				// No capacity specified - should default to 1GB
 			},
@@ -114,8 +114,8 @@ func TestCreateNFSVolume(t *testing.T) {
 				m.CreateSubvolumeFunc = func(ctx context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
 						Filesystem: params.Filesystem,
-						Name: params.Name,
-						Path: "/mnt/tank/test-nfs-volume-default",
+						Name:       params.Name,
+						Path:       "/mnt/tank/test-nfs-volume-default",
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
@@ -170,9 +170,9 @@ func TestCreateNFSVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nfs",
-					"filesystem":     "tank",
-					"server":   "192.168.1.100",
+					"protocol":   "nfs",
+					"filesystem": "tank",
+					"server":     "192.168.1.100",
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
@@ -198,9 +198,9 @@ func TestCreateNFSVolume(t *testing.T) {
 					},
 				},
 				Parameters: map[string]string{
-					"protocol": "nfs",
-					"filesystem":     "tank",
-					"server":   "192.168.1.100",
+					"protocol":   "nfs",
+					"filesystem": "tank",
+					"server":     "192.168.1.100",
 				},
 			},
 			mockSetup: func(m *mockAPIClient) {
@@ -212,8 +212,8 @@ func TestCreateNFSVolume(t *testing.T) {
 					subvolCreated = true
 					return &nastyapi.Subvolume{
 						Filesystem: params.Filesystem,
-						Name: params.Name,
-						Path: "/mnt/tank/test-nfs-volume",
+						Name:       params.Name,
+						Path:       "/mnt/tank/test-nfs-volume",
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
@@ -285,7 +285,7 @@ func TestDeleteNFSVolume(t *testing.T) {
 			mockSetup: func(m *mockAPIClient) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
-						Filesystem:       filesystem,
+						Filesystem: filesystem,
 						Name:       name,
 						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil
@@ -334,7 +334,7 @@ func TestDeleteNFSVolume(t *testing.T) {
 			mockSetup: func(m *mockAPIClient) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
-						Filesystem:       filesystem,
+						Filesystem: filesystem,
 						Name:       name,
 						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil
@@ -360,7 +360,7 @@ func TestDeleteNFSVolume(t *testing.T) {
 			mockSetup: func(m *mockAPIClient) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
-						Filesystem:       filesystem,
+						Filesystem: filesystem,
 						Name:       name,
 						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil

@@ -306,9 +306,9 @@ func NewFramework() (*Framework, error) {
 //nolint:gosec // G101: false positive — these are Kubernetes secret reference names, not credentials
 func (f *Framework) SMBStorageClassParams() map[string]string {
 	params := map[string]string{
-		"protocol": "smb",
-		"server":   f.Config.NAStyHost,
-		"filesystem":     f.Config.NAStyFilesystem,
+		"protocol":   "smb",
+		"server":     f.Config.NAStyHost,
+		"filesystem": f.Config.NAStyFilesystem,
 		"csi.storage.k8s.io/node-stage-secret-name":      "nasty-csi-smb-creds",
 		"csi.storage.k8s.io/node-stage-secret-namespace": "kube-system",
 	}

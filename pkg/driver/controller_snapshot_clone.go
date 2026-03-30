@@ -65,10 +65,10 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 			filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
 
 		_, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
-			Filesystem:      filesystem,
-			Subvolume: parentSubvolume,
-			Snapshot:  meta.SnapshotName,
-			NewName:   newName,
+			Filesystem: filesystem,
+			Subvolume:  parentSubvolume,
+			Snapshot:   meta.SnapshotName,
+			NewName:    newName,
 		})
 		if cloneErr != nil {
 			klog.Errorf("Failed to clone snapshot %s/%s@%s: %v", filesystem, parentSubvolume, meta.SnapshotName, cloneErr)

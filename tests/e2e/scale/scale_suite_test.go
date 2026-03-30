@@ -33,9 +33,9 @@ const (
 )
 
 var (
-	noiseVerifier *framework.NAStyVerifier
-	noiseParent   string // Parent subvolume path for all noise data
-	noiseFilesystem     string
+	noiseVerifier   *framework.NAStyVerifier
+	noiseParent     string // Parent subvolume path for all noise data
+	noiseFilesystem string
 
 	// Actual counts (may be overridden by env vars).
 	actualDatasetCount     int
@@ -102,7 +102,7 @@ func createNoiseData() {
 
 	// Parent subvolume
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-		Filesystem:          noiseFilesystem,
+		Filesystem:    noiseFilesystem,
 		Name:          parseSubvolName(noiseParent),
 		SubvolumeType: "filesystem",
 	})
@@ -111,7 +111,7 @@ func createNoiseData() {
 	// Filesystem subvolumes with snapshots
 	fsParentName := parseSubvolName(noiseParent) + "/datasets"
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-		Filesystem:          noiseFilesystem,
+		Filesystem:    noiseFilesystem,
 		Name:          fsParentName,
 		SubvolumeType: "filesystem",
 	})
@@ -122,7 +122,7 @@ func createNoiseData() {
 	for i := 1; i <= actualDatasetCount; i++ {
 		dsSubvolName := fmt.Sprintf("%s/ds-%03d", fsParentName, i)
 		_, dsErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-			Filesystem:          noiseFilesystem,
+			Filesystem:    noiseFilesystem,
 			Name:          dsSubvolName,
 			SubvolumeType: "filesystem",
 		})
@@ -130,9 +130,9 @@ func createNoiseData() {
 
 		for j := 1; j <= snapshotsPerDataset; j++ {
 			_, snapErr := client.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-				Filesystem:      noiseFilesystem,
-				Subvolume: dsSubvolName,
-				Name:      fmt.Sprintf("snap-%03d", j),
+				Filesystem: noiseFilesystem,
+				Subvolume:  dsSubvolName,
+				Name:       fmt.Sprintf("snap-%03d", j),
 			})
 			Expect(snapErr).NotTo(HaveOccurred(), "Failed to create snapshot for %s", dsSubvolName)
 		}
@@ -154,7 +154,7 @@ func createNoiseData() {
 	// Block subvolumes with snapshots
 	zvolParentName := parseSubvolName(noiseParent) + "/zvols"
 	_, err = client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-		Filesystem:          noiseFilesystem,
+		Filesystem:    noiseFilesystem,
 		Name:          zvolParentName,
 		SubvolumeType: "filesystem",
 	})
@@ -165,7 +165,7 @@ func createNoiseData() {
 	for i := 1; i <= actualBlockSubvolCount; i++ {
 		zvolSubvolName := fmt.Sprintf("%s/zvol-%03d", zvolParentName, i)
 		_, zvolErr := client.CreateSubvolume(ctx, nastyapi.SubvolumeCreateParams{
-			Filesystem:          noiseFilesystem,
+			Filesystem:    noiseFilesystem,
 			Name:          zvolSubvolName,
 			SubvolumeType: "block",
 			VolsizeBytes:  &volsize,
@@ -174,9 +174,9 @@ func createNoiseData() {
 
 		for j := 1; j <= snapshotsPerDataset; j++ {
 			_, snapErr := client.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-				Filesystem:      noiseFilesystem,
-				Subvolume: zvolSubvolName,
-				Name:      fmt.Sprintf("snap-%03d", j),
+				Filesystem: noiseFilesystem,
+				Subvolume:  zvolSubvolName,
+				Name:       fmt.Sprintf("snap-%03d", j),
 			})
 			Expect(snapErr).NotTo(HaveOccurred(), "Failed to create snapshot for %s", zvolSubvolName)
 		}

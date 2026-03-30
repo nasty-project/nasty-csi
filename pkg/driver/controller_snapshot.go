@@ -179,10 +179,10 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 
 	// Create snapshot
 	snap, err := s.apiClient.CreateSnapshot(ctx, nastyapi.SnapshotCreateParams{
-		Filesystem:      filesystem,
-		Subvolume: subvolumeName,
-		Name:      snapshotName,
-		ReadOnly:  true,
+		Filesystem: filesystem,
+		Subvolume:  subvolumeName,
+		Name:       snapshotName,
+		ReadOnly:   true,
 	})
 	if err != nil {
 		timer.ObserveError()

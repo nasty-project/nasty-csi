@@ -19,7 +19,7 @@ import (
 
 // nfsVolumeParams holds validated parameters for NFS volume creation.
 type nfsVolumeParams struct {
-	filesystem              string
+	filesystem        string
 	volumeName        string
 	subvolumeName     string // short name within filesystem (e.g., "pvc-xxx")
 	subvolumeID       string // full identifier: "filesystem/subvolumeName"
@@ -114,7 +114,7 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	compression := params["compression"]
 
 	return &nfsVolumeParams{
-		filesystem:              filesystem,
+		filesystem:        filesystem,
 		server:            server,
 		volumeName:        volumeName,
 		subvolumeName:     volumeName,
@@ -343,7 +343,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 	} else {
 		// Create new subvolume
 		createParams := nastyapi.SubvolumeCreateParams{
-			Filesystem:          params.filesystem,
+			Filesystem:    params.filesystem,
 			Name:          params.subvolumeName,
 			SubvolumeType: "filesystem",
 			Comments:      params.comment,
@@ -380,7 +380,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 }
 
 // deleteNFSVolume deletes an NFS volume with ownership verification.
-func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
+func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) { //nolint:gocognit,gocyclo // deletion has many fallback paths by design
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (subvolumeID: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
@@ -692,7 +692,7 @@ func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem
 
 	// Build creation parameters
 	createParams := nastyapi.SubvolumeCreateParams{
-		Filesystem:          filesystem,
+		Filesystem:    filesystem,
 		Name:          name,
 		SubvolumeType: subvolumeType,
 		Comments:      comment,

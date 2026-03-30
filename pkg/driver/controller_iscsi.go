@@ -29,7 +29,7 @@ type iscsiVolumeParams struct {
 	comment           string
 	compression       string
 	server            string
-	filesystem              string
+	filesystem        string
 	requestedCapacity int64
 	markAdoptable     bool
 	encrypted         bool
@@ -97,7 +97,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 
 	return &iscsiVolumeParams{
 		requestedCapacity: requestedCapacity,
-		filesystem:              filesystem,
+		filesystem:        filesystem,
 		server:            server,
 		volumeName:        volumeName,
 		subvolumeName:     volumeName,
@@ -329,8 +329,6 @@ const deleteStrategyDelete = "delete"
 
 // deleteISCSIVolume deletes an iSCSI volume and all associated resources.
 // Subvolume is deleted first; if it fails, iSCSI target is preserved to prevent orphaning.
-//
-//nolint:dupl // Delete pattern shared with NVMe-oF
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, deleteStrategyDelete)
 	klog.Infof("Deleting iSCSI volume: %s (subvolume: %s, target: %s)",

@@ -53,7 +53,7 @@ var _ = Describe("Shared Encryption", func() {
 				scParams: map[string]string{
 					"protocol":              "nfs",
 					"server":                f.Config.NAStyHost,
-					"filesystem":                  f.Config.NAStyFilesystem,
+					"filesystem":            f.Config.NAStyFilesystem,
 					"encryption":            "true",
 					"encryptionGenerateKey": "true",
 				},
@@ -67,7 +67,7 @@ var _ = Describe("Shared Encryption", func() {
 				scParams: map[string]string{
 					"protocol":                  "nvmeof",
 					"server":                    f.Config.NAStyHost,
-					"filesystem":                      f.Config.NAStyFilesystem,
+					"filesystem":                f.Config.NAStyFilesystem,
 					"transport":                 "tcp",
 					"port":                      "4420",
 					"csi.storage.k8s.io/fstype": "ext4",
@@ -84,7 +84,7 @@ var _ = Describe("Shared Encryption", func() {
 				scParams: map[string]string{
 					"protocol":                  "iscsi",
 					"server":                    f.Config.NAStyHost,
-					"filesystem":                      f.Config.NAStyFilesystem,
+					"filesystem":                f.Config.NAStyFilesystem,
 					"port":                      "3260",
 					"csi.storage.k8s.io/fstype": "ext4",
 					"encryption":                "true",

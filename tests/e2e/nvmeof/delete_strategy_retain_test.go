@@ -45,7 +45,7 @@ var _ = Describe("NVMe-oF Delete Strategy Retain", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, retainStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "nvmeof",
 			"server":         f.Config.NAStyHost,
-			"filesystem":           f.Config.NAStyFilesystem,
+			"filesystem":     f.Config.NAStyFilesystem,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",

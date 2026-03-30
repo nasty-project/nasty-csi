@@ -225,11 +225,13 @@ func extractNVMeController(devicePath string) string {
 
 // waitForDeviceInitialization waits for an NVMe device to be fully initialized.
 // A device is considered initialized when it reports a non-zero size.
-func waitForDeviceInitialization(ctx context.Context, devicePath string) error {
+//
+//nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
+func waitForDeviceInitialization(_ context.Context, devicePath string) error {
 	const (
-		maxAttempts   = 60                // 60 attempts
-		checkInterval = 1 * time.Second   // 1 second between checks
-		totalTimeout  = 90 * time.Second  // Maximum wait time for slow NVMe-oF connections
+		maxAttempts   = 60               // 60 attempts
+		checkInterval = 1 * time.Second  // 1 second between checks
+		totalTimeout  = 90 * time.Second // Maximum wait time for slow NVMe-oF connections
 	)
 
 	klog.V(4).Infof("Waiting for device %s to be fully initialized (non-zero size)", devicePath)
@@ -390,7 +392,9 @@ func (s *NodeService) logDeviceInfo(ctx context.Context, devicePath string) {
 }
 
 // verifyDeviceSize compares the actual device size with expected capacity from volume context or NASty API.
-func (s *NodeService) verifyDeviceSize(ctx context.Context, devicePath string, volumeContext map[string]string) error {
+//
+//nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
+func (s *NodeService) verifyDeviceSize(_ context.Context, devicePath string, volumeContext map[string]string) error {
 	// Use a dedicated context so kubelet gRPC cancellation doesn't kill the size check
 	verifyCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

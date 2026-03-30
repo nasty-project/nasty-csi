@@ -46,7 +46,7 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		err := f.K8s.CreateStorageClassWithParams(ctx, adoptableStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "nvmeof",
 			"server":         f.Config.NAStyHost,
-			"filesystem":           f.Config.NAStyFilesystem,
+			"filesystem":     f.Config.NAStyFilesystem,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",
@@ -159,7 +159,7 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		err = f.K8s.CreateStorageClassWithParams(ctx, adoptingStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":      "nvmeof",
 			"server":        f.Config.NAStyHost,
-			"filesystem":          f.Config.NAStyFilesystem,
+			"filesystem":    f.Config.NAStyFilesystem,
 			"transport":     "tcp",
 			"port":          "4420",
 			"fsType":        "ext4",
@@ -241,7 +241,7 @@ var _ = Describe("NVMe-oF Volume Adoption", func() {
 		err := f.K8s.CreateStorageClassWithParams(ctx, markAdoptableStorageClass, "nasty.csi.io", map[string]string{
 			"protocol":       "nvmeof",
 			"server":         f.Config.NAStyHost,
-			"filesystem":           f.Config.NAStyFilesystem,
+			"filesystem":     f.Config.NAStyFilesystem,
 			"transport":      "tcp",
 			"port":           "4420",
 			"fsType":         "ext4",

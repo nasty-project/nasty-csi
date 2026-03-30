@@ -89,9 +89,9 @@ var _ = Describe("Reclaim Policy", func() {
 				params = f.SMBStorageClassParams()
 			} else {
 				params = map[string]string{
-					"protocol": proto.id,
-					"filesystem":     f.Config.NAStyFilesystem,
-					"server":   f.Config.NAStyHost,
+					"protocol":   proto.id,
+					"filesystem": f.Config.NAStyFilesystem,
+					"server":     f.Config.NAStyHost,
 				}
 				if proto.id != "nfs" {
 					params["fsType"] = "ext4"
@@ -170,9 +170,9 @@ var _ = Describe("Reclaim Policy", func() {
 				params = f.SMBStorageClassParams()
 			} else {
 				params = map[string]string{
-					"protocol": proto.id,
-					"filesystem":     f.Config.NAStyFilesystem,
-					"server":   f.Config.NAStyHost,
+					"protocol":   proto.id,
+					"filesystem": f.Config.NAStyFilesystem,
+					"server":     f.Config.NAStyHost,
 				}
 				if proto.id != "nfs" {
 					params["fsType"] = "ext4"
