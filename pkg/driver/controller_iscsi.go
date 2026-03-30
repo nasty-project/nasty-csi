@@ -28,6 +28,9 @@ type iscsiVolumeParams struct {
 	pvcName           string
 	comment           string
 	compression       string
+	foregroundTarget  string
+	backgroundTarget  string
+	promoteTarget     string
 	server            string
 	filesystem        string
 	requestedCapacity int64
@@ -92,8 +95,11 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 	storageClass := params["csi.storage.k8s.io/sc/name"]
 	encrypted := strings.EqualFold(params["encryption"], "true")
 
-	// Optional compression setting
+	// Optional compression and tiering settings
 	compression := params["compression"]
+	foregroundTarget := params["foregroundTarget"]
+	backgroundTarget := params["backgroundTarget"]
+	promoteTarget := params["promoteTarget"]
 
 	return &iscsiVolumeParams{
 		requestedCapacity: requestedCapacity,
@@ -106,6 +112,9 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 		markAdoptable:     markAdoptable,
 		comment:           comment,
 		compression:       compression,
+		foregroundTarget:  foregroundTarget,
+		backgroundTarget:  backgroundTarget,
+		promoteTarget:     promoteTarget,
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
@@ -179,7 +188,7 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 
 	// Step 1: Create or reuse block subvolume
 	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
-		"block", params.comment, params.compression, params.requestedCapacity, timer)
+		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.requestedCapacity, timer)
 	if err != nil {
 		return nil, err
 	}

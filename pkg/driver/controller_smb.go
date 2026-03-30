@@ -25,6 +25,9 @@ type smbVolumeParams struct {
 	server            string
 	comment           string
 	compression       string
+	foregroundTarget  string
+	backgroundTarget  string
+	promoteTarget     string
 	smbUsername       string
 	pvcName           string
 	pvcNamespace      string
@@ -71,6 +74,9 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 
 	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
 	compression := params["compression"]
+	foregroundTarget := params["foregroundTarget"]
+	backgroundTarget := params["backgroundTarget"]
+	promoteTarget := params["promoteTarget"]
 	encrypted := strings.EqualFold(params["encryption"], "true")
 
 	return &smbVolumeParams{
@@ -83,6 +89,9 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 		markAdoptable:     markAdoptable,
 		comment:           comment,
 		compression:       compression,
+		foregroundTarget:  foregroundTarget,
+		backgroundTarget:  backgroundTarget,
+		promoteTarget:     promoteTarget,
 		smbUsername:       params["smbUsername"],
 		pvcName:           params["csi.storage.k8s.io/pvc/name"],
 		pvcNamespace:      params["csi.storage.k8s.io/pvc/namespace"],
@@ -225,7 +234,7 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no SMB share - continue with share creation
 	} else {
 		// Create new subvolume
-		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, "filesystem", params.comment, params.compression, params.requestedCapacity, timer)
+		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, "filesystem", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.requestedCapacity, timer)
 		if createErr != nil {
 			return nil, createErr
 		}

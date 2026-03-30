@@ -27,6 +27,9 @@ type nfsVolumeParams struct {
 	server            string
 	comment           string
 	compression       string
+	foregroundTarget  string
+	backgroundTarget  string
+	promoteTarget     string
 	pvcName           string
 	pvcNamespace      string
 	storageClass      string
@@ -110,8 +113,11 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	pvcNamespace := params["csi.storage.k8s.io/pvc/namespace"]
 	storageClass := params["csi.storage.k8s.io/sc/name"]
 
-	// Compression can be set at top level
+	// Compression and tiering can be set at top level
 	compression := params["compression"]
+	foregroundTarget := params["foregroundTarget"]
+	backgroundTarget := params["backgroundTarget"]
+	promoteTarget := params["promoteTarget"]
 
 	return &nfsVolumeParams{
 		filesystem:        filesystem,
@@ -125,6 +131,9 @@ func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 		nfsClients:        nfsClients,
 		comment:           comment,
 		compression:       compression,
+		foregroundTarget:  foregroundTarget,
+		backgroundTarget:  backgroundTarget,
+		promoteTarget:     promoteTarget,
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
@@ -350,6 +359,15 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		}
 		if params.compression != "" {
 			createParams.Compression = params.compression
+		}
+		if params.foregroundTarget != "" {
+			createParams.ForegroundTarget = params.foregroundTarget
+		}
+		if params.backgroundTarget != "" {
+			createParams.BackgroundTarget = params.backgroundTarget
+		}
+		if params.promoteTarget != "" {
+			createParams.PromoteTarget = params.promoteTarget
 		}
 		if params.requestedCapacity > 0 {
 			volsize := uint64(params.requestedCapacity)
@@ -672,7 +690,7 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 // getOrCreateSubvolume gets an existing subvolume or creates a new one.
 // Returns (subvolume, isNewlyCreated, error).
-func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem, name, subvolumeType, comment, compression string, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
+func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem, name, subvolumeType, comment, compression, foregroundTarget, backgroundTarget, promoteTarget string, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
 	// Try to get existing subvolume
 	existing, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	if err == nil && existing != nil {
@@ -693,6 +711,15 @@ func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem
 	}
 	if compression != "" {
 		createParams.Compression = compression
+	}
+	if foregroundTarget != "" {
+		createParams.ForegroundTarget = foregroundTarget
+	}
+	if backgroundTarget != "" {
+		createParams.BackgroundTarget = backgroundTarget
+	}
+	if promoteTarget != "" {
+		createParams.PromoteTarget = promoteTarget
 	}
 	if requestedCapacity > 0 {
 		volsize := uint64(requestedCapacity)
