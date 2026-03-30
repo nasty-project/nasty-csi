@@ -234,8 +234,9 @@ func waitForDeviceInitialization(ctx context.Context, devicePath string) error {
 
 	klog.V(4).Infof("Waiting for device %s to be fully initialized (non-zero size)", devicePath)
 
-	// Create a context with timeout
-	timeoutCtx, cancel := context.WithTimeout(ctx, totalTimeout)
+	// Use Background context so kubelet gRPC cancellation doesn't abort device init.
+	// The device needs time to become ready regardless of upstream retries.
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), totalTimeout)
 	defer cancel()
 
 	for attempt := range maxAttempts {
@@ -390,10 +391,14 @@ func (s *NodeService) logDeviceInfo(ctx context.Context, devicePath string) {
 
 // verifyDeviceSize compares the actual device size with expected capacity from volume context or NASty API.
 func (s *NodeService) verifyDeviceSize(ctx context.Context, devicePath string, volumeContext map[string]string) error {
+	// Use a dedicated context so kubelet gRPC cancellation doesn't kill the size check
+	verifyCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	datasetName := volumeContext["datasetName"]
 
 	// Get actual device size
-	actualSize, err := getBlockDeviceSize(ctx, devicePath)
+	actualSize, err := getBlockDeviceSize(verifyCtx, devicePath)
 	if err != nil {
 		// Check if device disappeared (common during cleanup race conditions)
 		if _, statErr := os.Stat(devicePath); statErr != nil {
@@ -404,7 +409,7 @@ func (s *NodeService) verifyDeviceSize(ctx context.Context, devicePath string, v
 	klog.V(4).Infof("Device %s (dataset: %s) actual size: %d bytes (%d GiB)", devicePath, datasetName, actualSize, actualSize/(1024*1024*1024))
 
 	// Get expected capacity from volume context or NASty API
-	expectedCapacity := s.getExpectedCapacity(ctx, devicePath, datasetName, volumeContext)
+	expectedCapacity := s.getExpectedCapacity(verifyCtx, devicePath, datasetName, volumeContext)
 
 	// If no expected capacity available, skip verification
 	if expectedCapacity == 0 {
