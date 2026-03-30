@@ -227,9 +227,9 @@ func extractNVMeController(devicePath string) string {
 // A device is considered initialized when it reports a non-zero size.
 func waitForDeviceInitialization(ctx context.Context, devicePath string) error {
 	const (
-		maxAttempts   = 45               // 45 attempts
-		checkInterval = 1 * time.Second  // 1 second between checks
-		totalTimeout  = 60 * time.Second // Maximum wait time (increased for concurrent mounts)
+		maxAttempts   = 60                // 60 attempts
+		checkInterval = 1 * time.Second   // 1 second between checks
+		totalTimeout  = 90 * time.Second  // Maximum wait time for slow NVMe-oF connections
 	)
 
 	klog.V(4).Infof("Waiting for device %s to be fully initialized (non-zero size)", devicePath)
@@ -246,8 +246,9 @@ func waitForDeviceInitialization(ctx context.Context, devicePath string) error {
 		default:
 		}
 
-		// Get device size using blockdev
-		sizeCtx, sizeCancel := context.WithTimeout(ctx, 3*time.Second)
+		// Get device size using blockdev (derive from timeoutCtx, not parent ctx,
+		// so kubelet context cancellation doesn't kill mid-attempt size checks)
+		sizeCtx, sizeCancel := context.WithTimeout(timeoutCtx, 5*time.Second)
 		cmd := exec.CommandContext(sizeCtx, "blockdev", "--getsize64", devicePath)
 		output, err := cmd.CombinedOutput()
 		sizeCancel()
