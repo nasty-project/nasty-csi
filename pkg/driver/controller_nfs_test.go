@@ -508,28 +508,6 @@ func TestExpandNFSVolume(t *testing.T) {
 	}
 }
 
-func TestSetupNFSVolumeFromClone_Unimplemented(t *testing.T) {
-	ctx := context.Background()
-
-	mockClient := &mockAPIClient{}
-	controller := NewControllerService(mockClient, NewNodeRegistry(), "")
-
-	resp, err := controller.setupNFSVolumeFromClone(ctx, &csi.CreateVolumeRequest{Name: "test"}, &nastyapi.Subvolume{}, "server", &cloneInfo{})
-	if resp != nil {
-		t.Error("Expected nil response")
-	}
-	if err == nil {
-		t.Fatal("Expected error but got nil")
-	}
-	st, ok := status.FromError(err)
-	if !ok {
-		t.Fatalf("Expected gRPC status error, got %v", err)
-	}
-	if st.Code() != codes.Unimplemented {
-		t.Errorf("Expected Unimplemented, got %v", st.Code())
-	}
-}
-
 func TestParseNFSClients(t *testing.T) {
 	tests := []struct {
 		expectFirst nastyapi.NFSClient

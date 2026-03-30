@@ -92,7 +92,7 @@ func decodeSnapshotID(snapshotID string) (*SnapshotMetadata, error) {
 // CreateSnapshot creates a volume snapshot.
 //
 // NASty supports bcachefs-native snapshots (read-only subvolume snapshots).
-// Clone/restore from snapshot is not yet supported (returns Unimplemented).
+// Restore from snapshot is handled by createVolumeFromSnapshot() in controller_snapshot_clone.go.
 func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	timer := metrics.NewVolumeOperationTimer("snapshot", "create")
 	klog.V(4).Infof("CreateSnapshot called with request: %+v", req)

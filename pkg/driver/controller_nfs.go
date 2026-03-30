@@ -517,12 +517,6 @@ func splitSubvolumeID(subvolumeID string) (filesystem, name string, err error) {
 	return subvolumeID[:idx], subvolumeID[idx+1:], nil
 }
 
-// setupNFSVolumeFromClone sets up an NFS share for a cloned subvolume.
-// TODO: Clone-from-snapshot operations are not yet supported by the NASty API.
-func (s *ControllerService) setupNFSVolumeFromClone(_ context.Context, _ *csi.CreateVolumeRequest, _ *nastyapi.Subvolume, _ string, _ *cloneInfo) (*csi.CreateVolumeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "TODO: clone-from-snapshot not yet supported by NASty API")
-}
-
 // adoptNFSVolume adopts an orphaned NFS volume by re-creating its NFS share.
 func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "adopt")
