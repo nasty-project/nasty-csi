@@ -170,6 +170,9 @@ linters:
           severity: warning
           disabled: true  # Can be noisy
           
+    gomoddirectives:
+      replace-local: true
+
     gosec:
       excludes:
         - G404  # Use of weak random number generator (we don't use for crypto)
