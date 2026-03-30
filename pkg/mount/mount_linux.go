@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os/exec"
 	"time"
+
+	"k8s.io/klog/v2"
 )
 
 // IsMounted checks if a path is mounted.
@@ -53,12 +55,28 @@ func IsDeviceMounted(ctx context.Context, targetPath string) (bool, error) {
 
 // Unmount unmounts a path.
 func Unmount(ctx context.Context, targetPath string) error {
-	umountCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	// Try normal unmount first (10s — enough for healthy devices)
+	umountCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(umountCtx, "umount", targetPath)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to unmount: %w, output: %s", err, string(output))
+	if err == nil {
+		return nil
 	}
+
+	klog.Warningf("Normal unmount failed for %s: %v — trying lazy unmount", targetPath, err)
+
+	// Lazy unmount (-l) detaches the filesystem immediately and cleans up
+	// references in the background. This prevents umount from blocking
+	// indefinitely on transport-offline iSCSI/NVMe-oF devices.
+	lazyCtx, lazyCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer lazyCancel()
+	lazyCmd := exec.CommandContext(lazyCtx, "umount", "-l", targetPath)
+	lazyOutput, lazyErr := lazyCmd.CombinedOutput()
+	if lazyErr != nil {
+		return fmt.Errorf("failed to unmount (normal: %v, lazy: %w, output: %s)", err, lazyErr, string(lazyOutput))
+	}
+
+	klog.V(4).Infof("Lazy unmount succeeded for %s", targetPath)
 	return nil
 }

@@ -12,12 +12,6 @@ import (
 )
 
 // cloneInfo holds information about a snapshot clone operation.
-type cloneInfo struct {
-	SnapshotID     string
-	Mode           string
-	OriginSnapshot string
-}
-
 // createVolumeFromSnapshot creates a new volume from a snapshot by cloning.
 //
 // The approach:

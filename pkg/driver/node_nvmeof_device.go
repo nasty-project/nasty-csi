@@ -152,10 +152,13 @@ func (s *NodeService) checkNVMeCLI(ctx context.Context) error {
 }
 
 // disconnectNVMeOF disconnects from an NVMe-oF target and waits for device cleanup.
-func (s *NodeService) disconnectNVMeOF(ctx context.Context, nqn string) error {
+//
+//nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
+func (s *NodeService) disconnectNVMeOF(_ context.Context, nqn string) error {
 	klog.V(4).Infof("Disconnecting from NVMe-oF target: %s", nqn)
 
-	disconnectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// Use Background context — disconnect must complete regardless of kubelet retries.
+	disconnectCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(disconnectCtx, "nvme", "disconnect", "-n", nqn)
@@ -172,15 +175,8 @@ func (s *NodeService) disconnectNVMeOF(ctx context.Context, nqn string) error {
 	klog.V(4).Infof("Successfully disconnected from NVMe-oF target")
 
 	// Wait for kernel to cleanup device nodes
-	const deviceCleanupDelay = 1 * time.Second
-	klog.V(4).Infof("Waiting %v for kernel to cleanup NVMe devices after disconnect", deviceCleanupDelay)
-	select {
-	case <-time.After(deviceCleanupDelay):
-		klog.V(4).Infof("Device cleanup delay complete")
-	case <-ctx.Done():
-		klog.Warningf("Context canceled during device cleanup delay: %v", ctx.Err())
-		return ctx.Err()
-	}
+	time.Sleep(1 * time.Second)
+	klog.V(4).Infof("Device cleanup delay complete")
 
 	return nil
 }
