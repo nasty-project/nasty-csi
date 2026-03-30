@@ -383,16 +383,23 @@ func (s *NodeService) stageNVMeDevice(ctx context.Context, volumeID, devicePath,
 
 // unstageNVMeOFVolume unstages an NVMe-oF volume by disconnecting from the target.
 // With independent subsystems, we always disconnect when unstaging (no shared subsystem check needed).
-func (s *NodeService) unstageNVMeOFVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest, volumeContext map[string]string) (*csi.NodeUnstageVolumeResponse, error) {
+//
+//nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
+func (s *NodeService) unstageNVMeOFVolume(_ context.Context, req *csi.NodeUnstageVolumeRequest, volumeContext map[string]string) (*csi.NodeUnstageVolumeResponse, error) {
 	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
+
+	// Use Background context — kubelet retry cancellation must not leave
+	// half-disconnected NVMe-oF controllers (stale sysfs entries).
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cleanupCancel()
 
 	klog.V(4).Infof("Unstaging NVMe-oF volume %s from %s", volumeID, stagingTargetPath)
 
 	// Get NQN from volume context
 	nqn := volumeContext["nqn"]
 	if nqn == "" {
-		derivedNQN, deriveErr := s.deriveNQNFromStagingPath(ctx, stagingTargetPath)
+		derivedNQN, deriveErr := s.deriveNQNFromStagingPath(cleanupCtx, stagingTargetPath)
 		if deriveErr != nil {
 			klog.Warningf("Failed to derive NVMe-oF NQN from staging path %s: %v", stagingTargetPath, deriveErr)
 		} else {
@@ -402,14 +409,14 @@ func (s *NodeService) unstageNVMeOFVolume(ctx context.Context, req *csi.NodeUnst
 	}
 
 	// Check if mounted and unmount if necessary
-	mounted, err := mount.IsMounted(ctx, stagingTargetPath)
+	mounted, err := mount.IsMounted(cleanupCtx, stagingTargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to check if staging path is mounted: %v", err)
 	}
 
 	if mounted {
 		klog.V(4).Infof("Unmounting staging path: %s", stagingTargetPath)
-		if err := mount.Unmount(ctx, stagingTargetPath); err != nil {
+		if err := mount.Unmount(cleanupCtx, stagingTargetPath); err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to unmount staging path: %v", err)
 		}
 	}
@@ -422,7 +429,7 @@ func (s *NodeService) unstageNVMeOFVolume(ctx context.Context, req *csi.NodeUnst
 
 	// With independent subsystems, always disconnect (no shared subsystem to worry about)
 	klog.V(4).Infof("Disconnecting NVMe-oF subsystem for volume %s: NQN=%s", volumeID, nqn)
-	if err := s.disconnectNVMeOF(ctx, nqn); err != nil {
+	if err := s.disconnectNVMeOF(cleanupCtx, nqn); err != nil {
 		klog.Warningf("Failed to disconnect NVMe-oF device (continuing anyway): %v", err)
 	} else {
 		klog.V(4).Infof("Disconnected from NVMe-oF target: %s", nqn)

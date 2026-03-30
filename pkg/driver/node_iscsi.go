@@ -295,27 +295,43 @@ func findDiscoveredPortal(discoveryOutput, iqn string) string {
 	return ""
 }
 
-// logoutISCSITarget logs out from an iSCSI target.
-func (s *NodeService) logoutISCSITarget(ctx context.Context, params *iscsiConnectionParams) error {
+// logoutISCSITarget logs out from an iSCSI target and removes the node record
+// to prevent iscsid from trying to reconnect to deleted targets.
+//
+//nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
+func (s *NodeService) logoutISCSITarget(_ context.Context, params *iscsiConnectionParams) error {
 	klog.V(4).Infof("Logging out from iSCSI target: %s", params.iqn)
-	logoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+
+	// Use Background context — kubelet retry cancellation must not kill a logout in progress,
+	// as that leaves zombie sessions stuck in REOPEN state.
+	logoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Don't specify portal - logout from target on all portals
+	// Logout from target on all portals
 	cmd := iscsiadmCmd(logoutCtx, "-m", "node", "-T", params.iqn, "--logout")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check if already logged out
 		alreadyLoggedOut := strings.Contains(string(output), "No matching sessions") ||
 			strings.Contains(string(output), "not found")
-		if alreadyLoggedOut {
-			klog.V(4).Infof("iSCSI target already logged out")
-			return nil
+		if !alreadyLoggedOut {
+			klog.Warningf("iSCSI logout failed for %s: %v (output: %s)", params.iqn, err, strings.TrimSpace(string(output)))
 		}
-		return err
+	} else {
+		klog.V(4).Infof("Successfully logged out from iSCSI target: %s", params.iqn)
 	}
 
-	klog.V(4).Infof("Successfully logged out from iSCSI target: %s", params.iqn)
+	// Delete the node record so iscsid won't try to reconnect
+	deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer deleteCancel()
+	deleteCmd := iscsiadmCmd(deleteCtx, "-m", "node", "-T", params.iqn, "-o", "delete")
+	if deleteOutput, deleteErr := deleteCmd.CombinedOutput(); deleteErr != nil {
+		if !strings.Contains(string(deleteOutput), "not found") {
+			klog.V(4).Infof("Failed to delete iSCSI node record for %s (non-fatal): %v", params.iqn, deleteErr)
+		}
+	} else {
+		klog.V(4).Infof("Deleted iSCSI node record for %s", params.iqn)
+	}
+
 	return nil
 }
 
@@ -528,7 +544,9 @@ func (s *NodeService) formatAndMountISCSIDevice(ctx context.Context, volumeID, d
 }
 
 // unstageISCSIVolume unstages an iSCSI volume by logging out from the target.
-func (s *NodeService) unstageISCSIVolume(ctx context.Context, req *csi.NodeUnstageVolumeRequest, volumeContext map[string]string) (*csi.NodeUnstageVolumeResponse, error) {
+//
+//nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
+func (s *NodeService) unstageISCSIVolume(_ context.Context, req *csi.NodeUnstageVolumeRequest, volumeContext map[string]string) (*csi.NodeUnstageVolumeResponse, error) {
 	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
 
@@ -537,15 +555,21 @@ func (s *NodeService) unstageISCSIVolume(ctx context.Context, req *csi.NodeUnsta
 	// Get IQN from volume context
 	iqn := volumeContext[VolumeContextKeyISCSIIQN]
 
+	// Use Background context for cleanup — kubelet retry cancellation must not
+	// leave half-torn-down iSCSI sessions (zombie REOPEN state).
+	//nolint:contextcheck // intentionally decoupled from kubelet retry context
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cleanupCancel()
+
 	// Check if mounted and unmount if necessary
-	mounted, err := mount.IsMounted(ctx, stagingTargetPath)
+	mounted, err := mount.IsMounted(cleanupCtx, stagingTargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to check if staging path is mounted: %v", err)
 	}
 
 	if mounted {
 		klog.V(4).Infof("Unmounting staging path: %s", stagingTargetPath)
-		if err := mount.Unmount(ctx, stagingTargetPath); err != nil {
+		if err := mount.Unmount(cleanupCtx, stagingTargetPath); err != nil {
 			return nil, status.Errorf(codes.Internal, "Failed to unmount staging path: %v", err)
 		}
 	}
@@ -570,7 +594,7 @@ func (s *NodeService) unstageISCSIVolume(ctx context.Context, req *csi.NodeUnsta
 	}
 
 	klog.V(4).Infof("Logging out from iSCSI target for volume %s: IQN=%s", volumeID, iqn)
-	if err := s.logoutISCSITarget(ctx, params); err != nil {
+	if err := s.logoutISCSITarget(cleanupCtx, params); err != nil {
 		klog.Warningf("Failed to logout from iSCSI target (continuing anyway): %v", err)
 	}
 
