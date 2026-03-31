@@ -20,6 +20,7 @@ jobs:
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          base: ${{ github.event.before || github.event.pull_request.base.sha || 'HEAD~1' }}
           filters: |
             driver:
               - 'cmd/nasty-csi-driver/**'
