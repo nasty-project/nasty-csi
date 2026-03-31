@@ -386,7 +386,7 @@ deploy_driver() {
         false
     fi
     
-    local nasty_url="wss://${NASTY_HOST}/api/current"
+    local nasty_url="wss://${NASTY_HOST}/ws"
     test_info "NASty URL: ${nasty_url}"
     
     local image_tag="${CSI_IMAGE_TAG:-latest}"

@@ -87,7 +87,7 @@ print_driver_info() {
 # Configuration
 # ─────────────────────────────────────────────────
 NAMESPACE="upgrade-compat-$(date +%s)-${RANDOM}"
-NASTY_URL="wss://${NASTY_HOST}/api/current"
+NASTY_URL="wss://${NASTY_HOST}/ws"
 OCI_CHART_REPO="${OCI_CHART_REPO:-oci://registry-1.docker.io/bfenski/nasty-csi-driver}"
 IMAGE_TAG="${CSI_IMAGE_TAG:-latest}"
 IMAGE_REPO="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
