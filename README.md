@@ -50,7 +50,7 @@ Even small contributions help keep the test infrastructure running. Stars, bug r
 The driver includes two dashboard options and a pre-built Grafana dashboard:
 
 - **In-cluster dashboard** — runs inside the controller pod (port 9090), enable with `controller.dashboard.enabled: true`
-- **kubectl plugin dashboard** — runs locally via `kubectl nasty-csi dashboard` (port 2137)
+- **kubectl plugin dashboard** — runs locally via `kubectl nasty dashboard` (port 2137)
 - **Grafana dashboard** — pre-built Prometheus dashboard, enable with `grafana.dashboards.enabled: true`
 
 Both web dashboards show volume health, Kubernetes binding, snapshots, clones, and metrics. See [METRICS.md](docs/METRICS.md) for setup details.
@@ -80,11 +80,11 @@ Both web dashboards show volume health, Kubernetes binding, snapshots, clones, a
 
 ## kubectl Plugin
 
-The project includes a kubectl plugin (`kubectl nasty-csi`) for managing volumes directly from the command line:
+A companion kubectl plugin for managing volumes from the command line is available at [nasty-project/nasty-plugin](https://github.com/nasty-project/nasty-plugin):
 
 ```bash
-# Install via krew (recommended)
-kubectl krew install nasty-csi
+# Install via krew
+kubectl krew install nasty
 
 # Or download from GitHub releases
 ```
@@ -92,17 +92,15 @@ kubectl krew install nasty-csi
 **Key Commands:**
 | Command | Description |
 |---------|-------------|
-| `kubectl nasty-csi summary` | Dashboard overview of all resources |
-| `kubectl nasty-csi list` | List all managed volumes |
-| `kubectl nasty-csi list-snapshots` | List snapshots with source volumes |
-| `kubectl nasty-csi health` | Check health of all volumes |
-| `kubectl nasty-csi troubleshoot <pvc>` | Diagnose PVC issues |
-| `kubectl nasty-csi cleanup` | Delete orphaned volumes |
-| `kubectl nasty-csi dashboard` | Start web dashboard on http://localhost:2137 |
+| `kubectl nasty summary` | Dashboard overview of all resources |
+| `kubectl nasty list` | List all managed volumes |
+| `kubectl nasty list-snapshots` | List snapshots with source volumes |
+| `kubectl nasty health` | Check health of all volumes |
+| `kubectl nasty troubleshoot <pvc>` | Diagnose PVC issues |
+| `kubectl nasty cleanup` | Delete orphaned volumes |
+| `kubectl nasty dashboard` | Start web dashboard on http://localhost:2137 |
 
-The plugin **auto-discovers credentials** from the installed driver, so it works out of the box on clusters with nasty-csi installed.
-
-See [kubectl Plugin Documentation](docs/KUBECTL-PLUGIN.md) for full details.
+The plugin auto-discovers credentials from the installed driver, so it works out of the box on clusters with nasty-csi installed.
 
 ## Kubernetes Distribution Compatibility
 
