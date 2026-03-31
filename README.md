@@ -3,14 +3,12 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.26.0-00ADD8?logo=go)](https://go.dev/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nasty-project/nasty-csi)](https://goreportcard.com/report/github.com/nasty-project/nasty-csi)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=fenio_nasty-csi&metric=coverage)](https://sonarcloud.io/summary/overall?id=fenio_nasty-csi)
 [![CI](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml)
 [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
 [![Distro Compatibility](https://github.com/nasty-project/nasty-csi/actions/workflows/distro-compatibility.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/distro-compatibility.yml)
-[![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/nasty-csi/dashboard/)
-[![Docker Hub](https://img.shields.io/docker/pulls/bfenski/nasty-csi?logo=docker)](https://hub.docker.com/r/bfenski/nasty-csi)
-[![Driver](https://img.shields.io/github/v/release/fenio/nasty-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
-[![Plugin](https://img.shields.io/github/v/release/fenio/nasty-csi?filter=plugin-*&label=plugin&logo=github)](https://github.com/nasty-project/nasty-csi/releases)
+[![GHCR](https://img.shields.io/badge/GHCR-nasty--csi-blue?logo=github)](https://github.com/nasty-project/nasty-csi/pkgs/container/nasty-csi)
+[![Driver](https://img.shields.io/github/v/release/nasty-project/nasty-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
+[![Plugin](https://img.shields.io/github/v/release/nasty-project/nasty-plugin?label=kubectl-nasty&logo=github)](https://github.com/nasty-project/nasty-plugin/releases/latest)
 
 A Kubernetes CSI (Container Storage Interface) driver for [NASty](https://github.com/nasty-project/nasty) — a custom NAS built on NixOS with a bcachefs backend and a Rust JSON-RPC 2.0 API over WebSocket.
 
