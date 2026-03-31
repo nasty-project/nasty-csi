@@ -83,7 +83,10 @@ var _ = Describe("iSCSI Crash Simulation", func() {
 		err = f.K8s.ForceDeletePod(ctx, pod.Name)
 		Expect(err).NotTo(HaveOccurred(), "Failed to force delete POD")
 
-		time.Sleep(10 * time.Second) // Wait for POD to be fully removed
+		By("Waiting for pod to be fully deleted and block session to clean up")
+		err = f.K8s.WaitForPodDeleted(ctx, pod.Name, 2*time.Minute)
+		Expect(err).NotTo(HaveOccurred(), "Pod was not fully deleted")
+		time.Sleep(15 * time.Second) // Extra time for kernel iSCSI/NVMe-oF session teardown
 
 		By("Creating new POD to verify data survived crash")
 		newPod, err := f.CreatePod(ctx, framework.PodOptions{
