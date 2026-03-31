@@ -390,7 +390,7 @@ deploy_driver() {
     test_info "NASty URL: ${nasty_url}"
     
     local image_tag="${CSI_IMAGE_TAG:-latest}"
-    local image_repo="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
+    local image_repo="${CSI_IMAGE_REPOSITORY:-ghcr.io/nasty-project/nasty-csi}"
     local kubelet_path="${KUBELET_PATH:-/var/lib/kubelet}"
     
     local base_args=(
