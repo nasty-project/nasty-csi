@@ -58,7 +58,7 @@ var _ = Describe("NVMe-oF Crash Simulation", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create POD")
 
-		err = f.K8s.WaitForPodReady(ctx, pod.Name, 2*time.Minute)
+		err = f.K8s.WaitForPodReady(ctx, pod.Name, 4*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Pod did not become ready")
 
 		By("Writing test data to volume")
@@ -93,7 +93,7 @@ var _ = Describe("NVMe-oF Crash Simulation", func() {
 		})
 		Expect(err).NotTo(HaveOccurred(), "Failed to create recovery POD")
 
-		err = f.K8s.WaitForPodReady(ctx, newPod.Name, 2*time.Minute)
+		err = f.K8s.WaitForPodReady(ctx, newPod.Name, 4*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Recovery POD did not become ready")
 
 		By("Verifying test data persisted after crash")

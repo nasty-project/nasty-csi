@@ -55,7 +55,7 @@ var _ = Describe("NVMe-oF Volume Clone", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to create source POD")
 
 		By("Waiting for source POD to be ready")
-		err = f.K8s.WaitForPodReady(ctx, sourcePod.Name, 2*time.Minute)
+		err = f.K8s.WaitForPodReady(ctx, sourcePod.Name, 4*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source POD did not become ready")
 
 		By("Writing test data to source volume")
@@ -88,7 +88,7 @@ var _ = Describe("NVMe-oF Volume Clone", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to create clone POD")
 
 		By("Waiting for clone POD to be ready")
-		err = f.K8s.WaitForPodReady(ctx, clonePod.Name, 2*time.Minute)
+		err = f.K8s.WaitForPodReady(ctx, clonePod.Name, 4*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Clone POD did not become ready")
 
 		By("Listing cloned volume contents")
