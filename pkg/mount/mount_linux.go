@@ -76,7 +76,7 @@ func Unmount(ctx context.Context, targetPath string) error {
 	lazyCmd := exec.CommandContext(lazyCtx, "umount", "-l", targetPath)
 	lazyOutput, lazyErr := lazyCmd.CombinedOutput()
 	if lazyErr != nil {
-		return fmt.Errorf("failed to unmount (normal: %v, lazy: %w, output: %s)", normalErr, lazyErr, string(lazyOutput))
+		return fmt.Errorf("failed to unmount: %w (normal unmount: %v, output: %s)", lazyErr, normalErr, string(lazyOutput))
 	}
 
 	klog.V(4).Infof("Lazy unmount succeeded for %s", targetPath)
