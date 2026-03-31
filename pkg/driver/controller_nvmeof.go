@@ -151,13 +151,12 @@ func buildNVMeOFVolumeResponse(volumeName, server string, subvol *nastyapi.Subvo
 	volumeID := subvol.Filesystem + "/" + subvol.Name
 
 	meta := VolumeMetadata{
-		Name:                volumeName,
-		Protocol:            ProtocolNVMeOF,
-		DatasetID:           volumeID,
-		DatasetName:         subvol.Name,
-		Server:              server,
-		NVMeOFSubsystemUUID: subsystem.ID,
-		NVMeOFNQN:           subsystem.NQN,
+		Name:        volumeName,
+		Protocol:    ProtocolNVMeOF,
+		DatasetID:   volumeID,
+		DatasetName: subvol.Name,
+		Server:      server,
+		NVMeOFNQN:   subsystem.NQN,
 	}
 
 	// Build volume context with all necessary metadata
@@ -331,8 +330,8 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 // Subvolume is deleted first; if it fails, NVMe-oF subsystem is preserved to prevent orphaning.
 func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "delete")
-	klog.Infof("Deleting NVMe-oF volume: %s (subvolume: %s, subsystem: %s)",
-		meta.Name, meta.DatasetID, meta.NVMeOFSubsystemUUID)
+	klog.Infof("Deleting NVMe-oF volume: %s (subvolume: %s, NQN: %s)",
+		meta.Name, meta.DatasetID, meta.NVMeOFNQN)
 
 	filesystem, name, splitErr := splitSubvolumeID(meta.DatasetID)
 	if splitErr != nil {
@@ -367,15 +366,15 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	}
 
 	// Step 1: Delete NVMe-oF subsystem first (must be removed before subvolume)
-	// Try by UUID first, then by NQN from metadata, then derive NQN from name
-	subsystemID := meta.NVMeOFSubsystemUUID
-	nqnToLookup := meta.NVMeOFNQN
-	if nqnToLookup == "" && name != "" {
-		nqnToLookup = "nqn.2137-04.storage.nasty:" + name
+	// Always look up by NQN — UUIDs are not stored in xattrs (they don't survive clone/snapshot).
+	nqn := meta.NVMeOFNQN
+	if nqn == "" && name != "" {
+		nqn = "nqn.2137-04.storage.nasty:" + name
 	}
-	if subsystemID == "" && nqnToLookup != "" {
-		klog.Infof("No NVMe-oF subsystem UUID in metadata, looking up by NQN: %s", nqnToLookup)
-		subsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, nqnToLookup)
+	subsystemID := ""
+	if nqn != "" {
+		klog.V(4).Infof("Looking up NVMe-oF subsystem by NQN: %s", nqn)
+		subsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, nqn)
 		if lookupErr == nil && subsystem != nil {
 			subsystemID = subsystem.ID
 		}

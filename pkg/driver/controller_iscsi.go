@@ -128,13 +128,12 @@ func buildISCSIVolumeResponse(volumeName, server string, subvol *nastyapi.Subvol
 	volumeID := subvol.Filesystem + "/" + subvol.Name
 
 	meta := VolumeMetadata{
-		Name:            volumeName,
-		Protocol:        ProtocolISCSI,
-		DatasetID:       volumeID,
-		DatasetName:     subvol.Name,
-		Server:          server,
-		ISCSITargetUUID: target.ID,
-		ISCSIIQN:        target.IQN,
+		Name:        volumeName,
+		Protocol:    ProtocolISCSI,
+		DatasetID:   volumeID,
+		DatasetName: subvol.Name,
+		Server:      server,
+		ISCSIIQN:    target.IQN,
 	}
 
 	// Build volume context with all necessary metadata
@@ -340,8 +339,8 @@ const deleteStrategyDelete = "delete"
 // Subvolume is deleted first; if it fails, iSCSI target is preserved to prevent orphaning.
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, deleteStrategyDelete)
-	klog.Infof("Deleting iSCSI volume: %s (subvolume: %s, target: %s)",
-		meta.Name, meta.DatasetID, meta.ISCSITargetUUID)
+	klog.Infof("Deleting iSCSI volume: %s (subvolume: %s, IQN: %s)",
+		meta.Name, meta.DatasetID, meta.ISCSIIQN)
 
 	// Step 0: Verify ownership via xattr properties before deletion
 	deleteStrategy, notFound, err := s.verifyISCSIOwnership(ctx, meta)
@@ -368,11 +367,14 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 	}
 
 	// Step 1: Delete iSCSI target first (must be removed before subvolume)
-	targetID := meta.ISCSITargetUUID
-	// Fallback: if target UUID is empty, look up by IQN derived from subvolume name
-	if targetID == "" && name != "" {
-		iqn := "iqn.2137-04.storage.nasty:" + name
-		klog.Infof("No iSCSI target UUID in metadata, looking up by IQN: %s", iqn)
+	// Always look up by IQN — UUIDs are not stored in xattrs (they don't survive clone/snapshot).
+	iqn := meta.ISCSIIQN
+	if iqn == "" && name != "" {
+		iqn = "iqn.2137-04.storage.nasty:" + name
+	}
+	targetID := ""
+	if iqn != "" {
+		klog.V(4).Infof("Looking up iSCSI target by IQN: %s", iqn)
 		target, lookupErr := s.apiClient.GetISCSITargetByIQN(ctx, iqn)
 		if lookupErr == nil && target != nil {
 			targetID = target.ID
@@ -472,8 +474,8 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 
 // getISCSIVolumeInfo retrieves volume information and health status for an iSCSI volume.
 func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
-	klog.V(4).Infof("Getting iSCSI volume info: %s (subvolume: %s, target: %s)",
-		meta.Name, meta.DatasetName, meta.ISCSITargetUUID)
+	klog.V(4).Infof("Getting iSCSI volume info: %s (subvolume: %s, IQN: %s)",
+		meta.Name, meta.DatasetName, meta.ISCSIIQN)
 
 	abnormal := false
 	var messages []string
@@ -499,7 +501,7 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 
 	// Check 2: Verify iSCSI target exists
 	var capacityBytes int64
-	if meta.ISCSITargetUUID != "" {
+	if meta.ISCSIIQN != "" {
 		target, err := s.apiClient.GetISCSITargetByIQN(ctx, meta.ISCSIIQN)
 		switch {
 		case err != nil:
@@ -507,7 +509,7 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 			messages = append(messages, fmt.Sprintf("Failed to query iSCSI target by IQN %s: %v", meta.ISCSIIQN, err))
 		case target == nil:
 			abnormal = true
-			messages = append(messages, fmt.Sprintf("iSCSI target %s not found", meta.ISCSITargetUUID))
+			messages = append(messages, fmt.Sprintf("iSCSI target with IQN %s not found", meta.ISCSIIQN))
 		default:
 			klog.V(4).Infof("iSCSI target %s is healthy (IQN: %s)", target.ID, target.IQN)
 		}

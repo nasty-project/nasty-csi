@@ -99,17 +99,15 @@ func createVolumeError(msg string, err error) error {
 // Note: Volume ID is now just the volume name (CSI spec compliant, max 128 bytes).
 // All metadata is passed via VolumeContext.
 type VolumeMetadata struct {
-	Name                string
-	Protocol            string
-	DatasetID           string
-	DatasetName         string
-	Server              string // NASty server address
-	NVMeOFNQN           string // NVMe-oF subsystem NQN
-	NVMeOFSubsystemUUID string // NASty API UUID subsystem ID
-	ISCSIIQN            string // iSCSI target IQN
-	ISCSITargetUUID     string // NASty API UUID target ID
-	NFSShareUUID        string // NASty API UUID share ID
-	SMBShareUUID        string // NASty API UUID SMB share ID
+	Name         string
+	Protocol     string
+	DatasetID    string
+	DatasetName  string
+	Server       string // NASty server address
+	NVMeOFNQN    string // NVMe-oF subsystem NQN (derived from name)
+	ISCSIIQN     string // iSCSI target IQN (derived from name)
+	NFSShareUUID string // NFS share UUID (from xattr — file shares don't have IQN/NQN)
+	SMBShareUUID string // SMB share UUID (from xattr — file shares don't have IQN/NQN)
 }
 
 // buildVolumeContext creates a VolumeContext map from VolumeMetadata.
@@ -139,15 +137,9 @@ func buildVolumeContext(meta VolumeMetadata) map[string]string {
 		if meta.NVMeOFNQN != "" {
 			ctx[VolumeContextKeyNQN] = meta.NVMeOFNQN
 		}
-		if meta.NVMeOFSubsystemUUID != "" {
-			ctx[VolumeContextKeyNVMeOFSubsystemUUID] = meta.NVMeOFSubsystemUUID
-		}
 	case ProtocolISCSI:
 		if meta.ISCSIIQN != "" {
 			ctx[VolumeContextKeyISCSIIQN] = meta.ISCSIIQN
-		}
-		if meta.ISCSITargetUUID != "" {
-			ctx[VolumeContextKeyISCSITargetUUID] = meta.ISCSITargetUUID
 		}
 	case ProtocolSMB:
 		if meta.SMBShareUUID != "" {

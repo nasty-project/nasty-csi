@@ -296,10 +296,10 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 		{
 			name: "successful deletion",
 			meta: &VolumeMetadata{
-				Name:                "test-volume",
-				Protocol:            ProtocolNVMeOF,
-				DatasetID:           "first/test-volume",
-				NVMeOFSubsystemUUID: "some-uuid",
+				Name:      "test-volume",
+				Protocol:  ProtocolNVMeOF,
+				DatasetID: "first/test-volume",
+				NVMeOFNQN: "nqn.2137-04.storage.nasty:test-volume",
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
@@ -308,6 +308,9 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 						Name:       name,
 						Properties: map[string]string{nastyapi.PropertyManagedBy: nastyapi.ManagedByValue},
 					}, nil
+				}
+				m.GetNVMeOFSubsystemByNQNFunc = func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error) {
+					return &nastyapi.NVMeOFSubsystem{ID: "test-subsystem-uuid", NQN: nqn}, nil
 				}
 				m.DeleteSubvolumeFunc = func(ctx context.Context, filesystem, name string) error {
 					return nil
@@ -327,6 +330,9 @@ func TestDeleteNVMeOFVolume(t *testing.T) {
 			},
 			mockSetup: func(m *MockAPIClientForSnapshots) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
+					return nil, nastyapi.ErrDatasetNotFound
+				}
+				m.GetNVMeOFSubsystemByNQNFunc = func(ctx context.Context, nqn string) (*nastyapi.NVMeOFSubsystem, error) {
 					return nil, nastyapi.ErrDatasetNotFound
 				}
 			},
