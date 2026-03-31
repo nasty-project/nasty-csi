@@ -75,6 +75,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nfs' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-k3s@v5.0.1
         with:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
@@ -83,6 +89,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
         run: ./tests/integration/test-distro-basic.sh
@@ -97,6 +104,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nvmeof' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-k3s@v5.0.1
         with:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
@@ -105,6 +118,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
         run: ./tests/integration/test-distro-basic.sh
@@ -119,6 +133,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'iscsi' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-k3s@v5.0.1
         with:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
@@ -127,6 +147,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
         run: ./tests/integration/test-distro-basic.sh
@@ -144,6 +165,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nfs' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-k0s@v5.0.1
         with:
           version: v1.34.3+k0s.0
@@ -152,6 +179,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/lib/k0s/kubelet
@@ -167,6 +195,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nvmeof' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-k0s@v5.0.1
         with:
           version: v1.34.3+k0s.0
@@ -175,6 +209,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/lib/k0s/kubelet
@@ -190,6 +225,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'iscsi' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-k0s@v5.0.1
         with:
           version: v1.34.3+k0s.0
@@ -198,6 +239,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/lib/k0s/kubelet
@@ -216,6 +258,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nfs' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-kubesolo@v5.0.4
         with:
           version: v1.1.0
@@ -233,6 +281,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/lib/kubesolo/kubelet
@@ -248,6 +297,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nvmeof' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-kubesolo@v5.0.4
         with:
           version: v1.1.0
@@ -265,6 +320,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/lib/kubesolo/kubelet
@@ -280,6 +336,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'iscsi' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-kubesolo@v5.0.4
         with:
           version: v1.1.0
@@ -297,6 +359,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/lib/kubesolo/kubelet
@@ -315,6 +378,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nfs' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-minikube@v5.0.5
         with:
           driver: docker
@@ -323,6 +392,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
         run: ./tests/integration/test-distro-basic.sh
@@ -337,6 +407,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nvmeof' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-minikube@v5.0.5
         with:
           driver: none
@@ -345,6 +421,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
         run: ./tests/integration/test-distro-basic.sh
@@ -359,6 +436,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'iscsi' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-minikube@v5.0.5
         with:
           driver: none
@@ -367,6 +450,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
         run: ./tests/integration/test-distro-basic.sh
@@ -384,6 +468,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nfs' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-talos@v6.2.7
         with:
           version: v1.12.1
@@ -392,6 +482,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/lib/kubelet
@@ -407,6 +498,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nvmeof' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-talos@v6.2.7
         with:
           version: v1.12.1
@@ -417,6 +514,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/lib/kubelet
@@ -432,6 +530,12 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'iscsi' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-talos@v6.2.7
         with:
           version: v1.12.1
@@ -443,6 +547,7 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/lib/kubelet
@@ -461,12 +566,19 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nfs' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-microk8s@v5.0.1
       - name: Run Basic NFS Test
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nfs
           KUBELET_PATH: /var/snap/microk8s/common/var/lib/kubelet
@@ -482,12 +594,19 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'nvmeof' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-microk8s@v5.0.1
       - name: Run Basic NVMe-oF Test
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: nvmeof
           KUBELET_PATH: /var/snap/microk8s/common/var/lib/kubelet
@@ -503,12 +622,19 @@ jobs:
       (github.event.inputs.protocol == 'all' || github.event.inputs.protocol == 'iscsi' || github.event.inputs.protocol == '')
     steps:
       - uses: actions/checkout@v6
+      - name: Checkout Helm chart
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-chart
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-chart
       - uses: fenio/setup-microk8s@v5.0.1
       - name: Run Basic iSCSI Test
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
+          CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
           TEST_PROTOCOL: iscsi
           KUBELET_PATH: /var/snap/microk8s/common/var/lib/kubelet

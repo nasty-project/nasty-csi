@@ -442,8 +442,9 @@ deploy_driver() {
             ;;
     esac
     
-    test_info "Executing Helm deployment..."
-    if ! helm upgrade --install nasty-csi ./charts/nasty-csi-driver \
+    local chart_path="${CSI_CHART_PATH:-./nasty-chart}"
+    test_info "Executing Helm deployment (chart: ${chart_path})..."
+    if ! helm upgrade --install nasty-csi "${chart_path}" \
         "${base_args[@]}" \
         "${helm_args[@]}" \
         --wait --timeout 10m; then
