@@ -417,7 +417,9 @@ func (s *NodeService) unstageNVMeOFVolume(_ context.Context, req *csi.NodeUnstag
 	if mounted {
 		klog.V(4).Infof("Unmounting staging path: %s", stagingTargetPath)
 		if err := mount.Unmount(cleanupCtx, stagingTargetPath); err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to unmount staging path: %v", err)
+			// Don't abort — proceed with disconnect to clean up the controller.
+			// The kernel will finish the unmount in the background.
+			klog.Warningf("Unmount failed for %s (proceeding with disconnect): %v", stagingTargetPath, err)
 		}
 	}
 
