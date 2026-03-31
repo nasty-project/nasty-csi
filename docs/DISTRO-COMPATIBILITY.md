@@ -55,7 +55,7 @@ Each distribution runs basic tests for NFS, NVMe-oF, and iSCSI protocols:
 # Set environment variables
 export NASTY_HOST="your-nasty-host"
 export NASTY_API_KEY="your-api-key"
-export NASTY_POOL="your-pool"
+export NASTY_FILESYSTEM="your-filesystem"
 export CSI_IMAGE_TAG="latest"
 
 # Choose protocol
@@ -140,7 +140,7 @@ distro-name-basic:
       env:
         NASTY_HOST: ${{ secrets.NASTY_HOST }}
         NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
-        NASTY_POOL: ${{ secrets.NASTY_POOL }}
+        NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
         CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
         TEST_PROTOCOL: ${{ matrix.protocol }}
       run: ./tests/integration/test-distro-basic.sh

@@ -177,7 +177,7 @@ Interactive test results dashboard with history and metrics:
 ```bash
 export NASTY_HOST="your-nasty-ip"
 export NASTY_API_KEY="your-api-key"
-export NASTY_POOL="your-pool"
+export NASTY_FILESYSTEM="your-filesystem"
 export KUBECONFIG="$HOME/.kube/config"
 ```
 

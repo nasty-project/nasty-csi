@@ -146,7 +146,7 @@ go install github.com/onsi/ginkgo/v2/ginkgo@latest
 # Set required environment variables
 export NASTY_HOST="your-nasty-ip"
 export NASTY_API_KEY="your-api-key"
-export NASTY_POOL="your-pool"
+export NASTY_FILESYSTEM="your-filesystem"
 
 # Run NFS E2E tests
 ginkgo -v --timeout=25m ./tests/e2e/nfs/...

@@ -8,7 +8,7 @@ metadata:
 provisioner: nasty.csi.io
 parameters:
   protocol: "nvmeof"
-  pool: "${NASTY_POOL}"
+  filesystem: "${NASTY_FILESYSTEM}"
   server: "${NASTY_HOST}"
   subsystemNQN: "${NASTY_NVMEOF_SUBSYSTEM_NQN}"
   # Enable detached snapshots - clones will be promoted to be independent

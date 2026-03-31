@@ -380,9 +380,9 @@ deploy_driver() {
         false
     fi
     
-    if [[ -z "${NASTY_POOL}" ]]; then
+    if [[ -z "${NASTY_FILESYSTEM}" ]]; then
         stop_test_timer "deploy_driver" "FAILED"
-        test_error "NASTY_POOL not set"
+        test_error "NASTY_FILESYSTEM not set"
         false
     fi
     
@@ -411,7 +411,7 @@ deploy_driver() {
                 --set storageClasses[0].name=nasty-csi-nfs
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=nfs
-                --set storageClasses[0].pool="${NASTY_POOL}"
+                --set storageClasses[0].filesystem="${NASTY_FILESYSTEM}"
                 --set storageClasses[0].server="${NASTY_HOST}"
             )
             ;;
@@ -420,7 +420,7 @@ deploy_driver() {
                 --set storageClasses[0].name=nasty-csi-nvmeof
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=nvmeof
-                --set storageClasses[0].pool="${NASTY_POOL}"
+                --set storageClasses[0].filesystem="${NASTY_FILESYSTEM}"
                 --set storageClasses[0].server="${NASTY_HOST}"
                 --set storageClasses[0].transport=tcp
                 --set storageClasses[0].port=4420
@@ -431,7 +431,7 @@ deploy_driver() {
                 --set storageClasses[0].name=nasty-csi-iscsi
                 --set storageClasses[0].enabled=true
                 --set storageClasses[0].protocol=iscsi
-                --set storageClasses[0].pool="${NASTY_POOL}"
+                --set storageClasses[0].filesystem="${NASTY_FILESYSTEM}"
                 --set storageClasses[0].server="${NASTY_HOST}"
             )
             ;;

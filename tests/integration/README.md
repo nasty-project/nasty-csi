@@ -89,7 +89,7 @@ The `lib/common.sh` library provides reusable functions:
 ```bash
 export NASTY_HOST="your-nasty-host.example.com"
 export NASTY_API_KEY="your-api-key-here"
-export NASTY_POOL="your-pool-name"
+export NASTY_FILESYSTEM="your-pool-name"
 ```
 
 ### Run Distribution Compatibility Test

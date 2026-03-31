@@ -1,19 +1,15 @@
-# StorageClass with ZFS properties for NFS testing
-# Tests: compression, atime, recordsize
-# Note: Values are case-insensitive in StorageClass but normalized to uppercase by the driver
+# StorageClass with bcachefs properties for NFS testing
+# Tests: compression
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: nasty-csi-nfs-zfsprops
+  name: nasty-csi-nfs-props
 provisioner: nasty.csi.io
 parameters:
   protocol: "nfs"
-  pool: "${NASTY_POOL}"
+  filesystem: "${NASTY_FILESYSTEM}"
   server: "${NASTY_HOST}"
-  # ZFS properties with zfs. prefix (values are normalized to uppercase by driver)
-  zfs.compression: "lz4"
-  zfs.atime: "off"
-  zfs.recordsize: "128K"
+  compression: "lz4"
 allowVolumeExpansion: true
 reclaimPolicy: Delete
 volumeBindingMode: Immediate

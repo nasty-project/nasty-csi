@@ -8,7 +8,7 @@ provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   server: "${NASTY_HOST}"
-  pool: "${NASTY_POOL}"
+  filesystem: "${NASTY_FILESYSTEM}"
   deleteStrategy: retain
 reclaimPolicy: Delete
 allowVolumeExpansion: true

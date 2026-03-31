@@ -1,36 +1,20 @@
-# StorageClass with comprehensive filesystem properties
-# Tests all supported filesystem properties that can be set via StorageClass
+# StorageClass with comprehensive bcachefs properties for NFS testing
+# Tests all supported properties that can be set via StorageClass
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: nasty-csi-nfs-zfsprops-full
+  name: nasty-csi-nfs-props-full
 provisioner: nasty.csi.io
 parameters:
   protocol: nfs
   server: "${NASTY_HOST}"
-  pool: "${NASTY_POOL}"
-  # Compression settings
-  zfs.compression: "lz4"
-  # Access time settings
-  zfs.atime: "off"
-  # Sync settings
-  zfs.sync: "standard"
-  # Record size for filesystem datasets
-  zfs.recordsize: "128K"
-  # Number of copies
-  zfs.copies: "1"
-  # Deduplication (usually off for performance)
-  zfs.dedup: "off"
-  # Snapshot directory visibility
-  zfs.snapdir: "hidden"
-  # Exec permission
-  zfs.exec: "on"
-  # Read-only mode
-  zfs.readonly: "off"
-  # ACL mode
-  zfs.aclmode: "passthrough"
-  # ACL type
-  zfs.acltype: "nfsv4"
+  filesystem: "${NASTY_FILESYSTEM}"
+  compression: "lz4"
+  deleteStrategy: "delete"
+  # Tiering targets (requires labeled devices in the filesystem)
+  # foregroundTarget: "ssd"
+  # backgroundTarget: "hdd"
+  # promoteTarget: "ssd"
 reclaimPolicy: Delete
 allowVolumeExpansion: true
 volumeBindingMode: Immediate

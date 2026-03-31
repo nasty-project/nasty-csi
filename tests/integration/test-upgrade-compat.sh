@@ -6,7 +6,7 @@
 # Required environment variables:
 #   NASTY_HOST       - NASty server hostname/IP
 #   NASTY_API_KEY    - NASty API key
-#   NASTY_POOL       - Pool name
+#   NASTY_FILESYSTEM       - Pool name
 #   CSI_IMAGE_TAG      - Image tag for the current build
 #   PREV_CHART_VERSION - Previous Helm chart version (e.g., "0.8.0")
 #
@@ -94,7 +94,7 @@ IMAGE_REPO="${CSI_IMAGE_REPOSITORY:-ghcr.io/fenio/nasty-csi}"
 KUBELET_PATH="${KUBELET_PATH:-/var/lib/kubelet}"
 
 # Validate required environment
-for var in NASTY_HOST NASTY_API_KEY NASTY_POOL PREV_CHART_VERSION; do
+for var in NASTY_HOST NASTY_API_KEY NASTY_FILESYSTEM PREV_CHART_VERSION; do
     if [[ -z "${!var:-}" ]]; then
         fail "Required environment variable ${var} is not set"
         exit 1
@@ -223,12 +223,12 @@ helm install nasty-csi "${OCI_CHART_REPO}" \
     --set storageClasses[0].name=nasty-csi-nfs \
     --set storageClasses[0].enabled=true \
     --set storageClasses[0].protocol=nfs \
-    --set storageClasses[0].pool="${NASTY_POOL}" \
+    --set storageClasses[0].filesystem="${NASTY_FILESYSTEM}" \
     --set storageClasses[0].server="${NASTY_HOST}" \
     --set storageClasses[1].name=nasty-csi-iscsi \
     --set storageClasses[1].enabled=true \
     --set storageClasses[1].protocol=iscsi \
-    --set storageClasses[1].pool="${NASTY_POOL}" \
+    --set storageClasses[1].filesystem="${NASTY_FILESYSTEM}" \
     --set storageClasses[1].server="${NASTY_HOST}" \
     --wait --timeout 5m
 
