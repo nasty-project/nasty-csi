@@ -27,7 +27,7 @@ var (
 	apiKey                    = flag.String("api-key", "", "Storage system API key")
 	metricsAddr               = flag.String("metrics-addr", ":8080", "Address to expose Prometheus metrics")
 	skipTLSVerify             = flag.Bool("skip-tls-verify", false, "Skip TLS certificate verification (for self-signed certificates)")
-	showVersion               = flag.Bool("show-version", false, "Show version and exit")
+	showVersion               = flag.Bool("version", false, "Show version and exit")
 	debug                     = flag.Bool("debug", false, "Enable debug logging (equivalent to -v=4)")
 	enableNVMeDiscovery       = flag.Bool("enable-nvme-discovery", false, "Run nvme discover before nvme connect (default: false, all connection params are known from volume context)")
 	maxConcurrentNVMeConnects = flag.Int("max-concurrent-nvme-connects", 5, "Maximum number of concurrent NVMe-oF connect operations per node (limits kernel NVMe subsystem lock contention)")
