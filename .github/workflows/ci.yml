@@ -13,14 +13,16 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      driver: ${{ steps.filter.outputs.driver }}
-      plugin: ${{ steps.filter.outputs.plugin }}
+      driver: ${{ steps.filter.outputs.driver || 'true' }}
+      plugin: ${{ steps.filter.outputs.plugin || 'true' }}
     steps:
       - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v4
-        id: filter
+      - id: filter
+        # For workflow_dispatch (no 'before' ref), treat everything as changed.
+        # For push/PR events, use dorny/paths-filter to detect actual changes.
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v4
         with:
-          base: ${{ github.event.before || github.event.pull_request.base.sha || 'HEAD~1' }}
           filters: |
             driver:
               - 'cmd/nasty-csi-driver/**'
