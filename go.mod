@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	github.com/container-storage-interface/spec v1.12.0
 	github.com/kubernetes-csi/csi-test/v5 v5.4.0
-	github.com/nasty-project/nasty-go v0.0.0
+	github.com/nasty-project/nasty-go v0.0.0-20260403205242-74a80ea067b3
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/prometheus/client_golang v1.23.2
