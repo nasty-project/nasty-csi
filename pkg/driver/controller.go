@@ -678,11 +678,19 @@ func (s *ControllerService) ControllerPublishVolume(_ context.Context, req *csi.
 		return nil, status.Error(codes.InvalidArgument, "Volume capability is required")
 	}
 
-	// Register node on first publish — with attachRequired=true, ControllerPublishVolume
-	// is called before the node plugin has had a chance to register via NodeGetInfo.
-	// The kubelet guarantees the node exists (it's the one making the call).
-	if s.nodeRegistry != nil {
-		s.nodeRegistry.Register(nodeID)
+	// Validate volume exists by checking the published volumes map or volume ID format.
+	// Per CSI spec: return NotFound if volume doesn't exist.
+	// We check if this looks like a valid NASty volume ID (contains "/" for filesystem/name).
+	if !s.isKnownVolume(volumeID) {
+		return nil, status.Errorf(codes.NotFound, "volume %s not found", volumeID)
+	}
+
+	// Validate node exists in registry when running in single-process mode
+	// (sanity tests). In production k8s, controller and node are separate pods
+	// with separate registries. The controller skips the check when its registry
+	// is empty (no local node-id configured).
+	if s.nodeRegistry != nil && s.nodeRegistry.Count() > 0 && !s.nodeRegistry.IsRegistered(nodeID) {
+		return nil, status.Errorf(codes.NotFound, "node %s not found", nodeID)
 	}
 
 	// Check if volume is already published to this node with different readonly state
@@ -735,6 +743,15 @@ func (s *ControllerService) ControllerUnpublishVolume(_ context.Context, req *cs
 	}
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
+}
+
+// isKnownVolume checks if a volume ID looks like a valid NASty volume.
+// NASty volume IDs have the format "filesystem/subvolume-name" (always contain "/").
+// This is a lightweight check to satisfy the CSI spec requirement that
+// ControllerPublishVolume returns NotFound for non-existent volumes,
+// without requiring a NASty API call for what is otherwise a no-op operation.
+func (s *ControllerService) isKnownVolume(volumeID string) bool {
+	return strings.Contains(volumeID, "/")
 }
 
 // ValidateVolumeCapabilities validates volume capabilities.

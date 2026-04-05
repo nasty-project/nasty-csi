@@ -57,7 +57,7 @@ func main() {
 	}
 
 	if *nodeID == "" {
-		klog.Fatal("Node ID must be provided")
+		klog.Warning("Node ID not provided — node validation in ControllerPublishVolume will be skipped")
 	}
 
 	if *apiURL == "" {

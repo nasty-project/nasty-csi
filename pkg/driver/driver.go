@@ -75,8 +75,13 @@ func NewDriverWithClient(cfg Config, client nastyapi.ClientInterface) (*Driver, 
 		testMode:  cfg.TestMode,
 	}
 
-	// Create shared node registry for both controller and node services
+	// Create shared node registry for both controller and node services.
+	// Pre-register this node so ControllerPublishVolume can validate node existence
+	// immediately (before NodeGetInfo is called by kubelet).
 	nodeRegistry := NewNodeRegistry()
+	if cfg.NodeID != "" {
+		nodeRegistry.Register(cfg.NodeID)
+	}
 
 	// Initialize CSI services
 	d.identity = NewIdentityService(cfg.DriverName, cfg.Version)

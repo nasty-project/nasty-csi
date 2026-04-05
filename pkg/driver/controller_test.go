@@ -442,7 +442,7 @@ func TestValidateCreateVolumeRequest(t *testing.T) {
 
 func TestControllerPublishVolume(t *testing.T) {
 	ctx := context.Background()
-	volumeID := "test-volume"
+	volumeID := "first/test-volume"
 
 	tests := []struct {
 		req      *csi.ControllerPublishVolumeRequest
@@ -518,7 +518,26 @@ func TestControllerPublishVolume(t *testing.T) {
 			wantCode: codes.InvalidArgument,
 		},
 		{
-			name: "unknown node auto-registers on publish",
+			name: "unknown node rejected when registry has nodes (single-process mode)",
+			req: &csi.ControllerPublishVolumeRequest{
+				VolumeId: volumeID,
+				NodeId:   "unknown-node",
+				VolumeCapability: &csi.VolumeCapability{
+					AccessType: &csi.VolumeCapability_Mount{
+						Mount: &csi.VolumeCapability_MountVolume{},
+					},
+				},
+			},
+			nodeReg: func() *NodeRegistry {
+				r := NewNodeRegistry()
+				r.Register("other-node")
+				return r
+			}(),
+			wantErr:  true,
+			wantCode: codes.NotFound,
+		},
+		{
+			name: "unknown node accepted when registry is empty (production separate pods)",
 			req: &csi.ControllerPublishVolumeRequest{
 				VolumeId: volumeID,
 				NodeId:   "unknown-node",
