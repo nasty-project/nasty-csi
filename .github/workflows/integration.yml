@@ -52,10 +52,14 @@ on:
 permissions:
   contents: read
 
-# Ensure only one integration test runs at a time on the new runner
+# Ensure only one integration test runs at a time (shared NASty server)
 concurrency:
   group: integration-tests
   cancel-in-progress: false
+
+env:
+  SSH_OPTS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
+  SCP_OPTS: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -P 2222"
 
 jobs:
   # ==========================================
@@ -77,11 +81,8 @@ jobs:
       - name: Check for driver changes
         id: check
         run: |
-          # Get changed files in the commit
           CHANGED=$(git diff --name-only HEAD^..HEAD 2>/dev/null || echo "")
           echo "Changed files: $CHANGED"
-
-          # Check if any driver-related files changed (excludes docs/, README, tests/, etc.)
           if echo "$CHANGED" | grep -qE '^(cmd/nasty-csi-driver/|pkg/|Dockerfile|go\.(mod|sum))'; then
             echo "Driver files changed - will run integration tests"
             echo "should_run=true" >> $GITHUB_OUTPUT
@@ -92,13 +93,8 @@ jobs:
 
   compute-tag:
     name: Compute Image Tag
-    runs-on: new
+    runs-on: ubuntu-latest
     needs: check-driver-changes
-    # Skip if:
-    # - triggered by workflow_run and the workflow failed
-    # - triggered by CI workflow but not on main branch (only run integration tests for main)
-    # - no driver files changed (plugin-only changes)
-    # Note: always() allows this job to run even when check-driver-changes is skipped (manual dispatch)
     if: |
       always() &&
       (github.event_name != 'workflow_run' ||
@@ -108,7 +104,6 @@ jobs:
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
     steps:
-      # PR mode: checkout PR code and build image locally
       - name: Checkout PR code
         if: inputs.pr != ''
         uses: actions/checkout@v6
@@ -145,13 +140,10 @@ jobs:
       - name: Compute image tag from ref
         id: tag
         env:
-          # Use environment variables to safely pass workflow_run context
-          # This prevents shell injection via malicious branch names
           WORKFLOW_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           WORKFLOW_EVENT: ${{ github.event.workflow_run.event }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
-          # PR mode: use the PR-specific tag
           if [[ -n "${{ inputs.pr }}" ]]; then
             TAG="pr-${{ inputs.pr }}"
             echo "Using PR image tag: $TAG"
@@ -159,10 +151,8 @@ jobs:
             exit 0
           fi
 
-          # For workflow_run events, get ref from the triggering workflow
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             REF_NAME="$WORKFLOW_HEAD_BRANCH"
-            # Check if it was triggered by a tag (Release workflow)
             if [ "$WORKFLOW_EVENT" = "push" ] && [[ "$WORKFLOW_HEAD_BRANCH" == v* ]]; then
               REF_TYPE="tag"
             else
@@ -170,7 +160,6 @@ jobs:
             fi
             echo "Triggered by workflow: $WORKFLOW_NAME"
           else
-            # For manual dispatch or other events
             REF_NAME="${{ github.ref_name }}"
             REF_TYPE="${{ github.ref_type }}"
           fi
@@ -178,26 +167,23 @@ jobs:
           echo "REF_NAME: $REF_NAME, REF_TYPE: $REF_TYPE"
 
           if [ "$REF_TYPE" = "tag" ]; then
-            # For tags like v0.5.0, strip the 'v' prefix to match Docker image tags
-            # Release workflow uses semver pattern which produces tags like 0.5.0 (without v)
             TAG="${REF_NAME#v}"
-            echo "Using image tag: $TAG (from tag: $REF_NAME)"
           elif [ "$REF_NAME" = "main" ]; then
             TAG="latest"
-            echo "Using image tag: $TAG (from branch: $REF_NAME)"
           else
             TAG=$(echo "$REF_NAME" | sed 's/\//-/g')
-            echo "Using image tag: $TAG (from branch: $REF_NAME)"
           fi
+          echo "Using image tag: $TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
   # ==========================================
-  # E2E Tests
+  # E2E Tests (QEMU VM on GitHub-hosted runners)
   # ==========================================
+
   ginkgo-e2e-nfs:
     name: "E2E: NFS"
-    runs-on: new
-    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
     needs: compute-tag
     if: |
       !cancelled() && needs.compute-tag.result == 'success' &&
@@ -219,22 +205,28 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: fenio/setup-k3s@v5
+      - name: Boot QEMU VM with K3S
+        uses: ./.github/actions/qemu-vm
         with:
-          k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
-      - uses: ./.github/actions/setup-snapshots
-      - name: Download PR image artifact
+          nasty_host: ${{ secrets.NASTY_HOST }}
+      - name: Build and import CSI image
+        if: inputs.pr == ''
+        run: |
+          docker build -t ghcr.io/nasty-project/nasty-csi:e2e-test .
+          docker save ghcr.io/nasty-project/nasty-csi:e2e-test -o /tmp/csi-image.tar
+          scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Download and import PR image
         if: inputs.pr != ''
         uses: actions/download-artifact@v7
         with:
           name: pr-image
           path: /tmp
-      - name: Import PR image into k3s
+      - name: Import PR image into VM
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
-          echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep nasty-csi || true
+          scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NFS E2E Tests
@@ -242,24 +234,30 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
-          CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
-          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
+          CSI_IMAGE_PULL_POLICY: Never
+          KUBECONFIG: /tmp/kubeconfig
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
-          echo "=== Running NFS E2E Tests ==="
-          # Run only NFS-specific tests from the nfs/ directory
-          ginkgo -v --timeout=55m --flake-attempts=2 ./tests/e2e/nfs/...
+          FOCUS=""
+          if [ -n "${{ inputs.test }}" ]; then
+            FOCUS="--focus=${{ inputs.test }}"
+          fi
+          ginkgo -v --timeout=55m --flake-attempts=2 $FOCUS ./tests/e2e/nfs/...
       - name: Collect diagnostic logs
         if: always()
+        env:
+          KUBECONFIG: /tmp/kubeconfig
         run: |
           mkdir -p /tmp/test-logs
           kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
           kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
           kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
-          kubectl get pvc --all-namespaces -o wide >> /tmp/test-logs/pvcs.log 2>&1 || true
-          kubectl get pv -o wide >> /tmp/test-logs/pvs.log 2>&1 || true
-          kubectl get volumesnapshots --all-namespaces -o wide >> /tmp/test-logs/snapshots.log 2>&1 || true
-          kubectl get volumesnapshotcontents -o wide >> /tmp/test-logs/snapshot-contents.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
+          kubectl get pv -o wide > /tmp/test-logs/pvs.log 2>&1 || true
+          kubectl get volumesnapshots --all-namespaces -o wide > /tmp/test-logs/snapshots.log 2>&1 || true
+          kubectl get volumesnapshotcontents -o wide > /tmp/test-logs/snapshot-contents.log 2>&1 || true
+          ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -100" > /tmp/test-logs/vm-dmesg.log 2>&1 || true
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v6
@@ -267,11 +265,17 @@ jobs:
           name: e2e-nfs-diagnostics
           path: /tmp/test-logs/
           retention-days: 7
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
 
   ginkgo-e2e-nvmeof:
     name: "E2E: NVMe-oF"
-    runs-on: new
-    timeout-minutes: 95
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
     needs: compute-tag
     if: |
       !cancelled() && needs.compute-tag.result == 'success' &&
@@ -293,22 +297,28 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: fenio/setup-k3s@v5
+      - name: Boot QEMU VM with K3S
+        uses: ./.github/actions/qemu-vm
         with:
-          k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
-      - uses: ./.github/actions/setup-snapshots
-      - name: Download PR image artifact
+          nasty_host: ${{ secrets.NASTY_HOST }}
+      - name: Build and import CSI image
+        if: inputs.pr == ''
+        run: |
+          docker build -t ghcr.io/nasty-project/nasty-csi:e2e-test .
+          docker save ghcr.io/nasty-project/nasty-csi:e2e-test -o /tmp/csi-image.tar
+          scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Download and import PR image
         if: inputs.pr != ''
         uses: actions/download-artifact@v7
         with:
           name: pr-image
           path: /tmp
-      - name: Import PR image into k3s
+      - name: Import PR image into VM
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
-          echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep nasty-csi || true
+          scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NVMe-oF E2E Tests
@@ -316,21 +326,27 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
-          CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
-          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
+          CSI_IMAGE_PULL_POLICY: Never
+          KUBECONFIG: /tmp/kubeconfig
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
-          echo "=== Running NVMe-oF E2E Tests ==="
-          # Run only NVMe-oF-specific tests from the nvmeof/ directory
-          ginkgo -v --timeout=90m --flake-attempts=2 ./tests/e2e/nvmeof/...
+          FOCUS=""
+          if [ -n "${{ inputs.test }}" ]; then
+            FOCUS="--focus=${{ inputs.test }}"
+          fi
+          ginkgo -v --timeout=90m --flake-attempts=2 $FOCUS ./tests/e2e/nvmeof/...
       - name: Collect diagnostic logs
         if: always()
+        env:
+          KUBECONFIG: /tmp/kubeconfig
         run: |
           mkdir -p /tmp/test-logs
           kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
           kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
           kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
-          kubectl get pvc --all-namespaces -o wide >> /tmp/test-logs/pvcs.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
+          ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -100" > /tmp/test-logs/vm-dmesg.log 2>&1 || true
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v6
@@ -338,11 +354,17 @@ jobs:
           name: e2e-nvmeof-diagnostics
           path: /tmp/test-logs/
           retention-days: 7
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
 
   ginkgo-e2e-iscsi:
     name: "E2E: iSCSI"
-    runs-on: new
-    timeout-minutes: 95
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
     needs: compute-tag
     if: |
       !cancelled() && needs.compute-tag.result == 'success' &&
@@ -364,22 +386,28 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: fenio/setup-k3s@v5
+      - name: Boot QEMU VM with K3S
+        uses: ./.github/actions/qemu-vm
         with:
-          k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
-      - uses: ./.github/actions/setup-snapshots
-      - name: Download PR image artifact
+          nasty_host: ${{ secrets.NASTY_HOST }}
+      - name: Build and import CSI image
+        if: inputs.pr == ''
+        run: |
+          docker build -t ghcr.io/nasty-project/nasty-csi:e2e-test .
+          docker save ghcr.io/nasty-project/nasty-csi:e2e-test -o /tmp/csi-image.tar
+          scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Download and import PR image
         if: inputs.pr != ''
         uses: actions/download-artifact@v7
         with:
           name: pr-image
           path: /tmp
-      - name: Import PR image into k3s
+      - name: Import PR image into VM
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
-          echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep nasty-csi || true
+          scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run iSCSI E2E Tests
@@ -387,21 +415,27 @@ jobs:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
-          CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
-          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
+          CSI_IMAGE_PULL_POLICY: Never
+          KUBECONFIG: /tmp/kubeconfig
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
-          echo "=== Running iSCSI E2E Tests ==="
-          # Run only iSCSI-specific tests from the iscsi/ directory
-          ginkgo -v --timeout=90m --flake-attempts=2 ./tests/e2e/iscsi/...
+          FOCUS=""
+          if [ -n "${{ inputs.test }}" ]; then
+            FOCUS="--focus=${{ inputs.test }}"
+          fi
+          ginkgo -v --timeout=90m --flake-attempts=2 $FOCUS ./tests/e2e/iscsi/...
       - name: Collect diagnostic logs
         if: always()
+        env:
+          KUBECONFIG: /tmp/kubeconfig
         run: |
           mkdir -p /tmp/test-logs
           kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
           kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
           kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
-          kubectl get pvc --all-namespaces -o wide >> /tmp/test-logs/pvcs.log 2>&1 || true
+          kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
+          ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -100" > /tmp/test-logs/vm-dmesg.log 2>&1 || true
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v6
@@ -409,11 +443,17 @@ jobs:
           name: e2e-iscsi-diagnostics
           path: /tmp/test-logs/
           retention-days: 7
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
 
   ginkgo-e2e-smb:
     name: "E2E: SMB"
-    runs-on: new
-    timeout-minutes: 60
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
     needs: compute-tag
     if: |
       !cancelled() && needs.compute-tag.result == 'success' &&
@@ -435,43 +475,51 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: fenio/setup-k3s@v5
+      - name: Boot QEMU VM with K3S
+        uses: ./.github/actions/qemu-vm
         with:
-          k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
-      - uses: ./.github/actions/setup-snapshots
-      - name: Download PR image artifact
+          nasty_host: ${{ secrets.NASTY_HOST }}
+      - name: Build and import CSI image
+        if: inputs.pr == ''
+        run: |
+          docker build -t ghcr.io/nasty-project/nasty-csi:e2e-test .
+          docker save ghcr.io/nasty-project/nasty-csi:e2e-test -o /tmp/csi-image.tar
+          scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Download and import PR image
         if: inputs.pr != ''
         uses: actions/download-artifact@v7
         with:
           name: pr-image
           path: /tmp
-      - name: Import PR image into k3s
+      - name: Import PR image into VM
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
-          echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep nasty-csi || true
-      - name: Install Ginkgo and SMB tools
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@latest
-          sudo apt-get install -y -qq smbclient cifs-utils
+          scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Install Ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run SMB E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
-          CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
-          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
+          CSI_IMAGE_PULL_POLICY: Never
+          KUBECONFIG: /tmp/kubeconfig
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
-          echo "=== Running SMB E2E Tests ==="
-          # Run only SMB-specific tests from the smb/ directory
-          ginkgo -v --timeout=55m --flake-attempts=2 ./tests/e2e/smb/...
+          FOCUS=""
+          if [ -n "${{ inputs.test }}" ]; then
+            FOCUS="--focus=${{ inputs.test }}"
+          fi
+          ginkgo -v --timeout=55m --flake-attempts=2 $FOCUS ./tests/e2e/smb/...
       - name: Collect diagnostic logs
         if: always()
         env:
+          KUBECONFIG: /tmp/kubeconfig
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
@@ -482,6 +530,7 @@ jobs:
           kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
           kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
           smbclient -L "//${NASTY_HOST}" -U "${SMB_USERNAME}%${SMB_PASSWORD}" --option="client min protocol=SMB3" > /tmp/test-logs/smb-diag.log 2>&1 || true
+          ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -100" > /tmp/test-logs/vm-dmesg.log 2>&1 || true
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v6
@@ -489,11 +538,17 @@ jobs:
           name: e2e-smb-diagnostics
           path: /tmp/test-logs/
           retention-days: 7
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
 
   ginkgo-e2e-shared:
     name: "E2E: Shared"
-    runs-on: new
-    timeout-minutes: 75
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     needs: compute-tag
     if: |
       !cancelled() && needs.compute-tag.result == 'success'
@@ -514,49 +569,58 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: fenio/setup-k3s@v5
+      - name: Boot QEMU VM with K3S
+        uses: ./.github/actions/qemu-vm
         with:
-          k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
-      - uses: ./.github/actions/setup-snapshots
-      - name: Download PR image artifact
+          nasty_host: ${{ secrets.NASTY_HOST }}
+      - name: Build and import CSI image
+        if: inputs.pr == ''
+        run: |
+          docker build -t ghcr.io/nasty-project/nasty-csi:e2e-test .
+          docker save ghcr.io/nasty-project/nasty-csi:e2e-test -o /tmp/csi-image.tar
+          scp $SCP_OPTS /tmp/csi-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Download and import PR image
         if: inputs.pr != ''
         uses: actions/download-artifact@v7
         with:
           name: pr-image
           path: /tmp
-      - name: Import PR image into k3s
+      - name: Import PR image into VM
         if: inputs.pr != ''
         run: |
-          sudo k3s ctr images import /tmp/nasty-csi-pr-image.tar
-          echo "Imported PR image into k3s containerd"
-          sudo k3s crictl images | grep nasty-csi || true
-      - name: Install Ginkgo and node prerequisites
-        run: |
-          go install github.com/onsi/ginkgo/v2/ginkgo@latest
-          sudo apt-get install -y -qq cifs-utils
+          scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
+          ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
+      - name: Install Ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run Shared E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
-          CSI_IMAGE_TAG: ${{ needs.compute-tag.outputs.image_tag }}
-          KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
+          CSI_IMAGE_PULL_POLICY: Never
+          KUBECONFIG: /tmp/kubeconfig
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
-          echo "=== Running Shared E2E Tests ==="
-          # Run shared tests from the root e2e/ directory (not nfs/ or nvmeof/)
-          # These tests use "both" protocol setup (NFS, NVMe-oF, and iSCSI)
-          ginkgo -v --timeout=70m --flake-attempts=2 ./tests/e2e/
+          FOCUS=""
+          if [ -n "${{ inputs.test }}" ]; then
+            FOCUS="--focus=${{ inputs.test }}"
+          fi
+          ginkgo -v --timeout=70m --flake-attempts=2 $FOCUS ./tests/e2e/
       - name: Collect diagnostic logs
         if: always()
+        env:
+          KUBECONFIG: /tmp/kubeconfig
         run: |
           mkdir -p /tmp/test-logs
           kubectl logs -n kube-system -l app.kubernetes.io/component=controller -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/controller.log 2>&1 || true
           kubectl logs -n kube-system -l app.kubernetes.io/component=node -c nasty-csi-plugin --tail=-1 > /tmp/test-logs/node.log 2>&1 || true
           kubectl get events --all-namespaces --sort-by='.lastTimestamp' > /tmp/test-logs/events.log 2>&1 || true
           kubectl get pvc --all-namespaces -o wide > /tmp/test-logs/pvcs.log 2>&1 || true
+          ssh $SSH_OPTS ci@localhost "sudo dmesg | tail -100" > /tmp/test-logs/vm-dmesg.log 2>&1 || true
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v6
@@ -564,17 +628,20 @@ jobs:
           name: e2e-shared-diagnostics
           path: /tmp/test-logs/
           retention-days: 7
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
 
   # ==========================================
   # Summary
   # ==========================================
-  # Note: All integration tests have been migrated to Ginkgo E2E tests.
-  # - Protocol-specific tests: tests/e2e/nfs/, tests/e2e/nvmeof/, tests/e2e/iscsi/, tests/e2e/smb/
-  # - Shared tests (all protocols): tests/e2e/*.go (snapshot_restore, stress, name_templating, etc.)
 
   test-summary:
     name: "Test Summary"
-    runs-on: new
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [ginkgo-e2e-nfs, ginkgo-e2e-nvmeof, ginkgo-e2e-iscsi, ginkgo-e2e-smb, ginkgo-e2e-shared]
     if: always()
@@ -611,7 +678,6 @@ jobs:
 
             let summary = `# Integration Test Results\n\n`;
 
-            // Overall status banner
             if (failed > 0) {
               summary += `> ### ${failed} test(s) failed\n\n`;
             } else if (passed === total) {
@@ -620,12 +686,10 @@ jobs:
               summary += `> ### ${passed}/${passed + failed} tests passed (${skipped} skipped)\n\n`;
             }
 
-            // Quick stats
             summary += `| Passed | Failed | Skipped | Total |\n`;
             summary += `|:------:|:------:|:-------:|:-----:|\n`;
             summary += `| ${passed} | ${failed} | ${skipped} | ${total} |\n\n`;
 
-            // E2E Tests
             summary += `## E2E Tests\n\n`;
             summary += `| Test Suite | Status |\n`;
             summary += `|------------|:------:|\n`;
@@ -634,10 +698,8 @@ jobs:
             }
             summary += `\n_Note: Shared E2E includes Snapshot Restore, Volume Stress, and Snapshot Stress tests for NFS, NVMe-oF, iSCSI, and SMB._\n`;
 
-            // Write to job summary
             await core.summary.addRaw(summary).write();
 
-            // Fail if any test failed
             if (failed > 0) {
               core.setFailed(`${failed} test(s) failed`);
             }
