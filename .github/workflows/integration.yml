@@ -92,7 +92,7 @@ jobs:
 
   compute-tag:
     name: Compute Image Tag
-    runs-on: new
+    runs-on: [self-hosted, new]
     needs: check-driver-changes
     # Skip if:
     # - triggered by workflow_run and the workflow failed
@@ -196,7 +196,7 @@ jobs:
   # ==========================================
   ginkgo-e2e-nfs:
     name: "E2E: NFS"
-    runs-on: new
+    runs-on: [self-hosted, new]
     timeout-minutes: 60
     needs: compute-tag
     if: |
@@ -270,7 +270,7 @@ jobs:
 
   ginkgo-e2e-nvmeof:
     name: "E2E: NVMe-oF"
-    runs-on: new
+    runs-on: [self-hosted, new]
     timeout-minutes: 95
     needs: compute-tag
     if: |
@@ -341,7 +341,7 @@ jobs:
 
   ginkgo-e2e-iscsi:
     name: "E2E: iSCSI"
-    runs-on: new
+    runs-on: [self-hosted, new]
     timeout-minutes: 95
     needs: compute-tag
     if: |
@@ -412,7 +412,7 @@ jobs:
 
   ginkgo-e2e-smb:
     name: "E2E: SMB"
-    runs-on: new
+    runs-on: [self-hosted, new]
     timeout-minutes: 60
     needs: compute-tag
     if: |
@@ -492,7 +492,7 @@ jobs:
 
   ginkgo-e2e-shared:
     name: "E2E: Shared"
-    runs-on: new
+    runs-on: [self-hosted, new]
     timeout-minutes: 75
     needs: compute-tag
     if: |
@@ -574,7 +574,7 @@ jobs:
 
   test-summary:
     name: "Test Summary"
-    runs-on: new
+    runs-on: [self-hosted, new]
     timeout-minutes: 5
     needs: [ginkgo-e2e-nfs, ginkgo-e2e-nvmeof, ginkgo-e2e-iscsi, ginkgo-e2e-smb, ginkgo-e2e-shared]
     if: always()
