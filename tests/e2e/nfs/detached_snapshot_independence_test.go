@@ -127,14 +127,15 @@ var _ = Describe("Snapshot Independence", func() {
 		Expect(err).NotTo(HaveOccurred(), "Source PVC was not deleted in time")
 
 		By("Verifying source subvolume was deleted")
-		time.Sleep(5 * time.Second)
-		sourceExists, _ := f.NASty.DatasetExists(ctx, sourceDatasetPath)
-		if sourceExists {
-			GinkgoWriter.Printf("[NFS] WARNING: Source subvolume %s still exists after PVC deletion\n", sourceDatasetPath)
-			Fail(fmt.Sprintf("Source subvolume %s could not be deleted", sourceDatasetPath))
-		} else {
-			GinkgoWriter.Printf("[NFS] SUCCESS: Source subvolume %s was deleted\n", sourceDatasetPath)
-		}
+		// With attachRequired=true, the full cleanup chain is:
+		// PVC delete → VolumeAttachment delete → PV release → snapshot content finalizer → DeleteVolume
+		// This can take 15-30 seconds depending on controller reconciliation timing.
+		Eventually(func() bool {
+			exists, _ := f.NASty.DatasetExists(ctx, sourceDatasetPath)
+			return exists
+		}, 60*time.Second, 5*time.Second).Should(BeFalse(),
+			fmt.Sprintf("Source subvolume %s should be deleted after PVC deletion", sourceDatasetPath))
+		GinkgoWriter.Printf("[NFS] SUCCESS: Source subvolume %s was deleted\n", sourceDatasetPath)
 
 		By("Verifying snapshot still exists in K8s after source deletion")
 		snapshotInfo, err := f.K8s.GetVolumeSnapshot(ctx, snapshotName)
