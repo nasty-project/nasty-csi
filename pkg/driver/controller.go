@@ -678,10 +678,11 @@ func (s *ControllerService) ControllerPublishVolume(_ context.Context, req *csi.
 		return nil, status.Error(codes.InvalidArgument, "Volume capability is required")
 	}
 
-	// Validate node exists in registry
-	// Per CSI spec: return NotFound if node doesn't exist
-	if s.nodeRegistry != nil && !s.nodeRegistry.IsRegistered(nodeID) {
-		return nil, status.Errorf(codes.NotFound, "node %s not found", nodeID)
+	// Register node on first publish — with attachRequired=true, ControllerPublishVolume
+	// is called before the node plugin has had a chance to register via NodeGetInfo.
+	// The kubelet guarantees the node exists (it's the one making the call).
+	if s.nodeRegistry != nil {
+		s.nodeRegistry.Register(nodeID)
 	}
 
 	// Check if volume is already published to this node with different readonly state

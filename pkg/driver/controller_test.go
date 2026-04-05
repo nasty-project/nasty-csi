@@ -518,7 +518,7 @@ func TestControllerPublishVolume(t *testing.T) {
 			wantCode: codes.InvalidArgument,
 		},
 		{
-			name: "node not found",
+			name: "unknown node auto-registers on publish",
 			req: &csi.ControllerPublishVolumeRequest{
 				VolumeId: volumeID,
 				NodeId:   "unknown-node",
@@ -528,9 +528,8 @@ func TestControllerPublishVolume(t *testing.T) {
 					},
 				},
 			},
-			nodeReg:  NewNodeRegistry(),
-			wantErr:  true,
-			wantCode: codes.NotFound,
+			nodeReg: NewNodeRegistry(),
+			wantErr: false,
 		},
 	}
 
