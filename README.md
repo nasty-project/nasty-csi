@@ -10,7 +10,7 @@
 [![Driver](https://img.shields.io/github/v/release/nasty-project/nasty-csi?filter=v*&label=driver&logo=github)](https://github.com/nasty-project/nasty-csi/releases/latest)
 [![Plugin](https://img.shields.io/github/v/release/nasty-project/nasty-plugin?label=kubectl-nasty&logo=github)](https://github.com/nasty-project/nasty-plugin/releases/latest)
 
-A Kubernetes CSI (Container Storage Interface) driver for [NASty](https://github.com/nasty-project/nasty) — a custom NAS built on NixOS with a bcachefs backend and a Rust JSON-RPC 2.0 API over WebSocket.
+A Kubernetes CSI driver for [NASty](https://github.com/nasty-project/nasty) — a NAS appliance built on NixOS and bcachefs.
 
 ## Important Disclaimer
 
@@ -27,22 +27,6 @@ This CSI driver enables Kubernetes to provision and manage persistent volumes on
 - **iSCSI** - Traditional block storage protocol with broad compatibility
 - **SMB/CIFS** - Authenticated file sharing with Windows compatibility
 
-## Supporting This Project
-
-If you find this driver useful, please consider helping keep it alive.
-
-Every commit is tested against a **real NASty server** and a **real Kubernetes cluster** across 6 distributions and 4 storage protocols. That infrastructure isn't free — GitHub-hosted runners can't do nested virtualization, so reliable testing requires dedicated self-hosted servers.
-
-**What it takes to run this:**
-- **Self-hosted GitHub Actions runner** with nested virtualization (OVH dedicated server)
-- **Dedicated NASty server** running real bcachefs pools, NFS/SMB shares, NVMe-oF subsystems, and iSCSI targets
-
-These costs are currently paid out of pocket by the maintainer.
-
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/fenio)
-
-Even small contributions help keep the test infrastructure running. Stars, bug reports, and code contributions are equally appreciated.
-
 ## Dashboard and Observability
 
 <img width="1380" height="914" alt="image" src="https://github.com/user-attachments/assets/5d2ce624-2031-442d-8f6f-5422bce9bab7" />
@@ -53,30 +37,27 @@ The driver includes two dashboard options and a pre-built Grafana dashboard:
 - **kubectl plugin dashboard** — runs locally via `kubectl nasty dashboard` (port 2137)
 - **Grafana dashboard** — pre-built Prometheus dashboard, enable with `grafana.dashboards.enabled: true`
 
-Both web dashboards show volume health, Kubernetes binding, snapshots, clones, and metrics. See [METRICS.md](docs/METRICS.md) for setup details.
+See [METRICS.md](docs/METRICS.md) for setup details.
 
 ## Protocol Selection Guide
 
-- **NFS**: Best for shared file storage where multiple pods need concurrent access (ReadWriteMany)
-- **NVMe-oF**: Best for high-performance block storage with lowest latency and highest IOPS — ideal for databases and latency-sensitive workloads
-- **iSCSI**: Traditional block storage with broad compatibility — useful when NVMe-oF is not available
-- **SMB/CIFS**: Authenticated file sharing — useful for Windows-compatible storage or per-user credentials
+- **NFS**: Shared file storage with ReadWriteMany support
+- **NVMe-oF**: High-performance block storage with the lowest latency — ideal for databases
+- **iSCSI**: Block storage with broad kernel and infrastructure support
+- **SMB/CIFS**: Authenticated file sharing with Windows compatibility
 
 ## Features
 
-- **Dynamic volume provisioning** - Automatically create and delete storage volumes
-- **Multiple protocol support** - NFS and SMB for file storage, NVMe-oF and iSCSI for block storage
-- **Volume lifecycle management** - Full create, delete, attach, detach, mount, unmount operations
-- **Volume snapshots** - Create, delete, and restore from snapshots (all protocols)
-- **Volume cloning** - Create new volumes from existing snapshots
-- **Volume expansion** - Resize volumes dynamically (all protocols)
-- **Volume retention** - Optional `deleteStrategy: retain` to keep volumes on PVC deletion
-- **Volume adoption** - Automatically adopt orphaned volumes for GitOps and disaster recovery workflows (see [Adoption Guide](docs/ADOPTION.md))
-- **Configurable mount options** - Customize NFS/NVMe-oF/iSCSI/SMB mount options via StorageClass
-- **Access modes** - ReadWriteOnce (RWO), ReadWriteOncePod (RWOP), and ReadWriteMany (RWX) support
-- **Raw block RWX** - Block volumes with RWX access for KubeVirt live migration (NVMe-oF, iSCSI)
-- **Storage classes** - Flexible configuration via Kubernetes storage classes
-- **Connection resilience** - Automatic reconnection with exponential backoff for WebSocket API
+- Dynamic volume provisioning and deletion
+- Volume snapshots — create, delete, and restore (all protocols)
+- Volume cloning from snapshots
+- Online volume expansion (all protocols)
+- Volume retention — optional `deleteStrategy: retain` to preserve data on PVC deletion
+- Volume adoption — import orphaned volumes across clusters (see [Adoption Guide](docs/ADOPTION.md))
+- Access modes — RWO, RWOP, and RWX
+- Raw block RWX for KubeVirt live migration (NVMe-oF, iSCSI)
+- Configurable mount options via StorageClass
+- WebSocket connection resilience with automatic reconnection
 
 ## kubectl Plugin
 
@@ -147,31 +128,31 @@ The NASty CSI Driver is published to both Docker Hub and GitHub Container Regist
 **Always use a specific version in production.** See [docs/VERSIONING.md](docs/VERSIONING.md) for details.
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.4 \
   --namespace kube-system \
   --create-namespace \
-  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-nfs \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nfs \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FILESYSTEM" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **NVMe-oF:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.4 \
   --namespace kube-system \
   --create-namespace \
-  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-nvmeof \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=nvmeof \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FILESYSTEM" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].transport=tcp \
   --set storageClasses[0].port=4420
@@ -179,37 +160,37 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **iSCSI:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.4 \
   --namespace kube-system \
   --create-namespace \
-  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-iscsi \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=iscsi \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FILESYSTEM" \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
 **SMB:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.4 \
   --namespace kube-system \
   --create-namespace \
-  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
+  --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
   --set storageClasses[0].name=nasty-csi-smb \
   --set storageClasses[0].enabled=true \
   --set storageClasses[0].protocol=smb \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
+  --set storageClasses[0].filesystem="YOUR-FILESYSTEM" \
   --set storageClasses[0].server="YOUR-NASTY-IP" \
   --set storageClasses[0].smbCredentialsSecret.name=smb-credentials \
   --set storageClasses[0].smbCredentialsSecret.namespace=kube-system
 ```
 
-See the [Helm chart README](charts/nasty-csi-driver/README.md) for detailed configuration options.
+See the [Helm chart repository](https://github.com/nasty-project/nasty-chart) for detailed configuration options.
 
 ## Configuration
 
@@ -229,7 +210,7 @@ See the [Helm chart README](charts/nasty-csi-driver/README.md) for detailed conf
 parameters:
   protocol: nfs
   server: YOUR-NASTY-IP
-  pool: tank
+  filesystem: YOUR-FILESYSTEM
 ```
 
 **NVMe-oF Volumes:**
@@ -237,59 +218,42 @@ parameters:
 parameters:
   protocol: nvmeof
   server: YOUR-NASTY-IP
-  pool: tank
+  filesystem: YOUR-FILESYSTEM
   fsType: ext4  # or xfs
 ```
 
 ## Testing
 
-**Comprehensive Testing on Real Infrastructure**
+This driver is tested against a **real NASty server** with actual bcachefs storage — not mocks or simulators:
 
-This driver is tested using **real hardware and software** — not mocks or simulators:
-
-- **Self-hosted GitHub Actions runner** on dedicated OVH infrastructure
-- **Real Kubernetes cluster** (k3s) provisioned for each test run
-- **Real NASty server** with actual bcachefs pools and network services
-- **Full protocol stack testing** - NFS mounts, NVMe-oF connections, actual I/O operations
+- **QEMU VMs on GitHub-hosted runners** provision a fresh k3s cluster per test run
+- **Real NASty server** with bcachefs pools, NFS/SMB shares, NVMe-oF subsystems, and iSCSI targets
+- **Full protocol stack** — actual NFS mounts, NVMe-oF TCP connections, iSCSI sessions, and SMB shares
 
 ### Automated Test Suite
 
-Every commit triggers comprehensive integration tests:
+Every commit triggers integration tests across all four protocols:
 
-**Core Functionality Tests:**
-- Basic volume provisioning and deletion (NFS, NVMe-oF, iSCSI & SMB)
-- Volume expansion (dynamic resizing)
-- Snapshot creation and restoration
-- Volume cloning from snapshots
-- Volume adoption (GitOps workflows)
+**Core Functionality:**
+- Volume provisioning, deletion, and expansion
+- Snapshot creation, restoration, and cloning
+- Volume adoption for disaster recovery and GitOps workflows
 - StatefulSet volume management
 - Data persistence across pod restarts
 
-**Stress & Reliability Tests:**
-- Concurrent volume creation (5 simultaneous volumes)
-- Connection resilience (WebSocket reconnection)
+**Stress & Reliability:**
+- Concurrent volume creation
+- WebSocket connection resilience
 - Orphaned resource detection and cleanup
 
 **CSI Specification Compliance:**
-- Passes [Kubernetes CSI sanity tests](https://github.com/kubernetes-csi/csi-test) (v5.4.0)
-- Full CSI spec compliance verified
+- [kubernetes-csi/csi-test](https://github.com/kubernetes-csi/csi-test) v5.4.0 sanity suite
 
-View test results and history: [![Test Dashboard](https://img.shields.io/badge/Test%20Dashboard-View-blue)](https://fenio.github.io/nasty-csi/dashboard/)
+## Project Status
 
-## Project Status and Limitations
+**⚠️ This project is in early development and is not production-ready.**
 
-**⚠️ EARLY DEVELOPMENT - NOT PRODUCTION READY**
-
-This driver is in early development and requires extensive testing before production use. Key considerations:
-
-- **Development Phase**: Active development with ongoing testing and validation
-- **Protocol Support**: NFS, NVMe-oF, iSCSI, and SMB
-- **Volume Expansion**: Implemented and functional for all protocols
-- **Snapshots**: Implemented for all protocols, functional and tested
-- **Testing**: Comprehensive automated testing on real infrastructure
-- **Stability**: Core features functional but may have undiscovered edge cases
-
-**Recommended Use**: Development, testing, and evaluation environments only.
+Core features (provisioning, snapshots, expansion, adoption) are functional and tested across all four protocols. Use in development and evaluation environments. Production deployments should proceed with caution — edge cases may exist.
 
 ## Troubleshooting
 
@@ -346,7 +310,7 @@ Volumes are adoptable if they have proper `nasty-csi:*` xattr properties set. Se
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.26+
 - Docker (for building images)
 - Kubernetes cluster for testing
 
@@ -358,27 +322,21 @@ make build
 
 ### Testing
 
-Tests are automated via GitHub Actions CI/CD running on self-hosted infrastructure with real NASty hardware. See `.github/workflows/` for workflow configuration.
-
-**Local Testing:**
 ```bash
-# Run unit tests
+# Unit tests
 make test
 
-# Run specific test
-go test -v ./pkg/driver/...
+# CSI sanity tests
+make test-sanity
 
-# Run CSI sanity tests (requires NASty connection)
-cd tests/sanity && ./test-sanity.sh
-
-# Run Ginkgo E2E tests (requires NASty and Kubernetes cluster)
-ginkgo -v --timeout=25m ./tests/e2e/nfs/...
-ginkgo -v --timeout=40m ./tests/e2e/nvmeof/...
-ginkgo -v --timeout=40m ./tests/e2e/iscsi/...
+# E2E tests (requires NASty server and Kubernetes cluster)
+ginkgo -v --timeout=55m ./tests/e2e/nfs/...
+ginkgo -v --timeout=90m ./tests/e2e/nvmeof/...
+ginkgo -v --timeout=90m ./tests/e2e/iscsi/...
 ginkgo -v --timeout=55m ./tests/e2e/smb/...
 ```
 
-See [docs/TESTING.md](docs/TESTING.md) for comprehensive testing documentation.
+See [docs/TESTING.md](docs/TESTING.md) for details.
 
 ### Building Container Image
 
