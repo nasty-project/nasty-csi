@@ -480,7 +480,7 @@ func (s *NodeService) formatAndMountISCSIDevice(ctx context.Context, volumeID, d
 	}
 
 	// Determine filesystem type
-	fsType := "ext4"
+	fsType := fsTypeExt4
 	if mnt := volumeCapability.GetMount(); mnt != nil && mnt.FsType != "" {
 		fsType = mnt.FsType
 	}

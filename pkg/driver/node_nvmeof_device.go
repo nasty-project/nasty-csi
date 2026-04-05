@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,8 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
 )
+
+var errFsckFailed = errors.New("filesystem check failed")
 
 // connectNVMeOFTarget discovers and connects to an NVMe-oF target with retry logic.
 // This handles transient failures when NASty has just created a new subsystem
@@ -323,6 +326,8 @@ func forceDeviceRescan(ctx context.Context, devicePath string) error {
 }
 
 // handleDeviceFormatting checks if a device needs formatting and formats it if necessary.
+// For already-formatted devices, runs filesystem check to recover from unclean shutdowns
+// (e.g., NVMe-oF/iSCSI transport disconnect, NASty restart).
 func (s *NodeService) handleDeviceFormatting(ctx context.Context, volumeID, devicePath, fsType, datasetName, nqn string, isClone bool) error {
 	// Check if device is already formatted
 	needsFormat, err := needsFormatWithRetries(ctx, devicePath, isClone)
@@ -340,6 +345,57 @@ func (s *NodeService) handleDeviceFormatting(ctx context.Context, volumeID, devi
 
 	klog.V(4).Infof("Device %s is already formatted, preserving existing filesystem (dataset: %s, NQN: %s)",
 		devicePath, datasetName, nqn)
+
+	// Run filesystem check before mounting to recover from dirty journals caused by
+	// unclean shutdowns (NVMe-oF/iSCSI transport disconnect, NASty engine restart, etc).
+	// Without this, kubelet's applyFSGroup readdir fails with EIO on dirty ext4 journals.
+	if err := repairFilesystem(ctx, devicePath, fsType); err != nil {
+		// Log but don't fail — mount may still succeed if the fs is clean
+		klog.Warningf("Filesystem check failed for %s: %v (will attempt mount anyway)", devicePath, err)
+	}
+
+	return nil
+}
+
+// repairFilesystem runs a filesystem check to repair dirty journals and minor inconsistencies.
+// Uses -p (preen) mode which auto-fixes safe issues without prompting.
+// This is critical for block volumes (NVMe-oF/iSCSI) where transport disconnects
+// can leave the filesystem in a dirty state.
+func repairFilesystem(ctx context.Context, devicePath, fsType string) error {
+	var fsckCmd string
+	switch fsType {
+	case fsTypeExt4, fsTypeExt3, fsTypeExt2:
+		fsckCmd = "e2fsck"
+	case "xfs":
+		// xfs_repair can't run on mounted filesystems and xfs journals replay on mount,
+		// so no explicit check is needed
+		return nil
+	default:
+		klog.V(4).Infof("No filesystem check available for %s, skipping", fsType)
+		return nil
+	}
+
+	klog.Infof("Running filesystem check on %s (%s) before mount", devicePath, fsType)
+
+	fsckCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	// -p: preen mode — auto-fix safe issues (dirty journal, minor inconsistencies)
+	// -f: force check even if filesystem appears clean
+	cmd := exec.CommandContext(fsckCtx, fsckCmd, "-p", "-f", devicePath)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		// e2fsck exit codes: 0=clean, 1=errors corrected, 2=reboot needed (N/A for us)
+		// Exit code 1 is success — errors were found and fixed
+		if cmd.ProcessState != nil && cmd.ProcessState.ExitCode() == 1 {
+			klog.Infof("Filesystem check repaired %s: %s", devicePath, strings.TrimSpace(string(output)))
+			return nil
+		}
+		return fmt.Errorf("%w: %w: %s", errFsckFailed, err, string(output))
+	}
+
+	klog.V(4).Infof("Filesystem check passed for %s: %s", devicePath, strings.TrimSpace(string(output)))
 	return nil
 }
 
