@@ -188,6 +188,16 @@ runs:
         echo "Loaded kernel modules:"
         ssh $SSH_OPTS ci@localhost "lsmod | grep -E 'nvme_tcp|iscsi_tcp|nfs|cifs' || echo 'WARNING: some modules not loaded'"
 
+    - name: Connect host to Tailscale
+      if: inputs.tailscale_authkey != ''
+      shell: bash
+      run: |
+        echo "Installing Tailscale on host runner..."
+        curl -fsSL https://tailscale.com/install.sh | sudo sh
+        echo "Connecting host to Tailscale..."
+        sudo tailscale up --auth-key='${{ inputs.tailscale_authkey }}' --accept-routes --hostname=ci-host-$(head -c4 /dev/urandom | xxd -p)
+        echo "Host Tailscale IP: $(tailscale ip -4)"
+
     - name: Connect VM to Tailscale
       if: inputs.tailscale_authkey != ''
       shell: bash
@@ -195,13 +205,13 @@ runs:
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
         echo "Installing Tailscale in VM..."
         ssh $SSH_OPTS ci@localhost "curl -fsSL https://tailscale.com/install.sh | sudo sh"
-        echo "Connecting to Tailscale..."
-        ssh $SSH_OPTS ci@localhost "sudo tailscale up --auth-key='${{ inputs.tailscale_authkey }}' --accept-routes --hostname=ci-\$(head -c4 /dev/urandom | xxd -p)"
+        echo "Connecting VM to Tailscale..."
+        ssh $SSH_OPTS ci@localhost "sudo tailscale up --auth-key='${{ inputs.tailscale_authkey }}' --accept-routes --hostname=ci-vm-\$(head -c4 /dev/urandom | xxd -p)"
         echo "Waiting for Tailscale IP..."
         for i in $(seq 1 30); do
           TS_IP=$(ssh $SSH_OPTS ci@localhost "tailscale ip -4 2>/dev/null" || true)
           if [ -n "$TS_IP" ]; then
-            echo "Tailscale connected: $TS_IP"
+            echo "VM Tailscale connected: $TS_IP"
             break
           fi
           sleep 2
