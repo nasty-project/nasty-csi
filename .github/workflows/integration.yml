@@ -208,7 +208,8 @@ jobs:
       - name: Boot QEMU VM with K3S
         uses: ./.github/actions/qemu-vm
         with:
-          nasty_host: ${{ secrets.NASTY_HOST }}
+          nasty_host: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
+          tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Build and import CSI image
         if: inputs.pr == ''
         run: |
@@ -231,7 +232,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NFS E2E Tests
         env:
-          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
@@ -300,7 +301,8 @@ jobs:
       - name: Boot QEMU VM with K3S
         uses: ./.github/actions/qemu-vm
         with:
-          nasty_host: ${{ secrets.NASTY_HOST }}
+          nasty_host: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
+          tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Build and import CSI image
         if: inputs.pr == ''
         run: |
@@ -323,7 +325,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run NVMe-oF E2E Tests
         env:
-          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
@@ -389,7 +391,8 @@ jobs:
       - name: Boot QEMU VM with K3S
         uses: ./.github/actions/qemu-vm
         with:
-          nasty_host: ${{ secrets.NASTY_HOST }}
+          nasty_host: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
+          tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Build and import CSI image
         if: inputs.pr == ''
         run: |
@@ -412,7 +415,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run iSCSI E2E Tests
         env:
-          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
@@ -478,7 +481,8 @@ jobs:
       - name: Boot QEMU VM with K3S
         uses: ./.github/actions/qemu-vm
         with:
-          nasty_host: ${{ secrets.NASTY_HOST }}
+          nasty_host: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
+          tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Build and import CSI image
         if: inputs.pr == ''
         run: |
@@ -501,7 +505,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run SMB E2E Tests
         env:
-          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
@@ -520,7 +524,7 @@ jobs:
         if: always()
         env:
           KUBECONFIG: /tmp/kubeconfig
-          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
           SMB_USERNAME: ${{ secrets.SMB_USERNAME }}
           SMB_PASSWORD: ${{ secrets.SMB_PASSWORD }}
         run: |
@@ -572,7 +576,8 @@ jobs:
       - name: Boot QEMU VM with K3S
         uses: ./.github/actions/qemu-vm
         with:
-          nasty_host: ${{ secrets.NASTY_HOST }}
+          nasty_host: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
+          tailscale_authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
       - name: Build and import CSI image
         if: inputs.pr == ''
         run: |
@@ -595,7 +600,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
       - name: Run Shared E2E Tests
         env:
-          NASTY_HOST: ${{ secrets.NASTY_HOST }}
+          NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
           NASTY_API_KEY: ${{ secrets.NASTY_API_KEY }}
           NASTY_FILESYSTEM: ${{ secrets.NASTY_FILESYSTEM }}
           CSI_IMAGE_TAG: ${{ inputs.pr != '' && needs.compute-tag.outputs.image_tag || 'e2e-test' }}
