@@ -13,6 +13,9 @@ import (
 	nastyapi "github.com/nasty-project/nasty-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 )
 
@@ -174,6 +177,7 @@ type ControllerService struct {
 	csi.UnimplementedControllerServer
 	apiClient    nastyapi.ClientInterface
 	nodeRegistry *NodeRegistry
+	kubeClient   kubernetes.Interface
 	// publishedVolumes tracks volumes published to nodes with their readonly state.
 	// Key format: "volumeID:nodeID", value: readonly state.
 	// Used to detect incompatible re-publish attempts per CSI spec.
@@ -184,12 +188,43 @@ type ControllerService struct {
 
 // NewControllerService creates a new controller service.
 func NewControllerService(apiClient nastyapi.ClientInterface, nodeRegistry *NodeRegistry, clusterID string) *ControllerService {
+	var kubeClient kubernetes.Interface
+	if config, err := rest.InClusterConfig(); err == nil {
+		if cs, err := kubernetes.NewForConfig(config); err == nil {
+			kubeClient = cs
+		} else {
+			klog.Warningf("Failed to create k8s client: %v", err)
+		}
+	}
 	return &ControllerService{
 		apiClient:        apiClient,
 		nodeRegistry:     nodeRegistry,
+		kubeClient:       kubeClient,
 		clusterID:        clusterID,
 		publishedVolumes: make(map[string]bool),
 	}
+}
+
+// AnnotationAdoptable is the PVC annotation that marks a volume for adoption at creation time.
+const AnnotationAdoptable = "nasty-csi.io/adoptable"
+
+// pvcHasAdoptableAnnotation checks if the PVC that triggered this CreateVolume
+// has the nasty-csi.io/adoptable annotation set to "true".
+func (s *ControllerService) pvcHasAdoptableAnnotation(ctx context.Context, params map[string]string) bool {
+	if s.kubeClient == nil {
+		return false
+	}
+	pvcName := params["csi.storage.k8s.io/pvc/name"]
+	pvcNamespace := params["csi.storage.k8s.io/pvc/namespace"]
+	if pvcName == "" || pvcNamespace == "" {
+		return false
+	}
+	pvc, err := s.kubeClient.CoreV1().PersistentVolumeClaims(pvcNamespace).Get(ctx, pvcName, metav1.GetOptions{})
+	if err != nil {
+		klog.V(4).Infof("Failed to read PVC %s/%s for adoption annotation: %v", pvcNamespace, pvcName, err)
+		return false
+	}
+	return pvc.Annotations[AnnotationAdoptable] == VolumeContextValueTrue
 }
 
 // isDatasetPathVolumeID returns true if the volume ID is a full dataset path (new format).

@@ -214,6 +214,11 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		return nil, err
 	}
 
+	// Per-PVC adoption annotation overrides StorageClass default
+	if !params.markAdoptable && s.pvcHasAdoptableAnnotation(ctx, req.GetParameters()) {
+		params.markAdoptable = true
+	}
+
 	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.filesystem, params.subvolumeName, params.requestedCapacity)
 
 	// Check if subvolume already exists (idempotency)

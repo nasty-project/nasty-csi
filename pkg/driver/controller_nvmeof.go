@@ -189,6 +189,11 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 		return nil, err
 	}
 
+	// Per-PVC adoption annotation overrides StorageClass default
+	if !params.markAdoptable && s.pvcHasAdoptableAnnotation(ctx, req.GetParameters()) {
+		params.markAdoptable = true
+	}
+
 	klog.V(4).Infof("Creating NVMe-oF volume: %s with size: %d bytes, NQN: %s",
 		params.volumeName, params.requestedCapacity, params.subsystemNQN)
 

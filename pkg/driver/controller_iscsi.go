@@ -164,6 +164,11 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		return nil, err
 	}
 
+	// Per-PVC adoption annotation overrides StorageClass default
+	if !params.markAdoptable && s.pvcHasAdoptableAnnotation(ctx, req.GetParameters()) {
+		params.markAdoptable = true
+	}
+
 	klog.V(4).Infof("Creating iSCSI volume: %s with size: %d bytes", params.volumeName, params.requestedCapacity)
 
 	// Check if subvolume already exists (idempotency)
