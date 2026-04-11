@@ -168,6 +168,9 @@ func (d *Driver) Run() error {
 	csi.RegisterControllerServer(d.srv, d.controller)
 	csi.RegisterNodeServer(d.srv, d.node)
 
+	// Start background health monitor for proactive storage session recovery
+	d.node.StartHealthMonitor()
+
 	klog.Info("NASty CSI Driver is ready")
 	return d.srv.Serve(listener)
 }
@@ -175,6 +178,11 @@ func (d *Driver) Run() error {
 // Stop stops the driver.
 func (d *Driver) Stop() {
 	klog.Info("Stopping NASty CSI Driver")
+
+	// Stop health monitor
+	if d.node != nil {
+		d.node.StopHealthMonitor()
+	}
 
 	// Stop dashboard server
 	if d.dashboardSrv != nil {

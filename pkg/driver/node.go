@@ -39,6 +39,7 @@ type NodeService struct {
 	apiClient       nastyapi.ClientInterface
 	nodeRegistry    *NodeRegistry
 	nvmeConnectSem  chan struct{}
+	stopCh          chan struct{}
 	nodeID          string
 	testMode        bool
 	enableDiscovery bool
@@ -56,6 +57,7 @@ func NewNodeService(nodeID string, apiClient nastyapi.ClientInterface, testMode 
 		nodeRegistry:    nodeRegistry,
 		enableDiscovery: enableDiscovery,
 		nvmeConnectSem:  make(chan struct{}, maxConcurrentNVMeConnects),
+		stopCh:          make(chan struct{}),
 	}
 }
 

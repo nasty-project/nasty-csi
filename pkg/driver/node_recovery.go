@@ -12,6 +12,62 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// defaultHealthMonitorInterval is how often the background health monitor
+// checks storage sessions. 30 seconds is a good balance between fast
+// detection and not spamming sysfs reads.
+const defaultHealthMonitorInterval = 30 * time.Second
+
+// StartHealthMonitor launches a background goroutine that periodically checks
+// all iSCSI sessions and NVMe-oF controllers, recovering any that are stale.
+// This catches data-plane failures even when the WebSocket control plane is fine
+// (e.g., target service restart on the NAS, network partition affecting only
+// the storage data path).
+func (s *NodeService) StartHealthMonitor() {
+	if s.testMode {
+		return
+	}
+	go s.healthMonitorLoop()
+}
+
+// StopHealthMonitor signals the background health monitor to stop.
+func (s *NodeService) StopHealthMonitor() {
+	select {
+	case <-s.stopCh:
+		// Already closed
+	default:
+		close(s.stopCh)
+	}
+}
+
+func (s *NodeService) healthMonitorLoop() {
+	klog.Info("Starting background volume health monitor")
+	ticker := time.NewTicker(defaultHealthMonitorInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stopCh:
+			klog.Info("Volume health monitor stopped")
+			return
+		case <-ticker.C:
+			s.runHealthCheck()
+		}
+	}
+}
+
+// runHealthCheck performs a single pass of health checking and recovery.
+func (s *NodeService) runHealthCheck() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	iscsiRecovered := s.recoverISCSISessions(ctx)
+	nvmeRecovered := s.recoverNVMeOFConnections(ctx)
+
+	if iscsiRecovered > 0 || nvmeRecovered > 0 {
+		klog.Infof("Health monitor recovered: iSCSI=%d, NVMe-oF=%d", iscsiRecovered, nvmeRecovered)
+	}
+}
+
 // recoverVolumes is called asynchronously after the WebSocket connection to
 // the NAS is re-established. It probes all active iSCSI sessions and NVMe-oF
 // connections, and attempts to recover any that are stale/offline.
