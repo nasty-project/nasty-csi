@@ -60,16 +60,97 @@ func (s *NodeService) healthMonitorLoop() {
 }
 
 // runHealthCheck performs a single pass of health checking and recovery.
+// It first tries to recover storage sessions (iSCSI re-login, NVMe controller reset).
+// If devices are completely gone and unrecoverable, it force-unmounts the staging
+// paths so kubelet detects the broken state and triggers re-staging.
 func (s *NodeService) runHealthCheck() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	// Phase 1: Try to recover transport-level sessions
 	iscsiRecovered := s.recoverISCSISessions(ctx)
 	nvmeRecovered := s.recoverNVMeOFConnections(ctx)
 
 	if iscsiRecovered > 0 || nvmeRecovered > 0 {
 		klog.Infof("Health monitor recovered: iSCSI=%d, NVMe-oF=%d", iscsiRecovered, nvmeRecovered)
 	}
+
+	// Phase 2: Force-unmount staging paths for volumes whose devices are completely gone.
+	// This allows kubelet to detect the broken mount and trigger NodeUnstageVolume +
+	// NodeStageVolume, which will establish a fresh connection.
+	s.unmountBrokenStagingPaths(ctx)
+}
+
+// unmountBrokenStagingPaths finds staging mounts where the source block device
+// no longer exists and force-unmounts them so kubelet can re-stage.
+func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
+	// Use findmnt to discover all mounts under our CSI staging directory
+	findmntCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(findmntCtx, "findmnt", "-n", "-o", "SOURCE,TARGET", "-t", "ext4,xfs", "--raw")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		klog.V(4).Infof("findmnt for staging path check: %v", err)
+		return
+	}
+
+	// Filter for our CSI driver's staging paths
+	const stagingPathMarker = "/plugins/kubernetes.io/csi/nasty.csi.io/"
+	for _, line := range strings.Split(string(output), "\n") {
+		if !strings.Contains(line, stagingPathMarker) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		source := fields[0]
+		target := fields[1]
+
+		// Check if the source device still exists
+		if _, statErr := os.Stat(source); statErr == nil {
+			// Device exists — check if it's actually accessible
+			if isDeviceAccessible(ctx, source) {
+				continue // Healthy
+			}
+			klog.Warningf("Device %s exists but is inaccessible (staging: %s)", source, target)
+		} else {
+			klog.Warningf("Device %s no longer exists (staging: %s)", source, target)
+		}
+
+		// Device is gone or inaccessible — force lazy unmount the staging path.
+		// This makes kubelet's mount check fail, triggering the full re-stage flow.
+		klog.Infof("Force-unmounting broken staging path %s (source device: %s)", target, source)
+		umountCtx, umountCancel := context.WithTimeout(ctx, 15*time.Second)
+		umountCmd := exec.CommandContext(umountCtx, "umount", "-l", target)
+		if umountOutput, umountErr := umountCmd.CombinedOutput(); umountErr != nil {
+			klog.Errorf("Failed to unmount broken staging path %s: %v (%s)", target, umountErr, strings.TrimSpace(string(umountOutput)))
+		} else {
+			klog.Infof("Successfully unmounted broken staging path %s — kubelet will re-stage", target)
+		}
+		umountCancel()
+	}
+}
+
+// isDeviceAccessible checks if a block device can be opened (not just stat'd).
+// A device that exists in /dev but has a dead transport will fail to open.
+func isDeviceAccessible(ctx context.Context, devicePath string) bool {
+	// Use blockdev --getsize64 as a quick accessibility check
+	checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(checkCtx, "blockdev", "--getsize64", devicePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+
+	// If size is 0, device is likely broken
+	size := strings.TrimSpace(string(output))
+	return size != "" && size != "0"
 }
 
 // recoverVolumes is called asynchronously after the WebSocket connection to
