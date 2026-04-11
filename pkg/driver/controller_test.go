@@ -366,6 +366,8 @@ func (m *mockAPIClient) CloneSubvolume(ctx context.Context, filesystem, name, ne
 
 func (m *mockAPIClient) Close() {}
 
+func (m *mockAPIClient) IsConnected() bool { return true }
+
 // --- Tests ---
 
 func TestValidateCreateVolumeRequest(t *testing.T) {

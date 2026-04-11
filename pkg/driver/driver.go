@@ -93,7 +93,7 @@ func NewDriverWithClient(cfg Config, client nastyapi.ClientInterface) (*Driver, 
 	}
 
 	// Initialize CSI services
-	d.identity = NewIdentityService(cfg.DriverName, cfg.Version)
+	d.identity = NewIdentityService(cfg.DriverName, cfg.Version, client)
 	d.controller = NewControllerService(client, nodeRegistry, cfg.ClusterID)
 	d.node = NewNodeService(cfg.NodeID, client, cfg.TestMode, nodeRegistry, cfg.EnableNVMeDiscovery, cfg.MaxConcurrentNVMeConnects)
 

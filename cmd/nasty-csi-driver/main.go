@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 
 	"github.com/nasty-project/nasty-csi/pkg/driver"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
@@ -93,6 +95,16 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Failed to create driver: %v", err)
 	}
+
+	// Handle graceful shutdown on SIGTERM/SIGINT
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		sig := <-sigCh
+		klog.Infof("Received signal %v — initiating graceful shutdown", sig)
+		drv.Stop()
+	}()
 
 	if err := drv.Run(); err != nil {
 		klog.Fatalf("Failed to run driver: %v", err)

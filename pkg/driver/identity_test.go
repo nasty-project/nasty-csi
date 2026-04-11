@@ -41,7 +41,7 @@ func TestGetPluginInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewIdentityService(tt.driverName, tt.version)
+			service := NewIdentityService(tt.driverName, tt.version, nil)
 			resp, err := service.GetPluginInfo(context.Background(), &csi.GetPluginInfoRequest{})
 
 			if tt.wantErr {
@@ -80,7 +80,7 @@ func TestGetPluginInfo(t *testing.T) {
 }
 
 func TestGetPluginCapabilities(t *testing.T) {
-	service := NewIdentityService("nasty.csi.io", "v0.1.0")
+	service := NewIdentityService("nasty.csi.io", "v0.1.0", nil)
 
 	resp, err := service.GetPluginCapabilities(context.Background(), &csi.GetPluginCapabilitiesRequest{})
 	if err != nil {
@@ -113,7 +113,7 @@ func TestGetPluginCapabilities(t *testing.T) {
 }
 
 func TestProbe(t *testing.T) {
-	service := NewIdentityService("nasty.csi.io", "v0.1.0")
+	service := NewIdentityService("nasty.csi.io", "v0.1.0", nil)
 
 	resp, err := service.Probe(context.Background(), &csi.ProbeRequest{})
 	if err != nil {

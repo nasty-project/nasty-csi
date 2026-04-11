@@ -63,6 +63,9 @@ func (m *MockClient) genID() string {
 // Close is a no-op for the mock client.
 func (m *MockClient) Close() {}
 
+// IsConnected always returns true for the mock client.
+func (m *MockClient) IsConnected() bool { return true }
+
 // QueryFilesystem returns a fake filesystem for testing.
 func (m *MockClient) QueryFilesystem(_ context.Context, fsName string) (*nastyapi.Filesystem, error) {
 	total := uint64(10 * 1024 * 1024 * 1024)

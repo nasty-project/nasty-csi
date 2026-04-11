@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	nastyapi "github.com/nasty-project/nasty-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -13,15 +14,17 @@ import (
 // IdentityService implements the CSI Identity service.
 type IdentityService struct {
 	csi.UnimplementedIdentityServer
+	apiClient  nastyapi.ClientInterface
 	driverName string
 	version    string
 }
 
 // NewIdentityService creates a new identity service.
-func NewIdentityService(driverName, version string) *IdentityService {
+func NewIdentityService(driverName, version string, apiClient nastyapi.ClientInterface) *IdentityService {
 	return &IdentityService{
 		driverName: driverName,
 		version:    version,
+		apiClient:  apiClient,
 	}
 }
 
@@ -70,8 +73,18 @@ func (s *IdentityService) GetPluginCapabilities(_ context.Context, _ *csi.GetPlu
 }
 
 // Probe returns the health and readiness of the plugin.
+// Reports not-ready when the WebSocket connection to the NAS is down.
 func (s *IdentityService) Probe(_ context.Context, _ *csi.ProbeRequest) (*csi.ProbeResponse, error) {
 	klog.V(4).Info("Probe called")
+
+	// If apiClient is configured, verify connectivity
+	if s.apiClient != nil && !s.apiClient.IsConnected() {
+		klog.Warning("Probe: NAS connection is not ready")
+		return &csi.ProbeResponse{
+			Ready: wrapperspb.Bool(false),
+		}, nil
+	}
+
 	return &csi.ProbeResponse{
 		Ready: wrapperspb.Bool(true),
 	}, nil

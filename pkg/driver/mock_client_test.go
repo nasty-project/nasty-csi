@@ -49,7 +49,8 @@ type MockAPIClient struct {
 // MockAPIClientForSnapshots is an alias for MockAPIClient for backward compatibility in tests.
 type MockAPIClientForSnapshots = MockAPIClient
 
-func (m *MockAPIClient) Close() {}
+func (m *MockAPIClient) Close()            {}
+func (m *MockAPIClient) IsConnected() bool { return true }
 
 func (m *MockAPIClient) QueryFilesystem(ctx context.Context, fsName string) (*nastyapi.Filesystem, error) {
 	if m.QueryPoolFunc != nil {
