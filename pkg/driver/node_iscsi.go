@@ -78,8 +78,25 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 
 	// Try to reuse existing connection (idempotency)
 	if devicePath, findErr := s.findISCSIDevice(ctx, params); findErr == nil && devicePath != "" {
-		klog.V(4).Infof("iSCSI device already connected at %s - reusing existing connection", devicePath)
-		return s.stageISCSIDevice(ctx, volumeID, devicePath, stagingTargetPath, volumeCapability, isBlockVolume, volumeContext)
+		// Verify the iSCSI session is healthy before reusing.
+		// After a NAS reboot, the device may still exist in sysfs but the session
+		// is in "transport-offline" state, causing I/O errors.
+		sessionState, stateErr := getISCSISessionState(ctx, devicePath)
+		if stateErr != nil {
+			klog.Warningf("Failed to check iSCSI session state for %s: %v - forcing re-login", devicePath, stateErr)
+		} else if sessionState == "LOGGED_IN" {
+			klog.V(4).Infof("iSCSI device already connected at %s (session healthy) - reusing existing connection", devicePath)
+			return s.stageISCSIDevice(ctx, volumeID, devicePath, stagingTargetPath, volumeCapability, isBlockVolume, volumeContext)
+		} else {
+			klog.Warningf("iSCSI session for %s is %q (not LOGGED_IN) - forcing logout and re-login", devicePath, sessionState)
+		}
+
+		// Session is stale — logout before attempting a fresh login
+		if logoutErr := s.logoutISCSITarget(ctx, params); logoutErr != nil {
+			klog.Warningf("Failed to logout stale iSCSI session for %s: %v (continuing with fresh login)", params.iqn, logoutErr)
+		}
+		// Small delay for kernel to clean up the stale SCSI device
+		time.Sleep(2 * time.Second)
 	}
 
 	// Check if iscsiadm is installed

@@ -136,6 +136,21 @@ func (s *NodeService) tryReuseExistingConnection(ctx context.Context, params *nv
 	klog.V(4).Infof("NVMe-oF device already connected at %s for NQN=%s - checking if connection is healthy",
 		devicePath, params.nqn)
 
+	// Check NVMe controller state first — after a NAS reboot the controller
+	// may be in "connecting" or "dead" state even if the device still exists
+	// and reports its cached size.
+	ctrlState, ctrlErr := getNVMeControllerState(devicePath)
+	if ctrlErr != nil {
+		klog.V(4).Infof("Failed to get NVMe controller state for %s: %v (will check device health)", devicePath, ctrlErr)
+	} else if ctrlState != nvmeSubsystemStateLive {
+		klog.Warningf("NVMe controller for %s is %q (not live) - disconnecting to force reconnect", devicePath, ctrlState)
+		if disconnectErr := s.disconnectNVMeOF(ctx, params.nqn); disconnectErr != nil {
+			klog.Warningf("Failed to disconnect stale NVMe-oF connection: %v", disconnectErr)
+		}
+		time.Sleep(2 * time.Second)
+		return nil, "", nil
+	}
+
 	// Rescan the namespace to ensure we have fresh data from the target
 	if rescanErr := s.rescanNVMeNamespace(ctx, devicePath); rescanErr != nil {
 		klog.Warningf("Failed to rescan NVMe namespace %s: %v (continuing anyway)", devicePath, rescanErr)

@@ -1,6 +1,6 @@
 module github.com/nasty-project/nasty-csi
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
@@ -11,7 +11,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	golang.org/x/sync v0.20.0
-	google.golang.org/grpc v1.79.3
+	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3

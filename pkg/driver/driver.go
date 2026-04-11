@@ -61,7 +61,16 @@ func NewDriver(cfg Config) (*Driver, error) {
 		return nil, err
 	}
 
-	return NewDriverWithClient(cfg, apiClient)
+	d, err := NewDriverWithClient(cfg, apiClient)
+	if err != nil {
+		return nil, err
+	}
+
+	// Register reconnection callback to proactively recover storage sessions
+	// after the NAS comes back from a reboot or network interruption.
+	apiClient.SetOnReconnect(d.node.recoverVolumes)
+
+	return d, nil
 }
 
 // NewDriverWithClient creates a new driver instance with a custom client.
