@@ -186,7 +186,7 @@ func (s *NodeService) checkISCSIHealth(ctx context.Context, volumePath string) V
 	if err != nil {
 		klog.V(4).Infof("Failed to get iSCSI session state: %v", err)
 		// Don't fail health check if we can't read session state
-	} else if sessionState != "LOGGED_IN" {
+	} else if sessionState != iscsiSessionStateLoggedIn {
 		return Unhealthy(fmt.Sprintf("iSCSI session state is %q (expected: LOGGED_IN)", sessionState))
 	}
 
@@ -332,7 +332,7 @@ func getISCSISessionState(ctx context.Context, devicePath string) (string, error
 		state := strings.TrimSpace(string(data))
 		// SCSI device states: running, blocked, quiesce, etc.
 		if state == "running" {
-			return "LOGGED_IN", nil
+			return iscsiSessionStateLoggedIn, nil
 		}
 		return state, nil
 	}

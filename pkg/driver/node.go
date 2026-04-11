@@ -33,6 +33,9 @@ const (
 	fsTypeXFS  = "xfs"
 )
 
+// iSCSI session state constants.
+const iscsiSessionStateLoggedIn = "LOGGED_IN"
+
 // NodeService implements the CSI Node service.
 type NodeService struct {
 	csi.UnimplementedNodeServer

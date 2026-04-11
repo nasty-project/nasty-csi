@@ -82,12 +82,13 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 		// After a NAS reboot, the device may still exist in sysfs but the session
 		// is in "transport-offline" state, causing I/O errors.
 		sessionState, stateErr := getISCSISessionState(ctx, devicePath)
-		if stateErr != nil {
+		switch {
+		case stateErr != nil:
 			klog.Warningf("Failed to check iSCSI session state for %s: %v - forcing re-login", devicePath, stateErr)
-		} else if sessionState == "LOGGED_IN" {
+		case sessionState == iscsiSessionStateLoggedIn:
 			klog.V(4).Infof("iSCSI device already connected at %s (session healthy) - reusing existing connection", devicePath)
 			return s.stageISCSIDevice(ctx, volumeID, devicePath, stagingTargetPath, volumeCapability, isBlockVolume, volumeContext)
-		} else {
+		default:
 			klog.Warningf("iSCSI session for %s is %q (not LOGGED_IN) - forcing logout and re-login", devicePath, sessionState)
 		}
 

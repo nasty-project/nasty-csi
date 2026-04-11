@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,9 @@ import (
 
 	"k8s.io/klog/v2"
 )
+
+// Static errors for recovery operations.
+var errControllerRecoveryTimeout = errors.New("NVMe controller did not reach live state within timeout")
 
 // defaultHealthMonitorInterval is how often the background health monitor
 // checks storage sessions. 30 seconds is a good balance between fast
@@ -117,7 +121,7 @@ func (s *NodeService) recoverISCSISessions(ctx context.Context) int {
 			continue
 		}
 
-		if state == "LOGGED_IN" {
+		if state == iscsiSessionStateLoggedIn {
 			klog.V(4).Infof("iSCSI device %s session is healthy", devicePath)
 			continue
 		}
@@ -160,14 +164,14 @@ func (s *NodeService) recoverNVMeOFConnections(ctx context.Context) int {
 
 		// Only check fabrics (NVMe-oF) controllers — skip local NVMe
 		transportPath := ctrlPath + "/transport"
-		transport, err := os.ReadFile(transportPath)
+		transport, err := os.ReadFile(transportPath) //nolint:gosec // path constructed from sysfs glob
 		if err != nil || strings.TrimSpace(string(transport)) == "" {
 			continue // Not a fabrics controller
 		}
 
 		// Check controller state
 		statePath := ctrlPath + "/state"
-		stateData, err := os.ReadFile(statePath)
+		stateData, err := os.ReadFile(statePath) //nolint:gosec // path constructed from sysfs glob
 		if err != nil {
 			klog.V(4).Infof("Could not read state for %s: %v", ctrlName, err)
 			continue
@@ -209,26 +213,26 @@ func (s *NodeService) recoverNVMeOFConnections(ctx context.Context) int {
 func getISCSISessionInfo(ctx context.Context, sysBlockPath string) (iqn, portal string) {
 	// The target IQN is in /sys/block/sdX/device/../../iscsi_session/session*/targetname
 	sessionGlob := sysBlockPath + "/device/../../iscsi_session/session*"
-	sessions, _ := filepath.Glob(sessionGlob)
-	if len(sessions) == 0 {
+	sessions, err := filepath.Glob(sessionGlob)
+	if err != nil || len(sessions) == 0 {
 		// Alternative path structure
-		sessions, _ = filepath.Glob(sysBlockPath + "/device/../../../iscsi_session/session*")
+		sessions, _ = filepath.Glob(sysBlockPath + "/device/../../../iscsi_session/session*") //nolint:errcheck // best-effort fallback
 	}
 
 	for _, sess := range sessions {
 		// Read targetname
-		targetData, err := os.ReadFile(filepath.Join(sess, "targetname"))
-		if err == nil {
+		targetData, readErr := os.ReadFile(filepath.Join(sess, "targetname")) //nolint:gosec // path from sysfs glob
+		if readErr == nil {
 			iqn = strings.TrimSpace(string(targetData))
 		}
 
 		// Read connection info for portal
 		connGlob := strings.Replace(sess, "iscsi_session", "iscsi_connection", 1)
 		connGlob = strings.Replace(connGlob, "session", "connection", 1) + "*/persistent_address"
-		conns, _ := filepath.Glob(connGlob)
-		if len(conns) > 0 {
-			addrData, err := os.ReadFile(conns[0])
-			if err == nil {
+		conns, globErr := filepath.Glob(connGlob)
+		if globErr == nil && len(conns) > 0 {
+			addrData, addrErr := os.ReadFile(conns[0])
+			if addrErr == nil {
 				portal = strings.TrimSpace(string(addrData)) + ":3260"
 			}
 		}
@@ -284,8 +288,8 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer checkCancel()
 	checkCmd := exec.CommandContext(checkCtx, "iscsiadm", "-m", "session", "-P", "1")
-	checkOutput, _ := checkCmd.CombinedOutput()
-	if strings.Contains(string(checkOutput), "LOGGED_IN") {
+	checkOutput, checkErr := checkCmd.CombinedOutput()
+	if checkErr == nil && strings.Contains(string(checkOutput), iscsiSessionStateLoggedIn) {
 		return nil // Recovered via rescan
 	}
 
@@ -349,7 +353,7 @@ func waitForNVMeControllerRecovery(ctx context.Context, ctrlPath string, timeout
 		default:
 		}
 
-		data, err := os.ReadFile(statePath)
+		data, err := os.ReadFile(statePath) //nolint:gosec // path constructed from sysfs controller path
 		if err == nil && strings.TrimSpace(string(data)) == nvmeSubsystemStateLive {
 			return nil
 		}
@@ -357,5 +361,5 @@ func waitForNVMeControllerRecovery(ctx context.Context, ctrlPath string, timeout
 		time.Sleep(2 * time.Second)
 	}
 
-	return fmt.Errorf("controller did not reach live state within %v", timeout)
+	return fmt.Errorf("%w: %v", errControllerRecoveryTimeout, timeout)
 }
