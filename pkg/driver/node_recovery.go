@@ -81,6 +81,10 @@ func (s *NodeService) runHealthCheck() {
 	s.unmountBrokenStagingPaths(ctx)
 }
 
+// unmountCooldown is how long we suppress repeated unmount attempts for the
+// same staging path. This prevents log spam when kubelet is slow to re-stage.
+const unmountCooldown = 5 * time.Minute
+
 // unmountBrokenStagingPaths finds staging mounts where the source block device
 // no longer exists and force-unmounts them so kubelet can re-stage.
 func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
@@ -93,6 +97,14 @@ func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
 	if err != nil {
 		klog.V(4).Infof("findmnt for staging path check: %v", err)
 		return
+	}
+
+	// Expire old entries from the cooldown map
+	now := time.Now()
+	for path, ts := range s.recentUnmounts {
+		if now.Sub(ts) > unmountCooldown {
+			delete(s.recentUnmounts, path)
+		}
 	}
 
 	// Filter for our CSI driver's staging paths
@@ -109,6 +121,11 @@ func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
 
 		source := fields[0]
 		target := fields[1]
+
+		// Skip if we recently unmounted this path (avoid log spam)
+		if _, cooldown := s.recentUnmounts[target]; cooldown {
+			continue
+		}
 
 		// Check if the source device still exists
 		if _, statErr := os.Stat(source); statErr == nil {
@@ -132,6 +149,9 @@ func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
 			klog.Infof("Successfully unmounted broken staging path %s — kubelet will re-stage", target)
 		}
 		umountCancel()
+
+		// Record this unmount to suppress repeated attempts
+		s.recentUnmounts[target] = now
 	}
 }
 

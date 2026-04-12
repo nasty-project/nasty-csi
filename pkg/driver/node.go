@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
@@ -43,6 +44,7 @@ type NodeService struct {
 	nodeRegistry    *NodeRegistry
 	nvmeConnectSem  chan struct{}
 	stopCh          chan struct{}
+	recentUnmounts  map[string]time.Time // tracks recently unmounted staging paths to avoid log spam
 	nodeID          string
 	testMode        bool
 	enableDiscovery bool
@@ -61,6 +63,7 @@ func NewNodeService(nodeID string, apiClient nastyapi.ClientInterface, testMode 
 		enableDiscovery: enableDiscovery,
 		nvmeConnectSem:  make(chan struct{}, maxConcurrentNVMeConnects),
 		stopCh:          make(chan struct{}),
+		recentUnmounts:  make(map[string]time.Time),
 	}
 }
 
