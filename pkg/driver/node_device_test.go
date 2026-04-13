@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,11 +90,29 @@ func TestHandleFinalResult(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "error with empty output means needs format",
+			name:       "blkid timeout with empty output refuses to format",
 			devicePath: "/dev/sda",
 			maxRetries: 3,
 			lastOutput: []byte(""),
 			lastErr:    context.DeadlineExceeded,
+			wantFmt:    false,
+			wantErr:    true,
+		},
+		{
+			name:       "blkid killed refuses to format",
+			devicePath: "/dev/nvme0n1",
+			maxRetries: 3,
+			lastOutput: []byte(""),
+			lastErr:    errors.New("signal: killed"),
+			wantFmt:    false,
+			wantErr:    true,
+		},
+		{
+			name:       "blkid exit code 2 with empty output means needs format",
+			devicePath: "/dev/sda",
+			maxRetries: 3,
+			lastOutput: []byte(""),
+			lastErr:    errors.New("exit status 2"),
 			wantFmt:    true,
 			wantErr:    false,
 		},
@@ -102,7 +121,7 @@ func TestHandleFinalResult(t *testing.T) {
 			devicePath: "/dev/nvme0n1",
 			maxRetries: 3,
 			lastOutput: []byte("device busy cannot read"),
-			lastErr:    context.DeadlineExceeded,
+			lastErr:    errors.New("exit status 1"),
 			wantFmt:    false,
 			wantErr:    true,
 		},

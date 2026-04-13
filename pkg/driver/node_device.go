@@ -249,11 +249,11 @@ func needsFormatWithRetries(ctx context.Context, devicePath string, isClone bool
 		maxRetries = 25
 		klog.Infof("Checking cloned volume filesystem (max %d retries to avoid destroying clone data)", maxRetries)
 	case isNVMe:
-		// New NVMe volumes: We expect to format them, so use fewer retries.
-		// 3 retries with exponential backoff is enough to confirm no filesystem exists.
-		// This avoids the 150+ second delay that was causing pod ready timeouts.
-		maxRetries = 3
-		klog.Infof("Checking new NVMe volume filesystem (max %d retries, will format if needed)", maxRetries)
+		// NVMe volumes: use enough retries to handle high-latency links (e.g. Tailscale).
+		// Over such links, blkid can take 10-20s per attempt to read the superblock.
+		// Too few retries caused data loss by reformatting volumes with existing filesystems.
+		maxRetries = 6
+		klog.Infof("Checking NVMe volume filesystem (max %d retries, will format if needed)", maxRetries)
 	default:
 		maxRetries = 3 // Fast for non-NVMe new volumes - avoid gRPC timeout (typical 2min deadline)
 		klog.Infof("Checking new volume filesystem (max %d retries, will format if needed)", maxRetries)
@@ -398,7 +398,13 @@ func waitWithBackoff(ctx context.Context, devicePath string, attempt, maxRetries
 // checkDeviceFilesystem checks if a device has a filesystem using blkid and lsblk.
 // Returns (needsFormat, output, error).
 func checkDeviceFilesystem(ctx context.Context, devicePath string) (needsFormat bool, output []byte, err error) {
-	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// Use a longer timeout for NVMe-oF devices — over high-latency links (e.g. Tailscale)
+	// block I/O for superblock reads can take significantly longer than on LAN.
+	timeout := 5 * time.Second
+	if strings.Contains(devicePath, "/dev/nvme") {
+		timeout = 30 * time.Second
+	}
+	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// First, check with lsblk to verify device exists and get basic info
@@ -468,10 +474,20 @@ func handleFinalResult(devicePath string, maxRetries int, lastOutput []byte, las
 		return false, nil
 	}
 
-	// After all retries, if blkid failed but output suggests no filesystem, device needs formatting.
-	// This is standard CSI behavior - new volumes should be formatted automatically.
-	// The extensive retry logic (15 attempts with cache invalidation) protects against
-	// temporary detection issues during device reconnection/clone completion.
+	// After all retries, if blkid failed we must distinguish between:
+	// 1. blkid was killed/timed out (signal: killed) → inconclusive, REFUSE to format
+	// 2. blkid ran to completion but found nothing → safe to format
+	//
+	// Formatting on inconclusive results destroys data. This was observed over
+	// high-latency links (Tailscale) where blkid was consistently killed by the
+	// context timeout before it could read the device superblock.
+	errStr := lastErr.Error()
+	if strings.Contains(errStr, "signal: killed") || strings.Contains(errStr, "context deadline exceeded") {
+		klog.Errorf("Device %s: blkid was killed or timed out after %d retries — refusing to format (would destroy data if filesystem exists)", devicePath, maxRetries)
+		return false, fmt.Errorf("%w: blkid timed out for device %s after %d retries — cannot determine if filesystem exists, refusing to format to prevent data loss",
+			ErrDeviceNotReady, devicePath, maxRetries)
+	}
+
 	if len(lastOutput) == 0 || strings.Contains(string(lastOutput), "does not contain") {
 		klog.Infof("Device %s has no filesystem after %d retries - needs formatting", devicePath, maxRetries)
 		return true, nil
