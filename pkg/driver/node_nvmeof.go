@@ -41,7 +41,12 @@ const (
 
 // defaultNVMeOFMountOptions are sensible defaults for NVMe-oF filesystem mounts.
 // These are merged with user-specified mount options from StorageClass.
-var defaultNVMeOFMountOptions = []string{"noatime"}
+// "_netdev" marks the mount as network-dependent.
+// "errors=continue" prevents ext4 from remounting read-only on transient I/O
+// errors (e.g., NVMe-oF controller reconnect during NAS downtime). The default
+// "errors=remount-ro" is designed for local disks; for network block devices
+// the errors are transient and the controller will recover.
+var defaultNVMeOFMountOptions = []string{"noatime", "_netdev", "errors=continue"}
 
 // nvmeOFConnectionParams holds validated NVMe-oF connection parameters.
 // With independent subsystems per volume, NSID is always 1.

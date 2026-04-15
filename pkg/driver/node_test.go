@@ -879,8 +879,8 @@ func TestGetNVMeOFMountOptions(t *testing.T) {
 		{
 			name:        "user options merged with defaults",
 			userOptions: []string{"discard", "data=ordered"},
-			wantLen:     3, // user options + noatime default
-			wantContain: []string{"discard", "data=ordered", "noatime"},
+			wantLen:     5, // user options + noatime, _netdev, errors=continue defaults
+			wantContain: []string{"discard", "data=ordered", "noatime", "_netdev", "errors=continue"},
 		},
 		{
 			name:        "user option atime is added along with defaults",
@@ -888,7 +888,7 @@ func TestGetNVMeOFMountOptions(t *testing.T) {
 			// Note: Our simple key-based conflict detection doesn't handle
 			// atime/noatime pairs - they're different keys. User must specify
 			// both options explicitly if they want to override noatime with atime.
-			wantLen:     2, // atime + noatime (both added)
+			wantLen:     4, // atime + noatime, _netdev, errors=continue (all added)
 			wantContain: []string{"atime"},
 		},
 	}

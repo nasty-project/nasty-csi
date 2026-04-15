@@ -75,7 +75,13 @@ func (s *NodeService) runHealthCheck() {
 		klog.Infof("Health monitor recovered: iSCSI=%d, NVMe-oF=%d", iscsiRecovered, nvmeRecovered)
 	}
 
-	// Phase 2: Force-unmount staging paths for volumes whose devices are completely gone.
+	// Phase 2: Remount read-only filesystems as read-write.
+	// After a NAS outage, ext4 may have been remounted read-only by the kernel
+	// (errors=remount-ro, the default for volumes mounted before the errors=continue
+	// fix). If the iSCSI session is now healthy, we can safely remount read-write.
+	s.remountReadOnlyVolumes(ctx)
+
+	// Phase 3: Force-unmount staging paths for volumes whose devices are completely gone.
 	// This allows kubelet to detect the broken mount and trigger NodeUnstageVolume +
 	// NodeStageVolume, which will establish a fresh connection.
 	s.unmountBrokenStagingPaths(ctx)
@@ -152,6 +158,66 @@ func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
 
 		// Record this unmount to suppress repeated attempts
 		s.recentUnmounts[target] = now
+	}
+}
+
+// remountReadOnlyVolumes finds CSI staging mounts that are read-only (e.g., after
+// ext4 remounted due to I/O errors during NAS downtime) and remounts them read-write
+// if the underlying block device is now accessible.
+func (s *NodeService) remountReadOnlyVolumes(ctx context.Context) {
+	findmntCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// List all ext4/xfs mounts with their options
+	cmd := exec.CommandContext(findmntCtx, "findmnt", "-n", "-o", "SOURCE,TARGET,OPTIONS", "-t", "ext4,xfs", "--raw")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		klog.V(4).Infof("findmnt for read-only check: %v", err)
+		return
+	}
+
+	const stagingPathMarker = "/plugins/kubernetes.io/csi/nasty.csi.io/"
+	for _, line := range strings.Split(string(output), "\n") {
+		if !strings.Contains(line, stagingPathMarker) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+
+		source := fields[0]
+		target := fields[1]
+		options := fields[2]
+
+		// Check if the mount is read-only
+		isRO := false
+		for _, opt := range strings.Split(options, ",") {
+			if opt == "ro" {
+				isRO = true
+				break
+			}
+		}
+		if !isRO {
+			continue
+		}
+
+		// Verify the source device is accessible before attempting remount
+		if !isDeviceAccessible(ctx, source) {
+			klog.V(4).Infof("Skipping remount of %s — device %s is not accessible", target, source)
+			continue
+		}
+
+		klog.Infof("Remounting read-only staging path %s as read-write (device: %s)", target, source)
+		remountCtx, remountCancel := context.WithTimeout(ctx, 15*time.Second)
+		remountCmd := exec.CommandContext(remountCtx, "mount", "-o", "remount,rw", target)
+		if remountOutput, remountErr := remountCmd.CombinedOutput(); remountErr != nil {
+			klog.Errorf("Failed to remount %s as read-write: %v (%s)", target, remountErr, strings.TrimSpace(string(remountOutput)))
+		} else {
+			klog.Infof("Successfully remounted %s as read-write", target)
+		}
+		remountCancel()
 	}
 }
 
