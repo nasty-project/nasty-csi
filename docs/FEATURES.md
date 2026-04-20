@@ -845,7 +845,7 @@ kubectl apply -f pv.yaml
 kubectl nasty-csi mark-adoptable --all
 ```
 
-See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full details on adoption workflows.
+See [nasty-plugin](https://github.com/nasty-project/nasty-plugin) for full details on adoption workflows.
 
 ### Volume Name Templating
 - **Status**: ✅ Implemented
@@ -1148,7 +1148,7 @@ reclaimPolicy: Delete
 ### Available Documentation
 - ✅ README.md - Project overview and quick start
 - ✅ DEPLOYMENT.md - Detailed deployment guide
-- ✅ KUBECTL-PLUGIN.md - kubectl plugin for volume management
+
 - ✅ QUICKSTART.md - NFS quick start guide
 - ✅ QUICKSTART-NVMEOF.md - NVMe-oF setup guide
 - ✅ QUICKSTART-SMB.md - SMB/CIFS setup guide

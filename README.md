@@ -299,7 +299,7 @@ kubectl logs -n kube-system deployment/nasty-csi-controller 2>&1 | head -1
 
 - [Features Documentation](docs/FEATURES.md) - Comprehensive feature support reference
 - [Deployment Guide](docs/DEPLOYMENT.md) - Detailed installation and configuration
-- [kubectl Plugin](docs/KUBECTL-PLUGIN.md) - Command-line tool for volume management
+- [kubectl Plugin](https://github.com/nasty-project/nasty-plugin) - Command-line tool for volume management
 - [Quick Start - NFS](docs/QUICKSTART.md) - Get started with NFS volumes
 - [Quick Start - NVMe-oF](docs/QUICKSTART-NVMEOF.md) - Get started with NVMe-oF volumes
 - [Quick Start - iSCSI](docs/QUICKSTART-ISCSI.md) - Get started with iSCSI volumes

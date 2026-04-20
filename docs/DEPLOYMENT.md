@@ -789,7 +789,7 @@ kubectl nasty-csi list-orphaned
 kubectl nasty-csi cleanup --execute
 ```
 
-See [kubectl Plugin Documentation](KUBECTL-PLUGIN.md) for full command reference.
+See [nasty-plugin](https://github.com/nasty-project/nasty-plugin) for full command reference.
 
 ### Enable Debug Logging
 
