@@ -222,6 +222,20 @@ parameters:
   fsType: ext4  # or xfs
 ```
 
+**Optional parameters** (all protocols):
+
+| Parameter | Description |
+|-----------|-------------|
+| `compression` | Compression algorithm (`lz4`, `zstd`, `none`) |
+| `foregroundTarget` | Device group label for foreground writes |
+| `backgroundTarget` | Device group label for background moves |
+| `promoteTarget` | Device group label for read promotion (cache tier) |
+| `metadataTarget` | Device group label for metadata/btree writes |
+| `dataReplicas` | Number of data replicas (e.g., `"1"` for expendable data) |
+| `deleteStrategy` | `delete` (default) or `retain` |
+| `encryption` | `true` to require encrypted filesystem |
+| `markAdoptable` | `true` to allow cross-cluster volume adoption |
+
 ## Testing
 
 This driver is tested against a **real NASty server** with actual bcachefs storage — not mocks or simulators:
