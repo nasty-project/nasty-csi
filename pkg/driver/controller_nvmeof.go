@@ -40,7 +40,9 @@ type nvmeofVolumeParams struct {
 	foregroundTarget  string
 	backgroundTarget  string
 	promoteTarget     string
+	metadataTarget    string
 	requestedCapacity int64
+	dataReplicas      uint32
 	markAdoptable     bool
 	encrypted         bool
 }
@@ -121,6 +123,11 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	foregroundTarget := params["foregroundTarget"]
 	backgroundTarget := params["backgroundTarget"]
 	promoteTarget := params["promoteTarget"]
+	metadataTarget := params["metadataTarget"]
+	dataReplicas, err := parseDataReplicas(params["dataReplicas"])
+	if err != nil {
+		return nil, err
+	}
 
 	return &nvmeofVolumeParams{
 		filesystem:        filesystem,
@@ -136,6 +143,8 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 		foregroundTarget:  foregroundTarget,
 		backgroundTarget:  backgroundTarget,
 		promoteTarget:     promoteTarget,
+		metadataTarget:    metadataTarget,
+		dataReplicas:      dataReplicas,
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
 		storageClass:      storageClass,
@@ -218,7 +227,7 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 
 	// Step 1: Create or reuse block subvolume
 	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
-		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.requestedCapacity, timer)
+		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
 	if err != nil {
 		return nil, err
 	}

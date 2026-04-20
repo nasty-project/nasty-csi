@@ -28,11 +28,13 @@ type smbVolumeParams struct {
 	foregroundTarget  string
 	backgroundTarget  string
 	promoteTarget     string
+	metadataTarget    string
 	smbUsername       string
 	pvcName           string
 	pvcNamespace      string
 	storageClass      string
 	requestedCapacity int64
+	dataReplicas      uint32
 	markAdoptable     bool
 	encrypted         bool
 }
@@ -77,6 +79,11 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 	foregroundTarget := params["foregroundTarget"]
 	backgroundTarget := params["backgroundTarget"]
 	promoteTarget := params["promoteTarget"]
+	metadataTarget := params["metadataTarget"]
+	dataReplicas, err := parseDataReplicas(params["dataReplicas"])
+	if err != nil {
+		return nil, err
+	}
 	encrypted := strings.EqualFold(params["encryption"], "true")
 
 	return &smbVolumeParams{
@@ -92,6 +99,8 @@ func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 		foregroundTarget:  foregroundTarget,
 		backgroundTarget:  backgroundTarget,
 		promoteTarget:     promoteTarget,
+		metadataTarget:    metadataTarget,
+		dataReplicas:      dataReplicas,
 		smbUsername:       params["smbUsername"],
 		pvcName:           params["csi.storage.k8s.io/pvc/name"],
 		pvcNamespace:      params["csi.storage.k8s.io/pvc/namespace"],
@@ -239,7 +248,7 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no SMB share - continue with share creation
 	} else {
 		// Create new subvolume
-		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, "filesystem", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.requestedCapacity, timer)
+		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, "filesystem", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
 		if createErr != nil {
 			return nil, createErr
 		}

@@ -435,6 +435,19 @@ func (s *ControllerService) logCreateVolumeDebugInfo(req *csi.CreateVolumeReques
 	klog.V(4).Infof("===============================")
 }
 
+// parseDataReplicas parses the dataReplicas StorageClass parameter.
+// Returns (0, nil) if empty (inherit filesystem default), or the parsed value.
+func parseDataReplicas(val string) (uint32, error) {
+	if val == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseUint(val, 10, 32)
+	if err != nil || n < 1 {
+		return 0, status.Errorf(codes.InvalidArgument, "dataReplicas must be a positive integer, got %q", val)
+	}
+	return uint32(n), nil
+}
+
 // validateCreateVolumeRequest validates the CreateVolume request parameters.
 func validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 	if req.GetName() == "" {
@@ -1046,14 +1059,22 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	subvol, err := s.apiClient.FindSubvolumeByCSIVolumeName(ctx, filesystem, volumeName)
 	if err != nil {
 		klog.V(4).Infof("Error searching for orphaned volume %s: %v", volumeName, err)
-		return nil, false, nil // Not found or error - continue with normal creation
+		subvol = nil // Continue to fallback search
 	}
+
+	// Fallback: search by PVC name + namespace stored in xattr properties.
+	// This handles the case where a PVC is recreated with a new UID — the CSI volume name
+	// changes (pvc-<new-uid>) but the stored pvc_name/pvc_namespace still match.
+	if subvol == nil {
+		subvol = s.findSubvolumeByPVCIdentity(ctx, params, filesystem)
+	}
+
 	if subvol == nil {
 		klog.V(4).Infof("No orphaned volume found for %s", volumeName)
 		return nil, false, nil // Not found - continue with normal creation
 	}
 
-	// Found a subvolume with matching CSI volume name - check if adoption is allowed
+	// Found a subvolume - check if adoption is allowed
 	props := subvol.Properties
 	if props == nil {
 		klog.V(4).Infof("Subvolume %s/%s has no properties, cannot adopt", subvol.Filesystem, subvol.Name)
@@ -1121,6 +1142,43 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 		return nil, true, status.Errorf(codes.InvalidArgument,
 			"Unsupported protocol for adoption: %s", protocol)
 	}
+}
+
+// findSubvolumeByPVCIdentity searches for an orphaned subvolume by its stored
+// pvc_name and pvc_namespace xattr properties. This is used as a fallback when
+// the CSI volume name search fails, which happens when a PVC is recreated with
+// a new UID (e.g., cluster rebuild) but the underlying subvolume still has the
+// original PVC identity in its properties.
+func (s *ControllerService) findSubvolumeByPVCIdentity(ctx context.Context, params map[string]string, filesystem string) *nastyapi.Subvolume {
+	pvcName := params[CSIPVCName]
+	pvcNamespace := params[CSIPVCNamespace]
+	if pvcName == "" || pvcNamespace == "" {
+		return nil
+	}
+
+	klog.V(4).Infof("Fallback adoption search: looking for subvolume with pvc_name=%s, pvc_namespace=%s", pvcName, pvcNamespace)
+
+	// Search by pvc_name first, then filter by pvc_namespace
+	candidates, err := s.apiClient.FindSubvolumesByProperty(ctx, nastyapi.PropertyPVCName, pvcName, filesystem)
+	if err != nil {
+		klog.V(4).Infof("Error searching by PVC identity (%s/%s): %v", pvcNamespace, pvcName, err)
+		return nil
+	}
+
+	for i := range candidates {
+		props := candidates[i].Properties
+		if props == nil {
+			continue
+		}
+		if props[nastyapi.PropertyPVCNamespace] == pvcNamespace {
+			klog.V(4).Infof("Found subvolume by PVC identity: %s/%s (pvc=%s/%s)",
+				candidates[i].Filesystem, candidates[i].Name, pvcNamespace, pvcName)
+			return &candidates[i]
+		}
+	}
+
+	klog.V(4).Infof("No subvolume found with pvc_name=%s, pvc_namespace=%s", pvcName, pvcNamespace)
+	return nil
 }
 
 // ControllerGetCapabilities returns controller capabilities.
