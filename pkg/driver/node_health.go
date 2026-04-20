@@ -338,7 +338,7 @@ func getISCSISessionState(ctx context.Context, devicePath string) (string, error
 	}
 
 	// Alternative: use iscsiadm to check session state
-	cmd := exec.CommandContext(ctx, "iscsiadm", "-m", "session", "-P", "1")
+	cmd := iscsiadmCmd(ctx, "-m", "session", "-P", "1")
 	output, cmdErr := cmd.CombinedOutput()
 	if cmdErr != nil {
 		return "", fmt.Errorf("iscsiadm failed: %w", cmdErr)

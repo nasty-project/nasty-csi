@@ -377,7 +377,12 @@ func (s *NodeService) recoverNVMeOFConnections(ctx context.Context) int {
 }
 
 // getISCSISessionInfo extracts the IQN and portal from sysfs for a given iSCSI device.
+// It first tries the direct sysfs path (works for healthy sessions), then falls back
+// to parsing `iscsiadm -m session -P 3` output to correlate the device name to its
+// target IQN (works even when the session is transport-offline/blocked and sysfs
+// session symlinks are gone).
 func getISCSISessionInfo(ctx context.Context, sysBlockPath string) (iqn, portal string) {
+	// Phase 1: Try sysfs — fast path for sessions that still have their symlinks.
 	// The target IQN is in /sys/block/sdX/device/../../iscsi_session/session*/targetname
 	sessionGlob := sysBlockPath + "/device/../../iscsi_session/session*"
 	sessions, err := filepath.Glob(sessionGlob)
@@ -409,21 +414,68 @@ func getISCSISessionInfo(ctx context.Context, sysBlockPath string) (iqn, portal 
 		}
 	}
 
-	// Fallback: parse iscsiadm session output
-	cmd := exec.CommandContext(ctx, "iscsiadm", "-m", "session")
+	// Phase 2: sysfs failed (common for transport-offline/blocked sessions where the
+	// kernel has removed the iscsi_session symlinks). Use iscsiadm -m session -P 3 to
+	// get the full session detail including attached disk names, then correlate the
+	// device name back to the target IQN.
+	devName := filepath.Base(sysBlockPath) // e.g. "sda"
+	return getISCSISessionInfoFromIscsiadm(ctx, devName)
+}
+
+// getISCSISessionInfoFromIscsiadm uses `iscsiadm -m session -P 3` to find the IQN
+// and portal for a specific device name. The -P 3 output includes "Attached scsi disk"
+// lines that let us correlate a device back to its target, even when sysfs session
+// symlinks are gone (transport-offline/blocked sessions).
+func getISCSISessionInfoFromIscsiadm(ctx context.Context, devName string) (iqn, portal string) {
+	sessionCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cmd := iscsiadmCmd(sessionCtx, "-m", "session", "-P", "3")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		klog.V(4).Infof("iscsiadm -m session -P 3 failed: %v", err)
 		return "", ""
 	}
 
-	// Parse lines like: "tcp: [3] 10.10.20.100:3260,1 iqn.2137-04.storage.nasty:vol-name (non-flash)"
+	// Parse the -P 3 output which has sections per target:
+	//   Target: iqn.2137-04.storage.nasty:vol-name (non-flash)
+	//     Current Portal: 10.10.20.100:3260,1
+	//     ...
+	//     Attached scsi disk sda    State: transport-offline
+	var currentIQN, currentPortal string
 	for _, line := range strings.Split(string(output), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) >= 4 {
-			candidateIQN := strings.TrimSpace(fields[3])
-			if strings.HasPrefix(candidateIQN, "iqn.") {
-				// Return first match — caller will need to correlate with device
-				return candidateIQN, strings.TrimSuffix(fields[2], ",1")
+		trimmed := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmed, "Target:") {
+			targetLine := strings.TrimPrefix(trimmed, "Target:")
+			targetLine = strings.TrimSpace(targetLine)
+			// IQN may be followed by "(non-flash)" etc — take first field
+			if fields := strings.Fields(targetLine); len(fields) > 0 {
+				currentIQN = fields[0]
+			}
+			currentPortal = ""
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "Current Portal:") {
+			portalLine := strings.TrimPrefix(trimmed, "Current Portal:")
+			portalLine = strings.TrimSpace(portalLine)
+			// Strip ",tpg" suffix from "10.10.20.100:3260,1"
+			if idx := strings.LastIndex(portalLine, ","); idx != -1 {
+				currentPortal = portalLine[:idx]
+			} else {
+				currentPortal = portalLine
+			}
+			continue
+		}
+
+		if strings.Contains(trimmed, "Attached scsi disk") {
+			// "Attached scsi disk sda		State: transport-offline"
+			parts := strings.Fields(trimmed)
+			for i, part := range parts {
+				if part == "disk" && i+1 < len(parts) && parts[i+1] == devName {
+					return currentIQN, currentPortal
+				}
 			}
 		}
 	}
@@ -440,9 +492,9 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 
 	var rescanCmd *exec.Cmd
 	if portal != "" {
-		rescanCmd = exec.CommandContext(rescanCtx, "iscsiadm", "-m", "session", "-r", iqn, "--rescan")
+		rescanCmd = iscsiadmCmd(rescanCtx, "-m", "session", "-r", iqn, "--rescan")
 	} else {
-		rescanCmd = exec.CommandContext(rescanCtx, "iscsiadm", "-m", "session", "--rescan")
+		rescanCmd = iscsiadmCmd(rescanCtx, "-m", "session", "--rescan")
 	}
 	if output, err := rescanCmd.CombinedOutput(); err != nil {
 		klog.V(4).Infof("Session rescan for %s: %v (%s)", iqn, err, strings.TrimSpace(string(output)))
@@ -454,7 +506,7 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 	// Check session state after rescan using iscsiadm
 	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer checkCancel()
-	checkCmd := exec.CommandContext(checkCtx, "iscsiadm", "-m", "session", "-P", "1")
+	checkCmd := iscsiadmCmd(checkCtx, "-m", "session", "-P", "1")
 	checkOutput, checkErr := checkCmd.CombinedOutput()
 	if checkErr == nil && strings.Contains(string(checkOutput), iscsiSessionStateLoggedIn) {
 		return nil // Recovered via rescan
@@ -465,7 +517,7 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 
 	logoutCtx, logoutCancel := context.WithTimeout(ctx, 15*time.Second)
 	defer logoutCancel()
-	logoutCmd := exec.CommandContext(logoutCtx, "iscsiadm", "-m", "node", "-T", iqn, "--logout")
+	logoutCmd := iscsiadmCmd(logoutCtx, "-m", "node", "-T", iqn, "--logout")
 	if output, err := logoutCmd.CombinedOutput(); err != nil {
 		klog.V(4).Infof("Logout for recovery of %s: %v (%s)", iqn, err, strings.TrimSpace(string(output)))
 	}
@@ -479,9 +531,9 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 
 	var loginCmd *exec.Cmd
 	if portal != "" {
-		loginCmd = exec.CommandContext(loginCtx, "iscsiadm", "-m", "node", "-T", iqn, "-p", portal, "--login")
+		loginCmd = iscsiadmCmd(loginCtx, "-m", "node", "-T", iqn, "-p", portal, "--login")
 	} else {
-		loginCmd = exec.CommandContext(loginCtx, "iscsiadm", "-m", "node", "-T", iqn, "--login")
+		loginCmd = iscsiadmCmd(loginCtx, "-m", "node", "-T", iqn, "--login")
 	}
 	output, err := loginCmd.CombinedOutput()
 	if err != nil {
