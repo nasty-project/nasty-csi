@@ -397,10 +397,69 @@ func (f *Framework) Teardown() {
 		klog.Errorf("Cleanup error: %v", err)
 	}
 
+	// Clean up stale iSCSI sessions on the node after test cleanup.
+	// Previous tests can leave sessions in transport-offline/blocked state
+	// which pollute the node and cause subsequent tests to fail (blkid timeouts,
+	// device name exhaustion). The CSI node pod has nsenter access to the host.
+	if f.protocol == "iscsi" {
+		f.cleanupStaleISCSISessions()
+	}
+
 	if len(errors) > 0 {
 		klog.Warningf("Teardown completed with %d errors", len(errors))
 	} else {
 		klog.Infof("Teardown completed successfully")
+	}
+}
+
+// cleanupStaleISCSISessions logs out all iSCSI sessions and removes node records
+// on the k8s node via kubectl exec into the CSI node pod.
+func (f *Framework) cleanupStaleISCSISessions() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Find the CSI node pod
+	podCmd := exec.CommandContext(ctx, "kubectl", "get", "pods",
+		"-n", "kube-system",
+		"-l", "app.kubernetes.io/name=nasty-csi-driver,app.kubernetes.io/component=node",
+		"-o", "jsonpath={.items[0].metadata.name}")
+	podOutput, err := podCmd.CombinedOutput()
+	if err != nil {
+		klog.V(4).Infof("Could not find CSI node pod for iSCSI cleanup: %v", err)
+		return
+	}
+	podName := strings.TrimSpace(string(podOutput))
+	if podName == "" {
+		return
+	}
+
+	// Logout all sessions via nsenter (the CSI node pod has hostPID)
+	logoutCmd := exec.CommandContext(ctx, "kubectl", "exec", "-n", "kube-system", podName,
+		"-c", "nasty-csi-plugin", "--",
+		"nsenter", "--mount=/proc/1/ns/mnt", "--ipc=/proc/1/ns/ipc", "--",
+		"iscsiadm", "-m", "session", "--logout")
+	logoutOutput, logoutErr := logoutCmd.CombinedOutput()
+	if logoutErr != nil {
+		// "No matching sessions" is fine — means nothing to clean up
+		if !strings.Contains(string(logoutOutput), "No matching sessions") {
+			klog.V(4).Infof("iSCSI session logout: %v (%s)", logoutErr, strings.TrimSpace(string(logoutOutput)))
+		}
+	} else {
+		klog.Infof("Cleaned up iSCSI sessions: %s", strings.TrimSpace(string(logoutOutput)))
+	}
+
+	// Delete all node records to prevent iscsid reconnection attempts
+	deleteCmd := exec.CommandContext(ctx, "kubectl", "exec", "-n", "kube-system", podName,
+		"-c", "nasty-csi-plugin", "--",
+		"nsenter", "--mount=/proc/1/ns/mnt", "--ipc=/proc/1/ns/ipc", "--",
+		"iscsiadm", "-m", "node", "-o", "delete")
+	deleteOutput, deleteErr := deleteCmd.CombinedOutput()
+	if deleteErr != nil {
+		if !strings.Contains(string(deleteOutput), "No records found") {
+			klog.V(4).Infof("iSCSI node record cleanup: %v (%s)", deleteErr, strings.TrimSpace(string(deleteOutput)))
+		}
+	} else {
+		klog.Infof("Cleaned up iSCSI node records")
 	}
 }
 
