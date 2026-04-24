@@ -139,12 +139,25 @@ func (s *NodeService) unmountBrokenStagingPaths(ctx context.Context) {
 			if isDeviceAccessible(ctx, source) {
 				continue // Healthy
 			}
+			// Device exists but is inaccessible. Check if the transport
+			// layer is still recovering — if so, I/O will resume when
+			// the target comes back. Do NOT unmount.
+			if isISCSIDeviceRecovering(ctx, source) || isNVMeDeviceRecovering(source) {
+				klog.Infof("Device %s is inaccessible but transport is recovering — not unmounting (staging: %s)", source, target)
+				continue
+			}
 			klog.Warningf("Device %s exists but is inaccessible (staging: %s)", source, target)
 		} else {
+			// Device is gone. Check if a transport session still exists in
+			// recovery state — the device may reappear when the session recovers.
+			if isISCSIDeviceRecovering(ctx, source) || isNVMeDeviceRecovering(source) {
+				klog.Infof("Device %s is gone but transport is recovering — not unmounting (staging: %s)", source, target)
+				continue
+			}
 			klog.Warningf("Device %s no longer exists (staging: %s)", source, target)
 		}
 
-		// Device is gone or inaccessible — force lazy unmount the staging path.
+		// Device is gone or inaccessible with no recovering session — force lazy unmount.
 		// This makes kubelet's mount check fail, triggering the full re-stage flow.
 		klog.Infof("Force-unmounting broken staging path %s (source device: %s)", target, source)
 		umountCtx, umountCancel := context.WithTimeout(ctx, 15*time.Second)
@@ -239,6 +252,59 @@ func isDeviceAccessible(ctx context.Context, devicePath string) bool {
 	return size != "" && size != "0"
 }
 
+// isISCSIDeviceRecovering checks whether a block device (e.g. /dev/sda) belongs
+// to an iSCSI session that is still in a recovery state (blocked, transport-offline).
+// Returns false for non-iSCSI devices or when the session state cannot be determined.
+func isISCSIDeviceRecovering(ctx context.Context, devicePath string) bool {
+	base := filepath.Base(devicePath)
+	sysPath := "/sys/block/" + base
+
+	// Check if this is an iSCSI device
+	sessionLink := sysPath + "/device/../../iscsi_session"
+	if _, err := os.Stat(sessionLink); err != nil {
+		return false // Not an iSCSI device
+	}
+
+	state, err := getISCSISessionState(ctx, devicePath)
+	if err != nil {
+		return false
+	}
+
+	return iscsiSessionRecovering(state)
+}
+
+// isNVMeDeviceRecovering checks whether an NVMe device (e.g. /dev/nvme0n1)
+// belongs to a fabrics controller that is still reconnecting.
+func isNVMeDeviceRecovering(devicePath string) bool {
+	base := filepath.Base(devicePath)
+
+	// Extract controller name (nvme0 from nvme0n1)
+	var ctrlName string
+	for i, c := range base {
+		if c == 'n' && i > 4 { // Skip "nvme" prefix
+			ctrlName = base[:i]
+			break
+		}
+	}
+	if ctrlName == "" {
+		return false
+	}
+
+	// Only check fabrics controllers
+	transport, err := os.ReadFile("/sys/class/nvme/" + ctrlName + "/transport")
+	if err != nil || strings.TrimSpace(string(transport)) == "" {
+		return false
+	}
+
+	stateData, err := os.ReadFile("/sys/class/nvme/" + ctrlName + "/state") //nolint:gosec // path constructed from device name
+	if err != nil {
+		return false
+	}
+
+	state := strings.TrimSpace(string(stateData))
+	return state == "connecting" || state == "resetting"
+}
+
 // recoverVolumes is called asynchronously after the WebSocket connection to
 // the NAS is re-established. It probes all active iSCSI sessions and NVMe-oF
 // connections, and attempts to recover any that are stale/offline.
@@ -260,8 +326,24 @@ func (s *NodeService) recoverVolumes() {
 		iscsiRecovered, nvmeRecovered)
 }
 
+// iscsiSessionRecovering returns true if the SCSI device state indicates the
+// kernel iSCSI initiator is still trying to reconnect (within replacement_timeout).
+// In this state we must NOT interfere — the kernel will recover the session
+// automatically once the target comes back.
+func iscsiSessionRecovering(state string) bool {
+	switch state {
+	case "blocked", "transport-offline", "quiesce":
+		return true
+	default:
+		return false
+	}
+}
+
 // recoverISCSISessions scans for iSCSI sessions in non-LOGGED_IN state
 // and forces a logout/re-login to recover them.
+// Sessions in "blocked" or "transport-offline" state are left alone — the
+// kernel iSCSI initiator is still within its replacement_timeout and will
+// reconnect automatically when the target comes back.
 func (s *NodeService) recoverISCSISessions(ctx context.Context) int {
 	// Find all iSCSI block devices by scanning /sys/block/sd*
 	matches, err := filepath.Glob("/sys/block/sd*")
@@ -290,6 +372,14 @@ func (s *NodeService) recoverISCSISessions(ctx context.Context) int {
 
 		if state == iscsiSessionStateLoggedIn {
 			klog.V(4).Infof("iSCSI device %s session is healthy", devicePath)
+			continue
+		}
+
+		// If the session is in a recovery state, the kernel is still trying to
+		// reconnect within replacement_timeout. Do NOT interfere — a forced
+		// logout/re-login would destroy the in-progress recovery.
+		if iscsiSessionRecovering(state) {
+			klog.Infof("iSCSI device %s session is %q — kernel is recovering, not interfering", devicePath, state)
 			continue
 		}
 
@@ -347,6 +437,13 @@ func (s *NodeService) recoverNVMeOFConnections(ctx context.Context) int {
 		state := strings.TrimSpace(string(stateData))
 		if state == nvmeSubsystemStateLive {
 			klog.V(4).Infof("NVMe controller %s is healthy (state: live)", ctrlName)
+			continue
+		}
+
+		// "connecting" and "resetting" mean the kernel is already recovering
+		// the controller — do NOT interfere with a second reset.
+		if state == "connecting" || state == "resetting" {
+			klog.Infof("NVMe controller %s state is %q — kernel is recovering, not interfering", ctrlName, state)
 			continue
 		}
 
