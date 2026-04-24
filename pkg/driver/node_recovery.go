@@ -291,7 +291,7 @@ func isNVMeDeviceRecovering(devicePath string) bool {
 	}
 
 	// Only check fabrics controllers
-	transport, err := os.ReadFile("/sys/class/nvme/" + ctrlName + "/transport")
+	transport, err := os.ReadFile("/sys/class/nvme/" + ctrlName + "/transport") //nolint:gosec // path constructed from device name
 	if err != nil || strings.TrimSpace(string(transport)) == "" {
 		return false
 	}
