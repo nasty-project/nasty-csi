@@ -365,8 +365,6 @@ func (s *NodeService) logoutISCSITarget(_ context.Context, params *iscsiConnecti
 // It sets replacement_timeout=0 so the kernel stops recovery immediately, then
 // logs out and deletes the node record. This is only safe for sessions belonging
 // to deleted pods — never for sessions serving running workloads.
-//
-//nolint:contextcheck // intentionally uses Background context
 func (s *NodeService) forceKillISCSISession(params *iscsiConnectionParams) {
 	klog.Infof("Force-killing orphaned iSCSI session for %s", params.iqn)
 
@@ -395,8 +393,6 @@ func (s *NodeService) forceKillISCSISession(params *iscsiConnectionParams) {
 // forceKillISCSISessionByIQN checks if any iSCSI session exists for the given IQN
 // and force-kills it. This handles the case where findISCSIDevice returns nothing
 // (device already gone from sysfs) but a session is still lingering in recovery state.
-//
-//nolint:contextcheck // intentionally uses Background context
 func (s *NodeService) forceKillISCSISessionByIQN(params *iscsiConnectionParams) {
 	// Check if any session exists for this IQN
 	checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
