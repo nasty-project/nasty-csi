@@ -81,11 +81,11 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 	klog.V(4).Infof("Staging iSCSI volume %s (block mode: %v): server=%s:%s, IQN=%s, LUN=%d, dataset=%s",
 		volumeID, isBlockVolume, params.server, params.port, params.iqn, params.lun, datasetName)
 
-	// Try to reuse existing connection (idempotency)
+	// Try to reuse existing connection (idempotency), or clean up orphaned sessions.
+	// NodeStageVolume is only called for new pods, so any existing session for this
+	// IQN belongs to a deleted pod and is safe to force-kill.
 	if devicePath, findErr := s.findISCSIDevice(ctx, params); findErr == nil && devicePath != "" {
 		// Verify the iSCSI session is healthy before reusing.
-		// After a NAS reboot, the device may still exist in sysfs but the session
-		// is in "transport-offline" state, causing I/O errors.
 		sessionState, stateErr := getISCSISessionState(ctx, devicePath)
 		switch {
 		case stateErr != nil:
@@ -94,15 +94,18 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 			klog.V(4).Infof("iSCSI device already connected at %s (session healthy) - reusing existing connection", devicePath)
 			return s.stageISCSIDevice(ctx, volumeID, devicePath, stagingTargetPath, volumeCapability, isBlockVolume, volumeContext)
 		default:
-			klog.Warningf("iSCSI session for %s is %q (not LOGGED_IN) - forcing logout and re-login", devicePath, sessionState)
+			klog.Warningf("iSCSI session for %s is %q (not LOGGED_IN) - forcing cleanup", devicePath, sessionState)
 		}
 
-		// Session is stale — logout before attempting a fresh login
-		if logoutErr := s.logoutISCSITarget(ctx, params); logoutErr != nil {
-			klog.Warningf("Failed to logout stale iSCSI session for %s: %v (continuing with fresh login)", params.iqn, logoutErr)
-		}
-		// Small delay for kernel to clean up the stale SCSI device
-		time.Sleep(2 * time.Second)
+		// Session is stale (orphaned from a deleted pod). Force-kill it by
+		// setting replacement_timeout=0 so the kernel gives up immediately,
+		// then logout and delete the node record.
+		s.forceKillISCSISession(params)
+	} else {
+		// No device found via session -P 3, but there might still be an orphaned
+		// session in recovery state (e.g., after a force-deleted pod where the
+		// device has already disappeared from sysfs). Check by IQN and kill it.
+		s.forceKillISCSISessionByIQN(params)
 	}
 
 	// Check if iscsiadm is installed
@@ -356,6 +359,60 @@ func (s *NodeService) logoutISCSITarget(_ context.Context, params *iscsiConnecti
 	}
 
 	return nil
+}
+
+// forceKillISCSISession forces an immediate teardown of an orphaned iSCSI session.
+// It sets replacement_timeout=0 so the kernel stops recovery immediately, then
+// logs out and deletes the node record. This is only safe for sessions belonging
+// to deleted pods — never for sessions serving running workloads.
+//
+//nolint:contextcheck // intentionally uses Background context
+func (s *NodeService) forceKillISCSISession(params *iscsiConnectionParams) {
+	klog.Infof("Force-killing orphaned iSCSI session for %s", params.iqn)
+
+	// Set replacement_timeout=0 to make the kernel give up recovery immediately.
+	// Without this, logout hangs until the original replacement_timeout (120s+) expires.
+	toCtx, toCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer toCancel()
+	toCmd := iscsiadmCmd(toCtx, "-m", "node", "-T", params.iqn,
+		"--op", "update", "-n", "node.session.timeo.replacement_timeout", "-v", "0")
+	if out, err := toCmd.CombinedOutput(); err != nil {
+		klog.V(4).Infof("Failed to set replacement_timeout=0 for %s (may not exist): %v, output: %s", params.iqn, err, strings.TrimSpace(string(out)))
+	}
+
+	// Brief pause for the kernel to process the timeout change and fail the session
+	time.Sleep(1 * time.Second)
+
+	// Now logout — should complete immediately since the session is no longer recovering
+	if logoutErr := s.logoutISCSITarget(context.Background(), params); logoutErr != nil {
+		klog.Warningf("Failed to logout orphaned iSCSI session for %s: %v (continuing with fresh login)", params.iqn, logoutErr)
+	}
+
+	// Wait for kernel to clean up the SCSI device
+	time.Sleep(2 * time.Second)
+}
+
+// forceKillISCSISessionByIQN checks if any iSCSI session exists for the given IQN
+// and force-kills it. This handles the case where findISCSIDevice returns nothing
+// (device already gone from sysfs) but a session is still lingering in recovery state.
+//
+//nolint:contextcheck // intentionally uses Background context
+func (s *NodeService) forceKillISCSISessionByIQN(params *iscsiConnectionParams) {
+	// Check if any session exists for this IQN
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer checkCancel()
+	cmd := iscsiadmCmd(checkCtx, "-m", "session")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return // No sessions at all
+	}
+
+	if !strings.Contains(string(output), params.iqn) {
+		return // No session for this IQN
+	}
+
+	klog.Infof("Found orphaned iSCSI session for %s (device already gone) — force-killing", params.iqn)
+	s.forceKillISCSISession(params)
 }
 
 // findISCSIDevice finds the device path for an iSCSI LUN.
