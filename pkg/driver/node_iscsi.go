@@ -100,12 +100,12 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 		// Session is stale (orphaned from a deleted pod). Force-kill it by
 		// setting replacement_timeout=0 so the kernel gives up immediately,
 		// then logout and delete the node record.
-		s.forceKillISCSISession(params)
+		s.forceKillISCSISession(params) //nolint:contextcheck // intentionally uses Background context
 	} else {
 		// No device found via session -P 3, but there might still be an orphaned
 		// session in recovery state (e.g., after a force-deleted pod where the
 		// device has already disappeared from sysfs). Check by IQN and kill it.
-		s.forceKillISCSISessionByIQN(params)
+		s.forceKillISCSISessionByIQN(params) //nolint:contextcheck // intentionally uses Background context
 	}
 
 	// Check if iscsiadm is installed
