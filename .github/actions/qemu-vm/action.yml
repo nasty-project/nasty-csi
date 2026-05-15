@@ -221,12 +221,26 @@ runs:
       shell: bash
       run: |
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
-        echo "Checking connectivity to NASty (${{ inputs.nasty_host }}) from VM..."
-        ssh $SSH_OPTS ci@localhost "
-          curl -sk --connect-timeout 10 --max-time 15 https://${{ inputs.nasty_host }} >/dev/null 2>&1 \
-            && echo 'NASty API is reachable from VM' \
-            || { echo '::error::NASty is NOT reachable from VM'; exit 1; }
-        "
+        NASTY_HOST="${{ inputs.nasty_host }}"
+        echo "Checking connectivity to NASty ($NASTY_HOST) from VM..."
+
+        echo "::group::Tailscale status (VM)"
+        ssh $SSH_OPTS ci@localhost "tailscale status || true"
+        echo "::endgroup::"
+
+        echo "::group::DNS resolution for $NASTY_HOST"
+        ssh $SSH_OPTS ci@localhost "getent hosts $NASTY_HOST || echo 'DNS lookup failed'"
+        echo "::endgroup::"
+
+        echo "::group::Tailscale ping to $NASTY_HOST"
+        ssh $SSH_OPTS ci@localhost "tailscale ping --c 3 --timeout 5s $NASTY_HOST || true"
+        echo "::endgroup::"
+
+        echo "::group::HTTPS probe (curl -v)"
+        ssh $SSH_OPTS ci@localhost "curl -vk --connect-timeout 10 --max-time 15 https://$NASTY_HOST -o /dev/null" \
+          && echo 'NASty API is reachable from VM' \
+          || { echo '::error::NASty is NOT reachable from VM'; echo "::endgroup::"; exit 1; }
+        echo "::endgroup::"
 
     - name: Fetch kubeconfig from VM
       shell: bash
