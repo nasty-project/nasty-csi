@@ -206,7 +206,7 @@ runs:
         echo "Installing Tailscale in VM..."
         ssh $SSH_OPTS ci@localhost "curl -fsSL https://tailscale.com/install.sh | sudo sh"
         echo "Connecting VM to Tailscale..."
-        ssh $SSH_OPTS ci@localhost "sudo tailscale up --auth-key='${{ inputs.tailscale_authkey }}' --accept-routes --hostname=ci-vm-\$(head -c4 /dev/urandom | xxd -p)"
+        ssh $SSH_OPTS ci@localhost "sudo tailscale up --auth-key='${{ inputs.tailscale_authkey }}' --accept-routes --accept-dns --hostname=ci-vm-\$(head -c4 /dev/urandom | xxd -p)"
         echo "Waiting for Tailscale IP..."
         for i in $(seq 1 30); do
           TS_IP=$(ssh $SSH_OPTS ci@localhost "tailscale ip -4 2>/dev/null" || true)
