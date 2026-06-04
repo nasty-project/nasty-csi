@@ -241,39 +241,69 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 		klog.Infof("iSCSI discovery successful at %s, discovered targets:\n%s", portal, string(output))
 	}
 
-	// Step 2: Fix portal address for NAT/DNAT environments.
-	// Discovery stores the target's self-reported IP (e.g., 10.0.0.22) in the node database,
-	// but we may only be able to reach the public IP (e.g., 152.70.42.159).
-	// iscsiadm won't let us update node.conn[0].address (it's a lookup key), so we delete
-	// the discovered entry and create a new one with the reachable portal.
-	discoveredPortal := findDiscoveredPortal(string(output), params.iqn)
-	if discoveredPortal != "" && discoveredPortal != portal {
-		klog.Infof("iSCSI: Target reported portal %s, replacing with reachable address %s", discoveredPortal, portal)
-
-		// Delete the entry with the unreachable portal
-		delCtx, delCancel := context.WithTimeout(ctx, 5*time.Second)
-		defer delCancel()
-		delCmd := iscsiadmCmd(delCtx, "-m", "node", "-T", params.iqn, "-p", discoveredPortal, "--op", "delete")
-		if delOutput, delErr := delCmd.CombinedOutput(); delErr != nil {
-			klog.V(4).Infof("Failed to delete old node entry (may not exist): %v, output: %s", delErr, string(delOutput))
+	// Step 2: Prune discovered node-DB entries we don't want iscsid
+	// tracking. Discovery persists one node record per advertised portal;
+	// every record beyond the one we'll log into is a background liability
+	// (iscsid does periodic reconnect attempts against all known nodes,
+	// each TCP-connecting with a ~75-90s kernel timeout on unreachable
+	// addresses). Two situations this handles:
+	//
+	//   * NAT/DNAT: target self-reports an internal IP (10.x) but the
+	//     reachable address is the public IP — happens when the engine's
+	//     `0.0.0.0` portal resolves to the LAN address but the initiator
+	//     reaches it through a forwarded port. Delete the wrong-IP
+	//     entry and create a new entry pointing at `portal`.
+	//
+	//   * Dual-stack: NASty's iSCSI target advertises both v4 and v6
+	//     portals when the host has a global v6 address. Initiators
+	//     without working v6 routing (typical for CI VMs / NAT'd
+	//     workloads) get a confused iscsid: it ack's discovery, persists
+	//     the v6 node entry, then spends worker threads stuck on v6
+	//     TCP-connect timeouts that starve the v4 session under
+	//     concurrent load. blkid then times out on the slow device.
+	//     Prune everything that isn't `portal`.
+	discoveredPortals := findAllDiscoveredPortals(string(output), params.iqn)
+	for _, dp := range discoveredPortals {
+		if dp == portal {
+			continue
 		}
+		klog.Infof("iSCSI: Pruning discovered portal %s (initiator will connect via %s)", dp, portal)
+		delCtx, delCancel := context.WithTimeout(ctx, 5*time.Second)
+		delCmd := iscsiadmCmd(delCtx, "-m", "node", "-T", params.iqn, "-p", dp, "--op", "delete")
+		if delOutput, delErr := delCmd.CombinedOutput(); delErr != nil {
+			klog.V(4).Infof("Failed to delete pruned node entry %s (may not exist): %v, output: %s", dp, delErr, string(delOutput))
+		}
+		delCancel()
+	}
 
-		// Create a new entry with the reachable portal
+	// If discovery never produced an entry for our `portal` (NAT path —
+	// the target only advertised internal IPs the initiator can't reach),
+	// create one explicitly so the login below has a node record to log
+	// into.
+	needPortalEntry := true
+	for _, dp := range discoveredPortals {
+		if dp == portal {
+			needPortalEntry = false
+			break
+		}
+	}
+	if needPortalEntry {
+		klog.Infof("iSCSI: No discovered portal matched %s — creating node entry explicitly", portal)
 		newCtx, newCancel := context.WithTimeout(ctx, 5*time.Second)
-		defer newCancel()
 		newCmd := iscsiadmCmd(newCtx, "-m", "node", "--op", "new", "-T", params.iqn, "-p", portal)
 		if newOutput, newErr := newCmd.CombinedOutput(); newErr != nil {
-			klog.Warningf("Failed to create node entry with reachable portal: %v, output: %s", newErr, string(newOutput))
+			klog.Warningf("Failed to create node entry with reachable portal %s: %v, output: %s", portal, newErr, string(newOutput))
 		}
+		newCancel()
 
 		// Disable authentication on the new entry (same as targetcli default)
 		authCtx, authCancel := context.WithTimeout(ctx, 5*time.Second)
-		defer authCancel()
 		authCmd := iscsiadmCmd(authCtx, "-m", "node", "-T", params.iqn, "-p", portal,
 			"--op", "update", "-n", "node.session.auth.authmethod", "-v", "None")
 		if authOutput, authErr := authCmd.CombinedOutput(); authErr != nil {
 			klog.V(4).Infof("Failed to set auth method (may be default): %v, output: %s", authErr, string(authOutput))
 		}
+		authCancel()
 	}
 
 	// Step 3: Login using the reachable portal
@@ -302,23 +332,44 @@ func (s *NodeService) loginISCSITarget(ctx context.Context, params *iscsiConnect
 
 // findDiscoveredPortal parses iscsiadm discovery output to find the portal for a given IQN.
 // Discovery output format: "10.0.0.22:3260,1 iqn.2137-04.storage.nasty:volume-name".
+// Returns the first matching portal; for multi-portal targets prefer
+// findAllDiscoveredPortals.
 func findDiscoveredPortal(discoveryOutput, iqn string) string {
+	all := findAllDiscoveredPortals(discoveryOutput, iqn)
+	if len(all) == 0 {
+		return ""
+	}
+	return all[0]
+}
+
+// findAllDiscoveredPortals parses iscsiadm discovery output and returns every
+// portal advertised for the given IQN. NASty's iSCSI targets advertise
+// multiple portals when dual-stack is enabled (v4 wildcard, v6 wildcard,
+// Tailscale IP, etc.) — discovery returns the full list, and any portal
+// the initiator can't actually reach becomes a background-reconnect
+// liability for iscsid (75-90s TCP-connect timeouts per attempt, on a
+// loop). Callers that know which single portal they want should prune
+// the rest from the node DB before login to keep iscsid focused.
+func findAllDiscoveredPortals(discoveryOutput, iqn string) []string {
+	var portals []string
 	for _, line := range strings.Split(discoveryOutput, "\n") {
 		line = strings.TrimSpace(line)
-		if strings.Contains(line, iqn) {
-			// Format: "ip:port,tpg iqn"
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				// Strip the ",tpg" suffix from "ip:port,1"
-				portalWithTPG := parts[0]
-				if idx := strings.LastIndex(portalWithTPG, ","); idx != -1 {
-					return portalWithTPG[:idx]
-				}
-				return portalWithTPG
-			}
+		if !strings.Contains(line, iqn) {
+			continue
 		}
+		// Format: "ip:port,tpg iqn"
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+		portalWithTPG := parts[0]
+		portal := portalWithTPG
+		if idx := strings.LastIndex(portalWithTPG, ","); idx != -1 {
+			portal = portalWithTPG[:idx]
+		}
+		portals = append(portals, portal)
 	}
-	return ""
+	return portals
 }
 
 // logoutISCSITarget logs out from an iSCSI target and removes the node record
