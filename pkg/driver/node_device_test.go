@@ -302,3 +302,65 @@ func TestWaitForNVMeStabilization(t *testing.T) {
 		}
 	})
 }
+
+func TestIsNetworkBlockDevice(t *testing.T) {
+	// The classifier drives blkid timeout (5s → 30s) and retry count
+	// (3 → 6) for the device. A misclassification in either direction
+	// is a real bug: false-negative on iSCSI brought back the 5s budget
+	// that was killing blkid under Tailscale latency; false-positive on
+	// a local disk would inflate first-mount latency for no benefit.
+	tests := []struct {
+		name       string
+		devicePath string
+		want       bool
+	}{
+		{
+			name:       "iSCSI device gets the high-latency budget",
+			devicePath: "/dev/sda",
+			want:       true,
+		},
+		{
+			name:       "iSCSI device with partition",
+			devicePath: "/dev/sdb1",
+			want:       true,
+		},
+		{
+			name:       "iSCSI device late in the alphabet",
+			devicePath: "/dev/sdz",
+			want:       true,
+		},
+		{
+			name:       "NVMe-oF device",
+			devicePath: "/dev/nvme0n1",
+			want:       true,
+		},
+		{
+			name:       "NVMe-oF device with namespace + partition",
+			devicePath: "/dev/nvme1n2p3",
+			want:       true,
+		},
+		{
+			name:       "loop device (block subvolume) keeps the fast path",
+			devicePath: "/dev/loop0",
+			want:       false,
+		},
+		{
+			name:       "mapper device (LVM/dm) keeps the fast path",
+			devicePath: "/dev/mapper/some-vg-lv",
+			want:       false,
+		},
+		{
+			name:       "empty path is not network-attached",
+			devicePath: "",
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isNetworkBlockDevice(tt.devicePath); got != tt.want {
+				t.Errorf("isNetworkBlockDevice(%q) = %v, want %v", tt.devicePath, got, tt.want)
+			}
+		})
+	}
+}
