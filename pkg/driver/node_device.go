@@ -234,13 +234,28 @@ func invalidateDeviceCache(ctx context.Context, devicePath string, attempt int) 
 	return nil
 }
 
+// isNetworkBlockDevice returns true if the device path looks like a
+// CSI-attached network block device (iSCSI or NVMe-oF). Both can sit
+// behind high-latency links (Tailscale, WAN, NAT) where blkid /
+// blockdev I/O against the superblock takes 10-20s per attempt under
+// concurrent load — well beyond the 5s budget that's safe on a local
+// disk. Lumping both into the same timeout/retry regime matches
+// reality: in this driver, the only /dev/sd[a-z] devices we see are
+// iSCSI-attached (local disks don't reach NodeStageVolume), and the
+// only /dev/nvme* devices are NVMe-oF, so the false-positive rate
+// for treating them as high-latency is zero.
+func isNetworkBlockDevice(devicePath string) bool {
+	return strings.Contains(devicePath, "/dev/nvme") ||
+		strings.Contains(devicePath, "/dev/sd")
+}
+
 // needsFormatWithRetries checks if a device needs formatting with different retry logic for clones vs new volumes.
 // For cloned volumes, we use many retries (25) to ensure filesystem metadata has propagated.
-// For new NVMe volumes, we use fewer retries (3) since we expect to format them.
-// For non-NVMe devices, we use few retries (3) to avoid gRPC timeouts.
+// For network block devices (iSCSI + NVMe-oF), we use 6 retries to handle high-latency links.
+// For other devices, we use few retries (3) to avoid gRPC timeouts.
 func needsFormatWithRetries(ctx context.Context, devicePath string, isClone bool) (bool, error) {
 	var maxRetries int
-	isNVMe := strings.Contains(devicePath, "/dev/nvme")
+	isNetBlock := isNetworkBlockDevice(devicePath)
 
 	switch {
 	case isClone:
@@ -248,14 +263,18 @@ func needsFormatWithRetries(ctx context.Context, devicePath string, isClone bool
 		// and avoid destroying data by reformatting.
 		maxRetries = 25
 		klog.Infof("Checking cloned volume filesystem (max %d retries to avoid destroying clone data)", maxRetries)
-	case isNVMe:
-		// NVMe volumes: use enough retries to handle high-latency links (e.g. Tailscale).
-		// Over such links, blkid can take 10-20s per attempt to read the superblock.
-		// Too few retries caused data loss by reformatting volumes with existing filesystems.
+	case isNetBlock:
+		// Network block devices (NVMe-oF + iSCSI): use enough retries to
+		// handle high-latency links (e.g. Tailscale). Over such links,
+		// blkid can take 10-20s per attempt to read the superblock.
+		// Too few retries caused data loss by reformatting volumes with
+		// existing filesystems; matching iSCSI to NVMe-oF here closes
+		// the blkid-killed-by-5s-timeout failure mode observed in the
+		// iSCSI concurrent E2E tests over Tailscale.
 		maxRetries = 6
-		klog.Infof("Checking NVMe volume filesystem (max %d retries, will format if needed)", maxRetries)
+		klog.Infof("Checking network block device filesystem (max %d retries, will format if needed)", maxRetries)
 	default:
-		maxRetries = 3 // Fast for non-NVMe new volumes - avoid gRPC timeout (typical 2min deadline)
+		maxRetries = 3 // Fast for local devices - avoid gRPC timeout (typical 2min deadline)
 		klog.Infof("Checking new volume filesystem (max %d retries, will format if needed)", maxRetries)
 	}
 
@@ -398,10 +417,14 @@ func waitWithBackoff(ctx context.Context, devicePath string, attempt, maxRetries
 // checkDeviceFilesystem checks if a device has a filesystem using blkid and lsblk.
 // Returns (needsFormat, output, error).
 func checkDeviceFilesystem(ctx context.Context, devicePath string) (needsFormat bool, output []byte, err error) {
-	// Use a longer timeout for NVMe-oF devices — over high-latency links (e.g. Tailscale)
-	// block I/O for superblock reads can take significantly longer than on LAN.
+	// Use a longer timeout for network block devices — over high-latency
+	// links (e.g. Tailscale, WAN), block I/O for superblock reads can take
+	// significantly longer than on LAN. Local devices keep the tight 5s
+	// budget since they're expected to respond instantly; the 30s ceiling
+	// here is the *maximum* — blkid still exits in milliseconds on a
+	// healthy link, so there's no penalty on LAN deployments.
 	timeout := 5 * time.Second
-	if strings.Contains(devicePath, "/dev/nvme") {
+	if isNetworkBlockDevice(devicePath) {
 		timeout = 30 * time.Second
 	}
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
