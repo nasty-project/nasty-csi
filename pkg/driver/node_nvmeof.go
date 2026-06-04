@@ -46,7 +46,7 @@ const (
 // errors (e.g., NVMe-oF controller reconnect during NAS downtime). The default
 // "errors=remount-ro" is designed for local disks; for network block devices
 // the errors are transient and the controller will recover.
-var defaultNVMeOFMountOptions = []string{"noatime", "_netdev", "errors=continue"}
+var defaultNVMeOFMountOptions = []string{mountOptNoatime, mountOptNetdev, mountOptErrorsContinue}
 
 // nvmeOFConnectionParams holds validated NVMe-oF connection parameters.
 // With independent subsystems per volume, NSID is always 1.

@@ -32,7 +32,7 @@ var (
 // "errors=remount-ro" is designed for local disks where I/O errors indicate
 // hardware failure; for network block devices the errors are transient and the
 // session will recover, so keeping the filesystem read-write is correct.
-var defaultISCSIMountOptions = []string{"noatime", "_netdev", "errors=continue"}
+var defaultISCSIMountOptions = []string{mountOptNoatime, mountOptNetdev, mountOptErrorsContinue}
 
 // iscsiadmCmd builds a command to run iscsiadm, using nsenter to execute
 // in the host's namespaces when running in a container. This allows the

@@ -239,7 +239,23 @@ linters:
           - interfacebloat
           - funlen
           - maintidx
-          
+
+      # E2E test framework helpers are test scaffolding too — they
+      # just don't end in _test.go because Ginkgo specs import them.
+      # Apply the same relaxations as _test.go: goconst noise about
+      # "kubectl get" / "--namespace" strings isn't worth refactoring
+      # for, and dupl/funlen complaints on the helper functions miss
+      # the point (they exist to be readable for spec authors, not
+      # minimal).
+      - path: tests/e2e/framework/
+        linters:
+          - goconst
+          - dupl
+          - funlen
+          - gocyclo
+          - gocognit
+          - nestif
+
       # Ignore long lines in generated files
       - path: \.pb\.go$
         linters:

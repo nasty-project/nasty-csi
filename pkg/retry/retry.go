@@ -14,6 +14,12 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// defaultOperationName is the fallback name surfaced in log lines /
+// metric labels when the caller doesn't supply one. Kept as a constant
+// so the empty-string fallback in two places (DefaultConfig and the
+// runtime check in WithRetry) can't drift apart.
+const defaultOperationName = "operation"
+
 // Config configures retry behavior.
 //
 //nolint:govet // fieldalignment: field order prioritizes readability over memory optimization.
@@ -50,7 +56,7 @@ func DefaultConfig() Config {
 		MaxBackoff:        30 * time.Second,
 		BackoffMultiplier: 2.0,
 		RetryableFunc:     nil, // Retry all errors by default
-		OperationName:     "operation",
+		OperationName:     defaultOperationName,
 	}
 }
 
@@ -82,7 +88,7 @@ func WithRetry[T any](ctx context.Context, config Config, fn func() (T, error)) 
 		config.BackoffMultiplier = 2.0
 	}
 	if config.OperationName == "" {
-		config.OperationName = "operation"
+		config.OperationName = defaultOperationName
 	}
 
 	var lastErr error
