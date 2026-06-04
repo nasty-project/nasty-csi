@@ -69,7 +69,7 @@ func injectQueueParams(volumeContext map[string]string, nrIOQueues, queueSize st
 func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, error) {
 	params := req.GetParameters()
 
-	filesystem := params["filesystem"]
+	filesystem := params[paramFilesystem]
 	if filesystem == "" {
 		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for NVMe-oF volumes")
 	}

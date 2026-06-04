@@ -76,7 +76,7 @@ func (s *NodeService) publishBlockVolume(ctx context.Context, stagingTargetPath,
 	}
 
 	// Bind mount the device from staging to target
-	mountOptions := []string{"bind"}
+	mountOptions := []string{mountOptBind}
 	if readonly {
 		mountOptions = append(mountOptions, "ro")
 	}
@@ -132,7 +132,7 @@ func (s *NodeService) publishFilesystemVolume(ctx context.Context, stagingTarget
 	}
 
 	// Bind mount the staged directory to target
-	mountOptions := []string{"bind"}
+	mountOptions := []string{mountOptBind}
 	if readonly {
 		mountOptions = append(mountOptions, "ro")
 	}

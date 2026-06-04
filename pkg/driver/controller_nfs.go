@@ -17,6 +17,14 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// defaultNFSClientOptions is the export-line options string the driver
+// writes for an NFS client when the StorageClass nfsClients parameter
+// is empty or omits the per-host options portion. `rw,no_root_squash`
+// matches the historical default and what every k8s NFS provisioner
+// emits — root-on-the-pod has to map to root-on-the-share or container
+// init paths fail with EPERM.
+const defaultNFSClientOptions = "rw,no_root_squash"
+
 // nfsVolumeParams holds validated parameters for NFS volume creation.
 type nfsVolumeParams struct {
 	filesystem        string
@@ -47,7 +55,7 @@ type nfsVolumeParams struct {
 func parseNFSClients(clientsParam string) []nastyapi.NFSClient {
 	if clientsParam == "" {
 		return []nastyapi.NFSClient{
-			{Host: "*", Options: "rw,no_root_squash"},
+			{Host: "*", Options: defaultNFSClientOptions},
 		}
 	}
 
@@ -58,7 +66,7 @@ func parseNFSClients(clientsParam string) []nastyapi.NFSClient {
 		if len(parts) == 2 {
 			client.Options = parts[1]
 		} else {
-			client.Options = "rw,no_root_squash"
+			client.Options = defaultNFSClientOptions
 		}
 		clients = append(clients, client)
 	}
@@ -69,7 +77,7 @@ func parseNFSClients(clientsParam string) []nastyapi.NFSClient {
 func validateNFSParams(req *csi.CreateVolumeRequest) (*nfsVolumeParams, error) {
 	params := req.GetParameters()
 
-	filesystem := params["filesystem"]
+	filesystem := params[paramFilesystem]
 	if filesystem == "" {
 		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for NFS volumes")
 	}
@@ -368,7 +376,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		createParams := nastyapi.SubvolumeCreateParams{
 			Filesystem:    params.filesystem,
 			Name:          params.subvolumeName,
-			SubvolumeType: "filesystem",
+			SubvolumeType: subvolumeTypeFilesystem,
 			Comments:      params.comment,
 		}
 		if params.compression != "" {
@@ -601,7 +609,7 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 			Path:    subvol.Path,
 			Comment: comment,
 			Clients: []nastyapi.NFSClient{
-				{Host: "*", Options: "rw,no_root_squash"},
+				{Host: "*", Options: defaultNFSClientOptions},
 			},
 			Enabled: &enabled,
 		})

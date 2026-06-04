@@ -26,6 +26,23 @@ const (
 	msgVolumeIsHealthy       = "Volume is healthy"
 )
 
+// StorageClass parameter keys — names the operator types into a
+// StorageClass YAML and the driver reads from req.GetParameters().
+// Keeping them as named constants avoids drift between the controller
+// that reads the param and any helper that writes it (e.g. e2e
+// fixtures, docs codegen).
+const (
+	paramFilesystem = "filesystem"
+)
+
+// NASty subvolume type values. The engine accepts a small enum here;
+// "filesystem" is a directory-style subvolume (NFS/SMB-style sharing),
+// "block" is a backstore-image subvolume (iSCSI/NVMe-oF). Constants
+// stop the wrong string from being passed silently.
+const (
+	subvolumeTypeFilesystem = "filesystem"
+)
+
 // Default values.
 const (
 	defaultServerAddress = "defaultServerAddress"
@@ -396,7 +413,7 @@ func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Validate encryption requirement: if StorageClass requests encryption,
 	// verify the target filesystem has bcachefs-level encryption enabled.
 	if strings.EqualFold(params["encryption"], "true") {
-		fsName := params["filesystem"]
+		fsName := params[paramFilesystem]
 		if fsName == "" {
 			return nil, status.Error(codes.InvalidArgument, "encryption requires a filesystem parameter")
 		}
@@ -959,7 +976,7 @@ func (s *ControllerService) GetCapacity(ctx context.Context, req *csi.GetCapacit
 		return &csi.GetCapacityResponse{}, nil
 	}
 
-	fsName := params["filesystem"]
+	fsName := params[paramFilesystem]
 	if fsName == "" {
 		klog.Warning("GetCapacity called without filesystem parameter")
 		return &csi.GetCapacityResponse{}, nil
@@ -1051,7 +1068,7 @@ func GetAdoptionInfo(props map[string]string) map[string]string {
 func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.CreateVolumeRequest, params map[string]string, protocol string) (*csi.CreateVolumeResponse, bool, error) {
 	volumeName := req.GetName()
 	adoptExisting := params["adoptExisting"] == VolumeContextValueTrue
-	filesystem := params["filesystem"]
+	filesystem := params[paramFilesystem]
 
 	klog.V(4).Infof("Checking for adoptable volume: %s (adoptExisting=%v)", volumeName, adoptExisting)
 

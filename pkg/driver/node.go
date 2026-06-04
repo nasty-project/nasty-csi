@@ -32,6 +32,28 @@ const (
 	fsTypeExt3 = "ext3"
 	fsTypeExt4 = "ext4"
 	fsTypeXFS  = "xfs"
+	// fsTypeCIFS is the kernel's name for the SMB client filesystem.
+	// Used as the type argument to mount(2) and as the entry written
+	// into /proc/mounts when the kernel mounts an SMB share — both
+	// the mount-side helpers and the parse-side parsers need it.
+	fsTypeCIFS = "cifs"
+)
+
+// Mount option constants — strings the kernel cares about that we
+// pass through unchanged. Keeping them as named constants stops
+// typos at the boundary between Go strings and kernel parsers.
+const (
+	mountOptBind    = "bind"     // bind-mount; used for staging→publish paths
+	mountOptNetdev  = "_netdev"  // wait for network before mounting at boot
+	mountOptNolock  = "nolock"   // NFS: disable file locking (lockd)
+	mountOptVers3_0 = "vers=3.0" // SMB protocol version 3.0
+	mountOptNoatime = "noatime"  // skip atime updates; reduces write amplification on network block devices
+	// mountOptErrorsContinue keeps ext4 / similar from remounting RO on
+	// transient I/O errors. Default `errors=remount-ro` is the right
+	// choice for local disks (hardware failure) but wrong for network
+	// block devices (iSCSI/NVMe-oF reconnects) where the session is
+	// expected to recover and the filesystem needs to stay writable.
+	mountOptErrorsContinue = "errors=continue"
 )
 
 // iSCSI session state constants.
@@ -256,7 +278,7 @@ func (s *NodeService) detectProtocolFromStagingPath(ctx context.Context, staging
 	}
 
 	// SMB/CIFS mounts will show "cifs" or "smb3" as filesystem type
-	if fsType == "cifs" || strings.HasPrefix(fsType, "smb") {
+	if fsType == fsTypeCIFS || strings.HasPrefix(fsType, "smb") {
 		return ProtocolSMB
 	}
 

@@ -43,7 +43,7 @@ type smbVolumeParams struct {
 func validateSMBParams(req *csi.CreateVolumeRequest) (*smbVolumeParams, error) {
 	params := req.GetParameters()
 
-	filesystem := params["filesystem"]
+	filesystem := params[paramFilesystem]
 	if filesystem == "" {
 		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for SMB volumes")
 	}
@@ -248,7 +248,7 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no SMB share - continue with share creation
 	} else {
 		// Create new subvolume
-		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, "filesystem", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
+		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, subvolumeTypeFilesystem, params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
 		if createErr != nil {
 			return nil, createErr
 		}

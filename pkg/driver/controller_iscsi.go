@@ -50,7 +50,7 @@ func generateIQN(volumeName string) string {
 func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, error) {
 	params := req.GetParameters()
 
-	filesystem := params["filesystem"]
+	filesystem := params[paramFilesystem]
 	if filesystem == "" {
 		return nil, status.Error(codes.InvalidArgument, "filesystem parameter is required for iSCSI volumes")
 	}
