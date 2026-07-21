@@ -449,7 +449,7 @@ func TestExpandNFSVolume(t *testing.T) {
 			wantCode:      codes.InvalidArgument,
 		},
 		{
-			name: "NASty API error during expansion",
+			name: "capacity metadata error is returned for retry",
 			meta: &VolumeMetadata{
 				Name:         "test-nfs-volume",
 				Protocol:     ProtocolNFS,
@@ -463,15 +463,8 @@ func TestExpandNFSVolume(t *testing.T) {
 					return nil, errors.New("subvolume not found")
 				}
 			},
-			// expandNFSVolume logs the error but still returns success with the requested capacity
-			// (the xattr set failure is non-fatal)
-			wantErr: false,
-			checkResponse: func(t *testing.T, resp *csi.ControllerExpandVolumeResponse) {
-				t.Helper()
-				if resp.CapacityBytes != 5*1024*1024*1024 {
-					t.Errorf("Expected capacity 5GB, got %d", resp.CapacityBytes)
-				}
-			},
+			wantErr:  true,
+			wantCode: codes.Internal,
 		},
 	}
 
