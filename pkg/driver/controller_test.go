@@ -62,6 +62,10 @@ func requireNotNilController(t *testing.T, v any, msg string) {
 	}
 }
 
+func uint64Ptr(value uint64) *uint64 {
+	return &value
+}
+
 // mockAPIClient is the primary mock implementation of nastyapi.ClientInterface for testing.
 // All methods have optional Func fields; if nil, a sensible default is returned.
 type mockAPIClient struct {
@@ -796,14 +800,39 @@ func TestControllerExpandVolume(t *testing.T) {
 			wantCode:  codes.InvalidArgument,
 		},
 		{
-			name: "capacity below minimum",
+			name: "empty capacity range",
 			req: &csi.ControllerExpandVolumeRequest{
 				VolumeId:      "tank/csi/test-nfs-volume",
-				CapacityRange: &csi.CapacityRange{RequiredBytes: 500 * 1024 * 1024}, // 500 MiB
+				CapacityRange: &csi.CapacityRange{},
 			},
 			mockSetup: func(m *mockAPIClient) {},
 			wantErr:   true,
 			wantCode:  codes.InvalidArgument,
+		},
+		{
+			name: "capacity below minimum rounds up when mutation is required",
+			req: &csi.ControllerExpandVolumeRequest{
+				VolumeId:      "tank/csi/test-nfs-volume",
+				CapacityRange: &csi.CapacityRange{RequiredBytes: 500 * 1024 * 1024}, // 500 MiB
+			},
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
+						Name: name, Filesystem: filesystem,
+						Properties: map[string]string{
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
+						},
+					}, nil
+				}
+			},
+			wantErr: false,
+			checkResponse: func(t *testing.T, resp *csi.ControllerExpandVolumeResponse) {
+				t.Helper()
+				if resp.CapacityBytes != MinVolumeSize {
+					t.Errorf("Expected capacity %d, got %d", MinVolumeSize, resp.CapacityBytes)
+				}
+			},
 		},
 		{
 			name: "NFS expansion - NodeExpansionRequired should be false",
@@ -823,11 +852,19 @@ func TestControllerExpandVolume(t *testing.T) {
 				m.GetSubvolumeFunc = func(ctx context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{
 						Name: name, Filesystem: filesystem,
+						SubvolumeType: subvolumeTypeFilesystem,
+						QuotaBytes:    uint64Ptr(1024 * 1024 * 1024),
 						Properties: map[string]string{
 							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
 							nastyapi.PropertyProtocol:  ProtocolNFS,
 						},
 					}, nil
+				}
+				m.ResizeSubvolumeFunc = func(_ context.Context, _, _ string, volsizeBytes uint64) (*nastyapi.Subvolume, error) {
+					if volsizeBytes != 5*1024*1024*1024 {
+						return nil, errors.New("unexpected resize target")
+					}
+					return &nastyapi.Subvolume{}, nil
 				}
 				m.FindSubvolumeByCSIVolumeNameFunc = func(ctx context.Context, filesystem, volumeName string) (*nastyapi.Subvolume, error) {
 					return nil, nil //nolint:nilnil
@@ -843,6 +880,98 @@ func TestControllerExpandVolume(t *testing.T) {
 					t.Errorf("Expected capacity 5GB, got %d", resp.CapacityBytes)
 				}
 			},
+		},
+		{
+			name: "existing capacity satisfies a smaller request without shrinking",
+			req: &csi.ControllerExpandVolumeRequest{
+				VolumeId:      "tank/csi/existing-nfs-volume",
+				CapacityRange: &csi.CapacityRange{RequiredBytes: 500 * 1024 * 1024},
+			},
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
+						Name: name, Filesystem: filesystem,
+						SubvolumeType: subvolumeTypeFilesystem,
+						QuotaBytes:    uint64Ptr(10 * 1024 * 1024 * 1024),
+						Properties: map[string]string{
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
+						},
+					}, nil
+				}
+				m.ResizeSubvolumeFunc = func(_ context.Context, _, _ string, capacity uint64) (*nastyapi.Subvolume, error) {
+					if capacity != 10*1024*1024*1024 {
+						return nil, errors.New("reconciliation must use current backend capacity")
+					}
+					return &nastyapi.Subvolume{}, nil
+				}
+				m.SetSubvolumePropertiesFunc = func(_ context.Context, _, _ string, props map[string]string) (*nastyapi.Subvolume, error) {
+					if props[nastyapi.PropertyCapacityBytes] != "10737418240" {
+						return nil, errors.New("current backend capacity was not reconciled")
+					}
+					return &nastyapi.Subvolume{}, nil
+				}
+			},
+			wantErr: false,
+			checkResponse: func(t *testing.T, resp *csi.ControllerExpandVolumeResponse) {
+				t.Helper()
+				if resp.CapacityBytes != 10*1024*1024*1024 {
+					t.Errorf("Expected existing capacity 10GB, got %d", resp.CapacityBytes)
+				}
+				if resp.NodeExpansionRequired {
+					t.Error("Expected NodeExpansionRequired to be false for NFS")
+				}
+			},
+		},
+		{
+			name: "current capacity above requested limit is rejected",
+			req: &csi.ControllerExpandVolumeRequest{
+				VolumeId: "tank/csi/existing-block-volume",
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 5 * 1024 * 1024 * 1024,
+					LimitBytes:    8 * 1024 * 1024 * 1024,
+				},
+			},
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
+						Name: name, Filesystem: filesystem,
+						SubvolumeType: subvolumeTypeBlock,
+						VolsizeBytes:  uint64Ptr(10 * 1024 * 1024 * 1024),
+						Properties: map[string]string{
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolISCSI,
+						},
+					}, nil
+				}
+			},
+			wantErr:  true,
+			wantCode: codes.OutOfRange,
+		},
+		{
+			name: "quota granularity must fit the requested limit",
+			req: &csi.ControllerExpandVolumeRequest{
+				VolumeId: "tank/csi/unaligned-nfs-volume",
+				CapacityRange: &csi.CapacityRange{
+					RequiredBytes: 1024*1024*1024 + 1,
+					LimitBytes:    1024*1024*1024 + 1,
+				},
+			},
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{
+						Name: name, Filesystem: filesystem,
+						SubvolumeType: subvolumeTypeFilesystem,
+						QuotaBytes:    uint64Ptr(1024 * 1024 * 1024),
+						Properties: map[string]string{
+							nastyapi.PropertyManagedBy: nastyapi.ManagedByValue,
+							nastyapi.PropertyProtocol:  ProtocolNFS,
+						},
+					}, nil
+				}
+			},
+			wantErr:  true,
+			wantCode: codes.OutOfRange,
 		},
 		{
 			name: "volume not found",
@@ -892,6 +1021,159 @@ func TestControllerExpandVolume(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthoritativeSubvolumeCapacity(t *testing.T) {
+	filesystem := &nastyapi.Subvolume{
+		SubvolumeType: subvolumeTypeFilesystem,
+		QuotaBytes:    uint64Ptr(5 * 1024 * 1024 * 1024),
+		VolsizeBytes:  uint64Ptr(99),
+	}
+	if got := authoritativeSubvolumeCapacity(filesystem); got == nil || *got != 5*1024*1024*1024 {
+		t.Fatalf("filesystem capacity = %v, want quota", got)
+	}
+
+	block := &nastyapi.Subvolume{
+		SubvolumeType: subvolumeTypeBlock,
+		QuotaBytes:    uint64Ptr(99),
+		VolsizeBytes:  uint64Ptr(10 * 1024 * 1024 * 1024),
+	}
+	if got := authoritativeSubvolumeCapacity(block); got == nil || *got != 10*1024*1024*1024 {
+		t.Fatalf("block capacity = %v, want volsize", got)
+	}
+}
+
+func TestNormalizeCreateCapacity(t *testing.T) {
+	tests := []struct {
+		capacity  *csi.CapacityRange
+		name      string
+		wantBytes int64
+		wantCode  codes.Code
+		wantErr   bool
+	}{
+		{
+			name:      "missing range uses the one GiB default",
+			wantBytes: MinVolumeSize,
+		},
+		{
+			name: "required capacity below minimum rounds up",
+			capacity: &csi.CapacityRange{
+				RequiredBytes: 500 * 1024 * 1024,
+			},
+			wantBytes: MinVolumeSize,
+		},
+		{
+			name: "minimum capacity must fit the limit",
+			capacity: &csi.CapacityRange{
+				RequiredBytes: 500 * 1024 * 1024,
+				LimitBytes:    500 * 1024 * 1024,
+			},
+			wantErr:  true,
+			wantCode: codes.OutOfRange,
+		},
+		{
+			name: "filesystem capacity rounds to quota granularity",
+			capacity: &csi.CapacityRange{
+				RequiredBytes: MinVolumeSize + 1,
+				LimitBytes:    MinVolumeSize + 1024,
+			},
+			wantBytes: MinVolumeSize + 1024,
+		},
+		{
+			name: "rounded capacity cannot exceed an exact limit",
+			capacity: &csi.CapacityRange{
+				RequiredBytes: MinVolumeSize + 1,
+				LimitBytes:    MinVolumeSize + 1,
+			},
+			wantErr:  true,
+			wantCode: codes.OutOfRange,
+		},
+		{
+			name: "backend maximum is enforced",
+			capacity: &csi.CapacityRange{
+				RequiredBytes: MaxVolumeSize + 1,
+			},
+			wantErr:  true,
+			wantCode: codes.OutOfRange,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &csi.CreateVolumeRequest{CapacityRange: tt.capacity}
+			err := normalizeCreateCapacity(req, ProtocolNFS)
+			if tt.wantErr {
+				if status.Code(err) != tt.wantCode {
+					t.Fatalf("error code = %v, want %v (err=%v)", status.Code(err), tt.wantCode, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeCreateCapacity() error = %v", err)
+			}
+			if got := req.GetCapacityRange().GetRequiredBytes(); got != tt.wantBytes {
+				t.Fatalf("RequiredBytes = %d, want %d", got, tt.wantBytes)
+			}
+		})
+	}
+}
+
+func TestPlanExpansionRejectsBackendMaximum(t *testing.T) {
+	_, err := planExpansion(&VolumeMetadata{Protocol: ProtocolISCSI}, MaxVolumeSize+1, 0)
+	if status.Code(err) != codes.OutOfRange {
+		t.Fatalf("error code = %v, want %v (err=%v)", status.Code(err), codes.OutOfRange, err)
+	}
+}
+
+func TestEnsureClonedVolumeCapacity(t *testing.T) {
+	t.Run("grows a clone below required capacity", func(t *testing.T) {
+		client := &mockAPIClient{
+			GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+				return &nastyapi.Subvolume{
+					SubvolumeType: subvolumeTypeBlock,
+					VolsizeBytes:  uint64Ptr(MinVolumeSize),
+				}, nil
+			},
+			ResizeSubvolumeFunc: func(_ context.Context, _, _ string, capacity uint64) (*nastyapi.Subvolume, error) {
+				if capacity != 2*MinVolumeSize {
+					return nil, errors.New("unexpected clone resize target")
+				}
+				return &nastyapi.Subvolume{}, nil
+			},
+		}
+		req := &csi.CreateVolumeRequest{CapacityRange: &csi.CapacityRange{
+			RequiredBytes: 2 * MinVolumeSize,
+			LimitBytes:    3 * MinVolumeSize,
+		}}
+		service := NewControllerService(client, NewNodeRegistry(), "")
+		capacity, err := service.ensureClonedVolumeCapacity(context.Background(), req, "tank", "clone")
+		if err != nil {
+			t.Fatalf("ensureClonedVolumeCapacity() error = %v", err)
+		}
+		if capacity != 2*MinVolumeSize {
+			t.Fatalf("capacity = %d, want %d", capacity, 2*MinVolumeSize)
+		}
+	})
+
+	t.Run("rejects a clone above limit", func(t *testing.T) {
+		client := &mockAPIClient{
+			GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+				return &nastyapi.Subvolume{
+					SubvolumeType: subvolumeTypeBlock,
+					VolsizeBytes:  uint64Ptr(3 * MinVolumeSize),
+				}, nil
+			},
+		}
+		req := &csi.CreateVolumeRequest{CapacityRange: &csi.CapacityRange{
+			RequiredBytes: MinVolumeSize,
+			LimitBytes:    2 * MinVolumeSize,
+		}}
+		service := NewControllerService(client, NewNodeRegistry(), "")
+		_, err := service.ensureClonedVolumeCapacity(context.Background(), req, "tank", "clone")
+		if status.Code(err) != codes.OutOfRange {
+			t.Fatalf("error code = %v, want %v (err=%v)", status.Code(err), codes.OutOfRange, err)
+		}
+	})
 }
 
 func TestGetCapacity(t *testing.T) {

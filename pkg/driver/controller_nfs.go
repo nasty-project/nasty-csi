@@ -704,6 +704,9 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 	})
 	if err != nil {
 		klog.Errorf("Failed to update capacity xattr for %s/%s: %v", filesystem, subvolName, err)
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal,
+			"Failed to update capacity for '%s/%s': %v", filesystem, subvolName, err)
 	}
 
 	klog.Infof("Expanded NFS volume: %s to %d bytes", meta.Name, requiredBytes)

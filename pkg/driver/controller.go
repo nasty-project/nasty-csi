@@ -41,6 +41,7 @@ const (
 // stop the wrong string from being passed silently.
 const (
 	subvolumeTypeFilesystem = "filesystem"
+	subvolumeTypeBlock      = "block"
 )
 
 // Default values.
@@ -49,6 +50,8 @@ const (
 	// MinVolumeSize is the minimum volume size enforced by NASty (1 GiB).
 	// NASty API rejects quota/volsize values below this threshold.
 	MinVolumeSize = 1 << 30 // 1 GiB in bytes (1073741824)
+	// MaxVolumeSize matches the core storage safety ceiling.
+	MaxVolumeSize = 256 << 40 // 256 TiB in bytes
 )
 
 // VolumeContext key constants - these are used consistently across the driver.
@@ -73,9 +76,11 @@ const (
 
 // Static errors for controller operations.
 var (
-	ErrVolumeNotFound  = errors.New("volume not found")
-	ErrDatasetNotFound = errors.New("dataset not found for share")
-	ErrInvalidVolumeID = errors.New("invalid subvolume ID")
+	ErrVolumeNotFound            = errors.New("volume not found")
+	ErrDatasetNotFound           = errors.New("dataset not found for share")
+	ErrInvalidVolumeID           = errors.New("invalid subvolume ID")
+	errUnsupportedExpandProtocol = errors.New("unsupported expansion protocol")
+	errExpansionCapacityTooLarge = errors.New("expansion capacity is too large")
 )
 
 // capacityErrorSubstrings are error message patterns that indicate insufficient filesystem capacity.
@@ -119,15 +124,17 @@ func createVolumeError(msg string, err error) error {
 // Note: Volume ID is now just the volume name (CSI spec compliant, max 128 bytes).
 // All metadata is passed via VolumeContext.
 type VolumeMetadata struct {
-	Name         string
-	Protocol     string
-	DatasetID    string
-	DatasetName  string
-	Server       string // NASty server address
-	NVMeOFNQN    string // NVMe-oF subsystem NQN (derived from name)
-	ISCSIIQN     string // iSCSI target IQN (derived from name)
-	NFSShareUUID string // NFS share UUID (from xattr — file shares don't have IQN/NQN)
-	SMBShareUUID string // SMB share UUID (from xattr — file shares don't have IQN/NQN)
+	Name                  string
+	Protocol              string
+	DatasetID             string
+	DatasetName           string
+	CurrentCapacityBytes  *uint64
+	RecordedCapacityBytes *uint64
+	Server                string // NASty server address
+	NVMeOFNQN             string // NVMe-oF subsystem NQN (derived from name)
+	ISCSIIQN              string // iSCSI target IQN (derived from name)
+	NFSShareUUID          string // NFS share UUID (from xattr — file shares don't have IQN/NQN)
+	SMBShareUUID          string // SMB share UUID (from xattr — file shares don't have IQN/NQN)
 }
 
 // buildVolumeContext creates a VolumeContext map from VolumeMetadata.
@@ -333,9 +340,11 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvol
 
 	// Build VolumeMetadata from properties
 	meta := &VolumeMetadata{
-		Name:        volumeID,
-		DatasetID:   subvolumeID,
-		DatasetName: subvol.Name,
+		Name:                  volumeID,
+		DatasetID:             subvolumeID,
+		DatasetName:           subvol.Name,
+		CurrentCapacityBytes:  authoritativeSubvolumeCapacity(subvol),
+		RecordedCapacityBytes: recordedSubvolumeCapacity(subvol),
 	}
 
 	// Extract protocol
@@ -345,6 +354,183 @@ func extractVolumeMetadataFromSubvolume(volumeID string, subvol *nastyapi.Subvol
 
 	klog.V(4).Infof("Found volume: %s (subvolume=%s, protocol=%s)", volumeID, subvolumeID, meta.Protocol)
 	return meta, nil
+}
+
+func authoritativeSubvolumeCapacity(subvol *nastyapi.Subvolume) *uint64 {
+	if subvol == nil {
+		return nil
+	}
+	var capacity *uint64
+	switch subvol.SubvolumeType {
+	case subvolumeTypeFilesystem:
+		capacity = subvol.QuotaBytes
+		if capacity == nil {
+			capacity = subvol.VolsizeBytes
+		}
+	case subvolumeTypeBlock:
+		capacity = subvol.VolsizeBytes
+	}
+	if capacity == nil {
+		return nil
+	}
+	value := *capacity
+	return &value
+}
+
+func recordedSubvolumeCapacity(subvol *nastyapi.Subvolume) *uint64 {
+	raw, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]
+	if !ok {
+		return nil
+	}
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &value
+}
+
+func representableCapacity(protocol string, requiredBytes int64) (int64, error) {
+	var alignment int64
+	switch protocol {
+	case ProtocolNFS, ProtocolSMB:
+		alignment = 1024
+	case ProtocolISCSI, ProtocolNVMeOF:
+		alignment = 512
+	default:
+		return 0, fmt.Errorf("%w: %s", errUnsupportedExpandProtocol, protocol)
+	}
+	if requiredBytes > int64(^uint64(0)>>1)-(alignment-1) {
+		return 0, fmt.Errorf("%w: %d", errExpansionCapacityTooLarge, requiredBytes)
+	}
+	return ((requiredBytes + alignment - 1) / alignment) * alignment, nil
+}
+
+type expansionPlan struct {
+	targetBytes      int64
+	currentBytes     uint64
+	alreadySatisfied bool
+}
+
+func validateExpansionRange(requiredBytes, limitBytes int64) error {
+	if requiredBytes < 0 || limitBytes < 0 {
+		return status.Error(codes.InvalidArgument, "Capacity range values must not be negative")
+	}
+	if limitBytes > 0 && requiredBytes > limitBytes {
+		return status.Errorf(codes.InvalidArgument,
+			"Required capacity %d exceeds limit %d", requiredBytes, limitBytes)
+	}
+	if requiredBytes == 0 && limitBytes == 0 {
+		return status.Error(codes.InvalidArgument,
+			"Capacity range must specify required bytes or limit bytes")
+	}
+	return nil
+}
+
+func planExpansion(meta *VolumeMetadata, requiredBytes, limitBytes int64) (expansionPlan, error) {
+	if requiredBytes > MaxVolumeSize {
+		return expansionPlan{}, status.Errorf(codes.OutOfRange,
+			"Requested capacity %d exceeds backend maximum %d", requiredBytes, MaxVolumeSize)
+	}
+	switch meta.Protocol {
+	case ProtocolNFS, ProtocolNVMeOF, ProtocolISCSI, ProtocolSMB:
+	default:
+		return expansionPlan{}, status.Errorf(codes.Internal,
+			"Unknown protocol %s for volume %s", meta.Protocol, meta.Name)
+	}
+
+	if current := meta.CurrentCapacityBytes; current != nil {
+		const maxCSIBytes = uint64(1<<63 - 1)
+		if *current > maxCSIBytes {
+			return expansionPlan{}, status.Errorf(codes.OutOfRange,
+				"Current volume capacity %d cannot be represented by CSI", *current)
+		}
+		currentBytes := int64(*current)
+		if limitBytes > 0 && currentBytes > limitBytes {
+			return expansionPlan{}, status.Errorf(codes.OutOfRange,
+				"Current volume capacity %d exceeds requested limit %d", currentBytes, limitBytes)
+		}
+		if currentBytes >= requiredBytes {
+			return expansionPlan{
+				targetBytes:      currentBytes,
+				currentBytes:     *current,
+				alreadySatisfied: true,
+			}, nil
+		}
+	} else if requiredBytes == 0 {
+		return expansionPlan{}, status.Error(codes.InvalidArgument,
+			"Required capacity must be positive when current backend capacity is unavailable")
+	}
+
+	allocationBytes := requiredBytes
+	if allocationBytes < MinVolumeSize {
+		allocationBytes = MinVolumeSize
+	}
+	targetBytes, err := representableCapacity(meta.Protocol, allocationBytes)
+	if err != nil {
+		return expansionPlan{}, status.Errorf(codes.InvalidArgument,
+			"Invalid expansion capacity: %v", err)
+	}
+	if limitBytes > 0 && targetBytes > limitBytes {
+		return expansionPlan{}, status.Errorf(codes.OutOfRange,
+			"Smallest representable capacity %d exceeds requested limit %d", targetBytes, limitBytes)
+	}
+	return expansionPlan{targetBytes: targetBytes}, nil
+}
+
+func normalizeCreateCapacity(req *csi.CreateVolumeRequest, protocol string) error {
+	requiredBytes := int64(MinVolumeSize)
+	limitBytes := int64(0)
+	if capacityRange := req.GetCapacityRange(); capacityRange != nil {
+		requestedBytes := capacityRange.GetRequiredBytes()
+		limitBytes = capacityRange.GetLimitBytes()
+		if requestedBytes < 0 || limitBytes < 0 {
+			return status.Error(codes.InvalidArgument, "Capacity range values must not be negative")
+		}
+		if limitBytes > 0 && requestedBytes > limitBytes {
+			return status.Errorf(codes.InvalidArgument,
+				"Required capacity %d exceeds limit %d", requestedBytes, limitBytes)
+		}
+		if requestedBytes > 0 {
+			requiredBytes = requestedBytes
+		}
+	}
+	if requiredBytes < MinVolumeSize {
+		requiredBytes = MinVolumeSize
+	}
+	if requiredBytes > MaxVolumeSize {
+		return status.Errorf(codes.OutOfRange,
+			"Requested capacity %d exceeds backend maximum %d", requiredBytes, MaxVolumeSize)
+	}
+	targetBytes, err := representableCapacity(protocol, requiredBytes)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "Invalid volume capacity: %v", err)
+	}
+	if limitBytes > 0 && targetBytes > limitBytes {
+		return status.Errorf(codes.OutOfRange,
+			"Smallest representable capacity %d exceeds requested limit %d", targetBytes, limitBytes)
+	}
+	if req.CapacityRange == nil {
+		req.CapacityRange = &csi.CapacityRange{}
+	}
+	req.CapacityRange.RequiredBytes = targetBytes
+	return nil
+}
+
+func (s *ControllerService) reconcileCapacityProperty(ctx context.Context, meta *VolumeMetadata, capacity uint64) error {
+	if meta.RecordedCapacityBytes != nil && *meta.RecordedCapacityBytes == capacity {
+		return nil
+	}
+	filesystem, name, err := splitSubvolumeID(meta.DatasetID)
+	if err != nil {
+		return err
+	}
+	if _, err = s.apiClient.ResizeSubvolume(ctx, filesystem, name, capacity); err != nil {
+		return err
+	}
+	_, err = s.apiClient.SetSubvolumeProperties(ctx, filesystem, name, map[string]string{
+		nastyapi.PropertyCapacityBytes: strconv.FormatUint(capacity, 10),
+	})
+	return err
 }
 
 // CreateVolume creates a new volume.
@@ -379,6 +565,9 @@ func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	protocol := params["protocol"]
 	if protocol == "" {
 		protocol = ProtocolNFS
+	}
+	if normalizeErr := normalizeCreateCapacity(req, protocol); normalizeErr != nil {
+		return nil, normalizeErr
 	}
 
 	// Validate access modes are safe for this protocol
@@ -473,14 +662,6 @@ func validateCreateVolumeRequest(req *csi.CreateVolumeRequest) error {
 
 	if req.GetVolumeCapabilities() == nil || len(req.GetVolumeCapabilities()) == 0 {
 		return status.Error(codes.InvalidArgument, "Volume capabilities are required")
-	}
-
-	// Validate minimum volume size (NASty enforces 1 GiB minimum for quota/volsize)
-	if capacityRange := req.GetCapacityRange(); capacityRange != nil {
-		requiredBytes := capacityRange.GetRequiredBytes()
-		if requiredBytes > 0 && requiredBytes < MinVolumeSize {
-			return status.Errorf(codes.InvalidArgument, errMsgVolumeSizeTooSmall, requiredBytes, MinVolumeSize)
-		}
 	}
 
 	return nil
@@ -614,6 +795,9 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	}
 
 	protocol := sourceMeta.Protocol
+	if normalizeErr := normalizeCreateCapacity(req, protocol); normalizeErr != nil {
+		return nil, normalizeErr
+	}
 	klog.V(4).Infof("Volume clone: filesystem=%s, sourceSubvolume=%s, protocol=%s", filesystem, sourceSubvolName, protocol)
 
 	// 2. Resolve the new subvolume name
@@ -644,10 +828,10 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", filesystem, newName)
 	}
 
-	// 4. Set CSI metadata properties on the cloned subvolume
-	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
-	if requestedCapacity == 0 {
-		requestedCapacity = 1 * 1024 * 1024 * 1024
+	// 4. Ensure the clone satisfies the normalized CSI capacity range.
+	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, newName)
+	if capacityErr != nil {
+		return nil, capacityErr
 	}
 
 	csiProps := map[string]string{
@@ -657,7 +841,8 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 		nastyapi.PropertyProtocol:      protocol,
 	}
 	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, filesystem, newName, csiProps); propErr != nil {
-		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", filesystem, newName, propErr)
+		return nil, status.Errorf(codes.Internal,
+			"failed to set CSI properties on cloned subvolume %s/%s: %v", filesystem, newName, propErr)
 	}
 
 	// 5. Delegate to protocol-specific create to set up sharing
@@ -680,6 +865,58 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 
 	klog.Infof("Created volume %s from source volume %s (protocol: %s)", req.GetName(), sourceVolumeID, protocol)
 	return resp, nil
+}
+
+func (s *ControllerService) ensureClonedVolumeCapacity(
+	ctx context.Context,
+	req *csi.CreateVolumeRequest,
+	filesystem string,
+	name string,
+) (int64, error) {
+
+	subvolume, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
+	if err != nil {
+		return 0, status.Errorf(codes.Internal,
+			"failed to read cloned subvolume %s/%s: %v", filesystem, name, err)
+	}
+	current := authoritativeSubvolumeCapacity(subvolume)
+	if current == nil || *current > uint64(1<<63-1) {
+		return 0, status.Errorf(codes.Internal,
+			"cloned subvolume %s/%s has no valid backend capacity", filesystem, name)
+	}
+	currentBytes := int64(*current)
+	targetBytes := req.GetCapacityRange().GetRequiredBytes()
+	limitBytes := req.GetCapacityRange().GetLimitBytes()
+	if limitBytes > 0 && currentBytes > limitBytes {
+		return 0, status.Errorf(codes.OutOfRange,
+			"Cloned volume capacity %d exceeds requested limit %d", currentBytes, limitBytes)
+	}
+	selectedBytes := currentBytes
+	if selectedBytes < targetBytes {
+		selectedBytes = targetBytes
+	}
+	resized, err := s.apiClient.ResizeSubvolume(ctx, filesystem, name, uint64(selectedBytes))
+	if err != nil {
+		return 0, status.Errorf(codes.Internal,
+			"failed to apply cloned subvolume capacity for %s/%s: %v", filesystem, name, err)
+	}
+	if returnedCapacity := authoritativeSubvolumeCapacity(resized); returnedCapacity != nil {
+		if *returnedCapacity > uint64(1<<63-1) {
+			return 0, status.Errorf(codes.Internal,
+				"cloned subvolume %s/%s returned an invalid backend capacity", filesystem, name)
+		}
+		selectedBytes = int64(*returnedCapacity)
+	}
+	if selectedBytes < targetBytes {
+		return 0, status.Errorf(codes.Internal,
+			"cloned subvolume %s/%s remained below requested capacity", filesystem, name)
+	}
+	if limitBytes > 0 && selectedBytes > limitBytes {
+		return 0, status.Errorf(codes.OutOfRange,
+			"Cloned volume capacity %d exceeds requested limit %d", selectedBytes, limitBytes)
+	}
+	req.CapacityRange.RequiredBytes = selectedBytes
+	return selectedBytes, nil
 }
 
 // DeleteVolume deletes a volume.
@@ -1318,40 +1555,53 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 
 	volumeID := req.GetVolumeId()
 	requiredBytes := req.GetCapacityRange().GetRequiredBytes()
-
-	// Validate minimum volume size (NASty enforces 1 GiB minimum for quota/volsize)
-	if requiredBytes > 0 && requiredBytes < MinVolumeSize {
-		return nil, status.Errorf(codes.InvalidArgument, errMsgVolumeSizeTooSmall, requiredBytes, MinVolumeSize)
+	limitBytes := req.GetCapacityRange().GetLimitBytes()
+	if rangeErr := validateExpansionRange(requiredBytes, limitBytes); rangeErr != nil {
+		return nil, rangeErr
 	}
 
 	klog.Infof("ControllerExpandVolume: Expanding volume %s to %d bytes", volumeID, requiredBytes)
 
 	// Look up volume using xattr properties as source of truth
-	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
-	if err != nil {
-		klog.Errorf("ControllerExpandVolume: Property-based lookup failed for volume %s: %v", volumeID, err)
-		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", err)
+	volumeMeta, lookupErr := s.lookupVolumeByCSIName(ctx, volumeID)
+	if lookupErr != nil {
+		klog.Errorf("ControllerExpandVolume: Property-based lookup failed for volume %s: %v", volumeID, lookupErr)
+		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", lookupErr)
 	}
 
 	if volumeMeta == nil {
 		klog.Errorf("ControllerExpandVolume: Volume %s not found", volumeID)
 		return nil, status.Errorf(codes.NotFound, "Volume %s not found for expansion", volumeID)
 	}
+	plan, planErr := planExpansion(volumeMeta, requiredBytes, limitBytes)
+	if planErr != nil {
+		return nil, planErr
+	}
+	if plan.alreadySatisfied {
+		if reconcileErr := s.reconcileCapacityProperty(ctx, volumeMeta, plan.currentBytes); reconcileErr != nil {
+			return nil, status.Errorf(codes.Internal,
+				"Failed to reconcile volume capacity metadata: %v", reconcileErr)
+		}
+		return &csi.ControllerExpandVolumeResponse{
+			CapacityBytes:         plan.targetBytes,
+			NodeExpansionRequired: volumeMeta.Protocol == ProtocolISCSI,
+		}, nil
+	}
 
 	klog.V(4).Infof("ControllerExpandVolume: Found volume %s via property lookup: dataset=%s, protocol=%s", volumeID, volumeMeta.DatasetID, volumeMeta.Protocol)
 	switch volumeMeta.Protocol {
 	case ProtocolNFS:
-		klog.Infof("Expanding NFS volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, requiredBytes)
-		return s.expandNFSVolume(ctx, volumeMeta, requiredBytes)
+		klog.Infof("Expanding NFS volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, plan.targetBytes)
+		return s.expandNFSVolume(ctx, volumeMeta, plan.targetBytes)
 	case ProtocolNVMeOF:
-		klog.Infof("Expanding NVMe-oF volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, requiredBytes)
-		return s.expandNVMeOFVolume(ctx, volumeMeta, requiredBytes)
+		klog.Infof("Expanding NVMe-oF volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, plan.targetBytes)
+		return s.expandNVMeOFVolume(ctx, volumeMeta, plan.targetBytes)
 	case ProtocolISCSI:
-		klog.Infof("Expanding iSCSI volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, requiredBytes)
-		return s.expandISCSIVolume(ctx, volumeMeta, requiredBytes)
+		klog.Infof("Expanding iSCSI volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, plan.targetBytes)
+		return s.expandISCSIVolume(ctx, volumeMeta, plan.targetBytes)
 	case ProtocolSMB:
-		klog.Infof("Expanding SMB volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, requiredBytes)
-		return s.expandSMBVolume(ctx, volumeMeta, requiredBytes)
+		klog.Infof("Expanding SMB volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, plan.targetBytes)
+		return s.expandSMBVolume(ctx, volumeMeta, plan.targetBytes)
 	default:
 		return nil, status.Errorf(codes.Internal, "Unknown protocol %s for volume %s", volumeMeta.Protocol, volumeID)
 	}

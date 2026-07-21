@@ -37,6 +37,9 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 	}
 
 	protocol := meta.Protocol
+	if normalizeErr := normalizeCreateCapacity(req, protocol); normalizeErr != nil {
+		return nil, normalizeErr
+	}
 	klog.V(4).Infof("Snapshot clone: filesystem=%s, parentSubvolume=%s, snapshot=%s, protocol=%s",
 		filesystem, parentSubvolume, meta.SnapshotName, protocol)
 
@@ -75,10 +78,10 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", filesystem, newName)
 	}
 
-	// 4. Set CSI metadata properties on the cloned subvolume
-	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
-	if requestedCapacity == 0 {
-		requestedCapacity = 1 * 1024 * 1024 * 1024 // Default 1GB
+	// 4. Ensure the clone satisfies the normalized CSI capacity range.
+	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, newName)
+	if capacityErr != nil {
+		return nil, capacityErr
 	}
 
 	csiProps := map[string]string{
@@ -88,7 +91,8 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		nastyapi.PropertyProtocol:      protocol,
 	}
 	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, filesystem, newName, csiProps); propErr != nil {
-		klog.Warningf("Failed to set CSI properties on cloned subvolume %s/%s: %v (volume will still work)", filesystem, newName, propErr)
+		return nil, status.Errorf(codes.Internal,
+			"failed to set CSI properties on cloned subvolume %s/%s: %v", filesystem, newName, propErr)
 	}
 
 	// 5. Delegate to protocol-specific create to set up sharing

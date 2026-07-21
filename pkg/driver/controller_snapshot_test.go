@@ -541,11 +541,13 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	ctx := context.Background()
 
 	clonedSubvol := &nastyapi.Subvolume{
-		Name:       "restored-volume",
-		Filesystem: "tank",
-		Path:       "/tank/restored-volume",
-		Properties: map[string]string{},
-		Snapshots:  []string{},
+		Name:          "restored-volume",
+		Filesystem:    "tank",
+		SubvolumeType: subvolumeTypeFilesystem,
+		Path:          "/tank/restored-volume",
+		QuotaBytes:    uint64Ptr(MinVolumeSize),
+		Properties:    map[string]string{},
+		Snapshots:     []string{},
 	}
 
 	mockClient := &mockAPIClient{

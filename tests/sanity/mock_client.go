@@ -585,8 +585,15 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 
 	// Copy properties from parent subvolume if it exists
 	parentKey := params.Filesystem + "/" + params.Subvolume
+	var parent *nastyapi.Subvolume
 	var props map[string]string
-	if parent, exists := m.subvolumes[parentKey]; exists && parent.Properties != nil {
+	if source, exists := m.subvolumes[parentKey]; exists {
+		parent = source
+	}
+	if parent == nil {
+		return nil, ErrDatasetNotFound
+	}
+	if parent.Properties != nil {
 		props = make(map[string]string)
 		for k, v := range parent.Properties {
 			props[k] = v
@@ -596,11 +603,14 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 	}
 
 	sv := &nastyapi.Subvolume{
-		Name:       params.NewName,
-		Filesystem: params.Filesystem,
-		Path:       "/" + params.Filesystem + "/" + params.NewName,
-		Properties: props,
-		Snapshots:  []string{},
+		Name:          params.NewName,
+		Filesystem:    params.Filesystem,
+		SubvolumeType: parent.SubvolumeType,
+		Path:          "/" + params.Filesystem + "/" + params.NewName,
+		QuotaBytes:    parent.QuotaBytes,
+		VolsizeBytes:  parent.VolsizeBytes,
+		Properties:    props,
+		Snapshots:     []string{},
 	}
 	m.subvolumes[newKey] = sv
 	cp := *sv
