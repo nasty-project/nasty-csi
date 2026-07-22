@@ -6,6 +6,19 @@ This driver is in early development phase. Use only for testing and evaluation e
 
 This guide explains how to deploy the NASty Scale CSI driver on a Kubernetes cluster.
 
+## Upgrade Ordering for Backend Filesystem Initialization
+
+Filesystem-mode iSCSI and NVMe-oF volumes are initialized by the NASty backend. The node plugin verifies and mounts the resulting filesystem; it never formats attached media.
+
+For upgrades from a release that formatted volumes on the node:
+
+1. Upgrade NASty first and verify its `subvolume.create` API supports `block_filesystem`.
+2. Scale the old CSI controller to zero so it cannot provision an uninitialized filesystem-mode block volume during rollout.
+3. Upgrade the chart with `controller.replicas=0` and wait for the node DaemonSet rollout to complete.
+4. Scale the upgraded controller back to one replica.
+
+Do not allow an old controller to run against upgraded node plugins. The new node deliberately refuses devices without a positive filesystem signature. Existing formatted volumes continue to mount, while incomplete or legacy unformatted volumes require operator recovery and are never formatted automatically.
+
 ## Prerequisites
 
 1. **Kubernetes Cluster**: Version 1.27 or later (earlier versions may work but are not tested)
@@ -854,14 +867,29 @@ kubectl delete -f deploy/secret.yaml
 
 ### Standard Upgrade (Minor Versions)
 
-For minor version upgrades:
+For versions that use backend filesystem initialization, use a staged upgrade:
 
 ```bash
-# Helm upgrade
+# Upgrade the NASty appliance first, then suspend provisioning.
+kubectl --namespace kube-system scale deployment \
+  --selector app.kubernetes.io/instance=nasty-csi \
+  --replicas=0
+
+# Upgrade nodes while the old controller is stopped.
 helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version <NEW_VERSION> \
   --namespace kube-system \
-  --reuse-values
+  --reuse-values \
+  --set controller.replicas=0
+kubectl --namespace kube-system rollout status daemonset \
+  --selector app.kubernetes.io/instance=nasty-csi
+
+# Start the upgraded controller.
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+  --version <NEW_VERSION> \
+  --namespace kube-system \
+  --reuse-values \
+  --set controller.replicas=1
 ```
 
 ### Breaking Change Upgrade (v0.6.x → v0.8.0+)

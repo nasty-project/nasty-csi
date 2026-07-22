@@ -32,6 +32,7 @@ type iscsiVolumeParams struct {
 	backgroundTarget  string
 	promoteTarget     string
 	metadataTarget    string
+	blockFilesystem   string
 	server            string
 	filesystem        string
 	requestedCapacity int64
@@ -59,7 +60,6 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 	if server == "" {
 		return nil, status.Error(codes.InvalidArgument, "server parameter is required for iSCSI volumes")
 	}
-
 	// Resolve volume name using templating (if configured in StorageClass)
 	volumeName, err := ResolveVolumeName(params, req.GetName())
 	if err != nil {
@@ -107,6 +107,10 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 	if err != nil {
 		return nil, err
 	}
+	blockFilesystem, err := requestedBlockFilesystem(req.GetVolumeCapabilities())
+	if err != nil {
+		return nil, err
+	}
 
 	return &iscsiVolumeParams{
 		requestedCapacity: requestedCapacity,
@@ -123,6 +127,7 @@ func validateISCSIParams(req *csi.CreateVolumeRequest) (*iscsiVolumeParams, erro
 		backgroundTarget:  backgroundTarget,
 		promoteTarget:     promoteTarget,
 		metadataTarget:    metadataTarget,
+		blockFilesystem:   blockFilesystem,
 		dataReplicas:      dataReplicas,
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
@@ -200,23 +205,26 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 	}
 
 	// Step 1: Create or reuse block subvolume
-	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
-		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
+	requestedInitialization := params.blockFilesystem
+	if req.GetVolumeContentSource() != nil {
+		requestedInitialization = ""
+	}
+	subvol, _, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
+		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, requestedInitialization, params.dataReplicas, params.requestedCapacity, timer)
 	if err != nil {
 		return nil, err
 	}
 
 	// Determine block device path for the LUN
 	if subvol.BlockDevice == nil || *subvol.BlockDevice == "" {
-		if subvolIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
-				klog.Errorf("Failed to cleanup newly-created block subvolume: %v", delErr)
-			}
-		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Block subvolume %s has no block device path", params.subvolumeName)
 	}
 	blockDevice := *subvol.BlockDevice
+	if initErr := validateInitializedBlockFilesystem(subvol, requestedInitialization); initErr != nil {
+		timer.ObserveError()
+		return nil, initErr
+	}
 
 	// Step 2: Create iSCSI target with LUN in one atomic call
 	target, err := s.apiClient.CreateISCSITarget(ctx, nastyapi.ISCSITargetCreateParams{
@@ -224,15 +232,6 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 		DevicePath: blockDevice,
 	})
 	if err != nil {
-		// Cleanup: only delete subvolume if we just created it
-		if subvolIsNew {
-			klog.Errorf("Failed to create iSCSI target, cleaning up newly-created subvolume: %v", err)
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
-				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
-			}
-		} else {
-			klog.Warningf("Failed to create iSCSI target: %v (skipping subvolume cleanup — volume was pre-existing)", err)
-		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create iSCSI target '%s': %v", params.volumeName, err)
 	}
@@ -266,6 +265,10 @@ func (s *ControllerService) createISCSIVolume(ctx context.Context, req *csi.Crea
 // handleExistingISCSISubvolume handles the case when a block subvolume already exists (idempotency).
 func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, params *iscsiVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Block subvolume %s already exists, checking idempotency", params.subvolumeName)
+	if err := validateKnownBlockFilesystem(existingSubvol, params.blockFilesystem); err != nil {
+		timer.ObserveError()
+		return nil, false, err
+	}
 
 	// Check capacity from stored properties
 	existingCapacity := params.requestedCapacity
@@ -287,15 +290,17 @@ func (s *ControllerService) handleExistingISCSISubvolume(ctx context.Context, pa
 	// Scan iSCSI targets by IQN pattern derived from volume name
 	expectedIQN := generateIQN(params.volumeName)
 	targets, listErr := s.apiClient.ListISCSITargets(ctx)
-	if listErr == nil {
-		for i := range targets {
-			if targets[i].IQN == expectedIQN {
-				klog.V(4).Infof("iSCSI volume already exists (target: %s, IQN: %s), returning existing volume",
-					targets[i].ID, targets[i].IQN)
-				resp := buildISCSIVolumeResponse(params.volumeName, params.server, existingSubvol, &targets[i], existingCapacity)
-				timer.ObserveSuccess()
-				return resp, true, nil
-			}
+	if listErr != nil {
+		timer.ObserveError()
+		return nil, false, status.Errorf(codes.Internal, "Failed to list iSCSI targets during idempotency check: %v", listErr)
+	}
+	for i := range targets {
+		if targets[i].IQN == expectedIQN {
+			klog.V(4).Infof("iSCSI volume already exists (target: %s, IQN: %s), returning existing volume",
+				targets[i].ID, targets[i].IQN)
+			resp := buildISCSIVolumeResponse(params.volumeName, params.server, existingSubvol, &targets[i], existingCapacity)
+			timer.ObserveSuccess()
+			return resp, true, nil
 		}
 	}
 
@@ -575,6 +580,15 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 		timer.ObserveError()
 		return nil, status.Error(codes.InvalidArgument, "server parameter is required for iSCSI volumes")
 	}
+	requestedFilesystem, err := requestedBlockFilesystem(req.GetVolumeCapabilities())
+	if err != nil {
+		timer.ObserveError()
+		return nil, err
+	}
+	if err := validateKnownBlockFilesystem(subvol, requestedFilesystem); err != nil {
+		timer.ObserveError()
+		return nil, err
+	}
 
 	// Get requested capacity
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
@@ -585,14 +599,16 @@ func (s *ControllerService) adoptISCSIVolume(ctx context.Context, req *csi.Creat
 	// Find existing target by scanning all targets for IQN matching the volume name
 	var target *nastyapi.ISCSITarget
 	targets, listErr := s.apiClient.ListISCSITargets(ctx)
-	if listErr == nil {
-		expectedIQN := generateIQN(volumeName)
-		for i := range targets {
-			if targets[i].IQN == expectedIQN {
-				target = &targets[i]
-				klog.Infof("Found existing target by IQN match: ID=%s, IQN=%s", target.ID, target.IQN)
-				break
-			}
+	if listErr != nil {
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to list iSCSI targets while adopting volume: %v", listErr)
+	}
+	expectedIQN := generateIQN(volumeName)
+	for i := range targets {
+		if targets[i].IQN == expectedIQN {
+			target = &targets[i]
+			klog.Infof("Found existing target by IQN match: ID=%s, IQN=%s", target.ID, target.IQN)
+			break
 		}
 	}
 

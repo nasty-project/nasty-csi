@@ -325,33 +325,71 @@ func forceDeviceRescan(ctx context.Context, devicePath string) error {
 	return nil
 }
 
-// handleDeviceFormatting checks if a device needs formatting and formats it if necessary.
-// For already-formatted devices, runs filesystem check to recover from unclean shutdowns
-// (e.g., NVMe-oF/iSCSI transport disconnect, NASty restart).
-func (s *NodeService) handleDeviceFormatting(ctx context.Context, volumeID, devicePath, fsType, datasetName, nqn string, isClone bool) error {
-	// Check if device is already formatted
-	needsFormat, err := needsFormatWithRetries(ctx, devicePath, isClone)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Failed to check if device needs formatting: %v", err)
-	}
+// prepareFilesystemForMount verifies the backend-created filesystem before
+// repair or mount. The node never initializes media; a missing, conflicting,
+// or unreadable signature is an error rather than permission to run mkfs.
+func prepareFilesystemForMount(ctx context.Context, devicePath, fsType string) error {
+	const maxAttempts = 3
+	var lastFailure string
+	lastNoSignature := false
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		probeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		cmd := exec.CommandContext(probeCtx, "blkid", "-p", "-s", "TYPE", "-o", "value", devicePath)
+		output, err := cmd.CombinedOutput()
+		probeErr := probeCtx.Err()
+		cancel()
 
-	if needsFormat {
-		klog.V(4).Infof("Device %s needs formatting with %s (dataset: %s)", devicePath, fsType, datasetName)
-		if formatErr := formatDevice(ctx, volumeID, devicePath, fsType); formatErr != nil {
-			return status.Errorf(codes.Internal, "Failed to format device: %v", formatErr)
+		if ctx.Err() != nil {
+			return status.FromContextError(ctx.Err()).Err()
 		}
-		return nil
+		detected := strings.TrimSpace(string(output))
+		if probeErr == nil && err == nil && detected != "" {
+			if detected != fsType {
+				return status.Errorf(codes.FailedPrecondition,
+					"filesystem type mismatch for %s: expected %s, detected %s", devicePath, fsType, detected)
+			}
+			lastFailure = ""
+			break
+		}
+
+		switch {
+		case probeErr != nil:
+			lastFailure = probeErr.Error()
+			lastNoSignature = false
+		case err != nil:
+			lastFailure = fmt.Sprintf("%v (output: %s)", err, string(output))
+			var exitErr *exec.ExitError
+			lastNoSignature = errors.As(err, &exitErr) && exitErr.ExitCode() == 2 && detected == ""
+		default:
+			lastFailure = "probe returned no filesystem type"
+			lastNoSignature = true
+		}
+		if attempt < maxAttempts {
+			klog.Warningf("Filesystem verification attempt %d/%d failed for %s: %s", attempt, maxAttempts, devicePath, lastFailure)
+			select {
+			case <-time.After(time.Duration(attempt) * 500 * time.Millisecond):
+			case <-ctx.Done():
+				return status.FromContextError(ctx.Err()).Err()
+			}
+		}
+	}
+	if lastFailure != "" {
+		if lastNoSignature {
+			return status.Errorf(codes.FailedPrecondition,
+				"device %s has no filesystem signature; automatic node formatting is disabled", devicePath)
+		}
+		return status.Errorf(codes.Unavailable,
+			"filesystem verification failed for %s after %d attempts: %s", devicePath, maxAttempts, lastFailure)
 	}
 
-	klog.V(4).Infof("Device %s is already formatted, preserving existing filesystem (dataset: %s, NQN: %s)",
-		devicePath, datasetName, nqn)
+	klog.V(4).Infof("Verified backend-created %s filesystem on %s", fsType, devicePath)
 
 	// Run filesystem check before mounting to recover from dirty journals caused by
 	// unclean shutdowns (NVMe-oF/iSCSI transport disconnect, NASty engine restart, etc).
 	// Without this, kubelet's applyFSGroup readdir fails with EIO on dirty ext4 journals.
 	if err := repairFilesystem(ctx, devicePath, fsType); err != nil {
-		// Log but don't fail — mount may still succeed if the fs is clean
-		klog.Warningf("Filesystem check failed for %s: %v (will attempt mount anyway)", devicePath, err)
+		return status.Errorf(codes.FailedPrecondition,
+			"filesystem repair failed for %s; refusing writable mount: %v", devicePath, err)
 	}
 
 	return nil

@@ -299,8 +299,7 @@ func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, pa
 }
 
 // createNFSShareForSubvolume creates an NFS share for a subvolume and stores xattr metadata for tracking.
-// subvolumeIsNew indicates whether the subvolume was just created — if false, do NOT delete on failure.
-func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *nfsVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*nastyapi.NFSShare, error) {
+func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *nfsVolumeParams, timer *metrics.OperationTimer) (*nastyapi.NFSShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	enabled := true
 	nfsShare, err := s.apiClient.CreateNFSShare(ctx, nastyapi.NFSShareCreateParams{
@@ -311,13 +310,6 @@ func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subv
 	})
 	if err != nil {
 		klog.Errorf("Failed to create NFS share for subvolume %s/%s (path: %s): %v", subvol.Filesystem, subvol.Name, subvol.Path, err)
-		if subvolumeIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Filesystem, subvol.Name); delErr != nil {
-				klog.Errorf("Failed to cleanup subvolume after NFS share creation failure: %v", delErr)
-			}
-		} else {
-			klog.Warningf("Skipping subvolume cleanup — subvolume was pre-existing")
-		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for subvolume %s/%s: %v", subvol.Filesystem, subvol.Name, err)
 	}
@@ -412,8 +404,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 	}
 
 	// Create NFS share for the subvolume
-	isNew := existingSubvol != nil
-	nfsShare, err := s.createNFSShareForSubvolume(ctx, existingSubvol, params, isNew, timer)
+	nfsShare, err := s.createNFSShareForSubvolume(ctx, existingSubvol, params, timer)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +579,8 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 	// Check if an NFS share already exists for this path
 	existingShares, err := s.apiClient.ListNFSShares(ctx)
 	if err != nil {
-		klog.Warningf("Failed to list NFS shares for %s: %v", subvol.Path, err)
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to list NFS shares while adopting volume: %v", err)
 	}
 
 	var nfsShare *nastyapi.NFSShare
@@ -721,7 +713,7 @@ func (s *ControllerService) expandNFSVolume(ctx context.Context, meta *VolumeMet
 
 // getOrCreateSubvolume gets an existing subvolume or creates a new one.
 // Returns (subvolume, isNewlyCreated, error).
-func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem, name, subvolumeType, comment, compression, foregroundTarget, backgroundTarget, promoteTarget, metadataTarget string, dataReplicas uint32, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
+func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem, name, subvolumeType, comment, compression, foregroundTarget, backgroundTarget, promoteTarget, metadataTarget, blockFilesystem string, dataReplicas uint32, requestedCapacity int64, timer *metrics.OperationTimer) (*nastyapi.Subvolume, bool, error) {
 	// Try to get existing subvolume
 	existing, err := s.apiClient.GetSubvolume(ctx, filesystem, name)
 	if err == nil && existing != nil {
@@ -735,10 +727,11 @@ func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem
 
 	// Build creation parameters
 	createParams := nastyapi.SubvolumeCreateParams{
-		Filesystem:    filesystem,
-		Name:          name,
-		SubvolumeType: subvolumeType,
-		Comments:      comment,
+		Filesystem:      filesystem,
+		Name:            name,
+		SubvolumeType:   subvolumeType,
+		Comments:        comment,
+		BlockFilesystem: blockFilesystem,
 	}
 	if compression != "" {
 		createParams.Compression = compression
@@ -770,5 +763,5 @@ func (s *ControllerService) getOrCreateSubvolume(ctx context.Context, filesystem
 	}
 
 	klog.V(4).Infof("Created subvolume: %s/%s with path: %s", filesystem, name, subvol.Path)
-	return subvol, true, nil
+	return subvol, subvol.Created, nil
 }

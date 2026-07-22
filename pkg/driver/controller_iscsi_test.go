@@ -1,9 +1,12 @@
 package driver
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	nastyapi "github.com/nasty-project/nasty-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -153,4 +156,97 @@ func TestBuildISCSIVolumeResponse(t *testing.T) {
 	// buildISCSIVolumeResponse uses nastyapi.Subvolume and nastyapi.ISCSITarget directly;
 	// tested indirectly via integration. This placeholder ensures compilation.
 	t.Log("buildISCSIVolumeResponse is tested indirectly via integration tests")
+}
+
+func TestCreateISCSIVolumeInitializesOnlyMountedVolumes(t *testing.T) {
+	tests := []struct {
+		name               string
+		capability         *csi.VolumeCapability
+		expectedFilesystem string
+	}{
+		{
+			name: "mounted volume requests backend ext4 initialization",
+			capability: &csi.VolumeCapability{
+				AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}},
+			},
+			expectedFilesystem: fsTypeExt4,
+		},
+		{
+			name: "raw block volume remains unformatted",
+			capability: &csi.VolumeCapability{
+				AccessType: &csi.VolumeCapability_Block{Block: &csi.VolumeCapability_BlockVolume{}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			device := "/dev/loop7"
+			uuid := "abc-123"
+			created := false
+			client := &mockAPIClient{
+				GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+					return nil, errors.New("subvolume not found")
+				},
+				CreateSubvolumeFunc: func(_ context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
+					if params.BlockFilesystem != tt.expectedFilesystem {
+						t.Fatalf("BlockFilesystem = %q, want %q", params.BlockFilesystem, tt.expectedFilesystem)
+					}
+					created = true
+					subvolume := &nastyapi.Subvolume{
+						Filesystem:  params.Filesystem,
+						Name:        params.Name,
+						BlockDevice: &device,
+						Created:     true,
+					}
+					if tt.expectedFilesystem != "" {
+						subvolume.BlockFilesystem = &tt.expectedFilesystem
+						subvolume.BlockFilesystemUUID = &uuid
+					}
+					return subvolume, nil
+				},
+				CreateISCSITargetFunc: func(_ context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error) {
+					if !created {
+						t.Fatal("iSCSI target was created before the backend subvolume was ready")
+					}
+					return &nastyapi.ISCSITarget{ID: "target-1", IQN: generateIQN("test-volume")}, nil
+				},
+			}
+			controller := NewControllerService(client, NewNodeRegistry(), "")
+			request := &csi.CreateVolumeRequest{
+				Name:               "test-volume",
+				VolumeCapabilities: []*csi.VolumeCapability{tt.capability},
+				Parameters: map[string]string{
+					"protocol":      ProtocolISCSI,
+					"filesystem":    "tank",
+					"server":        "192.0.2.1",
+					"markAdoptable": VolumeContextValueTrue,
+				},
+			}
+
+			if _, err := controller.createISCSIVolume(context.Background(), request); err != nil {
+				t.Fatalf("createISCSIVolume() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestAdoptISCSIVolumeFailsClosedOnTargetListError(t *testing.T) {
+	device := "/dev/loop7"
+	client := &mockAPIClient{
+		ListISCSITargetsFunc: func(context.Context) ([]nastyapi.ISCSITarget, error) {
+			return nil, errors.New("backend unavailable")
+		},
+		CreateISCSITargetFunc: func(context.Context, nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error) {
+			t.Fatal("target creation must not follow an inconclusive list")
+			return nil, errors.New("unexpected target creation")
+		},
+	}
+	controller := NewControllerService(client, NewNodeRegistry(), "")
+	request := &csi.CreateVolumeRequest{Name: "test-volume"}
+	subvolume := &nastyapi.Subvolume{Filesystem: "tank", Name: "test-volume", BlockDevice: &device}
+
+	if _, err := controller.adoptISCSIVolume(context.Background(), request, subvolume, map[string]string{"server": "192.0.2.1"}); err == nil {
+		t.Fatal("expected adoption to fail when existing targets cannot be listed")
+	}
 }

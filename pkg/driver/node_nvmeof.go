@@ -528,11 +528,11 @@ func getNVMeControllerFromDevicePath(devicePath string) (string, error) {
 	return base, nil
 }
 
-// formatAndMountNVMeDevice formats (if needed) and mounts an NVMe device.
+// formatAndMountNVMeDevice verifies and mounts an NVMe device.
 func (s *NodeService) formatAndMountNVMeDevice(ctx context.Context, volumeID, devicePath, stagingTargetPath string, volumeCapability *csi.VolumeCapability, volumeContext map[string]string) (*csi.NodeStageVolumeResponse, error) {
 	datasetName := volumeContext["datasetName"]
 	nqn := volumeContext["nqn"]
-	klog.V(4).Infof("Formatting and mounting NVMe device: device=%s, path=%s, volume=%s, dataset=%s, NQN=%s",
+	klog.V(4).Infof("Verifying and mounting NVMe device: device=%s, path=%s, volume=%s, dataset=%s, NQN=%s",
 		devicePath, stagingTargetPath, volumeID, datasetName, nqn)
 
 	// Verify device still exists before proceeding (it may have disappeared due to race conditions
@@ -553,43 +553,27 @@ func (s *NodeService) formatAndMountNVMeDevice(ctx context.Context, volumeID, de
 			"Device size mismatch detected - refusing to mount to prevent data corruption: %v", err)
 	}
 
+	// Return before probing or repairing an already-mounted filesystem.
+	if mkdirErr := os.MkdirAll(stagingTargetPath, 0o750); mkdirErr != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to create staging target path: %v", mkdirErr)
+	}
+	mounted, err := mount.IsMounted(ctx, stagingTargetPath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to check if staging path is mounted: %v", err)
+	}
+	if mounted {
+		klog.V(4).Infof("Staging path %s is already mounted", stagingTargetPath)
+		return &csi.NodeStageVolumeResponse{}, nil
+	}
+
 	// Determine filesystem type from volume capability
 	fsType := "ext4" // default
 	if mnt := volumeCapability.GetMount(); mnt != nil && mnt.FsType != "" {
 		fsType = mnt.FsType
 	}
 
-	// Check if this volume was cloned from a snapshot
-	isClone := false
-	if cloned, exists := volumeContext[VolumeContextKeyClonedFromSnap]; exists && cloned == VolumeContextValueTrue {
-		isClone = true
-		klog.V(4).Infof("Volume %s was cloned from snapshot - adding extra stabilization delay before filesystem check", volumeID)
-		// Reduced delay with independent subsystems (no NSID cache pollution)
-		const cloneStabilizationDelay = 5 * time.Second
-		klog.V(4).Infof("Waiting %v for cloned volume %s filesystem metadata to stabilize", cloneStabilizationDelay, devicePath)
-		time.Sleep(cloneStabilizationDelay)
-		klog.V(4).Infof("Clone stabilization delay complete for %s", devicePath)
-	}
-
-	// Check if device needs formatting (will detect existing filesystem or format if needed)
-	if err := s.handleDeviceFormatting(ctx, volumeID, devicePath, fsType, datasetName, nqn, isClone); err != nil {
-		return nil, err
-	}
-
-	// Create staging target path if it doesn't exist
-	if mkdirErr := os.MkdirAll(stagingTargetPath, 0o750); mkdirErr != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create staging target path: %v", mkdirErr)
-	}
-
-	// Check if already mounted
-	mounted, err := mount.IsMounted(ctx, stagingTargetPath)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to check if staging path is mounted: %v", err)
-	}
-
-	if mounted {
-		klog.V(4).Infof("Staging path %s is already mounted", stagingTargetPath)
-		return &csi.NodeStageVolumeResponse{}, nil
+	if prepareErr := prepareFilesystemForMount(ctx, devicePath, fsType); prepareErr != nil {
+		return nil, prepareErr
 	}
 
 	// Mount the device
