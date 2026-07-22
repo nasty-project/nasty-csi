@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	nastyapi "github.com/nasty-project/nasty-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -633,6 +634,127 @@ func TestControllerUnpublishVolume(t *testing.T) {
 				t.Errorf("Unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestRequestedBlockFilesystem(t *testing.T) {
+	mountCapability := func(fsType string) *csi.VolumeCapability {
+		return &csi.VolumeCapability{
+			AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{FsType: fsType}},
+		}
+	}
+	blockCapability := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Block{Block: &csi.VolumeCapability_BlockVolume{}},
+	}
+
+	//nolint:govet // Keeping the table fields together is clearer than optimizing test-only padding.
+	tests := []struct {
+		caps    []*csi.VolumeCapability
+		name    string
+		want    string
+		wantErr bool
+	}{
+		{name: "mount defaults to ext4", caps: []*csi.VolumeCapability{mountCapability("")}, want: fsTypeExt4},
+		{name: "xfs is preserved", caps: []*csi.VolumeCapability{mountCapability(fsTypeXFS)}, want: fsTypeXFS},
+		{name: "raw block has no filesystem", caps: []*csi.VolumeCapability{blockCapability}},
+		{name: "mixed presentation is rejected", caps: []*csi.VolumeCapability{mountCapability(fsTypeExt4), blockCapability}, wantErr: true},
+		{name: "conflicting filesystems are rejected", caps: []*csi.VolumeCapability{mountCapability(fsTypeExt4), mountCapability(fsTypeXFS)}, wantErr: true},
+		{name: "unsupported filesystem is rejected", caps: []*csi.VolumeCapability{mountCapability("btrfs")}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := requestedBlockFilesystem(tt.caps)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("requestedBlockFilesystem() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Fatalf("requestedBlockFilesystem() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateInitializedBlockFilesystem(t *testing.T) {
+	ext4 := fsTypeExt4
+	uuid := "abc-123"
+	base := nastyapi.Subvolume{Name: "pvc", Filesystem: "tank"}
+
+	if err := validateInitializedBlockFilesystem(&base, ""); err != nil {
+		t.Fatalf("raw block validation failed: %v", err)
+	}
+	if err := validateInitializedBlockFilesystem(&base, fsTypeExt4); err == nil {
+		t.Fatal("missing initialization metadata was accepted")
+	}
+	base.BlockFilesystem = &ext4
+	if err := validateInitializedBlockFilesystem(&base, fsTypeExt4); err == nil {
+		t.Fatal("missing filesystem UUID was accepted")
+	}
+	base.BlockFilesystemUUID = &uuid
+	if err := validateInitializedBlockFilesystem(&base, fsTypeExt4); err != nil {
+		t.Fatalf("valid initialization metadata rejected: %v", err)
+	}
+	if err := validateInitializedBlockFilesystem(&base, fsTypeXFS); err == nil {
+		t.Fatal("conflicting filesystem metadata was accepted")
+	}
+	legacy := nastyapi.Subvolume{Name: "legacy", Filesystem: "tank"}
+	if err := validateKnownBlockFilesystem(&legacy, fsTypeExt4); err != nil {
+		t.Fatalf("legacy subvolume without metadata rejected: %v", err)
+	}
+	if err := validateKnownBlockFilesystem(&base, fsTypeXFS); err == nil {
+		t.Fatal("known conflicting filesystem metadata was accepted")
+	}
+}
+
+func TestGetOrCreateSubvolumeUsesBackendCreationAuthority(t *testing.T) {
+	ext4 := fsTypeExt4
+	uuid := "abc-123"
+	device := "/dev/loop7"
+	backendCreated := true
+	var captured nastyapi.SubvolumeCreateParams
+	client := &mockAPIClient{
+		GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+			return nil, errors.New("subvolume not found")
+		},
+		CreateSubvolumeFunc: func(_ context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
+			captured = params
+			return &nastyapi.Subvolume{
+				Name:                params.Name,
+				Filesystem:          params.Filesystem,
+				BlockDevice:         &device,
+				BlockFilesystem:     &ext4,
+				BlockFilesystemUUID: &uuid,
+				Created:             backendCreated,
+			}, nil
+		},
+	}
+	service := &ControllerService{apiClient: client}
+	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, "test")
+
+	_, created, err := service.getOrCreateSubvolume(
+		context.Background(), "tank", "pvc", "block", "", "", "", "", "", "", fsTypeExt4,
+		0, 1024*1024*1024, timer,
+	)
+	if err != nil {
+		t.Fatalf("getOrCreateSubvolume() error = %v", err)
+	}
+	if captured.BlockFilesystem != fsTypeExt4 {
+		t.Fatalf("BlockFilesystem = %q, want %q", captured.BlockFilesystem, fsTypeExt4)
+	}
+	if !created {
+		t.Fatal("backend-created subvolume was not reported as new")
+	}
+
+	backendCreated = false
+	_, created, err = service.getOrCreateSubvolume(
+		context.Background(), "tank", "pvc", "block", "", "", "", "", "", "", fsTypeExt4,
+		0, 1024*1024*1024, timer,
+	)
+	if err != nil {
+		t.Fatalf("raced getOrCreateSubvolume() error = %v", err)
+	}
+	if created {
+		t.Fatal("backend-existing subvolume was incorrectly reported as new")
 	}
 }
 

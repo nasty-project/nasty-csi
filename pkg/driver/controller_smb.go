@@ -166,7 +166,7 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 }
 
 // createSMBShareForSubvolume creates an SMB share for a subvolume and stores xattr properties.
-func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *smbVolumeParams, subvolumeIsNew bool, timer *metrics.OperationTimer) (*nastyapi.SMBShare, error) {
+func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *smbVolumeParams, timer *metrics.OperationTimer) (*nastyapi.SMBShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	createParams := nastyapi.SMBShareCreateParams{
 		Name:    params.volumeName,
@@ -179,13 +179,6 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 	smbShare, err := s.apiClient.CreateSMBShare(ctx, createParams)
 	if err != nil {
 		klog.Errorf("Failed to create SMB share '%s' for subvolume %s/%s (path: %s): %v", params.volumeName, subvol.Filesystem, subvol.Name, subvol.Path, err)
-		if subvolumeIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, subvol.Filesystem, subvol.Name); delErr != nil {
-				klog.Errorf("Failed to cleanup subvolume after SMB share creation failure: %v", delErr)
-			}
-		} else {
-			klog.Warningf("Skipping subvolume cleanup — subvolume was pre-existing")
-		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create SMB share '%s' for subvolume %s/%s: %v", params.volumeName, subvol.Filesystem, subvol.Name, err)
 	}
@@ -248,15 +241,14 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no SMB share - continue with share creation
 	} else {
 		// Create new subvolume
-		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, subvolumeTypeFilesystem, params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
+		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, subvolumeTypeFilesystem, params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, "", params.dataReplicas, params.requestedCapacity, timer)
 		if createErr != nil {
 			return nil, createErr
 		}
 		existingSubvol = newSubvol
 	}
 
-	isNew := existingSubvol != nil
-	smbShare, err := s.createSMBShareForSubvolume(ctx, existingSubvol, params, isNew, timer)
+	smbShare, err := s.createSMBShareForSubvolume(ctx, existingSubvol, params, timer)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +376,8 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 
 	existingShares, err := s.apiClient.ListSMBShares(ctx)
 	if err != nil {
-		klog.Warningf("Failed to list SMB shares for %s/%s: %v", subvol.Filesystem, subvol.Name, err)
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to list SMB shares while adopting volume: %v", err)
 	}
 
 	var smbShare *nastyapi.SMBShare

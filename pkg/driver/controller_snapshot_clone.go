@@ -45,38 +45,34 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 
 	// 2. Resolve the new subvolume name using the same naming conventions as normal volume creation
 	params := req.GetParameters()
+	if requestedFilesystem := params[paramFilesystem]; requestedFilesystem != "" && requestedFilesystem != filesystem {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"snapshot restore must use source filesystem %q, requested %q", filesystem, requestedFilesystem)
+	}
+	if requestedProtocol := params["protocol"]; requestedProtocol != "" && requestedProtocol != protocol {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"snapshot restore must use source protocol %q, requested %q", protocol, requestedProtocol)
+	}
 	newName, err := ResolveVolumeName(params, req.GetName())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve volume name: %v", err)
 	}
 
-	// 3. Check if the subvolume already exists (idempotency — clone may have already succeeded)
-	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, newName)
-	if getErr != nil && !isNotFoundError(getErr) {
-		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", filesystem, newName, getErr)
+	// 3. Clone through the backend on every attempt. The backend validates
+	// that an existing destination was created from this exact snapshot.
+	klog.V(4).Infof("Cloning snapshot %s/%s@%s into new subvolume %s/%s",
+		filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
+	if _, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
+		Filesystem: filesystem,
+		Subvolume:  parentSubvolume,
+		Snapshot:   meta.SnapshotName,
+		NewName:    newName,
+	}); cloneErr != nil {
+		klog.Errorf("Failed to clone snapshot %s/%s@%s: %v", filesystem, parentSubvolume, meta.SnapshotName, cloneErr)
+		return nil, createVolumeError("failed to clone snapshot", cloneErr)
 	}
-
-	if existingSubvol == nil {
-		// Clone the snapshot to create the new subvolume
-		klog.V(4).Infof("Cloning snapshot %s/%s@%s into new subvolume %s/%s",
-			filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
-
-		_, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
-			Filesystem: filesystem,
-			Subvolume:  parentSubvolume,
-			Snapshot:   meta.SnapshotName,
-			NewName:    newName,
-		})
-		if cloneErr != nil {
-			klog.Errorf("Failed to clone snapshot %s/%s@%s: %v", filesystem, parentSubvolume, meta.SnapshotName, cloneErr)
-			return nil, status.Errorf(codes.Internal, "failed to clone snapshot: %v", cloneErr)
-		}
-
-		klog.Infof("Successfully cloned snapshot %s/%s@%s into subvolume %s/%s",
-			filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
-	} else {
-		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", filesystem, newName)
-	}
+	klog.Infof("Successfully cloned snapshot %s/%s@%s into subvolume %s/%s",
+		filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
 
 	// 4. Ensure the clone satisfies the normalized CSI capacity range.
 	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, newName)

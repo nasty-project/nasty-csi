@@ -41,6 +41,7 @@ type nvmeofVolumeParams struct {
 	backgroundTarget  string
 	promoteTarget     string
 	metadataTarget    string
+	blockFilesystem   string
 	requestedCapacity int64
 	dataReplicas      uint32
 	markAdoptable     bool
@@ -78,7 +79,6 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	if server == "" {
 		return nil, status.Error(codes.InvalidArgument, "server parameter is required for NVMe-oF volumes")
 	}
-
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
 	if requestedCapacity == 0 {
 		requestedCapacity = 1 * 1024 * 1024 * 1024 // Default 1GB
@@ -128,6 +128,10 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 	if err != nil {
 		return nil, err
 	}
+	blockFilesystem, err := requestedBlockFilesystem(req.GetVolumeCapabilities())
+	if err != nil {
+		return nil, err
+	}
 
 	return &nvmeofVolumeParams{
 		filesystem:        filesystem,
@@ -144,6 +148,7 @@ func validateNVMeOFParams(req *csi.CreateVolumeRequest) (*nvmeofVolumeParams, er
 		backgroundTarget:  backgroundTarget,
 		promoteTarget:     promoteTarget,
 		metadataTarget:    metadataTarget,
+		blockFilesystem:   blockFilesystem,
 		dataReplicas:      dataReplicas,
 		pvcName:           pvcName,
 		pvcNamespace:      pvcNamespace,
@@ -226,23 +231,26 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 	}
 
 	// Step 1: Create or reuse block subvolume
-	subvol, subvolIsNew, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
-		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, params.dataReplicas, params.requestedCapacity, timer)
+	requestedInitialization := params.blockFilesystem
+	if req.GetVolumeContentSource() != nil {
+		requestedInitialization = ""
+	}
+	subvol, _, err := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName,
+		"block", params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, requestedInitialization, params.dataReplicas, params.requestedCapacity, timer)
 	if err != nil {
 		return nil, err
 	}
 
 	// Determine block device path
 	if subvol.BlockDevice == nil || *subvol.BlockDevice == "" {
-		if subvolIsNew {
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
-				klog.Errorf("Failed to cleanup newly-created block subvolume: %v", delErr)
-			}
-		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Block subvolume %s has no block device path", params.subvolumeName)
 	}
 	blockDevice := *subvol.BlockDevice
+	if initErr := validateInitializedBlockFilesystem(subvol, requestedInitialization); initErr != nil {
+		timer.ObserveError()
+		return nil, initErr
+	}
 
 	// Step 2: Create NVMe-oF subsystem with namespace and port
 	subsystemParams := nastyapi.NVMeOFCreateParams{
@@ -252,15 +260,6 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 
 	subsystem, err := s.apiClient.CreateNVMeOFSubsystem(ctx, subsystemParams)
 	if err != nil {
-		// Cleanup: only delete subvolume if we just created it
-		if subvolIsNew {
-			klog.Errorf("Failed to create NVMe-oF subsystem, cleaning up newly-created subvolume: %v", err)
-			if delErr := s.apiClient.DeleteSubvolume(ctx, params.filesystem, params.subvolumeName); delErr != nil {
-				klog.Errorf("Failed to cleanup subvolume: %v", delErr)
-			}
-		} else {
-			klog.Warningf("Failed to create NVMe-oF subsystem: %v (skipping subvolume cleanup — volume was pre-existing)", err)
-		}
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create NVMe-oF subsystem '%s': %v", params.subsystemNQN, err)
 	}
@@ -301,6 +300,10 @@ func (s *ControllerService) createNVMeOFVolume(ctx context.Context, req *csi.Cre
 // handleExistingNVMeOFSubvolume handles the case when a block subvolume already exists (idempotency).
 func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, params *nvmeofVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Block subvolume %s already exists, checking idempotency", params.subvolumeName)
+	if err := validateKnownBlockFilesystem(existingSubvol, params.blockFilesystem); err != nil {
+		timer.ObserveError()
+		return nil, false, err
+	}
 
 	// Check capacity from stored properties
 	existingCapacity := params.requestedCapacity
@@ -321,19 +324,21 @@ func (s *ControllerService) handleExistingNVMeOFSubvolume(ctx context.Context, p
 
 	// Scan NVMe-oF subsystems by NQN pattern derived from volume name
 	subsystems, listErr := s.apiClient.ListNVMeOFSubsystems(ctx)
-	if listErr == nil {
-		suffix := ":" + params.volumeName
-		for i := range subsystems {
-			if !strings.HasSuffix(subsystems[i].NQN, suffix) {
-				continue
-			}
-			klog.V(4).Infof("NVMe-oF volume already exists (subsystem: %s, NQN: %s), returning existing volume",
-				subsystems[i].ID, subsystems[i].NQN)
-			resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, existingSubvol, &subsystems[i], existingCapacity)
-			injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
-			timer.ObserveSuccess()
-			return resp, true, nil
+	if listErr != nil {
+		timer.ObserveError()
+		return nil, false, status.Errorf(codes.Internal, "Failed to list NVMe-oF subsystems during idempotency check: %v", listErr)
+	}
+	suffix := ":" + params.volumeName
+	for i := range subsystems {
+		if !strings.HasSuffix(subsystems[i].NQN, suffix) {
+			continue
 		}
+		klog.V(4).Infof("NVMe-oF volume already exists (subsystem: %s, NQN: %s), returning existing volume",
+			subsystems[i].ID, subsystems[i].NQN)
+		resp := buildNVMeOFVolumeResponse(params.volumeName, params.server, existingSubvol, &subsystems[i], existingCapacity)
+		injectQueueParams(resp.Volume.VolumeContext, params.nrIOQueues, params.queueSize)
+		timer.ObserveSuccess()
+		return resp, true, nil
 	}
 
 	// Subvolume exists but no subsystem — signal caller to proceed with subsystem creation
@@ -498,6 +503,15 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 		timer.ObserveError()
 		return nil, status.Error(codes.InvalidArgument, "server parameter is required for NVMe-oF volumes")
 	}
+	requestedFilesystem, err := requestedBlockFilesystem(req.GetVolumeCapabilities())
+	if err != nil {
+		timer.ObserveError()
+		return nil, err
+	}
+	if err := validateKnownBlockFilesystem(subvol, requestedFilesystem); err != nil {
+		timer.ObserveError()
+		return nil, err
+	}
 
 	// Get requested capacity
 	requestedCapacity := req.GetCapacityRange().GetRequiredBytes()
@@ -508,14 +522,16 @@ func (s *ControllerService) adoptNVMeOFVolume(ctx context.Context, req *csi.Crea
 	// Find existing subsystem by scanning for NQN matching the volume name
 	var subsystem *nastyapi.NVMeOFSubsystem
 	subsystems, listErr := s.apiClient.ListNVMeOFSubsystems(ctx)
-	if listErr == nil {
-		suffix := ":" + volumeName
-		for i := range subsystems {
-			if strings.HasSuffix(subsystems[i].NQN, suffix) {
-				subsystem = &subsystems[i]
-				klog.Infof("Found existing NVMe-oF subsystem for adopted volume: ID=%s, NQN=%s", subsystem.ID, subsystem.NQN)
-				break
-			}
+	if listErr != nil {
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal, "Failed to list NVMe-oF subsystems while adopting volume: %v", listErr)
+	}
+	suffix := ":" + volumeName
+	for i := range subsystems {
+		if strings.HasSuffix(subsystems[i].NQN, suffix) {
+			subsystem = &subsystems[i]
+			klog.Infof("Found existing NVMe-oF subsystem for adopted volume: ID=%s, NQN=%s", subsystem.ID, subsystem.NQN)
+			break
 		}
 	}
 

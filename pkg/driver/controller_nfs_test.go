@@ -55,6 +55,7 @@ func TestCreateNFSVolume(t *testing.T) {
 						Filesystem: params.Filesystem,
 						Name:       params.Name,
 						Path:       "/mnt/tank/test-nfs-volume",
+						Created:    true,
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
@@ -187,7 +188,7 @@ func TestCreateNFSVolume(t *testing.T) {
 			wantCode: codes.Internal,
 		},
 		{
-			name: "NFS share creation failure triggers subvolume cleanup",
+			name: "NFS share creation failure preserves new subvolume for retry",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nfs-volume",
 				VolumeCapabilities: []*csi.VolumeCapability{
@@ -214,15 +215,45 @@ func TestCreateNFSVolume(t *testing.T) {
 						Filesystem: params.Filesystem,
 						Name:       params.Name,
 						Path:       "/mnt/tank/test-nfs-volume",
+						Created:    true,
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
 					return nil, errors.New("NFS service not running")
 				}
 				m.DeleteSubvolumeFunc = func(ctx context.Context, filesystem, name string) error {
-					if !subvolCreated {
-						t.Error("DeleteSubvolume called before CreateSubvolume")
+					if subvolCreated {
+						t.Fatal("new subvolume must not be automatically deleted after an indeterminate share failure")
 					}
+					return nil
+				}
+			},
+			wantErr:  true,
+			wantCode: codes.Internal,
+		},
+		{
+			name: "NFS share failure preserves pre-existing subvolume",
+			req: &csi.CreateVolumeRequest{
+				Name: "test-nfs-volume",
+				VolumeCapabilities: []*csi.VolumeCapability{{
+					AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}},
+				}},
+				Parameters: map[string]string{
+					"protocol":   "nfs",
+					"filesystem": "tank",
+					"server":     "192.168.1.100",
+				},
+			},
+			mockSetup: func(m *mockAPIClient) {
+				m.GetSubvolumeFunc = func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+					return &nastyapi.Subvolume{Filesystem: "tank", Name: "test-nfs-volume", Path: "/mnt/tank/test-nfs-volume"}, nil
+				}
+				m.ListNFSSharesFunc = func(context.Context) ([]nastyapi.NFSShare, error) { return nil, nil }
+				m.CreateNFSShareFunc = func(context.Context, nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
+					return nil, errors.New("NFS service not running")
+				}
+				m.DeleteSubvolumeFunc = func(context.Context, string, string) error {
+					t.Fatal("pre-existing subvolume must not be deleted")
 					return nil
 				}
 			},

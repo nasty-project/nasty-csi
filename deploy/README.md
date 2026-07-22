@@ -75,11 +75,27 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 ### Upgrading
 
+Upgrade the NASty appliance first. For CSI releases that initialize block filesystems on the backend, suspend the old controller while rolling node plugins:
+
 ```bash
+kubectl --namespace kube-system scale deployment \
+  --selector app.kubernetes.io/instance=nasty-csi \
+  --replicas=0
+
 helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --version 0.8.0 \
   --namespace kube-system \
-  --reuse-values
+  --reuse-values \
+  --set controller.replicas=0
+
+kubectl --namespace kube-system rollout status daemonset \
+  --selector app.kubernetes.io/instance=nasty-csi
+
+helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+  --version 0.8.0 \
+  --namespace kube-system \
+  --reuse-values \
+  --set controller.replicas=1
 ```
 
 ### Uninstalling

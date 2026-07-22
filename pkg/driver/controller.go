@@ -116,6 +116,10 @@ func createVolumeError(msg string, err error) error {
 	if isCapacityError(err) {
 		return status.Errorf(codes.ResourceExhausted, "%s: %v", msg, err)
 	}
+	errText := strings.ToLower(err.Error())
+	if strings.Contains(errText, "already exists") || strings.Contains(errText, "existing subvolume is incompatible") {
+		return status.Errorf(codes.AlreadyExists, "%s: %v", msg, err)
+	}
 	return status.Errorf(codes.Internal, "%s: %v", msg, err)
 }
 
@@ -574,6 +578,11 @@ func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if err := validateAccessModeForProtocol(req.GetVolumeCapabilities(), protocol); err != nil {
 		return nil, err
 	}
+	if protocol == ProtocolNVMeOF || protocol == ProtocolISCSI {
+		if _, err := requestedBlockFilesystem(req.GetVolumeCapabilities()); err != nil {
+			return nil, err
+		}
+	}
 
 	// Check for idempotency: if volume with same name already exists
 	existingVolume, err := s.checkExistingVolume(ctx, req, params, protocol)
@@ -585,18 +594,19 @@ func (s *ControllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return existingVolume, nil
 	}
 
-	// Check for adoption: if volume exists elsewhere (different parentDataset) and can be adopted
+	// Check if creating from snapshot or volume clone
+	if resp, handled, err := s.handleVolumeContentSource(ctx, req, protocol); handled {
+		return resp, err
+	}
+
+	// Adoption is only valid for source-less requests. A snapshot or volume
+	// source must always pass through backend clone identity validation.
 	if resp, adopted, err := s.checkAndAdoptVolume(ctx, req, params, protocol); adopted {
 		if err != nil {
 			return nil, err
 		}
 		klog.Infof("Successfully adopted orphaned volume: %s", req.GetName())
 		return resp, nil
-	}
-
-	// Check if creating from snapshot or volume clone
-	if resp, handled, err := s.handleVolumeContentSource(ctx, req, protocol); handled {
-		return resp, err
 	}
 
 	// Validate encryption requirement: if StorageClass requests encryption,
@@ -702,6 +712,80 @@ func validateAccessModeForProtocol(caps []*csi.VolumeCapability, protocol string
 	return nil
 }
 
+// requestedBlockFilesystem returns the filesystem that the backend should
+// initialize for a mounted block-protocol volume. Raw block volumes return an
+// empty string. Mixed presentation modes and filesystem types are rejected.
+func requestedBlockFilesystem(caps []*csi.VolumeCapability) (string, error) {
+	mode := ""
+	filesystem := ""
+	for _, capability := range caps {
+		capabilityMode := "block"
+		capabilityFilesystem := ""
+		if mount := capability.GetMount(); mount != nil {
+			capabilityMode = "mount"
+			capabilityFilesystem = mount.GetFsType()
+			if capabilityFilesystem == "" {
+				capabilityFilesystem = fsTypeExt4
+			}
+			switch capabilityFilesystem {
+			case fsTypeExt3, fsTypeExt4, fsTypeXFS:
+			default:
+				return "", status.Errorf(codes.InvalidArgument,
+					"unsupported filesystem type %q for block volume", capabilityFilesystem)
+			}
+		} else if capability.GetBlock() == nil {
+			return "", status.Error(codes.InvalidArgument, "volume capability must specify mount or block access")
+		}
+
+		if mode != "" && mode != capabilityMode {
+			return "", status.Error(codes.InvalidArgument, "volume capabilities mix mount and raw block access")
+		}
+		if filesystem != "" && capabilityFilesystem != "" && filesystem != capabilityFilesystem {
+			return "", status.Errorf(codes.InvalidArgument,
+				"volume capabilities request conflicting filesystem types %q and %q", filesystem, capabilityFilesystem)
+		}
+		mode = capabilityMode
+		if capabilityFilesystem != "" {
+			filesystem = capabilityFilesystem
+		}
+	}
+	return filesystem, nil
+}
+
+func validateInitializedBlockFilesystem(subvolume *nastyapi.Subvolume, expected string) error {
+	if expected == "" {
+		return nil
+	}
+	if subvolume.BlockFilesystem == nil || *subvolume.BlockFilesystem == "" {
+		return status.Errorf(codes.FailedPrecondition,
+			"block subvolume %s/%s has no authoritative filesystem initialization metadata",
+			subvolume.Filesystem, subvolume.Name)
+	}
+	if *subvolume.BlockFilesystem != expected {
+		return status.Errorf(codes.AlreadyExists,
+			"block subvolume %s/%s contains %s, requested %s",
+			subvolume.Filesystem, subvolume.Name, *subvolume.BlockFilesystem, expected)
+	}
+	if subvolume.BlockFilesystemUUID == nil || *subvolume.BlockFilesystemUUID == "" {
+		return status.Errorf(codes.FailedPrecondition,
+			"block subvolume %s/%s has no verified filesystem UUID",
+			subvolume.Filesystem, subvolume.Name)
+	}
+	return nil
+}
+
+func validateKnownBlockFilesystem(subvolume *nastyapi.Subvolume, expected string) error {
+	if expected == "" || subvolume.BlockFilesystem == nil {
+		return nil
+	}
+	if *subvolume.BlockFilesystem != expected {
+		return status.Errorf(codes.AlreadyExists,
+			"block subvolume %s/%s contains %s, requested %s",
+			subvolume.Filesystem, subvolume.Name, *subvolume.BlockFilesystem, expected)
+	}
+	return nil
+}
+
 // handleVolumeContentSource handles creating volumes from snapshots or clones.
 // Returns (response, true, nil) if handled successfully, (nil, true, error) if handled with error,
 // or (nil, false, nil) if not a content source request.
@@ -802,31 +886,28 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 
 	// 2. Resolve the new subvolume name
 	params := req.GetParameters()
+	if requestedFilesystem := params[paramFilesystem]; requestedFilesystem != "" && requestedFilesystem != filesystem {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"volume clone must use source filesystem %q, requested %q", filesystem, requestedFilesystem)
+	}
+	if requestedProtocol := params["protocol"]; requestedProtocol != "" && requestedProtocol != protocol {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"volume clone must use source protocol %q, requested %q", protocol, requestedProtocol)
+	}
 	newName, err := ResolveVolumeName(params, req.GetName())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve volume name: %v", err)
 	}
 
-	// 3. Check if the subvolume already exists (idempotency)
-	existingSubvol, getErr := s.apiClient.GetSubvolume(ctx, filesystem, newName)
-	if getErr != nil && !isNotFoundError(getErr) {
-		return nil, status.Errorf(codes.Internal, "failed to check for existing subvolume %s/%s: %v", filesystem, newName, getErr)
+	// 3. Clone through the backend on every attempt. The backend records the
+	// source and only treats an existing destination as idempotent when that
+	// source matches exactly.
+	klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
+	if _, cloneErr := s.apiClient.CloneSubvolume(ctx, filesystem, sourceSubvolName, newName); cloneErr != nil {
+		klog.Errorf("Failed to clone subvolume %s/%s: %v", filesystem, sourceSubvolName, cloneErr)
+		return nil, createVolumeError("failed to clone volume", cloneErr)
 	}
-
-	if existingSubvol == nil {
-		// Native COW clone — O(1), no temporary snapshot needed
-		klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
-
-		_, cloneErr := s.apiClient.CloneSubvolume(ctx, filesystem, sourceSubvolName, newName)
-		if cloneErr != nil {
-			klog.Errorf("Failed to clone subvolume %s/%s: %v", filesystem, sourceSubvolName, cloneErr)
-			return nil, status.Errorf(codes.Internal, "failed to clone volume: %v", cloneErr)
-		}
-
-		klog.Infof("Cloned subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
-	} else {
-		klog.V(4).Infof("Subvolume %s/%s already exists (idempotent clone), proceeding to share setup", filesystem, newName)
-	}
+	klog.Infof("Cloned subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
 
 	// 4. Ensure the clone satisfies the normalized CSI capacity range.
 	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, newName)
@@ -1085,6 +1166,13 @@ func (s *ControllerService) ValidateVolumeCapabilities(ctx context.Context, req 
 			return &csi.ValidateVolumeCapabilitiesResponse{
 				Message: fmt.Sprintf("capabilities not confirmed: %v", err),
 			}, nil
+		}
+		if protocol == ProtocolNVMeOF || protocol == ProtocolISCSI {
+			if _, err := requestedBlockFilesystem(req.GetVolumeCapabilities()); err != nil {
+				return &csi.ValidateVolumeCapabilitiesResponse{
+					Message: fmt.Sprintf("capabilities not confirmed: %v", err),
+				}, nil
+			}
 		}
 	}
 

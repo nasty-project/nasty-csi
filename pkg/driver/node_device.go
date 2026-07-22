@@ -2,14 +2,9 @@ package driver
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -17,14 +12,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
-)
-
-// Static errors and constants for device operations.
-var (
-	// ErrUnsupportedFSType is returned when attempting to format a device with an unsupported filesystem type.
-	ErrUnsupportedFSType = errors.New("unsupported filesystem type")
-	// ErrDeviceNotReady is returned when a device does not become ready after retries.
-	ErrDeviceNotReady = errors.New("device not ready after retries")
 )
 
 // publishBlockVolume publishes a block volume by bind mounting the device file from staging to target.
@@ -80,7 +67,6 @@ func (s *NodeService) publishBlockVolume(ctx context.Context, stagingTargetPath,
 	if readonly {
 		mountOptions = append(mountOptions, "ro")
 	}
-
 	args := []string{"-o", mount.JoinMountOptions(mountOptions), stagingTargetPath, targetPath}
 
 	klog.V(4).Infof("Executing bind mount command: mount %v", args)
@@ -104,24 +90,20 @@ func (s *NodeService) publishBlockVolume(ctx context.Context, stagingTargetPath,
 func (s *NodeService) publishFilesystemVolume(ctx context.Context, stagingTargetPath, targetPath string, readonly bool) (*csi.NodePublishVolumeResponse, error) {
 	klog.Infof("Publishing filesystem volume from %s to %s", stagingTargetPath, targetPath)
 
-	// Verify staging path exists and is a directory
+	// Verify staging path exists
 	stagingInfo, err := os.Stat(stagingTargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Staging path %s not found: %v", stagingTargetPath, err)
 	}
 
-	// For filesystem volumes, staging path should be a directory
 	if !stagingInfo.IsDir() {
 		return nil, status.Errorf(codes.Internal, "Staging path %s is not a directory", stagingTargetPath)
 	}
 
-	// Create target directory if it doesn't exist
-	err = os.MkdirAll(targetPath, 0o750)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to create target directory %s: %v", targetPath, err)
+	if mkdirErr := os.MkdirAll(targetPath, 0o750); mkdirErr != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to create target directory %s: %v", targetPath, mkdirErr)
 	}
 
-	// Check if already mounted
 	mounted, err := mount.IsMounted(ctx, targetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to check if target path is mounted: %v", err)
@@ -131,12 +113,10 @@ func (s *NodeService) publishFilesystemVolume(ctx context.Context, stagingTarget
 		return &csi.NodePublishVolumeResponse{}, nil
 	}
 
-	// Bind mount the staged directory to target
 	mountOptions := []string{mountOptBind}
 	if readonly {
 		mountOptions = append(mountOptions, "ro")
 	}
-
 	args := []string{"-o", mount.JoinMountOptions(mountOptions), stagingTargetPath, targetPath}
 
 	klog.V(4).Infof("Executing bind mount command: mount %v", args)
@@ -156,431 +136,32 @@ func (s *NodeService) publishFilesystemVolume(ctx context.Context, stagingTarget
 func (s *NodeService) stageBlockDevice(devicePath, stagingTargetPath string) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging block device %s to %s", devicePath, stagingTargetPath)
 
-	// Verify device exists
 	if _, err := os.Stat(devicePath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Device path %s not found: %v", devicePath, err)
 	}
 
-	// Check if staging path already exists
 	if _, err := os.Stat(stagingTargetPath); err == nil {
-		// Staging path exists - check if it's a valid symlink or device
 		klog.V(4).Infof("Staging path %s already exists", stagingTargetPath)
-		// Verify it points to the correct device
-		targetDevice, err := filepath.EvalSymlinks(stagingTargetPath)
-		if err == nil && targetDevice == devicePath {
+		targetDevice, evalErr := filepath.EvalSymlinks(stagingTargetPath)
+		if evalErr == nil && targetDevice == devicePath {
 			klog.V(4).Infof("Staging path already points to correct device")
 			return &csi.NodeStageVolumeResponse{}, nil
 		}
-		// Remove existing staging path if it doesn't match
 		klog.Warningf("Removing incorrect staging path: %s", stagingTargetPath)
-		if err := os.Remove(stagingTargetPath); err != nil {
-			return nil, status.Errorf(codes.Internal, "Failed to remove incorrect staging path: %v", err)
+		if removeErr := os.Remove(stagingTargetPath); removeErr != nil {
+			return nil, status.Errorf(codes.Internal, "Failed to remove incorrect staging path: %v", removeErr)
 		}
 	}
 
-	// Create parent directory if needed
 	stagingDir := filepath.Dir(stagingTargetPath)
 	if err := os.MkdirAll(stagingDir, 0o750); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create staging directory: %v", err)
 	}
 
-	// Create symlink from staging path to device
 	if err := os.Symlink(devicePath, stagingTargetPath); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to create symlink from %s to %s: %v", stagingTargetPath, devicePath, err)
 	}
 
 	klog.Infof("Successfully staged block device at %s -> %s", stagingTargetPath, devicePath)
 	return &csi.NodeStageVolumeResponse{}, nil
-}
-
-// invalidateDeviceCache invalidates kernel caches for a device.
-// This is critical for cloned ZVOLs where the kernel may cache the "empty" state
-// before the clone completes, preventing blkid from detecting the existing filesystem.
-func invalidateDeviceCache(ctx context.Context, devicePath string, attempt int) error {
-	// Only run cache invalidation on retry attempts (not first attempt)
-	if attempt == 0 {
-		return nil
-	}
-
-	// Use blockdev --flushbufs to invalidate kernel buffer cache
-	// This forces the kernel to re-read the device's actual content
-	flushCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(flushCtx, "blockdev", "--flushbufs", devicePath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		klog.V(4).Infof("blockdev --flushbufs failed for %s (attempt %d): %v, output: %s",
-			devicePath, attempt+1, err, string(output))
-		// Don't fail - device might not exist yet, continue anyway
-		return err
-	}
-	klog.V(4).Infof("Flushed device buffers for %s (attempt %d)", devicePath, attempt+1)
-
-	// Wait for udev to settle (process any pending device events)
-	// This ensures udev has processed any changes to the device
-	settleCtx, cancelSettle := context.WithTimeout(ctx, 5*time.Second)
-	defer cancelSettle()
-
-	settleCmd := exec.CommandContext(settleCtx, "udevadm", "settle", "--timeout=5")
-	settleOutput, settleErr := settleCmd.CombinedOutput()
-	if settleErr != nil {
-		klog.V(4).Infof("udevadm settle failed (attempt %d): %v, output: %s",
-			attempt+1, settleErr, string(settleOutput))
-		return settleErr
-	}
-	klog.V(4).Infof("udevadm settle completed (attempt %d)", attempt+1)
-
-	return nil
-}
-
-// isNetworkBlockDevice returns true if the device path looks like a
-// CSI-attached network block device (iSCSI or NVMe-oF). Both can sit
-// behind high-latency links (Tailscale, WAN, NAT) where blkid /
-// blockdev I/O against the superblock takes 10-20s per attempt under
-// concurrent load — well beyond the 5s budget that's safe on a local
-// disk. Lumping both into the same timeout/retry regime matches
-// reality: in this driver, the only /dev/sd[a-z] devices we see are
-// iSCSI-attached (local disks don't reach NodeStageVolume), and the
-// only /dev/nvme* devices are NVMe-oF, so the false-positive rate
-// for treating them as high-latency is zero.
-func isNetworkBlockDevice(devicePath string) bool {
-	return strings.Contains(devicePath, "/dev/nvme") ||
-		strings.Contains(devicePath, "/dev/sd")
-}
-
-// needsFormatWithRetries checks if a device needs formatting with different retry logic for clones vs new volumes.
-// For cloned volumes, we use many retries (25) to ensure filesystem metadata has propagated.
-// For network block devices (iSCSI + NVMe-oF), we use 6 retries to handle high-latency links.
-// For other devices, we use few retries (3) to avoid gRPC timeouts.
-func needsFormatWithRetries(ctx context.Context, devicePath string, isClone bool) (bool, error) {
-	var maxRetries int
-	isNetBlock := isNetworkBlockDevice(devicePath)
-
-	switch {
-	case isClone:
-		// Clones inherit filesystem from snapshot - need many retries to detect it
-		// and avoid destroying data by reformatting.
-		maxRetries = 25
-		klog.Infof("Checking cloned volume filesystem (max %d retries to avoid destroying clone data)", maxRetries)
-	case isNetBlock:
-		// Network block devices (NVMe-oF + iSCSI): use enough retries to
-		// handle high-latency links (e.g. Tailscale). Over such links,
-		// blkid can take 10-20s per attempt to read the superblock.
-		// Too few retries caused data loss by reformatting volumes with
-		// existing filesystems; matching iSCSI to NVMe-oF here closes
-		// the blkid-killed-by-5s-timeout failure mode observed in the
-		// iSCSI concurrent E2E tests over Tailscale.
-		maxRetries = 6
-		klog.Infof("Checking network block device filesystem (max %d retries, will format if needed)", maxRetries)
-	default:
-		maxRetries = 3 // Fast for local devices - avoid gRPC timeout (typical 2min deadline)
-		klog.Infof("Checking new volume filesystem (max %d retries, will format if needed)", maxRetries)
-	}
-
-	const (
-		initialBackoff = 200 * time.Millisecond
-		maxBackoff     = 10 * time.Second
-	)
-
-	klog.Infof("Checking if device %s needs formatting (max %d retries with up to %v backoff)",
-		devicePath, maxRetries, maxBackoff)
-
-	// CRITICAL: For NVMe devices, add initial stabilization delay before first check
-	if err := waitForNVMeStabilization(ctx, devicePath); err != nil {
-		return false, err
-	}
-
-	// Retry with exponential backoff to handle device readiness timing
-	lastOutput, lastErr := retryFilesystemCheck(ctx, devicePath, maxRetries, initialBackoff, maxBackoff, isClone)
-
-	// After all retries, handle the final result
-	return handleFinalResult(devicePath, maxRetries, lastOutput, lastErr)
-}
-
-// waitForNVMeStabilization adds stabilization delay for NVMe devices.
-// This delay is in addition to the device initialization wait in stageNVMeDevice.
-// After the device reports non-zero size, we add a small additional delay before
-// the filesystem check retry loop begins to give filesystem metadata time to settle.
-func waitForNVMeStabilization(ctx context.Context, devicePath string) error {
-	if !strings.Contains(devicePath, "/dev/nvme") {
-		return nil
-	}
-
-	const nvmeInitialDelay = 3 * time.Second
-	klog.V(4).Infof("NVMe device detected, waiting %v before first filesystem check", nvmeInitialDelay)
-	select {
-	case <-time.After(nvmeInitialDelay):
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// retryFilesystemCheck performs filesystem checks with exponential backoff.
-func retryFilesystemCheck(ctx context.Context, devicePath string, maxRetries int, initialBackoff, maxBackoff time.Duration, isClone bool) ([]byte, error) {
-	var lastErr error
-	var lastOutput []byte
-	backoff := initialBackoff
-
-	for attempt := range maxRetries {
-		if attempt > 0 {
-			if err := waitWithBackoff(ctx, devicePath, attempt, maxRetries, backoff); err != nil {
-				return lastOutput, err
-			}
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-		}
-
-		// Invalidate kernel caches before checking filesystem
-		if err := invalidateDeviceCache(ctx, devicePath, attempt); err != nil {
-			klog.Warningf("Failed to invalidate device cache for %s (attempt %d): %v - continuing anyway", devicePath, attempt+1, err)
-		}
-
-		// Check device filesystem status and handle result
-		needsFmt, output, err := checkDeviceFilesystem(ctx, devicePath)
-		lastOutput = output
-		lastErr = err
-
-		if shouldStopRetrying(needsFmt, err, devicePath, attempt, maxRetries, output, isClone) {
-			return lastOutput, lastErr
-		}
-	}
-
-	return lastOutput, lastErr
-}
-
-// shouldStopRetrying determines if we should stop retrying filesystem checks.
-func shouldStopRetrying(needsFmt bool, err error, devicePath string, attempt, maxRetries int, output []byte, isClone bool) bool {
-	// Log detailed information about this attempt
-	if needsFmt || err != nil {
-		klog.Warningf("needsFormat attempt %d/%d for %s: needsFormat=%v, err=%v, output=%q (will retry if uncertain)",
-			attempt+1, maxRetries, devicePath, needsFmt, err, string(output))
-	} else {
-		klog.Infof("needsFormat attempt %d/%d for %s: filesystem detected, needsFormat=false",
-			attempt+1, maxRetries, devicePath)
-	}
-
-	// For CLONED volumes with no filesystem detected, continue retrying.
-	// Clones inherit filesystem from snapshot but metadata may take time to propagate.
-	// We must retry to avoid destroying cloned data by reformatting too early.
-	if err == nil && needsFmt && isClone {
-		if attempt+1 < maxRetries {
-			klog.Infof("Cloned volume %s has no filesystem detected yet (attempt %d/%d) - will retry to avoid destroying clone data",
-				devicePath, attempt+1, maxRetries)
-			return false // Continue retrying
-		}
-		// Reached max retries for clone - stop and warn
-		klog.Warningf("Cloned volume %s still shows no filesystem after %d attempts - will fail unless force-format annotation is set",
-			devicePath, attempt+1)
-		return true
-	}
-
-	// For NEW volumes (not clones): If no filesystem detected with no error, we can stop immediately.
-	// New volumes are expected to be empty and need formatting - no need to retry excessively.
-	if err == nil && needsFmt && !isClone {
-		klog.Infof("New volume %s has no filesystem (confirmed after %d attempts) - proceeding to format", devicePath, attempt+1)
-		return true
-	}
-
-	// If filesystem check succeeded with filesystem found
-	if err == nil && !needsFmt {
-		klog.Infof("Device %s has existing filesystem, skipping format (detected after %d attempts)", devicePath, attempt+1)
-		return true
-	}
-
-	// If device doesn't exist yet, continue retrying
-	if isDeviceNotReady(output) {
-		klog.Infof("Device %s not ready yet (attempt %d/%d): %s - will retry", devicePath, attempt+1, maxRetries, string(output))
-		return false
-	}
-
-	// For other errors, continue retrying
-	klog.Infof("blkid returned error for %s (attempt %d/%d): %v, output: %q - will retry",
-		devicePath, attempt+1, maxRetries, err, string(output))
-	return false
-}
-
-// waitWithBackoff waits for the specified backoff duration before retry.
-func waitWithBackoff(ctx context.Context, devicePath string, attempt, maxRetries int, backoff time.Duration) error {
-	klog.V(4).Infof("Retrying blkid for %s (attempt %d/%d after %v)", devicePath, attempt+1, maxRetries, backoff)
-	select {
-	case <-time.After(backoff):
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// checkDeviceFilesystem checks if a device has a filesystem using blkid and lsblk.
-// Returns (needsFormat, output, error).
-func checkDeviceFilesystem(ctx context.Context, devicePath string) (needsFormat bool, output []byte, err error) {
-	// Use a longer timeout for network block devices — over high-latency
-	// links (e.g. Tailscale, WAN), block I/O for superblock reads can take
-	// significantly longer than on LAN. Local devices keep the tight 5s
-	// budget since they're expected to respond instantly; the 30s ceiling
-	// here is the *maximum* — blkid still exits in milliseconds on a
-	// healthy link, so there's no penalty on LAN deployments.
-	timeout := 5 * time.Second
-	if isNetworkBlockDevice(devicePath) {
-		timeout = 30 * time.Second
-	}
-	checkCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	// First, check with lsblk to verify device exists and get basic info
-	lsblkCmd := exec.CommandContext(checkCtx, "lsblk", "-n", "-o", "FSTYPE", devicePath)
-	lsblkOutput, lsblkErr := lsblkCmd.CombinedOutput()
-
-	if lsblkErr != nil {
-		// Device doesn't exist or lsblk failed
-		klog.V(4).Infof("lsblk failed for %s: %v, output: %s", devicePath, lsblkErr, string(lsblkOutput))
-		return false, lsblkOutput, lsblkErr
-	}
-
-	// lsblk succeeded - check if FSTYPE is empty (no filesystem)
-	fstype := strings.TrimSpace(string(lsblkOutput))
-	if fstype == "" {
-		klog.V(4).Infof("lsblk shows device %s has no filesystem (FSTYPE empty)", devicePath)
-		// Verify with blkid for consistency
-		blkidCmd := exec.CommandContext(checkCtx, "blkid", devicePath)
-		blkidOutput, blkidErr := blkidCmd.CombinedOutput()
-
-		if blkidErr != nil || len(blkidOutput) == 0 || strings.Contains(string(blkidOutput), "does not contain") {
-			klog.Infof("Device %s confirmed to have no filesystem (lsblk FSTYPE='', blkid confirms)", devicePath)
-			// Return empty output to indicate no filesystem detected (handleFinalResult expects this)
-			return true, nil, nil
-		}
-
-		// Conflicting information - blkid found filesystem but lsblk didn't
-		klog.Warningf("Device %s: lsblk shows no FSTYPE but blkid found filesystem: %s - trusting blkid",
-			devicePath, string(blkidOutput))
-		return false, blkidOutput, nil
-	}
-
-	// lsblk shows a filesystem type - verify with blkid
-	klog.V(4).Infof("lsblk shows device %s has filesystem type: %s", devicePath, fstype)
-
-	blkidCmd := exec.CommandContext(checkCtx, "blkid", devicePath)
-	blkidOutput, blkidErr := blkidCmd.CombinedOutput()
-
-	if blkidErr == nil {
-		klog.V(4).Infof("Device %s has existing filesystem confirmed by both lsblk and blkid: %s",
-			devicePath, string(blkidOutput))
-		return false, blkidOutput, nil
-	}
-
-	// lsblk found filesystem but blkid didn't - trust lsblk
-	klog.V(4).Infof("Device %s: lsblk found FSTYPE=%s, blkid failed - trusting lsblk", devicePath, fstype)
-	return false, lsblkOutput, nil
-}
-
-// isDeviceNotReady checks if blkid output indicates device is not ready.
-func isDeviceNotReady(output []byte) bool {
-	return strings.Contains(string(output), "No such device") || strings.Contains(string(output), "No such file")
-}
-
-// handleFinalResult processes the final result after all retries.
-func handleFinalResult(devicePath string, maxRetries int, lastOutput []byte, lastErr error) (bool, error) {
-	// If blkid check succeeded (lastErr == nil), we need to determine if filesystem was detected
-	// based on the output. Empty output or "does not contain" means no filesystem detected.
-	if lastErr == nil {
-		// Check if no filesystem was detected
-		if len(lastOutput) == 0 || strings.Contains(string(lastOutput), "does not contain") {
-			klog.Infof("Device %s has no filesystem - needs formatting", devicePath)
-			return true, nil
-		}
-		// Filesystem was detected, no formatting needed
-		klog.V(4).Infof("Device %s has existing filesystem, skipping format", devicePath)
-		return false, nil
-	}
-
-	// After all retries, if blkid failed we must distinguish between:
-	// 1. blkid was killed/timed out (signal: killed) → inconclusive, REFUSE to format
-	// 2. blkid ran to completion but found nothing → safe to format
-	//
-	// Formatting on inconclusive results destroys data. This was observed over
-	// high-latency links (Tailscale) where blkid was consistently killed by the
-	// context timeout before it could read the device superblock.
-	errStr := lastErr.Error()
-	if strings.Contains(errStr, "signal: killed") || strings.Contains(errStr, "context deadline exceeded") {
-		klog.Errorf("Device %s: blkid was killed or timed out after %d retries — refusing to format (would destroy data if filesystem exists)", devicePath, maxRetries)
-		return false, fmt.Errorf("%w: blkid timed out for device %s after %d retries — cannot determine if filesystem exists, refusing to format to prevent data loss",
-			ErrDeviceNotReady, devicePath, maxRetries)
-	}
-
-	if len(lastOutput) == 0 || strings.Contains(string(lastOutput), "does not contain") {
-		klog.Infof("Device %s has no filesystem after %d retries - needs formatting", devicePath, maxRetries)
-		return true, nil
-	}
-
-	// Device still not ready - this is unexpected
-	return false, fmt.Errorf("%w: device %s not ready after %d retries: %w (output: %s)",
-		ErrDeviceNotReady, devicePath, maxRetries, lastErr, string(lastOutput))
-}
-
-// getLogicalSectorSize reads the logical block size for a device from sysfs.
-// devicePath should be an absolute path like /dev/nvme0n1 or /dev/sda.
-func getLogicalSectorSize(devicePath string) (int, error) {
-	devName := filepath.Base(devicePath)
-	sysPath := path.Join("/sys/block", devName, "queue", "logical_block_size")
-	data, err := os.ReadFile(sysPath) //nolint:gosec // G304: path constructed from sysfs, not user input
-	if err != nil {
-		return 0, fmt.Errorf("reading logical_block_size for %s: %w", devName, err)
-	}
-	size, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return 0, fmt.Errorf("parsing logical_block_size for %s: %w", devName, err)
-	}
-	return size, nil
-}
-
-// formatDevice formats a device with the specified filesystem.
-// This function performs the actual formatting operation. The caller is responsible
-// for determining whether formatting is appropriate (e.g., checking needsFormat first).
-func formatDevice(ctx context.Context, volumeID, devicePath, fsType string) error {
-	klog.Infof("Formatting volume %s at %s with filesystem %s", volumeID, devicePath, fsType)
-
-	// Formatting can take time, allow up to 60 seconds
-	formatCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-
-	var cmd *exec.Cmd
-
-	switch fsType {
-	case fsTypeExt4:
-		// -F force, don't ask for confirmation
-		cmd = exec.CommandContext(formatCtx, "mkfs.ext4", "-F", devicePath)
-	case fsTypeExt3:
-		cmd = exec.CommandContext(formatCtx, "mkfs.ext3", "-F", devicePath)
-	case fsTypeXFS:
-		// -f force overwrite
-		// Explicitly pass the logical sector size to avoid mismatches when the
-		// backing device's physical sector size differs from the transport's
-		// advertised logical sector size (common with NVMe-oF over TCP).
-		xfsArgs := []string{"-f"}
-		if sectorSize, sErr := getLogicalSectorSize(devicePath); sErr == nil {
-			xfsArgs = append(xfsArgs, "-s", fmt.Sprintf("size=%d", sectorSize))
-			klog.V(4).Infof("Using logical sector size %d for XFS format of %s", sectorSize, devicePath)
-		} else {
-			klog.V(4).Infof("Could not detect logical sector size for %s, using mkfs.xfs default: %v", devicePath, sErr)
-		}
-		xfsArgs = append(xfsArgs, devicePath)
-		cmd = exec.CommandContext(formatCtx, "mkfs.xfs", xfsArgs...)
-	default:
-		return fmt.Errorf("%w: %s", ErrUnsupportedFSType, fsType)
-	}
-
-	klog.V(4).Infof("Running format command: %v", cmd.Args)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("format command failed: %w, output: %s", err, string(output))
-	}
-
-	klog.V(4).Infof("Format output: %s", string(output))
-	klog.Infof("Successfully formatted volume %s at %s with filesystem %s", volumeID, devicePath, fsType)
-
-	return nil
 }
