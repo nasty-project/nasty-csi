@@ -454,7 +454,9 @@ func (s *NodeService) logDeviceInfo(ctx context.Context, devicePath string) {
 	// Try to get device UUID (for better tracking)
 	uuidCtx, uuidCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer uuidCancel()
-	blkidCmd := exec.CommandContext(uuidCtx, "blkid", "-s", "UUID", "-o", "value", devicePath)
+	// Low-level probing bypasses blkid's global cache, which may contain an
+	// unrelated network device that is blocked in transport recovery.
+	blkidCmd := exec.CommandContext(uuidCtx, "blkid", "-p", "-s", "UUID", "-o", "value", devicePath)
 	if uuidOutput, err := blkidCmd.CombinedOutput(); err == nil && len(uuidOutput) > 0 {
 		uuid := strings.TrimSpace(string(uuidOutput))
 		if uuid != "" {
@@ -465,7 +467,7 @@ func (s *NodeService) logDeviceInfo(ctx context.Context, devicePath string) {
 	// Try to get filesystem type
 	fsTypeCtx, fsTypeCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer fsTypeCancel()
-	fsCmd := exec.CommandContext(fsTypeCtx, "blkid", "-s", "TYPE", "-o", "value", devicePath)
+	fsCmd := exec.CommandContext(fsTypeCtx, "blkid", "-p", "-s", "TYPE", "-o", "value", devicePath)
 	if fsOutput, err := fsCmd.CombinedOutput(); err == nil && len(fsOutput) > 0 {
 		fsType := strings.TrimSpace(string(fsOutput))
 		if fsType != "" {
