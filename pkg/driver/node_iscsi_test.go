@@ -1,8 +1,13 @@
 package driver
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 func TestFindDiscoveredPortal(t *testing.T) {
@@ -128,5 +133,43 @@ func TestFindAllDiscoveredPortals(t *testing.T) {
 				t.Errorf("findAllDiscoveredPortals(...) = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestStageISCSIDeviceDoesNotRescanFreshLUN(t *testing.T) {
+	binDir := t.TempDir()
+	rescanSentinel := filepath.Join(t.TempDir(), "rescan-called")
+	writeProbeCommand(t, binDir, "blockdev", `
+if [ "$1" = "--flushbufs" ]; then
+	printf called > "$RESCAN_SENTINEL"
+	exit 0
+fi
+printf '1073741824\n'
+`)
+	writeProbeCommand(t, binDir, "udevadm", `printf called > "$RESCAN_SENTINEL"`)
+	writeProbeCommand(t, binDir, "blkid", `printf 'ext4\n'`)
+	writeProbeCommand(t, binDir, "e2fsck", "exit 0")
+	writeProbeCommand(t, binDir, "findmnt", "exit 1")
+	writeProbeCommand(t, binDir, "mount", "exit 0")
+	t.Setenv("PATH", binDir)
+	t.Setenv("RESCAN_SENTINEL", rescanSentinel)
+
+	devicePath := filepath.Join(t.TempDir(), "device")
+	if err := os.WriteFile(devicePath, nil, 0o600); err != nil {
+		t.Fatalf("create fake device: %v", err)
+	}
+	capability := &csi.VolumeCapability{
+		AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{FsType: fsTypeExt4}},
+		AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER},
+	}
+
+	service := &NodeService{}
+	if _, err := service.stageISCSIDevice(context.Background(), "volume", devicePath, filepath.Join(t.TempDir(), "stage"), capability, false, map[string]string{
+		"expectedCapacity": "1073741824",
+	}); err != nil {
+		t.Fatalf("stageISCSIDevice() error = %v", err)
+	}
+	if _, err := os.Stat(rescanSentinel); !os.IsNotExist(err) {
+		t.Fatalf("stageISCSIDevice() rescanned fresh LUN; stat error = %v", err)
 	}
 }

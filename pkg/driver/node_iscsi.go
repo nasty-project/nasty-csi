@@ -564,11 +564,11 @@ func (s *NodeService) stageISCSIDevice(ctx context.Context, volumeID, devicePath
 			}
 			return nil, status.Errorf(codes.Internal, "Device initialization timeout: %v", err)
 		}
+		klog.Infof("iSCSI device initialized: %s", devicePath)
 
-		// Force device rescan
-		if err := forceDeviceRescan(ctx, devicePath); err != nil {
-			klog.Warningf("Device rescan warning for %s: %v (continuing anyway)", devicePath, err)
-		}
+		// A fresh iSCSI login creates a new kernel device, so its identity is
+		// already current. Avoid the shared rescan helper here because its global
+		// udev settle can wait on an unrelated LUN recovering from target deletion.
 
 		// Stabilization delay
 		const deviceMetadataDelay = 2 * time.Second
