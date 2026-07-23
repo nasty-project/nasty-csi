@@ -15,7 +15,8 @@ inputs:
     default: "4"
   nasty_host:
     description: NASty server hostname/IP for connectivity check
-    required: true
+    required: false
+    default: ""
   tailscale_authkey:
     description: Tailscale auth key for VPN connectivity (optional — if set, connects VM to tailnet)
     required: false
@@ -232,6 +233,7 @@ runs:
         done
 
     - name: Verify NASty reachable from VM
+      if: inputs.nasty_host != ''
       shell: bash
       run: |
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"

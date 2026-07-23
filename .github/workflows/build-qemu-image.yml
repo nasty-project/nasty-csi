@@ -2,12 +2,15 @@ name: Build QEMU E2E Image
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/actions/qemu-vm/**'
+      - '.github/workflows/build-qemu-image.yml'
   push:
     branches:
       - main
     paths:
-      - '.github/actions/qemu-vm/build-image.sh'
-      - '.github/actions/qemu-vm/image.env'
+      - '.github/actions/qemu-vm/**'
       - '.github/workflows/build-qemu-image.yml'
 
 permissions:
@@ -109,3 +112,33 @@ jobs:
         with:
           path: /tmp/ubuntu-prebuilt.qcow2
           key: ${{ steps.image-config.outputs.cache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+
+  verify:
+    name: Boot prebuilt image
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Boot VM and start K3S
+        uses: ./.github/actions/qemu-vm
+
+      - name: Verify clean per-instance identity
+        env:
+          KUBECONFIG: /tmp/kubeconfig
+          SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222
+        run: |
+          ssh $SSH_OPTS ci@localhost 'sudo test -s /etc/machine-id'
+          ssh $SSH_OPTS ci@localhost 'sudo test -s /etc/iscsi/initiatorname.iscsi'
+          ssh $SSH_OPTS ci@localhost 'sudo test -s /etc/nvme/hostnqn'
+          ssh $SSH_OPTS ci@localhost 'sudo test -s /etc/nvme/hostid'
+          ssh $SSH_OPTS ci@localhost 'sudo test ! -e /var/lib/tailscale/tailscaled.state'
+          kubectl get nodes
+
+      - name: Cleanup VM
+        if: always()
+        run: |
+          if [ -f /tmp/vm.pid ]; then
+            kill "$(cat /tmp/vm.pid)" 2>/dev/null || true
+          fi
