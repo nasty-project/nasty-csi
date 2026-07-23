@@ -14,6 +14,7 @@ on:
           - nvmeof
           - iscsi
           - smb
+          - vm-image
       test:
         description: 'Specific test to run (leave empty for all tests of selected protocol)'
         required: false
@@ -179,6 +180,11 @@ jobs:
   # ==========================================
   # E2E Tests (QEMU VM on GitHub-hosted runners)
   # ==========================================
+
+  verify-qemu-image:
+    name: Verify prebuilt QEMU image
+    if: github.event.inputs.protocol == 'vm-image'
+    uses: ./.github/workflows/build-qemu-image.yml
 
   ginkgo-e2e-nfs:
     name: "E2E: NFS"
