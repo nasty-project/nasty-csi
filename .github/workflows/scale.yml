@@ -104,7 +104,7 @@ jobs:
           echo "Imported PR image into k3s containerd"
           sudo k3s crictl images | grep nasty-csi || true
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run Scale E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
