@@ -139,8 +139,9 @@ GUEST_CLEANUP
 
 echo "Waiting for builder VM shutdown..."
 vm_stopped=false
+vm_pid=$(< /tmp/vm-build.pid)
 for _ in $(seq 1 60); do
-  if ! kill -0 "$(< /tmp/vm-build.pid)" 2>/dev/null; then
+  if ! kill -0 "$vm_pid" 2>/dev/null; then
     vm_stopped=true
     break
   fi
