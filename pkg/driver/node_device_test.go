@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -58,6 +59,37 @@ func TestForceDeviceRescanDoesNotSyncUnrelatedDevices(t *testing.T) {
 	}
 	if _, err := os.Stat(syncSentinel); !os.IsNotExist(err) {
 		t.Fatalf("forceDeviceRescan() ran global sync; stat error = %v", err)
+	}
+}
+
+func TestLogDeviceInfoUsesLowLevelBlkidProbe(t *testing.T) {
+	binDir := t.TempDir()
+	blkidArgs := filepath.Join(t.TempDir(), "blkid-args")
+	writeProbeCommand(t, binDir, "blockdev", `printf '1073741824\n'`)
+	writeProbeCommand(t, binDir, "blkid", `printf '%s\n' "$*" >> "$BLKID_ARGS"`)
+	t.Setenv("PATH", binDir)
+	t.Setenv("BLKID_ARGS", blkidArgs)
+
+	devicePath := filepath.Join(t.TempDir(), "device")
+	if err := os.WriteFile(devicePath, nil, 0o600); err != nil {
+		t.Fatalf("create fake device: %v", err)
+	}
+
+	service := &NodeService{}
+	service.logDeviceInfo(context.Background(), devicePath)
+
+	args, err := os.ReadFile(blkidArgs)
+	if err != nil {
+		t.Fatalf("read blkid arguments: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(args)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("blkid calls = %d, want 2: %q", len(lines), string(args))
+	}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "-p ") {
+			t.Errorf("blkid call did not bypass the global cache: %q", line)
+		}
 	}
 }
 
