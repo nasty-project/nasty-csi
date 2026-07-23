@@ -76,7 +76,10 @@ jobs:
             sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          test -r /dev/kvm -a -w /dev/kvm
+          sudo udevadm settle
+          ls -la /dev/kvm
+          test -r /dev/kvm
+          test -w /dev/kvm
 
       - name: Cache Ubuntu cloud image
         if: steps.prebuilt.outputs.available != 'true'
