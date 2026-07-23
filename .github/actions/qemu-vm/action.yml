@@ -15,7 +15,8 @@ inputs:
     default: "4"
   nasty_host:
     description: NASty server hostname/IP for connectivity check
-    required: true
+    required: false
+    default: ""
   tailscale_authkey:
     description: Tailscale auth key for VPN connectivity (optional — if set, connects VM to tailnet)
     required: false
@@ -53,78 +54,87 @@ runs:
           qemu-utils \
           genisoimage
 
+    - name: Read prebuilt image configuration
+      id: image-config
+      shell: bash
+      run: |
+        source "$GITHUB_ACTION_PATH/image.env"
+        RECIPE_HASH=$(sha256sum \
+          "$GITHUB_ACTION_PATH/build-image.sh" \
+          "$GITHUB_ACTION_PATH/image.env" | cut -d ' ' -f1 | sha256sum | cut -c1-16)
+        echo "cache-prefix=nasty-csi-qemu-${IMAGE_REVISION}-${RECIPE_HASH}-" >> "$GITHUB_OUTPUT"
+        echo "k3s-version=${K3S_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "ubuntu-release=${UBUNTU_IMAGE_RELEASE}" >> "$GITHUB_OUTPUT"
+        echo "ubuntu-sha256=${UBUNTU_IMAGE_SHA256}" >> "$GITHUB_OUTPUT"
+
+    - name: Restore prebuilt VM image
+      id: prebuilt-cache
+      continue-on-error: true
+      uses: actions/cache/restore@v5
+      with:
+        path: /tmp/ubuntu-prebuilt.qcow2
+        key: ${{ steps.image-config.outputs.cache-prefix }}${{ github.run_id }}-${{ github.job }}
+        restore-keys: ${{ steps.image-config.outputs.cache-prefix }}
+
+    - name: Validate prebuilt VM image
+      id: prebuilt
+      shell: bash
+      run: |
+        if [ -s /tmp/ubuntu-prebuilt.qcow2 ] && qemu-img check /tmp/ubuntu-prebuilt.qcow2; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+          echo "Using cached prebuilt VM image"
+        else
+          rm -f /tmp/ubuntu-prebuilt.qcow2
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "Prebuilt VM image unavailable; using full provisioning fallback"
+        fi
+
     - name: Cache Ubuntu cloud image
+      if: steps.prebuilt.outputs.available != 'true'
       id: cache-image
+      continue-on-error: true
       uses: actions/cache@v5
       with:
         path: /tmp/ubuntu-cloud.img
-        key: ubuntu-noble-cloudimg-amd64-v1
+        key: ubuntu-noble-cloudimg-amd64-${{ steps.image-config.outputs.ubuntu-release }}
 
     - name: Download Ubuntu cloud image
-      if: steps.cache-image.outputs.cache-hit != 'true'
+      if: steps.prebuilt.outputs.available != 'true' && steps.cache-image.outputs.cache-hit != 'true'
       shell: bash
       run: |
         curl -fSL -o /tmp/ubuntu-cloud.img \
-          https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-        ls -lh /tmp/ubuntu-cloud.img
+          https://cloud-images.ubuntu.com/noble/${{ steps.image-config.outputs.ubuntu-release }}/noble-server-cloudimg-amd64.img
+
+    - name: Validate Ubuntu cloud image
+      if: steps.prebuilt.outputs.available != 'true'
+      shell: bash
+      run: |
+        if ! echo "${{ steps.image-config.outputs.ubuntu-sha256 }}  /tmp/ubuntu-cloud.img" | sha256sum --check; then
+          curl -fSL -o /tmp/ubuntu-cloud.img \
+            https://cloud-images.ubuntu.com/noble/${{ steps.image-config.outputs.ubuntu-release }}/noble-server-cloudimg-amd64.img
+        fi
+        echo "${{ steps.image-config.outputs.ubuntu-sha256 }}  /tmp/ubuntu-cloud.img" | sha256sum --check
+        qemu-img check /tmp/ubuntu-cloud.img
 
     - name: Prepare VM disk
       shell: bash
       run: |
-        cp /tmp/ubuntu-cloud.img /tmp/vm-disk.qcow2
+        if [ "${{ steps.prebuilt.outputs.available }}" = "true" ]; then
+          cp /tmp/ubuntu-prebuilt.qcow2 /tmp/vm-disk.qcow2
+        else
+          cp /tmp/ubuntu-cloud.img /tmp/vm-disk.qcow2
+        fi
         qemu-img resize /tmp/vm-disk.qcow2 20G
 
     - name: Create cloud-init ISO
       shell: bash
       run: |
         ssh-keygen -t ed25519 -f /tmp/vm-key -N "" -q
-        VM_SSH_PUB=$(cat /tmp/vm-key.pub)
-
-        mkdir -p /tmp/cloud-init
-
-        cat > /tmp/cloud-init/meta-data <<EOF
-        instance-id: qemu-e2e-test
-        local-hostname: qemu-k3s
-        EOF
-
-        cat > /tmp/cloud-init/user-data <<EOF
-        #cloud-config
-        users:
-          - name: ci
-            ssh_authorized_keys:
-              - $VM_SSH_PUB
-            sudo: ALL=(ALL) NOPASSWD:ALL
-            shell: /bin/bash
-
-        package_update: true
-        packages:
-          - open-iscsi
-          - nfs-common
-          - cifs-utils
-          - nvme-cli
-
-        write_files:
-          - path: /etc/modules-load.d/csi.conf
-            content: |
-              nvme-tcp
-              nvme-fabrics
-              iscsi_tcp
-              nfs
-              nfsv4
-
-        runcmd:
-          - apt-get install -y linux-modules-extra-\$(uname -r) 2>&1
-          - depmod -a
-          - modprobe nvme-tcp || true
-          - modprobe nvme-fabrics || true
-          - modprobe iscsi_tcp || true
-          - modprobe nfs || true
-          - modprobe nfsv4 || true
-          - systemctl enable --now iscsid
-          - curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage" sh -
-          - until kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready'; do sleep 2; done
-          - echo "K3S_READY" > /tmp/k3s-ready
-        EOF
+        bash "$GITHUB_ACTION_PATH/create-cloud-init.sh" \
+          "${{ steps.prebuilt.outputs.available }}" \
+          "${{ steps.image-config.outputs.k3s-version }}" \
+          /tmp/vm-key.pub \
+          /tmp/cloud-init
 
         genisoimage -output /tmp/cloud-init.iso \
           -volid cidata -joliet -rock \
@@ -170,16 +180,20 @@ runs:
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
 
         echo "Waiting for cloud-init to finish..."
-        ssh $SSH_OPTS ci@localhost "sudo cloud-init status --wait"
+        if ! timeout 15m ssh $SSH_OPTS ci@localhost "sudo cloud-init status --wait"; then
+          echo "::group::cloud-init output"
+          ssh $SSH_OPTS ci@localhost "sudo tail -n 400 /var/log/cloud-init-output.log; sudo cloud-init status --long" || true
+          echo "::endgroup::"
+          echo "::group::VM console"
+          tail -n 400 /tmp/vm-console.log || true
+          echo "::endgroup::"
+          echo "::error::cloud-init did not complete within 15 minutes"
+          exit 1
+        fi
 
         echo "Waiting for K3S to be ready..."
-        for i in $(seq 1 60); do
-          if ssh $SSH_OPTS ci@localhost "test -f /tmp/k3s-ready" 2>/dev/null; then
-            echo "K3S is ready"
-            break
-          fi
-          sleep 5
-        done
+        ssh $SSH_OPTS ci@localhost "test -f /tmp/k3s-ready"
+        echo "K3S is ready"
 
         echo "VM node status:"
         ssh $SSH_OPTS ci@localhost "sudo kubectl get nodes -o wide"
@@ -204,7 +218,8 @@ runs:
       run: |
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
         echo "Installing Tailscale in VM..."
-        ssh $SSH_OPTS ci@localhost "curl -fsSL https://tailscale.com/install.sh | sudo sh"
+        ssh $SSH_OPTS ci@localhost "command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sudo sh"
+        ssh $SSH_OPTS ci@localhost "sudo systemctl enable --now tailscaled"
         echo "Connecting VM to Tailscale..."
         ssh $SSH_OPTS ci@localhost "sudo tailscale up --auth-key='${{ inputs.tailscale_authkey }}' --accept-routes --accept-dns --hostname=ci-vm-\$(head -c4 /dev/urandom | xxd -p)"
         echo "Waiting for Tailscale IP..."
@@ -218,6 +233,7 @@ runs:
         done
 
     - name: Verify NASty reachable from VM
+      if: inputs.nasty_host != ''
       shell: bash
       run: |
         SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
