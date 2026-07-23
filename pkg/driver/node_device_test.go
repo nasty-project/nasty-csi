@@ -44,6 +44,23 @@ func TestPrepareFilesystemForMountFailClosed(t *testing.T) {
 	}
 }
 
+func TestForceDeviceRescanDoesNotSyncUnrelatedDevices(t *testing.T) {
+	binDir := t.TempDir()
+	syncSentinel := filepath.Join(t.TempDir(), "sync-called")
+	writeProbeCommand(t, binDir, "sync", `printf called > "$SYNC_SENTINEL"`)
+	writeProbeCommand(t, binDir, "blockdev", "exit 0")
+	writeProbeCommand(t, binDir, "udevadm", "exit 0")
+	t.Setenv("PATH", binDir)
+	t.Setenv("SYNC_SENTINEL", syncSentinel)
+
+	if err := forceDeviceRescan(context.Background(), "/dev/test"); err != nil {
+		t.Fatalf("forceDeviceRescan() error = %v", err)
+	}
+	if _, err := os.Stat(syncSentinel); !os.IsNotExist(err) {
+		t.Fatalf("forceDeviceRescan() ran global sync; stat error = %v", err)
+	}
+}
+
 func writeProbeCommand(t *testing.T, dir, name, body string) {
 	t.Helper()
 	path := filepath.Join(dir, name)
