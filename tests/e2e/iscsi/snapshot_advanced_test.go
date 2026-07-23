@@ -160,6 +160,8 @@ var _ = Describe("Snapshot Advanced", func() {
 		By("Waiting for source PVC to become Bound")
 		err = f.K8s.WaitForPVCBound(ctx, pvc.Name, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC did not become Bound")
+		sourcePV, err := f.K8s.GetPVForPVC(ctx, pvc.Name)
+		Expect(err).NotTo(HaveOccurred(), "Failed to get source PV")
 
 		By("Writing test data to source volume")
 		testData := fmt.Sprintf("DR Test Data - iSCSI - %d", time.Now().UnixNano())
@@ -200,8 +202,9 @@ var _ = Describe("Snapshot Advanced", func() {
 		err = f.K8s.WaitForPVCDeleted(ctx, sourcePVCName, 2*time.Minute)
 		Expect(err).NotTo(HaveOccurred(), "Source PVC was not deleted")
 
-		By("Waiting a moment for cleanup")
-		time.Sleep(5 * time.Second)
+		By("Waiting for source PV deletion before restoring")
+		err = f.K8s.WaitForPVDeleted(ctx, sourcePV.Name, 4*time.Minute)
+		Expect(err).NotTo(HaveOccurred(), "Source PV was not deleted")
 
 		By("Verifying snapshot still exists and is ready")
 		snapshotInfo, err := f.K8s.GetVolumeSnapshot(ctx, snapshotName)
