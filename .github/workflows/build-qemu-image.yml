@@ -1,0 +1,111 @@
+name: Build QEMU E2E Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/actions/qemu-vm/build-image.sh'
+      - '.github/actions/qemu-vm/image.env'
+      - '.github/workflows/build-qemu-image.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-qemu-e2e-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build generalized Ubuntu image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read image configuration
+        id: image-config
+        run: |
+          source .github/actions/qemu-vm/image.env
+          RECIPE_HASH=$(sha256sum \
+            .github/actions/qemu-vm/build-image.sh \
+            .github/actions/qemu-vm/image.env | cut -d ' ' -f1 | sha256sum | cut -c1-16)
+          echo "cache-prefix=nasty-csi-qemu-${IMAGE_REVISION}-${RECIPE_HASH}-" >> "$GITHUB_OUTPUT"
+          echo "ubuntu-release=${UBUNTU_IMAGE_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "ubuntu-sha256=${UBUNTU_IMAGE_SHA256}" >> "$GITHUB_OUTPUT"
+
+      - name: Check for existing prebuilt image
+        id: prebuilt-cache
+        continue-on-error: true
+        uses: actions/cache/restore@v5
+        with:
+          path: /tmp/ubuntu-prebuilt.qcow2
+          key: ${{ steps.image-config.outputs.cache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.image-config.outputs.cache-prefix }}
+
+      - name: Install image tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            genisoimage \
+            qemu-system-x86 \
+            qemu-utils
+
+      - name: Validate existing prebuilt image
+        id: prebuilt
+        run: |
+          if [ -s /tmp/ubuntu-prebuilt.qcow2 ] && qemu-img check /tmp/ubuntu-prebuilt.qcow2; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Existing prebuilt image is valid"
+          else
+            rm -f /tmp/ubuntu-prebuilt.qcow2
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "A new prebuilt image will be created"
+          fi
+
+      - name: Enable KVM
+        if: steps.prebuilt.outputs.available != 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | \
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm -a -w /dev/kvm
+
+      - name: Cache Ubuntu cloud image
+        if: steps.prebuilt.outputs.available != 'true'
+        id: base-image-cache
+        continue-on-error: true
+        uses: actions/cache@v5
+        with:
+          path: /tmp/ubuntu-cloud.img
+          key: ubuntu-noble-cloudimg-amd64-${{ steps.image-config.outputs.ubuntu-release }}
+
+      - name: Download Ubuntu cloud image
+        if: steps.prebuilt.outputs.available != 'true' && steps.base-image-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fSL -o /tmp/ubuntu-cloud.img \
+            https://cloud-images.ubuntu.com/noble/${{ steps.image-config.outputs.ubuntu-release }}/noble-server-cloudimg-amd64.img
+
+      - name: Validate Ubuntu cloud image
+        if: steps.prebuilt.outputs.available != 'true'
+        run: |
+          if ! echo "${{ steps.image-config.outputs.ubuntu-sha256 }}  /tmp/ubuntu-cloud.img" | sha256sum --check; then
+            curl -fSL -o /tmp/ubuntu-cloud.img \
+              https://cloud-images.ubuntu.com/noble/${{ steps.image-config.outputs.ubuntu-release }}/noble-server-cloudimg-amd64.img
+          fi
+          echo "${{ steps.image-config.outputs.ubuntu-sha256 }}  /tmp/ubuntu-cloud.img" | sha256sum --check
+          qemu-img check /tmp/ubuntu-cloud.img
+
+      - name: Build and generalize image
+        if: steps.prebuilt.outputs.available != 'true'
+        run: bash .github/actions/qemu-vm/build-image.sh
+
+      - name: Save prebuilt image
+        if: steps.prebuilt.outputs.available != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: /tmp/ubuntu-prebuilt.qcow2
+          key: ${{ steps.image-config.outputs.cache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
