@@ -561,7 +561,8 @@ jobs:
     timeout-minutes: 120
     needs: compute-tag
     if: |
-      !cancelled() && needs.compute-tag.result == 'success'
+      !cancelled() && needs.compute-tag.result == 'success' &&
+      github.event.inputs.protocol != 'vm-image'
     steps:
       - uses: actions/checkout@v6
         with:
