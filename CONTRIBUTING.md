@@ -141,7 +141,7 @@ Integration tests use [Ginkgo](https://onsi.github.io/ginkgo/) and run automatic
 
 ```bash
 # Install Ginkgo CLI
-go install github.com/onsi/ginkgo/v2/ginkgo@latest
+go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
 
 # Set required environment variables
 export NASTY_HOST="your-nasty-ip"

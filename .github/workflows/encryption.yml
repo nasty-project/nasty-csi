@@ -98,7 +98,7 @@ jobs:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
       - uses: ./.github/actions/setup-snapshots
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run NFS Encryption Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -136,7 +136,7 @@ jobs:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
       - uses: ./.github/actions/setup-snapshots
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run NVMe-oF Encryption Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -174,7 +174,7 @@ jobs:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
       - uses: ./.github/actions/setup-snapshots
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run iSCSI Encryption Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -212,7 +212,7 @@ jobs:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
       - uses: ./.github/actions/setup-snapshots
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run SMB Encryption Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}
@@ -252,7 +252,7 @@ jobs:
           k3s-args: '--write-kubeconfig-mode 644 --disable=traefik --disable=local-storage'
       - uses: ./.github/actions/setup-snapshots
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run Shared Encryption Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST }}

@@ -164,7 +164,7 @@ Interactive test results dashboard with history and metrics:
 ### Prerequisites
 
 - Go 1.21+
-- [Ginkgo CLI](https://onsi.github.io/ginkgo/#getting-started): `go install github.com/onsi/ginkgo/v2/ginkgo@latest`
+- [Ginkgo CLI](https://onsi.github.io/ginkgo/#getting-started): `go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"`
 - Access to a NASty Scale 25.10+ server
 - Kubernetes cluster (k3s recommended)
 - NASty API key with admin privileges

@@ -229,7 +229,7 @@ jobs:
           scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run NFS E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
@@ -322,7 +322,7 @@ jobs:
           scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run NVMe-oF E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
@@ -412,7 +412,7 @@ jobs:
           scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run iSCSI E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
@@ -502,7 +502,7 @@ jobs:
           scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run SMB E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
@@ -597,7 +597,7 @@ jobs:
           scp $SCP_OPTS /tmp/nasty-csi-pr-image.tar ci@localhost:/tmp/csi-image.tar
           ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import /tmp/csi-image.tar"
       - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+        run: go install "github.com/onsi/ginkgo/v2/ginkgo@$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)"
       - name: Run Shared E2E Tests
         env:
           NASTY_HOST: ${{ secrets.NASTY_HOST_TAILSCALE || secrets.NASTY_HOST }}
