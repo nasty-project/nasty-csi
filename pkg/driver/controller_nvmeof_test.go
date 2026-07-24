@@ -382,12 +382,13 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		meta          *VolumeMetadata
-		mockSetup     func(*MockAPIClientForSnapshots)
-		name          string
-		requiredBytes int64
-		wantCode      codes.Code
-		wantErr       bool
+		meta                  *VolumeMetadata
+		mockSetup             func(*MockAPIClientForSnapshots)
+		name                  string
+		requiredBytes         int64
+		wantCode              codes.Code
+		nodeExpansionRequired bool
+		wantErr               bool
 	}{
 		{
 			name: "successful expansion",
@@ -397,7 +398,8 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 				DatasetID:   "first/test-volume",
 				DatasetName: "first/test-volume",
 			},
-			requiredBytes: 10 * 1024 * 1024 * 1024, // 10GB
+			requiredBytes:         10 * 1024 * 1024 * 1024, // 10GB
+			nodeExpansionRequired: true,
 			mockSetup: func(m *MockAPIClientForSnapshots) {
 				m.SetSubvolumePropertiesFunc = func(ctx context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {
 					return &nastyapi.Subvolume{Filesystem: filesystem, Name: name}, nil
@@ -447,7 +449,7 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 				apiClient: mockClient,
 			}
 
-			resp, err := controller.expandNVMeOFVolume(ctx, tt.meta, tt.requiredBytes)
+			resp, err := controller.expandNVMeOFVolume(ctx, tt.meta, tt.requiredBytes, tt.nodeExpansionRequired)
 			if tt.wantErr {
 				if err == nil {
 					t.Error("Expected error but got nil")
@@ -474,8 +476,8 @@ func TestExpandNVMeOFVolume(t *testing.T) {
 			if resp.CapacityBytes != tt.requiredBytes {
 				t.Errorf("Expected capacity %d, got %d", tt.requiredBytes, resp.CapacityBytes)
 			}
-			if resp.NodeExpansionRequired {
-				t.Error("Expected NodeExpansionRequired to be false for NVMe-oF volumes (block devices don't need node-side expansion)")
+			if resp.NodeExpansionRequired != tt.nodeExpansionRequired {
+				t.Errorf("NodeExpansionRequired = %v, want %v", resp.NodeExpansionRequired, tt.nodeExpansionRequired)
 			}
 		})
 	}

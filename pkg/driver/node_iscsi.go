@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -661,20 +662,29 @@ func (s *NodeService) formatAndMountISCSIDevice(ctx context.Context, volumeID, d
 // unstageISCSIVolume unstages an iSCSI volume by logging out from the target.
 //
 //nolint:contextcheck // intentionally uses Background context to survive kubelet gRPC retries
-func (s *NodeService) unstageISCSIVolume(_ context.Context, req *csi.NodeUnstageVolumeRequest, volumeContext map[string]string) (*csi.NodeUnstageVolumeResponse, error) {
+func (s *NodeService) unstageISCSIVolume(_ context.Context, req *csi.NodeUnstageVolumeRequest) (*csi.NodeUnstageVolumeResponse, error) {
 	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
 
 	klog.V(4).Infof("Unstaging iSCSI volume %s from %s", volumeID, stagingTargetPath)
-
-	// Get IQN from volume context
-	iqn := volumeContext[VolumeContextKeyISCSIIQN]
 
 	// Use Background context for cleanup — kubelet retry cancellation must not
 	// leave half-torn-down iSCSI sessions (zombie REOPEN state).
 	//nolint:contextcheck // intentionally decoupled from kubelet retry context
 	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cleanupCancel()
+
+	// NodeUnstageVolume has no volume context, so capture the real session
+	// identity from the staged device before unmounting removes that correlation.
+	var iqn string
+	if devicePath, deviceErr := getStagedISCSIDevicePath(cleanupCtx, stagingTargetPath); deviceErr != nil {
+		klog.Warningf("Cannot resolve staged iSCSI device for volume %s: %v", volumeID, deviceErr)
+	} else {
+		iqn, _ = getISCSISessionInfo(cleanupCtx, "/sys/block/"+filepath.Base(devicePath))
+		if iqn != "" {
+			klog.V(4).Infof("Resolved iSCSI session for volume %s: device=%s, IQN=%s", volumeID, devicePath, iqn)
+		}
+	}
 
 	// Check if mounted and unmount if necessary
 	mounted, err := mount.IsMounted(cleanupCtx, stagingTargetPath)
@@ -698,16 +708,8 @@ func (s *NodeService) unstageISCSIVolume(_ context.Context, req *csi.NodeUnstage
 	}
 
 	// Logout from the iSCSI target
-	server := volumeContext["server"]
-	port := volumeContext["port"]
-	if port == "" {
-		port = "3260"
-	}
-
 	params := &iscsiConnectionParams{
-		iqn:    iqn,
-		server: server,
-		port:   port,
+		iqn: iqn,
 	}
 
 	klog.V(4).Infof("Logging out from iSCSI target for volume %s: IQN=%s", volumeID, iqn)
@@ -716,6 +718,31 @@ func (s *NodeService) unstageISCSIVolume(_ context.Context, req *csi.NodeUnstage
 	}
 
 	return &csi.NodeUnstageVolumeResponse{}, nil
+}
+
+// getStagedISCSIDevicePath resolves the SCSI device while its staging metadata
+// still exists. Raw-block symlinks may be dangling during transport recovery,
+// so use Readlink rather than requiring the target to resolve.
+func getStagedISCSIDevicePath(ctx context.Context, stagingTargetPath string) (string, error) {
+	if mounted, err := mount.IsMounted(ctx, stagingTargetPath); err == nil && mounted {
+		cmd := exec.CommandContext(ctx, "findmnt", "-n", "-o", "SOURCE", stagingTargetPath)
+		output, cmdErr := cmd.CombinedOutput()
+		if cmdErr != nil {
+			return "", fmt.Errorf("findmnt source lookup failed for %s: %w", stagingTargetPath, cmdErr)
+		}
+		if source := strings.TrimSpace(string(output)); source != "" {
+			return source, nil
+		}
+	}
+
+	target, err := os.Readlink(stagingTargetPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read staging symlink %s: %w", stagingTargetPath, err)
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(stagingTargetPath), target)
+	}
+	return filepath.Clean(target), nil
 }
 
 // getISCSIMountOptions merges user-provided mount options with sensible defaults.

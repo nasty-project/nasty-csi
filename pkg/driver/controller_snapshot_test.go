@@ -103,6 +103,7 @@ func TestEncodeDecodeSnapshotID(t *testing.T) {
 func TestCreateSnapshot(t *testing.T) {
 	ctx := context.Background()
 	volumeID := "tank/csi/test-volume"
+	const snapshotCreatedAt int64 = 1_700_000_123
 
 	tests := []struct {
 		req           *csi.CreateSnapshotRequest
@@ -135,6 +136,7 @@ func TestCreateSnapshot(t *testing.T) {
 						Name:       params.Name,
 						Subvolume:  params.Subvolume,
 						Filesystem: params.Filesystem,
+						CreatedAt:  snapshotTimePtr(snapshotCreatedAt),
 					}, nil
 				}
 			},
@@ -153,6 +155,9 @@ func TestCreateSnapshot(t *testing.T) {
 				}
 				if !resp.Snapshot.ReadyToUse {
 					t.Error("Expected ReadyToUse to be true")
+				}
+				if resp.Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt {
+					t.Errorf("CreationTime = %d, want %d", resp.Snapshot.CreationTime.GetSeconds(), snapshotCreatedAt)
 				}
 			},
 		},
@@ -173,12 +178,18 @@ func TestCreateSnapshot(t *testing.T) {
 						},
 					}, nil
 				}
+				m.ListSnapshotsFunc = func(context.Context, string) ([]nastyapi.Snapshot, error) {
+					return []nastyapi.Snapshot{{Name: "existing-snap", Subvolume: "csi/test-volume", CreatedAt: snapshotTimePtr(snapshotCreatedAt)}}, nil
+				}
 			},
 			wantErr: false,
 			checkResponse: func(t *testing.T, resp *csi.CreateSnapshotResponse) {
 				t.Helper()
 				if resp.Snapshot == nil {
 					t.Error("Expected snapshot to be non-nil")
+				}
+				if resp.Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt {
+					t.Errorf("CreationTime = %d, want %d", resp.Snapshot.CreationTime.GetSeconds(), snapshotCreatedAt)
 				}
 			},
 		},
@@ -339,6 +350,7 @@ func TestDeleteSnapshot(t *testing.T) {
 
 func TestListSnapshots(t *testing.T) {
 	ctx := context.Background()
+	const snapshotCreatedAt int64 = 1_700_000_456
 
 	t.Run("list by snapshot ID - found", func(t *testing.T) {
 		snapshotID := "nfs:tank/csi/test-volume@my-snap"
@@ -353,6 +365,9 @@ func TestListSnapshots(t *testing.T) {
 					},
 				}, nil
 			},
+			ListSnapshotsFunc: func(context.Context, string) ([]nastyapi.Snapshot, error) {
+				return []nastyapi.Snapshot{{Name: "my-snap", Subvolume: "csi/test-volume", CreatedAt: snapshotTimePtr(snapshotCreatedAt)}}, nil
+			},
 		}
 		service := NewControllerService(mockClient, NewNodeRegistry(), "")
 		resp, err := service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{
@@ -363,6 +378,19 @@ func TestListSnapshots(t *testing.T) {
 		}
 		if len(resp.Entries) != 1 {
 			t.Errorf("Expected 1 entry, got %d", len(resp.Entries))
+		}
+		if resp.Entries[0].Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt {
+			t.Errorf("CreationTime = %d, want %d", resp.Entries[0].Snapshot.CreationTime.GetSeconds(), snapshotCreatedAt)
+		}
+		resp, err = service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{
+			SnapshotId:    snapshotID,
+			StartingToken: "1",
+		})
+		if err != nil {
+			t.Fatalf("ListSnapshots() with exhausted token error = %v", err)
+		}
+		if len(resp.Entries) != 0 {
+			t.Errorf("Expected exhausted token to return 0 entries, got %d", len(resp.Entries))
 		}
 	})
 
@@ -396,11 +424,17 @@ func TestListSnapshots(t *testing.T) {
 				return &nastyapi.Subvolume{
 					Name:       name,
 					Filesystem: filesystem,
-					Snapshots:  []string{"snap1", "snap2"},
+					Snapshots:  []string{"snap2", "snap1"},
 					Properties: map[string]string{
 						nastyapi.PropertyProtocol:      ProtocolNFS,
 						nastyapi.PropertyCapacityBytes: "1073741824",
 					},
+				}, nil
+			},
+			ListSnapshotsFunc: func(context.Context, string) ([]nastyapi.Snapshot, error) {
+				return []nastyapi.Snapshot{
+					{Name: "snap1", Subvolume: "csi/test-volume", CreatedAt: snapshotTimePtr(snapshotCreatedAt)},
+					{Name: "snap2", Subvolume: "csi/test-volume", CreatedAt: snapshotTimePtr(snapshotCreatedAt + 1)},
 				}, nil
 			},
 		}
@@ -414,6 +448,56 @@ func TestListSnapshots(t *testing.T) {
 		if len(resp.Entries) != 2 {
 			t.Errorf("Expected 2 entries, got %d", len(resp.Entries))
 		}
+		if resp.Entries[0].Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt || resp.Entries[1].Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt+1 {
+			t.Errorf("snapshot creation times were not preserved: %d, %d", resp.Entries[0].Snapshot.CreationTime.GetSeconds(), resp.Entries[1].Snapshot.CreationTime.GetSeconds())
+		}
+
+		firstPage, err := service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{SourceVolumeId: volumeID, MaxEntries: 1})
+		if err != nil {
+			t.Fatalf("ListSnapshots() first page error = %v", err)
+		}
+		if len(firstPage.Entries) != 1 || firstPage.Entries[0].Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt || firstPage.NextToken != "1" {
+			t.Fatalf("unexpected first page: %+v", firstPage)
+		}
+		secondPage, err := service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{SourceVolumeId: volumeID, StartingToken: firstPage.NextToken})
+		if err != nil {
+			t.Fatalf("ListSnapshots() second page error = %v", err)
+		}
+		if len(secondPage.Entries) != 1 || secondPage.Entries[0].Snapshot.CreationTime.GetSeconds() != snapshotCreatedAt+1 {
+			t.Fatalf("unexpected second page: %+v", secondPage)
+		}
+	})
+
+	t.Run("list all uses stable pagination order", func(t *testing.T) {
+		mockClient := &mockAPIClient{
+			FindManagedSubvolumesFunc: func(context.Context, string) ([]nastyapi.Subvolume, error) {
+				return []nastyapi.Subvolume{
+					{Filesystem: "tank", Name: "z-volume", Snapshots: []string{"snap"}, Properties: map[string]string{}},
+					{Filesystem: "tank", Name: "a-volume", Snapshots: []string{"snap"}, Properties: map[string]string{}},
+				}, nil
+			},
+			ListSnapshotsFunc: func(context.Context, string) ([]nastyapi.Snapshot, error) {
+				return []nastyapi.Snapshot{
+					{Name: "snap", Subvolume: "z-volume", CreatedAt: snapshotTimePtr(snapshotCreatedAt + 1)},
+					{Name: "snap", Subvolume: "a-volume", CreatedAt: snapshotTimePtr(snapshotCreatedAt)},
+				}, nil
+			},
+		}
+		service := NewControllerService(mockClient, NewNodeRegistry(), "")
+		firstPage, err := service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{MaxEntries: 1})
+		if err != nil {
+			t.Fatalf("ListSnapshots() first page error = %v", err)
+		}
+		if len(firstPage.Entries) != 1 || firstPage.Entries[0].Snapshot.SourceVolumeId != "tank/a-volume" || firstPage.NextToken != "1" {
+			t.Fatalf("unexpected first page: %+v", firstPage)
+		}
+		secondPage, err := service.ListSnapshots(ctx, &csi.ListSnapshotsRequest{StartingToken: firstPage.NextToken})
+		if err != nil {
+			t.Fatalf("ListSnapshots() second page error = %v", err)
+		}
+		if len(secondPage.Entries) != 1 || secondPage.Entries[0].Snapshot.SourceVolumeId != "tank/z-volume" {
+			t.Fatalf("unexpected second page: %+v", secondPage)
+		}
 	})
 
 	t.Run("list all - empty when no filesystem configured", func(t *testing.T) {
@@ -426,6 +510,16 @@ func TestListSnapshots(t *testing.T) {
 			t.Errorf("Expected 0 entries, got %d", len(resp.Entries))
 		}
 	})
+}
+
+func snapshotTimePtr(value int64) *int64 {
+	return &value
+}
+
+func TestCSISnapshotCreationTimeRejectsUnknownValue(t *testing.T) {
+	if _, err := csiSnapshotCreationTime(nil); status.Code(err) != codes.Internal {
+		t.Fatalf("csiSnapshotCreationTime(nil) code = %v, want %v", status.Code(err), codes.Internal)
+	}
 }
 
 func TestIsNotFoundError(t *testing.T) {
@@ -507,6 +601,9 @@ func TestParseSnapshotToken(t *testing.T) {
 		{name: "valid token", token: "42", want: 42},
 		{name: "invalid token", token: "abc", wantErr: true},
 		{name: "empty token", token: "", wantErr: true},
+		{name: "negative token", token: "-1", wantErr: true},
+		{name: "trailing text", token: "1junk", wantErr: true},
+		{name: "noncanonical token", token: "01", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -518,6 +615,27 @@ func TestParseSnapshotToken(t *testing.T) {
 			}
 			if !tt.wantErr && got != tt.want {
 				t.Errorf("parseSnapshotToken(%q) = %d, want %d", tt.token, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestListSnapshotsRejectsInvalidPagination(t *testing.T) {
+	service := NewControllerService(&mockAPIClient{}, NewNodeRegistry(), "")
+	tests := []struct {
+		req  *csi.ListSnapshotsRequest
+		name string
+		code codes.Code
+	}{
+		{name: "negative max entries", req: &csi.ListSnapshotsRequest{MaxEntries: -1}, code: codes.InvalidArgument},
+		{name: "malformed token", req: &csi.ListSnapshotsRequest{StartingToken: "1junk"}, code: codes.Aborted},
+		{name: "negative token on snapshot fast path", req: &csi.ListSnapshotsRequest{SnapshotId: "nfs:tank/vol@snap", StartingToken: "-1"}, code: codes.Aborted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.ListSnapshots(context.Background(), tt.req)
+			if status.Code(err) != tt.code {
+				t.Fatalf("ListSnapshots() code = %v, want %v (error: %v)", status.Code(err), tt.code, err)
 			}
 		})
 	}

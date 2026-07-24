@@ -534,13 +534,18 @@ func getISCSISessionInfoFromIscsiadm(ctx context.Context, devName string) (iqn, 
 		return "", ""
 	}
 
+	return parseISCSISessionInfo(string(output), devName)
+}
+
+// parseISCSISessionInfo correlates one SCSI disk with its real target section.
+func parseISCSISessionInfo(output, devName string) (iqn, portal string) {
 	// Parse the -P 3 output which has sections per target:
 	//   Target: iqn.2137-04.storage.nasty:vol-name (non-flash)
 	//     Current Portal: 10.10.20.100:3260,1
 	//     ...
 	//     Attached scsi disk sda    State: transport-offline
 	var currentIQN, currentPortal string
-	for _, line := range strings.Split(string(output), "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		trimmed := strings.TrimSpace(line)
 
 		if strings.HasPrefix(trimmed, "Target:") {

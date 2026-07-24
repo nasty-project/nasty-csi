@@ -202,12 +202,7 @@ func (s *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 		return resp, nil
 
 	case ProtocolISCSI:
-		// For iSCSI, we need to pass the IQN which is derived from the volume ID
-		// IQN format is: iqn.2024-01.io.nasty.csi:<volumeID>
-		volumeContext := map[string]string{
-			VolumeContextKeyISCSIIQN: "iqn.2024-01.io.nasty.csi:" + volumeID,
-		}
-		resp, err := s.unstageISCSIVolume(ctx, req, volumeContext)
+		resp, err := s.unstageISCSIVolume(ctx, req)
 		if err != nil {
 			timer.ObserveError()
 			return nil, err
@@ -241,12 +236,6 @@ func (s *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 // detectProtocolFromStagingPath attempts to detect the protocol from the staging path.
 // It checks the mount source to determine if it's a block device (NVMe-oF/iSCSI) or NFS mount.
 func (s *NodeService) detectProtocolFromStagingPath(ctx context.Context, stagingPath string) string {
-	// Check if the path exists first
-	if _, err := os.Stat(stagingPath); os.IsNotExist(err) {
-		// Path doesn't exist, default to NFS (most common case for cleanup)
-		return ProtocolNFS
-	}
-
 	// Check if it's mounted
 	mounted, err := mount.IsMounted(ctx, stagingPath)
 	if err != nil || !mounted {
@@ -256,7 +245,7 @@ func (s *NodeService) detectProtocolFromStagingPath(ctx context.Context, staging
 			if info.Mode()&os.ModeSymlink != 0 {
 				// It's a symlink, determine the block protocol by resolving it
 				if target, readErr := os.Readlink(stagingPath); readErr == nil {
-					return s.detectBlockProtocolFromDevice(target)
+					return s.detectBlockProtocolFromDevice(ctx, target)
 				}
 				// Default to NVMe-oF if we can't read the symlink
 				return ProtocolNVMeOF
@@ -287,7 +276,7 @@ func (s *NodeService) detectProtocolFromStagingPath(ctx context.Context, staging
 }
 
 // detectBlockProtocolFromDevice determines whether a device path is NVMe-oF or iSCSI.
-func (s *NodeService) detectBlockProtocolFromDevice(devicePath string) string {
+func (s *NodeService) detectBlockProtocolFromDevice(ctx context.Context, devicePath string) string {
 	// NVMe devices are /dev/nvme*
 	if strings.Contains(devicePath, "nvme") {
 		return ProtocolNVMeOF
@@ -296,6 +285,12 @@ func (s *NodeService) detectBlockProtocolFromDevice(devicePath string) string {
 	// Check if there's an iSCSI by-path symlink pointing to this device
 	if s.isISCSIDevice(devicePath) {
 		return ProtocolISCSI
+	}
+	base := filepath.Base(devicePath)
+	if strings.HasPrefix(base, "sd") {
+		if iqn, _ := getISCSISessionInfo(ctx, "/sys/block/"+base); iqn != "" {
+			return ProtocolISCSI
+		}
 	}
 	// Default to NVMe-oF for unknown block devices
 	return ProtocolNVMeOF
@@ -311,7 +306,7 @@ func (s *NodeService) detectBlockProtocolFromMount(ctx context.Context, mountPat
 	}
 
 	devicePath := strings.TrimSpace(string(output))
-	return s.detectBlockProtocolFromDevice(devicePath)
+	return s.detectBlockProtocolFromDevice(ctx, devicePath)
 }
 
 // isISCSIDevice checks if a device is an iSCSI device by looking for iSCSI by-path symlinks.
