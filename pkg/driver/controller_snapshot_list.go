@@ -2,15 +2,13 @@ package driver
 
 import (
 	"context"
-	"fmt"
+	"sort"
 	"strconv"
-	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	nastyapi "github.com/nasty-project/nasty-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/klog/v2"
 )
 
@@ -21,10 +19,9 @@ func encodeSnapshotToken(offset int) string {
 
 // parseSnapshotToken parses a pagination token to extract the offset.
 func parseSnapshotToken(token string) (int, error) {
-	var offset int
-	_, err := fmt.Sscanf(token, "%d", &offset)
-	if err != nil {
-		return 0, fmt.Errorf("invalid token format: %w", err)
+	offset, err := strconv.Atoi(token)
+	if err != nil || offset < 0 || token != strconv.Itoa(offset) {
+		return 0, strconv.ErrSyntax
 	}
 	return offset, nil
 }
@@ -32,6 +29,14 @@ func parseSnapshotToken(token string) (int, error) {
 // ListSnapshots lists snapshots.
 func (s *ControllerService) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	klog.V(4).Infof("ListSnapshots called with request: %+v", req)
+	if req.GetMaxEntries() < 0 {
+		return nil, status.Error(codes.InvalidArgument, "max_entries must not be negative")
+	}
+	if token := req.GetStartingToken(); token != "" {
+		if _, err := parseSnapshotToken(token); err != nil {
+			return nil, status.Errorf(codes.Aborted, "invalid starting_token: %v", err)
+		}
+	}
 
 	// Special case: filter by snapshot ID
 	if req.GetSnapshotId() != "" {
@@ -113,14 +118,32 @@ func (s *ControllerService) listSnapshotByID(ctx context.Context, req *csi.ListS
 		sizeBytes = nastyapi.StringToInt64(capStr)
 	}
 
+	creationTimes, err := s.snapshotCreationTimes(ctx, filesystem)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve snapshot creation time: %v", err)
+	}
+	creationTime, err := csiSnapshotCreationTime(creationTimes[snapshotCreationKey(subvolumeName, snapshotMeta.SnapshotName)])
+	if err != nil {
+		return nil, err
+	}
 	entry := &csi.ListSnapshotsResponse_Entry{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     req.GetSnapshotId(),
 			SourceVolumeId: snapshotMeta.SourceVolume,
-			CreationTime:   timestamppb.New(time.Now()),
+			CreationTime:   creationTime,
 			ReadyToUse:     true,
 			SizeBytes:      sizeBytes,
 		},
+	}
+
+	if req.GetStartingToken() != "" {
+		startIndex, parseErr := parseSnapshotToken(req.GetStartingToken())
+		if parseErr != nil {
+			return nil, status.Errorf(codes.Aborted, "invalid starting_token: %v", parseErr)
+		}
+		if startIndex > 0 {
+			return &csi.ListSnapshotsResponse{Entries: []*csi.ListSnapshotsResponse_Entry{}}, nil
+		}
 	}
 
 	return &csi.ListSnapshotsResponse{
@@ -154,7 +177,12 @@ func (s *ControllerService) listSnapshotsBySourceVolume(ctx context.Context, req
 		sizeBytes = nastyapi.StringToInt64(capStr)
 	}
 
-	snapshots := subvol.Snapshots
+	snapshots := append([]string(nil), subvol.Snapshots...)
+	sort.Strings(snapshots)
+	creationTimes, err := s.snapshotCreationTimes(ctx, filesystem)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to retrieve snapshot creation time: %v", err)
+	}
 
 	// Handle pagination
 	maxEntries := int(req.GetMaxEntries())
@@ -186,7 +214,6 @@ func (s *ControllerService) listSnapshotsBySourceVolume(ctx context.Context, req
 			SnapshotName: snapName,
 			SourceVolume: sourceVolumeID,
 			Protocol:     protocol,
-			CreatedAt:    time.Now().Unix(),
 		}
 
 		snapshotID, encodeErr := encodeSnapshotID(snapshotMeta)
@@ -194,12 +221,16 @@ func (s *ControllerService) listSnapshotsBySourceVolume(ctx context.Context, req
 			klog.Warningf("Failed to encode snapshot ID for %s: %v - skipping", snapName, encodeErr)
 			continue
 		}
+		creationTime, timeErr := csiSnapshotCreationTime(creationTimes[snapshotCreationKey(subvolumeName, snapName)])
+		if timeErr != nil {
+			return nil, timeErr
+		}
 
 		entry := &csi.ListSnapshotsResponse_Entry{
 			Snapshot: &csi.Snapshot{
 				SnapshotId:     snapshotID,
 				SourceVolumeId: sourceVolumeID,
-				CreationTime:   timestamppb.New(time.Now()),
+				CreationTime:   creationTime,
 				ReadyToUse:     true,
 				SizeBytes:      sizeBytes,
 			},
@@ -232,6 +263,7 @@ func (s *ControllerService) listAllSnapshots(ctx context.Context, req *csi.ListS
 
 	// Collect all snapshots from all managed subvolumes
 	var allEntries []*csi.ListSnapshotsResponse_Entry
+	creationTimesByFilesystem := make(map[string]map[string]*int64)
 	for i := range subvols {
 		subvol := &subvols[i]
 		protocol := subvol.Properties[nastyapi.PropertyProtocol]
@@ -245,6 +277,14 @@ func (s *ControllerService) listAllSnapshots(ctx context.Context, req *csi.ListS
 		}
 
 		sourceVolumeID := subvol.Filesystem + "/" + subvol.Name
+		creationTimes, ok := creationTimesByFilesystem[subvol.Filesystem]
+		if !ok {
+			creationTimes, err = s.snapshotCreationTimes(ctx, subvol.Filesystem)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "Failed to retrieve snapshot creation time: %v", err)
+			}
+			creationTimesByFilesystem[subvol.Filesystem] = creationTimes
+		}
 
 		for _, snapName := range subvol.Snapshots {
 			snapshotID, encodeErr := encodeSnapshotID(SnapshotMetadata{
@@ -255,18 +295,25 @@ func (s *ControllerService) listAllSnapshots(ctx context.Context, req *csi.ListS
 			if encodeErr != nil {
 				continue
 			}
+			creationTime, timeErr := csiSnapshotCreationTime(creationTimes[snapshotCreationKey(subvol.Name, snapName)])
+			if timeErr != nil {
+				return nil, timeErr
+			}
 
 			allEntries = append(allEntries, &csi.ListSnapshotsResponse_Entry{
 				Snapshot: &csi.Snapshot{
 					SnapshotId:     snapshotID,
 					SourceVolumeId: sourceVolumeID,
-					CreationTime:   timestamppb.New(time.Now()),
+					CreationTime:   creationTime,
 					ReadyToUse:     true,
 					SizeBytes:      sizeBytes,
 				},
 			})
 		}
 	}
+	sort.Slice(allEntries, func(i, j int) bool {
+		return allEntries[i].Snapshot.SnapshotId < allEntries[j].Snapshot.SnapshotId
+	})
 
 	// Handle pagination
 	maxEntries := int(req.GetMaxEntries())

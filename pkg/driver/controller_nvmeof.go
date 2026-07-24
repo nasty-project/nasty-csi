@@ -443,7 +443,7 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 // expandNVMeOFVolume expands an NVMe-oF volume by updating the capacity property.
 //
 //nolint:dupl // Intentionally similar to NFS/iSCSI expansion logic
-func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *VolumeMetadata, requiredBytes int64) (*csi.ControllerExpandVolumeResponse, error) {
+func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *VolumeMetadata, requiredBytes int64, nodeExpansionRequired bool) (*csi.ControllerExpandVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNVMeOF, "expand")
 	klog.V(4).Infof("Expanding NVMe-oF volume: %s (subvolume: %s) to %d bytes", meta.Name, meta.DatasetName, requiredBytes)
 
@@ -486,7 +486,7 @@ func (s *ControllerService) expandNVMeOFVolume(ctx context.Context, meta *Volume
 	timer.ObserveSuccess()
 	return &csi.ControllerExpandVolumeResponse{
 		CapacityBytes:         requiredBytes,
-		NodeExpansionRequired: false, // NVMe-oF block volumes don't need node-side expansion
+		NodeExpansionRequired: nodeExpansionRequired,
 	}, nil
 }
 

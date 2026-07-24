@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	nastyapi "github.com/nasty-project/nasty-go"
 )
@@ -237,12 +238,14 @@ func (m *MockClient) CreateSnapshot(_ context.Context, params nastyapi.SnapshotC
 		return nil, ErrSnapshotAlreadyExists
 	}
 
+	createdAt := time.Now().Unix()
 	snap := &nastyapi.Snapshot{
 		Name:       params.Name,
 		Subvolume:  params.Subvolume,
 		Filesystem: params.Filesystem,
 		Path:       "/" + params.Filesystem + "/" + params.Subvolume + "@" + params.Name,
 		ReadOnly:   params.ReadOnly,
+		CreatedAt:  &createdAt,
 	}
 	m.snapshots[snapKey] = snap
 

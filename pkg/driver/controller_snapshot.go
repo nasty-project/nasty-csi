@@ -30,7 +30,6 @@ type SnapshotMetadata struct {
 	SnapshotName string `json:"snapshotName"` // Snapshot name (bare name, not full path)
 	SourceVolume string `json:"sourceVolume"` // Source volume ID (filesystem/name)
 	Protocol     string `json:"protocol"`     // Protocol (nfs, nvmeof, iscsi, smb)
-	CreatedAt    int64  `json:"-"`            // Creation timestamp (Unix epoch)
 }
 
 // Compact snapshot ID format: {protocol}:{volume_id}@{snapshot_name}.
@@ -154,7 +153,6 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 			SnapshotName: snapshotName,
 			SourceVolume: sourceVolumeID,
 			Protocol:     protocol,
-			CreatedAt:    time.Now().Unix(),
 		}
 		snapshotID, encodeErr := encodeSnapshotID(snapshotMeta)
 		if encodeErr != nil {
@@ -165,12 +163,23 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		if capStr, ok := subvol.Properties[nastyapi.PropertyCapacityBytes]; ok {
 			sizeBytes = nastyapi.StringToInt64(capStr)
 		}
+		creationTimes, listErr := s.snapshotCreationTimes(ctx, filesystem)
+		if listErr != nil {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal, "Failed to retrieve snapshot creation time: %v", listErr)
+		}
+		createdAt := creationTimes[snapshotCreationKey(subvolumeName, snapshotName)]
+		creationTime, timeErr := csiSnapshotCreationTime(createdAt)
+		if timeErr != nil {
+			timer.ObserveError()
+			return nil, timeErr
+		}
 		timer.ObserveSuccess()
 		return &csi.CreateSnapshotResponse{
 			Snapshot: &csi.Snapshot{
 				SnapshotId:     snapshotID,
 				SourceVolumeId: sourceVolumeID,
-				CreationTime:   timestamppb.New(time.Now()),
+				CreationTime:   creationTime,
 				ReadyToUse:     true,
 				SizeBytes:      sizeBytes,
 			},
@@ -195,7 +204,6 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		SnapshotName: snapshotName,
 		SourceVolume: sourceVolumeID,
 		Protocol:     protocol,
-		CreatedAt:    time.Now().Unix(),
 	}
 	snapshotID, encodeErr := encodeSnapshotID(snapshotMeta)
 	if encodeErr != nil {
@@ -208,16 +216,48 @@ func (s *ControllerService) CreateSnapshot(ctx context.Context, req *csi.CreateS
 		sizeBytes = nastyapi.StringToInt64(capStr)
 	}
 
+	creationTime, timeErr := csiSnapshotCreationTime(snap.CreatedAt)
+	if timeErr != nil {
+		timer.ObserveError()
+		return nil, timeErr
+	}
 	timer.ObserveSuccess()
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     snapshotID,
 			SourceVolumeId: sourceVolumeID,
-			CreationTime:   timestamppb.New(time.Now()),
+			CreationTime:   creationTime,
 			ReadyToUse:     true,
 			SizeBytes:      sizeBytes,
 		},
 	}, nil
+}
+
+func snapshotCreationKey(subvolume, name string) string {
+	return subvolume + "\x00" + name
+}
+
+func (s *ControllerService) snapshotCreationTimes(ctx context.Context, filesystem string) (map[string]*int64, error) {
+	result := make(map[string]*int64)
+	snapshots, err := s.apiClient.ListSnapshots(ctx, filesystem)
+	if err != nil {
+		return nil, err
+	}
+	for i := range snapshots {
+		snapshot := &snapshots[i]
+		result[snapshotCreationKey(snapshot.Subvolume, snapshot.Name)] = snapshot.CreatedAt
+	}
+	return result, nil
+}
+
+func csiSnapshotCreationTime(createdAt *int64) (*timestamppb.Timestamp, error) {
+	if createdAt != nil && *createdAt > 0 {
+		timestamp := timestamppb.New(time.Unix(*createdAt, 0).UTC())
+		if timestamp.CheckValid() == nil {
+			return timestamp, nil
+		}
+	}
+	return nil, status.Error(codes.Internal, "Snapshot creation time is unavailable")
 }
 
 // DeleteSnapshot deletes a snapshot.

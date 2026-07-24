@@ -890,6 +890,30 @@ func TestValidateVolumeCapabilities(t *testing.T) {
 	}
 }
 
+func TestRequiresNodeExpansion(t *testing.T) {
+	mountCapability := &csi.VolumeCapability{AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}}}
+	blockCapability := &csi.VolumeCapability{AccessType: &csi.VolumeCapability_Block{Block: &csi.VolumeCapability_BlockVolume{}}}
+	tests := []struct {
+		capability *csi.VolumeCapability
+		name       string
+		protocol   string
+		want       bool
+	}{
+		{name: "NVMe mount", protocol: ProtocolNVMeOF, capability: mountCapability, want: true},
+		{name: "NVMe block", protocol: ProtocolNVMeOF, capability: blockCapability, want: false},
+		{name: "NVMe omitted capability", protocol: ProtocolNVMeOF, want: true},
+		{name: "iSCSI", protocol: ProtocolISCSI, capability: blockCapability, want: true},
+		{name: "NFS", protocol: ProtocolNFS, capability: mountCapability, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := requiresNodeExpansion(tt.protocol, tt.capability); got != tt.want {
+				t.Errorf("requiresNodeExpansion() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestControllerExpandVolume(t *testing.T) {
 	ctx := context.Background()
 

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -171,5 +172,69 @@ printf '1073741824\n'
 	}
 	if _, err := os.Stat(rescanSentinel); !os.IsNotExist(err) {
 		t.Fatalf("stageISCSIDevice() rescanned fresh LUN; stat error = %v", err)
+	}
+}
+
+func TestParseISCSISessionInfoUsesAttachedDevice(t *testing.T) {
+	output := `
+Target: iqn.2137-04.storage.nasty:other (non-flash)
+    Current Portal: 10.0.0.10:3260,1
+    Attached scsi disk sda State: running
+Target: iqn.2137-04.storage.nasty:restored (non-flash)
+    Current Portal: 10.0.0.20:3261,1
+    Attached scsi disk sdz State: running
+`
+	iqn, portal := parseISCSISessionInfo(output, "sdz")
+	if iqn != "iqn.2137-04.storage.nasty:restored" {
+		t.Fatalf("IQN = %q, want restored target", iqn)
+	}
+	if portal != "10.0.0.20:3261" {
+		t.Fatalf("portal = %q, want 10.0.0.20:3261", portal)
+	}
+}
+
+func TestUnstageISCSIVolumeUsesDiscoveredIQN(t *testing.T) {
+	binDir := t.TempDir()
+	commandLog := filepath.Join(t.TempDir(), "iscsi-commands")
+	commandBody := `
+case "$*" in
+  *"-m session -P 3"*)
+    printf '%s\n' 'Target: iqn.2137-04.storage.nasty:actual' \
+      '    Current Portal: 10.0.0.20:3260,1' \
+      '    Attached scsi disk sdtest State: running'
+    ;;
+  *) printf '%s\n' "$*" >> "$ISCSI_COMMAND_LOG" ;;
+esac
+`
+	writeProbeCommand(t, binDir, "iscsiadm", commandBody)
+	writeProbeCommand(t, binDir, "nsenter", commandBody)
+	writeProbeCommand(t, binDir, "findmnt", "exit 1")
+	writeProbeCommand(t, binDir, "mount", "exit 0")
+	t.Setenv("PATH", binDir)
+	t.Setenv("ISCSI_COMMAND_LOG", commandLog)
+
+	stagingPath := filepath.Join(t.TempDir(), "staging")
+	if err := os.Symlink("/dev/sdtest", stagingPath); err != nil {
+		t.Fatalf("create staging symlink: %v", err)
+	}
+	req := &csi.NodeUnstageVolumeRequest{
+		VolumeId:          "first/pvc-does-not-identify-the-target",
+		StagingTargetPath: stagingPath,
+	}
+
+	service := &NodeService{}
+	if _, err := service.NodeUnstageVolume(context.Background(), req); err != nil {
+		t.Fatalf("NodeUnstageVolume() error = %v", err)
+	}
+	commands, err := os.ReadFile(commandLog)
+	if err != nil {
+		t.Fatalf("read iSCSI command log: %v", err)
+	}
+	got := string(commands)
+	if !strings.Contains(got, "-T iqn.2137-04.storage.nasty:actual --logout") {
+		t.Fatalf("logout did not use discovered IQN: %s", got)
+	}
+	if strings.Contains(got, req.VolumeId) {
+		t.Fatalf("logout synthesized identity from volume ID: %s", got)
 	}
 }

@@ -1665,6 +1665,7 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 	if planErr != nil {
 		return nil, planErr
 	}
+	nodeExpansionRequired := requiresNodeExpansion(volumeMeta.Protocol, req.GetVolumeCapability())
 	if plan.alreadySatisfied {
 		if reconcileErr := s.reconcileCapacityProperty(ctx, volumeMeta, plan.currentBytes); reconcileErr != nil {
 			return nil, status.Errorf(codes.Internal,
@@ -1672,7 +1673,7 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 		}
 		return &csi.ControllerExpandVolumeResponse{
 			CapacityBytes:         plan.targetBytes,
-			NodeExpansionRequired: volumeMeta.Protocol == ProtocolISCSI,
+			NodeExpansionRequired: nodeExpansionRequired,
 		}, nil
 	}
 
@@ -1683,7 +1684,7 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 		return s.expandNFSVolume(ctx, volumeMeta, plan.targetBytes)
 	case ProtocolNVMeOF:
 		klog.Infof("Expanding NVMe-oF volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, plan.targetBytes)
-		return s.expandNVMeOFVolume(ctx, volumeMeta, plan.targetBytes)
+		return s.expandNVMeOFVolume(ctx, volumeMeta, plan.targetBytes, nodeExpansionRequired)
 	case ProtocolISCSI:
 		klog.Infof("Expanding iSCSI volume %s with dataset %s to %d bytes", volumeID, volumeMeta.DatasetName, plan.targetBytes)
 		return s.expandISCSIVolume(ctx, volumeMeta, plan.targetBytes)
@@ -1692,6 +1693,19 @@ func (s *ControllerService) ControllerExpandVolume(ctx context.Context, req *csi
 		return s.expandSMBVolume(ctx, volumeMeta, plan.targetBytes)
 	default:
 		return nil, status.Errorf(codes.Internal, "Unknown protocol %s for volume %s", volumeMeta.Protocol, volumeID)
+	}
+}
+
+func requiresNodeExpansion(protocol string, capability *csi.VolumeCapability) bool {
+	switch protocol {
+	case ProtocolISCSI:
+		return true
+	case ProtocolNVMeOF:
+		// The capability is optional. Only skip node expansion when the CO
+		// explicitly identifies the volume as raw block.
+		return capability == nil || capability.GetBlock() == nil
+	default:
+		return false
 	}
 }
 
