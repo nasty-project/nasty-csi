@@ -25,7 +25,7 @@ Each build includes:
 |-------|-------------|---------|
 | Version | Semantic version from git tag | `v0.17.3` |
 | Git Commit | Short SHA of the commit | `abc1234` |
-| Build Date | UTC timestamp of build | `2025-12-21T10:30:00Z` |
+| Build Date | Source commit timestamp | `2025-12-21T10:30:00Z` |
 | Go Version | Go compiler version | `go1.26.0` |
 | Platform | OS and architecture | `linux/amd64` |
 
@@ -34,7 +34,7 @@ Each build includes:
 ### From the Binary
 
 ```bash
-nasty-csi-driver --show-version
+nasty-csi-driver --version
 ```
 
 Output:
@@ -92,31 +92,31 @@ When a version is released, Docker images are tagged with:
 | Tag | Description | Stability |
 |-----|-------------|-----------|
 | `v0.17.3` | Exact version | Immutable |
-| `0.5` | Major.Minor | Points to latest patch |
-| `0` | Major only | Points to latest minor |
+| `v0.17` | Major.Minor | Points to latest patch |
+| `v0` | Major only | Points to latest minor |
 | `latest` | Most recent release | Mutable - not recommended for production |
 
-### Branch Tags
+### Development Images
 
-CI builds from branches are tagged with the branch name:
-- `main` - Latest from main branch
-- `feature-xyz` - Feature branch builds
+The manually triggered CI workflow publishes the mutable `latest` tag. Release
+tags are produced only by the guarded release workflow.
 
 ## Helm Chart Versioning
 
-The Helm chart version is kept in sync with the application version:
+The Helm chart and application are versioned independently. A chart release
+records the CSI image version it deploys in `appVersion`:
 
 | Chart.yaml Field | Value |
 |------------------|-------|
-| `version` | `0.17.3` (chart version, no `v` prefix) |
-| `appVersion` | `v0.17.3` (app version, with `v` prefix) |
+| `version` | Chart version without a `v` prefix |
+| `appVersion` | CSI image version with a `v` prefix |
 
 ### Image Tag Resolution
 
 The Helm chart resolves the image tag in this order:
 
 1. **Explicit override**: `--set image.tag=v0.17.3`
-2. **Chart's appVersion**: Automatically uses `v0.17.3` when installing `--version 0.17.3`
+2. **Chart's appVersion**: Uses the CSI version selected by that chart release
 
 ## Best Practices
 
@@ -126,24 +126,25 @@ The Helm chart resolves the image tag in this order:
 
 ```bash
 # Install specific chart version (uses matching image tag automatically)
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --version 0.17.3 \
   ...
 ```
 
 Or explicitly set the image tag:
 ```bash
-helm install nasty-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./nasty-chart \
   --set image.tag=v0.17.3 \
   ...
 ```
 
 ### For Development
 
-The `latest` tag and `main` branch builds are fine for development and testing:
+The mutable `latest` tag from manually triggered CI is suitable for development
+and testing:
 
 ```bash
-helm install nasty-csi ./charts/nasty-csi-driver \
+helm install nasty-csi ./nasty-chart \
   --set image.tag=latest \
   --set image.pullPolicy=Always \
   ...
@@ -159,7 +160,7 @@ kubectl logs -n kube-system deployment/nasty-csi-controller | head -1
 
 Upgrade to a new version:
 ```bash
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --version 0.17.3 \
   --reuse-values
 ```
@@ -174,7 +175,7 @@ kubectl logs -n kube-system deployment/nasty-csi-controller 2>&1 | head -5
 
 # Or from the API
 kubectl exec -n kube-system deployment/nasty-csi-controller -- \
-  /usr/local/bin/nasty-csi-driver --show-version
+  /usr/local/bin/nasty-csi-driver --version
 ```
 
 Include in your issue:
