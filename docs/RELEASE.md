@@ -61,35 +61,26 @@ The release process is fully automated via GitHub Actions.
      - Run tests and linters
      - Build multi-arch Docker images (amd64, arm64)
      - Push images to Docker Hub and GitHub Container Registry
-     - Package Helm chart
-     - Publish Helm chart to Docker Hub and GHCR as OCI artifacts
-     - Create GitHub release with changelog
-     - Attach Helm chart tarball to release
+      - Create GitHub release with changelog
 
 5. **Verify release artifacts**
    - Docker Hub: https://hub.docker.com/r/bfenski/nasty-csi
    - GitHub Releases: https://github.com/nasty-project/nasty-csi/releases
-   - GHCR: https://github.com/fenio?tab=packages
+    - GHCR: https://github.com/orgs/nasty-project/packages
 
 ## What Gets Published
 
 Each release creates the following artifacts:
 
 ### Docker Images
-- **Docker Hub**: `bfenski/nasty-csi:v1.0.0`, `bfenski/nasty-csi:1.0`, `bfenski/nasty-csi:1`, `bfenski/nasty-csi:latest`
-- **GHCR**: `ghcr.io/fenio/nasty-csi:v1.0.0`, etc.
+- **Docker Hub**: `bfenski/nasty-csi:v1.0.0`, `bfenski/nasty-csi:v1.0`, `bfenski/nasty-csi:v1`, `bfenski/nasty-csi:latest`
+- **GHCR**: `ghcr.io/nasty-project/nasty-csi:v1.0.0`, etc.
 - **Architectures**: linux/amd64, linux/arm64
-
-### Helm Charts
-- **Docker Hub OCI**: `oci://registry-1.docker.io/bfenski/nasty-csi-driver`
-- **GHCR OCI**: `oci://ghcr.io/fenio/charts/nasty-csi-driver`
-- **GitHub Release**: `nasty-csi-driver-1.0.0.tgz` attached to release
 
 ### GitHub Release
 - Automatic changelog from git commits
 - Installation instructions
-- Links to Docker images and Helm charts
-- Attached Helm chart tarball
+- Links to Docker images and the separately released Helm chart
 
 ## Version Tagging Strategy
 
@@ -121,20 +112,18 @@ git push origin v2.0.0
 
 ## Development Builds
 
-The CI workflow automatically builds and pushes development images on every push to `main`:
+The manually triggered CI workflow builds and pushes development images:
 
 - **Docker Hub**: `bfenski/nasty-csi:latest`
-- **GHCR**: `ghcr.io/fenio/nasty-csi:latest`
+- **GHCR**: `ghcr.io/nasty-project/nasty-csi:latest`
 
 These are useful for testing but should **not** be used in production.
 
 ## Helm Chart Versioning
 
-The release workflow automatically updates:
-- `charts/nasty-csi-driver/Chart.yaml` - `version` and `appVersion` fields
-- `charts/nasty-csi-driver/values.yaml` - `image.tag` field
-
-These changes are included in the packaged chart but not committed back to the repository.
+The chart is released independently from
+[nasty-project/nasty-chart](https://github.com/nasty-project/nasty-chart). Its
+`appVersion` selects a published CSI image version.
 
 ## Testing a Release
 
@@ -145,14 +134,8 @@ After publishing a release, test it:
 docker pull bfenski/nasty-csi:v1.0.0
 docker run --rm bfenski/nasty-csi:v1.0.0 --version
 
-# Test Helm chart
-helm install nasty-csi-test oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 1.0.0 \
-  --namespace test \
-  --create-namespace \
-  --set nasty.url="wss://nasty.local/api/current" \
-  --set nasty.apiKey="test-key" \
-  --dry-run
+# Inspect the matching GHCR image
+docker buildx imagetools inspect ghcr.io/nasty-project/nasty-csi:v1.0.0
 ```
 
 ## Troubleshooting
@@ -165,12 +148,6 @@ helm install nasty-csi-test oci://registry-1.docker.io/bfenski/nasty-csi-driver 
 1. Verify `DOCKERHUB_USERNAME` secret matches your Docker Hub username exactly
 2. Verify `DOCKERHUB_TOKEN` is a valid access token (not password)
 3. Regenerate token if needed: https://hub.docker.com/settings/security
-
-### Release workflow fails on Helm push
-
-**Error**: `unauthorized: authentication required`
-
-**Solution**: This shouldn't happen as the workflow uses the same DOCKERHUB_TOKEN for Helm chart publishing. Verify the token has "Read, Write, Delete" permissions.
 
 ### Tag already exists
 
@@ -195,7 +172,7 @@ git push origin v1.0.0
 
 **Solution**: The workflow uses GitHub-hosted runners which support multi-arch builds via QEMU. If builds are slow or fail, consider:
 1. Using self-hosted runners with native arm64 support
-2. Removing arm64 from platforms (line 69 in `.github/workflows/release.yml`)
+2. Removing arm64 from the release workflow temporarily
 
 ## Manual Release (Emergency)
 
@@ -205,22 +182,30 @@ If GitHub Actions is unavailable, you can release manually:
 # 1. Set version
 VERSION=v1.0.0
 
-# 2. Build and push Docker image
+# 2. Check out the pinned local dependency
+git clone https://github.com/nasty-project/nasty-go.git nasty-go
+git -C nasty-go checkout 9c384afe026f40355a344400388688ba9a0789d8
+
+# 3. Build and push Docker images
+COMMIT=$(git rev-parse --short HEAD)
+BUILD_DATE=$(git show -s --format=%cI HEAD)
+MINOR=${VERSION%.*}
+MAJOR=${VERSION%%.*}
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t bfenski/nasty-csi:${VERSION} \
-  -t bfenski/nasty-csi:latest \
+  --build-arg VERSION="${VERSION}" \
+  --build-arg GIT_COMMIT="${COMMIT}" \
+  --build-arg BUILD_DATE="${BUILD_DATE}" \
+  -t "bfenski/nasty-csi:${VERSION}" \
+  -t "bfenski/nasty-csi:${MINOR}" \
+  -t "bfenski/nasty-csi:${MAJOR}" \
+  -t "bfenski/nasty-csi:latest" \
+  -t "ghcr.io/nasty-project/nasty-csi:${VERSION}" \
+  -t "ghcr.io/nasty-project/nasty-csi:${MINOR}" \
+  -t "ghcr.io/nasty-project/nasty-csi:${MAJOR}" \
+  -t "ghcr.io/nasty-project/nasty-csi:latest" \
   --push .
 
-# 3. Update Helm chart versions
-sed -i "s/^version:.*/version: ${VERSION#v}/" charts/nasty-csi-driver/Chart.yaml
-sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/nasty-csi-driver/Chart.yaml
-
-# 4. Package and push Helm chart
-helm package charts/nasty-csi-driver
-echo $DOCKERHUB_TOKEN | helm registry login registry-1.docker.io -u $DOCKERHUB_USERNAME --password-stdin
-helm push nasty-csi-driver-${VERSION#v}.tgz oci://registry-1.docker.io/bfenski
-
-# 5. Create GitHub release manually via web UI
+# 4. Create the GitHub release after both registries contain the image
 # https://github.com/nasty-project/nasty-csi/releases/new
 ```
 
