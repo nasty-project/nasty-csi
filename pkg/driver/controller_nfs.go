@@ -220,7 +220,7 @@ func nfsPropertiesV1(params *nfsVolumeParams, clusterID string) map[string]strin
 }
 
 // handleExistingNFSSubvolume handles idempotency when a subvolume already exists.
-func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, params *nfsVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, params *nfsVolumeParams, existingSubvol *nastyapi.Subvolume, identity volumeIdentityDecision, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Subvolume %s already exists, checking idempotency", existingSubvol.Name)
 
 	// Check existing NFS shares to find one for this subvolume path
@@ -262,8 +262,10 @@ func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, para
 
 	klog.V(4).Infof("Capacity is compatible, returning existing volume")
 
-	// Ensure properties are set (handles retry after context expired during property-setting)
-	s.ensureNFSSubvolumeProperties(ctx, params, existingSubvol, existingShare)
+	if err := s.persistVolumeIdentity(ctx, existingSubvol, nfsPropertiesV1(params, s.clusterID), identity); err != nil {
+		timer.ObserveError()
+		return nil, false, err
+	}
 
 	capacityToReturn := params.requestedCapacity
 	if existingCapacity > 0 {
@@ -275,30 +277,7 @@ func (s *ControllerService) handleExistingNFSSubvolume(ctx context.Context, para
 	return resp, true, nil
 }
 
-// ensureNFSSubvolumeProperties checks if xattr properties are set and sets them if missing.
-func (s *ControllerService) ensureNFSSubvolumeProperties(ctx context.Context, params *nfsVolumeParams, subvol *nastyapi.Subvolume, _ *nastyapi.NFSShare) {
-	// Read current properties from subvolume
-	existing, err := s.apiClient.GetSubvolume(ctx, subvol.Filesystem, subvol.Name)
-	if err != nil {
-		klog.Warningf("Failed to check properties on subvolume %s/%s: %v (skipping property recovery)", subvol.Filesystem, subvol.Name, err)
-		return
-	}
-	if existing.Properties != nil {
-		if existing.Properties[nastyapi.PropertyManagedBy] == nastyapi.ManagedByValue {
-			return // Properties already set
-		}
-	}
-
-	klog.Infof("Recovering missing xattr properties on subvolume %s/%s (orphaned from interrupted creation)", subvol.Filesystem, subvol.Name)
-	props := nfsPropertiesV1(params, s.clusterID)
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
-		klog.Warningf("Failed to recover xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
-	} else {
-		klog.Infof("Successfully recovered xattr properties on subvolume %s/%s", subvol.Filesystem, subvol.Name)
-	}
-}
-
-// createNFSShareForSubvolume creates an NFS share for a subvolume and stores xattr metadata for tracking.
+// createNFSShareForSubvolume creates an NFS share for a subvolume.
 func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *nfsVolumeParams, timer *metrics.OperationTimer) (*nastyapi.NFSShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	enabled := true
@@ -313,17 +292,17 @@ func (s *ControllerService) createNFSShareForSubvolume(ctx context.Context, subv
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create NFS share for subvolume %s/%s: %v", subvol.Filesystem, subvol.Name, err)
 	}
+	if nfsShare == nil || nfsShare.Path != subvol.Path {
+		timer.ObserveError()
+		returnedPath := ""
+		if nfsShare != nil {
+			returnedPath = nfsShare.Path
+		}
+		return nil, status.Errorf(codes.Internal,
+			"created NFS share path %q does not match subvolume path %q", returnedPath, subvol.Path)
+	}
 
 	klog.V(4).Infof("Created NFS share with ID: %s for path: %s", nfsShare.ID, nfsShare.Path)
-
-	// Store xattr properties for CSI metadata tracking (Schema v1)
-	props := nfsPropertiesV1(params, s.clusterID)
-	klog.V(4).Infof("Storing xattr properties on subvolume %s/%s: deleteStrategy=%q", subvol.Filesystem, subvol.Name, params.deleteStrategy)
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
-		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
-	} else {
-		klog.V(4).Infof("Successfully stored xattr properties on subvolume %s/%s", subvol.Filesystem, subvol.Name)
-	}
 
 	return nfsShare, nil
 }
@@ -347,15 +326,20 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 
 	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.filesystem, params.subvolumeName, params.requestedCapacity)
 
-	// Check if subvolume already exists (idempotency)
-	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.filesystem, params.subvolumeName)
-	if err != nil && !isNotFoundError(err) {
+	existingSubvol, selectedName, identity, err := s.selectExistingCreateSubvolume(
+		ctx, req, params.filesystem, params.subvolumeName, ProtocolNFS,
+	)
+	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to query existing subvolume: %v", err)
+		return nil, err
 	}
+	params.volumeName = selectedName
+	params.subvolumeName = selectedName
+	params.subvolumeID = params.filesystem + "/" + selectedName
+	createdByRequest := false
 
 	if existingSubvol != nil {
-		resp, done, handleErr := s.handleExistingNFSSubvolume(ctx, params, existingSubvol, timer)
+		resp, done, handleErr := s.handleExistingNFSSubvolume(ctx, params, existingSubvol, identity, timer)
 		if handleErr != nil {
 			return nil, handleErr
 		}
@@ -364,6 +348,11 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 		}
 		// Subvolume exists but no NFS share - continue with share creation below
 	} else {
+		identity, err = newVolumeIdentityDecision(req, params.subvolumeName, ProtocolNFS)
+		if err != nil {
+			timer.ObserveError()
+			return nil, err
+		}
 		// Create new subvolume
 		createParams := nastyapi.SubvolumeCreateParams{
 			Filesystem:    params.filesystem,
@@ -400,10 +389,26 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 			return nil, createVolumeError(fmt.Sprintf("Failed to create subvolume %s/%s (%d bytes)", params.filesystem, params.subvolumeName, params.requestedCapacity), createErr)
 		}
 		existingSubvol = newSubvol
+		createdByRequest = newSubvol.Created
+		if !newSubvol.Created {
+			identity, err = decideExistingVolumeIdentity(req, ProtocolNFS, params.subvolumeName, newSubvol)
+			if err != nil {
+				timer.ObserveError()
+				return nil, err
+			}
+		}
 		klog.V(4).Infof("Created subvolume: %s/%s with path: %s", existingSubvol.Filesystem, existingSubvol.Name, existingSubvol.Path)
 	}
 
-	// Create NFS share for the subvolume
+	if propertyErr := s.persistVolumeIdentity(ctx, existingSubvol, nfsPropertiesV1(params, s.clusterID), identity); propertyErr != nil {
+		timer.ObserveError()
+		if createdByRequest {
+			return nil, s.rollbackCreatedSubvolume(ctx, existingSubvol, propertyErr)
+		}
+		return nil, propertyErr
+	}
+
+	// Expose the subvolume only after its complete ownership metadata is durable.
 	nfsShare, err := s.createNFSShareForSubvolume(ctx, existingSubvol, params, timer)
 	if err != nil {
 		return nil, err
@@ -557,7 +562,7 @@ func splitSubvolumeID(subvolumeID string) (filesystem, name string, err error) {
 // adoptNFSVolume adopts an orphaned NFS volume by re-creating its NFS share.
 func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "adopt")
-	volumeName := req.GetName()
+	volumeName := subvol.Name
 	klog.Infof("Adopting NFS volume: %s (subvolume=%s/%s)", volumeName, subvol.Filesystem, subvol.Name)
 
 	// Get server parameter
@@ -575,7 +580,26 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Filesystem, subvol.Name)
 	}
-
+	deleteStrategy := params["deleteStrategy"]
+	if deleteStrategy == "" {
+		deleteStrategy = nastyapi.DeleteStrategyDelete
+	}
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
+		VolumeID:       volumeName,
+		Protocol:       nastyapi.ProtocolNFS,
+		CapacityBytes:  requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: deleteStrategy,
+		PVCName:        params[CSIPVCName],
+		PVCNamespace:   params[CSIPVCNamespace],
+		StorageClass:   params["csi.storage.k8s.io/sc/name"],
+		Adoptable:      params["markAdoptable"] == VolumeContextValueTrue,
+		ClusterID:      s.clusterID,
+	})
+	identity, identityErr := identityProperties(subvol.Properties, req.GetName(), subvol.Name, ProtocolNFS)
+	if identityErr != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate adopted volume identity: %v", identityErr)
+	}
 	// Check if an NFS share already exists for this path
 	existingShares, err := s.apiClient.ListNFSShares(ctx)
 	if err != nil {
@@ -590,6 +614,10 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 			klog.Infof("Found existing NFS share for adopted volume: ID=%s, path=%s", nfsShare.ID, nfsShare.Path)
 			break
 		}
+	}
+	if err := s.persistVolumeIdentity(ctx, subvol, props, volumeIdentityDecision{properties: identity, persist: true}); err != nil {
+		timer.ObserveError()
+		return nil, err
 	}
 
 	if nfsShare == nil {
@@ -609,31 +637,13 @@ func (s *ControllerService) adoptNFSVolume(ctx context.Context, req *csi.CreateV
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Internal, "Failed to create NFS share for adopted volume: %v", createErr)
 		}
+		if newShare == nil || newShare.Path != subvol.Path {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal,
+				"created NFS share path does not match adopted subvolume %s", subvol.Path)
+		}
 		nfsShare = newShare
 		klog.Infof("Created NFS share for adopted volume: ID=%s, path=%s", nfsShare.ID, nfsShare.Path)
-	}
-
-	// Update xattr properties with new share ID
-	deleteStrategy := params["deleteStrategy"]
-	if deleteStrategy == "" {
-		deleteStrategy = nastyapi.DeleteStrategyDelete
-	}
-	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
-
-	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
-		VolumeID:       volumeName,
-		Protocol:       nastyapi.ProtocolNFS,
-		CapacityBytes:  requestedCapacity,
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy: deleteStrategy,
-		PVCName:        params["csi.storage.k8s.io/pvc/name"],
-		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
-		StorageClass:   params["csi.storage.k8s.io/sc/name"],
-		Adoptable:      markAdoptable,
-		ClusterID:      s.clusterID,
-	})
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); propErr != nil {
-		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Filesystem, subvol.Name, propErr)
 	}
 
 	// Build response

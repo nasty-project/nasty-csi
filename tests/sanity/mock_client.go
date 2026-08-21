@@ -86,8 +86,10 @@ func (m *MockClient) CreateSubvolume(_ context.Context, params nastyapi.Subvolum
 	defer m.mu.Unlock()
 
 	key := params.Filesystem + "/" + params.Name
-	if _, exists := m.subvolumes[key]; exists {
-		return nil, ErrDatasetExists
+	if existing, exists := m.subvolumes[key]; exists {
+		cp := *existing
+		cp.Created = false
+		return &cp, nil
 	}
 
 	sv := &nastyapi.Subvolume{
@@ -107,7 +109,9 @@ func (m *MockClient) CreateSubvolume(_ context.Context, params nastyapi.Subvolum
 	}
 
 	m.subvolumes[key] = sv
-	return sv, nil
+	cp := *sv
+	cp.Created = true
+	return &cp, nil
 }
 
 // DeleteSubvolume removes a subvolume from the mock.
@@ -416,12 +420,12 @@ func (m *MockClient) CreateISCSITarget(_ context.Context, params nastyapi.ISCSIT
 	defer m.mu.Unlock()
 
 	id := m.genID()
-	iqn := "iqn.2024-01.io.nasty:" + params.Name
+	iqn := "iqn.2024-01.io.nasty.csi:" + params.Name
 	target := &nastyapi.ISCSITarget{
 		ID:      id,
 		IQN:     iqn,
 		Portals: []nastyapi.ISCSIPortal{{IP: "0.0.0.0", Port: 3260}},
-		Luns:    []nastyapi.ISCSILun{},
+		Luns:    []nastyapi.ISCSILun{{LunID: 0, BackstorePath: params.DevicePath}},
 		Enabled: true,
 	}
 	m.iscsiTargets[id] = target
@@ -582,8 +586,10 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 
 	// Create the new subvolume as a clone
 	newKey := params.Filesystem + "/" + params.NewName
-	if _, exists := m.subvolumes[newKey]; exists {
-		return nil, ErrDatasetExists
+	if existing, exists := m.subvolumes[newKey]; exists {
+		cp := *existing
+		cp.Created = false
+		return &cp, nil
 	}
 
 	// Copy properties from parent subvolume if it exists
@@ -617,6 +623,7 @@ func (m *MockClient) CloneSnapshot(_ context.Context, params nastyapi.SnapshotCl
 	}
 	m.subvolumes[newKey] = sv
 	cp := *sv
+	cp.Created = true
 	return &cp, nil
 }
 
@@ -632,8 +639,10 @@ func (m *MockClient) CloneSubvolume(_ context.Context, filesystem, name, newName
 	}
 
 	newKey := filesystem + "/" + newName
-	if _, exists := m.subvolumes[newKey]; exists {
-		return nil, ErrDatasetExists
+	if existing, exists := m.subvolumes[newKey]; exists {
+		cp := *existing
+		cp.Created = false
+		return &cp, nil
 	}
 
 	// COW clone — copy properties from source
@@ -656,5 +665,6 @@ func (m *MockClient) CloneSubvolume(_ context.Context, filesystem, name, newName
 	}
 	m.subvolumes[newKey] = sv
 	cp := *sv
+	cp.Created = true
 	return &cp, nil
 }

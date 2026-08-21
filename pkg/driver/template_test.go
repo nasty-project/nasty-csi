@@ -1,7 +1,9 @@
 package driver
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestParseNameTemplateConfig(t *testing.T) {
@@ -306,7 +308,7 @@ func TestRenderVolumeName(t *testing.T) {
 			ctx: VolumeNameContext{
 				PVName: "pvc-12345",
 			},
-			want: "prod-pvc-12345",
+			want: "prod-pvc-12345-ff5dad648ddfeea7",
 		},
 		{
 			name: "suffix only",
@@ -316,7 +318,7 @@ func TestRenderVolumeName(t *testing.T) {
 			ctx: VolumeNameContext{
 				PVName: "pvc-12345",
 			},
-			want: "pvc-12345-data",
+			want: "pvc-12345-data-ff5dad648ddfeea7",
 		},
 		{
 			name: "prefix and suffix",
@@ -327,7 +329,7 @@ func TestRenderVolumeName(t *testing.T) {
 			ctx: VolumeNameContext{
 				PVName: "pvc-12345",
 			},
-			want: "prod-pvc-12345-data",
+			want: "prod-pvc-12345-data-ff5dad648ddfeea7",
 		},
 		{
 			name: "template with PVCName",
@@ -341,7 +343,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVName:  "pvc-12345",
 				PVCName: "my-app-data",
 			},
-			want: "my-app-data",
+			want: "my-app-data-ff5dad648ddfeea7",
 		},
 		{
 			name: "template with PVCNamespace and PVCName",
@@ -356,7 +358,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVCName:      "my-pvc",
 				PVCNamespace: "production",
 			},
-			want: "production-my-pvc",
+			want: "production-my-pvc-ff5dad648ddfeea7",
 		},
 		{
 			name: "template sanitizes output",
@@ -371,7 +373,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVCName:      "my-pvc",
 				PVCNamespace: "my-namespace",
 			},
-			want: "my-namespace-my-pvc", // Slash replaced with hyphen
+			want: "my-namespace-my-pvc-ff5dad648ddfeea7",
 		},
 		{
 			name: "template with missing field uses empty string",
@@ -386,7 +388,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVCName:      "my-pvc",
 				PVCNamespace: "", // Empty namespace
 			},
-			want: "my-pvc", // Leading hyphen removed by sanitization
+			want: "my-pvc-ff5dad648ddfeea7",
 		},
 	}
 
@@ -424,7 +426,7 @@ func TestResolveVolumeName(t *testing.T) {
 				ParamNamePrefix: "k8s-",
 			},
 			pvName: "pvc-12345",
-			want:   "k8s-pvc-12345",
+			want:   "k8s-pvc-12345-ff5dad648ddfeea7",
 		},
 		{
 			name: "simple suffix",
@@ -432,7 +434,7 @@ func TestResolveVolumeName(t *testing.T) {
 				ParamNameSuffix: "-vol",
 			},
 			pvName: "pvc-12345",
-			want:   "pvc-12345-vol",
+			want:   "pvc-12345-vol-ff5dad648ddfeea7",
 		},
 		{
 			name: "full template with PVC info",
@@ -442,7 +444,7 @@ func TestResolveVolumeName(t *testing.T) {
 				CSIPVCNamespace:   "database",
 			},
 			pvName: "pvc-abcdef-12345",
-			want:   "database-postgres-data",
+			want:   "database-postgres-data-a9473f35cde48291",
 		},
 		{
 			name: "template using PVName fallback",
@@ -450,7 +452,7 @@ func TestResolveVolumeName(t *testing.T) {
 				ParamNameTemplate: "vol-{{ .PVName }}",
 			},
 			pvName: "pvc-12345",
-			want:   "vol-pvc-12345",
+			want:   "vol-pvc-12345-ff5dad648ddfeea7",
 		},
 		{
 			name: "invalid template returns error",
@@ -468,7 +470,7 @@ func TestResolveVolumeName(t *testing.T) {
 				CSIPVCNamespace:   "cache",
 			},
 			pvName: "pvc-abc123",
-			want:   "cache-redis-master-0",
+			want:   "cache-redis-master-0-2e457c95354ecb0a",
 		},
 	}
 
@@ -483,6 +485,100 @@ func TestResolveVolumeName(t *testing.T) {
 				t.Errorf("ResolveVolumeName() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestResolveVolumeNameCollisionResistance(t *testing.T) {
+	tests := []struct {
+		params map[string]string
+		first  string
+		second string
+		name   string
+	}{
+		{
+			name:   "distinct truncated names",
+			first:  strings.Repeat("a", 80) + "-first",
+			second: strings.Repeat("a", 80) + "-second",
+		},
+		{
+			name:   "normalized punctuation remains distinct",
+			first:  "a/b",
+			second: "a b",
+		},
+		{
+			name:   "static template remains request scoped",
+			params: map[string]string{ParamNameTemplate: "shared"},
+			first:  "pvc-first",
+			second: "pvc-second",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			first, err := ResolveVolumeName(tt.params, tt.first)
+			if err != nil {
+				t.Fatalf("first ResolveVolumeName() error = %v", err)
+			}
+			second, err := ResolveVolumeName(tt.params, tt.second)
+			if err != nil {
+				t.Fatalf("second ResolveVolumeName() error = %v", err)
+			}
+			if first == second {
+				t.Fatalf("distinct requests resolved to %q", first)
+			}
+			for _, name := range []string{first, second} {
+				if len(name) > maxBackendNameBytes || !validNameRegex.MatchString(name) {
+					t.Fatalf("resolved name %q is not a valid <=63-byte backend name", name)
+				}
+			}
+		})
+	}
+}
+
+func TestResolveVolumeNameCompatibilityAndSafety(t *testing.T) {
+	const compatible = "pvc-compatible_1.2:3"
+	got, err := ResolveVolumeName(nil, compatible)
+	if err != nil || got != compatible {
+		t.Fatalf("valid unconfigured name = %q, %v; want %q", got, err, compatible)
+	}
+
+	unicodeName, err := ResolveVolumeName(nil, strings.Repeat("é", 40)+"-volume")
+	if err != nil {
+		t.Fatalf("unicode name returned error: %v", err)
+	}
+	if !utf8.ValidString(unicodeName) || len(unicodeName) > maxBackendNameBytes || !validNameRegex.MatchString(unicodeName) {
+		t.Fatalf("unicode name resolved unsafely: %q", unicodeName)
+	}
+
+	if _, allInvalidErr := ResolveVolumeName(nil, "你好"); allInvalidErr == nil {
+		t.Fatal("all-invalid name was accepted")
+	}
+
+	leadingPunctuation, err := ResolveVolumeName(nil, ".:_volume")
+	if err != nil || !validNameRegex.MatchString(leadingPunctuation) {
+		t.Fatalf("leading punctuation was not sanitized safely: name=%q error=%v", leadingPunctuation, err)
+	}
+}
+
+func TestResolveLegacyVolumeName(t *testing.T) {
+	params := map[string]string{
+		ParamNameTemplate: "{{ .PVCNamespace }}/{{ .PVCName }}",
+		CSIPVCNamespace:   "team",
+		CSIPVCName:        "database",
+	}
+	legacy, err := ResolveLegacyVolumeName(params, "pvc-request")
+	if err != nil {
+		t.Fatalf("ResolveLegacyVolumeName() error = %v", err)
+	}
+	if legacy != "team-database" {
+		t.Fatalf("legacy name = %q, want team-database", legacy)
+	}
+	current, err := ResolveVolumeName(params, "pvc-request")
+	if err != nil {
+		t.Fatalf("ResolveVolumeName() error = %v", err)
+	}
+	if current == legacy || !strings.HasPrefix(current, legacy+"-") {
+		t.Fatalf("current name %q does not preserve readable legacy stem %q", current, legacy)
 	}
 }
 
