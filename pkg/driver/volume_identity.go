@@ -259,8 +259,9 @@ func hasCompleteV2Identity(properties map[string]string, backendName string) boo
 }
 
 type cloneDestinationSelection struct {
-	name   string
-	legacy bool
+	name    string
+	existed bool
+	legacy  bool
 }
 
 func (s *ControllerService) selectCloneDestination(
@@ -278,7 +279,7 @@ func (s *ControllerService) selectCloneDestination(
 		return cloneDestinationSelection{}, status.Errorf(codes.Internal, "failed to query clone destination: %v", err)
 	}
 	if destination != nil {
-		return cloneDestinationSelection{name: backendName}, nil
+		return cloneDestinationSelection{name: backendName, existed: true}, nil
 	}
 	if legacyName == backendName {
 		return cloneDestinationSelection{name: backendName}, nil
@@ -299,19 +300,19 @@ func (s *ControllerService) selectCloneDestination(
 			"legacy clone destination %s/%s cannot be proven to belong to CSI request %q",
 			destination.Filesystem, destination.Name, req.GetName())
 	}
-	return cloneDestinationSelection{name: legacyName, legacy: true}, nil
+	return cloneDestinationSelection{name: legacyName, existed: true, legacy: true}, nil
 }
 
 func classifyCloneIdentity(
 	req *csi.CreateVolumeRequest,
-	protocol, backendName string,
+	protocol, sourceBackendName, backendName string,
 	destination *nastyapi.Subvolume,
 	sourceProperties map[string]string,
-	backendCreated, legacy bool,
+	sourceExists, backendCreated, destinationExisted, legacy bool,
 	freshIdentity volumeIdentityDecision,
 ) (volumeIdentityDecision, error) {
 
-	if backendCreated {
+	if backendCreated || !destinationExisted {
 		return freshIdentity, nil
 	}
 	props := destination.Properties
@@ -327,6 +328,12 @@ func classifyCloneIdentity(
 	}
 
 	sourceIdentityCopied := cloneCarriesSourceIdentity(props, sourceProperties)
+	if !sourceExists {
+		// Retained snapshots carry their deleted parent's identity. The backend
+		// has already validated exact snapshot provenance at this point.
+		sourceIdentityCopied = hasCompleteV2Identity(props, sourceBackendName) &&
+			props[nastyapi.PropertyProtocol] == protocol
+	}
 	if sourceIdentityCopied && !legacy {
 		return freshIdentity, nil
 	}

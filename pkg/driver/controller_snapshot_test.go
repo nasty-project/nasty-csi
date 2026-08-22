@@ -773,6 +773,55 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	}
 }
 
+func TestCreateVolumeFromDetachedSnapshot(t *testing.T) {
+	const sourceUUID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	capacity := uint64(MinVolumeSize)
+	sourceProperties := map[string]string{
+		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+		nastyapi.PropertyCSIVolumeName: "deleted-source",
+		nastyapi.PropertyProtocol:      ProtocolNFS,
+		propertyCSIRequestName:         "source-request",
+		propertyVolumeUUID:             sourceUUID,
+		propertyIdentityVersion:        identityVersion2,
+	}
+	var destination *nastyapi.Subvolume
+	client := &mockAPIClient{
+		GetSubvolumeFunc: func(_ context.Context, _, name string) (*nastyapi.Subvolume, error) {
+			if name == "deleted-source" || destination == nil {
+				return nil, nastyapi.ErrDatasetNotFound
+			}
+			return destination, nil
+		},
+		CloneSnapshotFunc: func(_ context.Context, params nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error) {
+			destination = &nastyapi.Subvolume{
+				Filesystem: "tank", Name: params.NewName, SubvolumeType: subvolumeTypeFilesystem,
+				Path: "/fs/tank/restore", QuotaBytes: &capacity, Properties: copyProperties(sourceProperties),
+			}
+			return destination, nil
+		},
+		SetSubvolumePropertiesFunc: func(_ context.Context, _, _ string, props map[string]string) (*nastyapi.Subvolume, error) {
+			destination.Properties = copyProperties(props)
+			return destination, nil
+		},
+		ListNFSSharesFunc: func(context.Context) ([]nastyapi.NFSShare, error) {
+			return []nastyapi.NFSShare{{ID: "share", Path: destination.Path}}, nil
+		},
+	}
+	req := &csi.CreateVolumeRequest{
+		Name:               "restore",
+		Parameters:         map[string]string{"filesystem": "tank", "protocol": ProtocolNFS},
+		CapacityRange:      &csi.CapacityRange{RequiredBytes: MinVolumeSize},
+		VolumeCapabilities: []*csi.VolumeCapability{{AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}}}},
+	}
+	service := NewControllerService(client, NewNodeRegistry(), "")
+	if _, err := service.createVolumeFromSnapshot(context.Background(), req, "nfs:tank/deleted-source@snapshot"); err != nil {
+		t.Fatalf("detached snapshot restore failed: %v", err)
+	}
+	if got := destination.Properties[propertyVolumeUUID]; got == "" || got == sourceUUID {
+		t.Fatalf("detached snapshot destination UUID=%q, must differ from source UUID %q", got, sourceUUID)
+	}
+}
+
 func TestSnapshotCloneLegacyDestinationFailsBeforeV2Duplicate(t *testing.T) {
 	const requestName = "pvc-new"
 	params := map[string]string{

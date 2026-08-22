@@ -916,7 +916,7 @@ func TestSchemaV1CopiedCloneIdentityGetsFreshV2Identity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to prepare fresh clone identity: %v", err)
 	}
-	decision, err := classifyCloneIdentity(req, ProtocolNFS, "clone", destination, source, false, false, freshIdentity)
+	decision, err := classifyCloneIdentity(req, ProtocolNFS, "source", "clone", destination, source, true, false, true, false, freshIdentity)
 	if err != nil {
 		t.Fatalf("schema-v1 interrupted clone was rejected after provenance validation: %v", err)
 	}
@@ -925,6 +925,97 @@ func TestSchemaV1CopiedCloneIdentityGetsFreshV2Identity(t *testing.T) {
 		!uuidV4Regex.MatchString(decision.properties[propertyVolumeUUID]) {
 
 		t.Fatalf("schema-v1 clone decision is incomplete: %#v", decision)
+	}
+}
+
+func TestNewSnapshotCloneGetsFreshIdentityWithoutCreatedFlag(t *testing.T) {
+	const sourceUUID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	req := identityTestRequest(ProtocolNFS, false)
+	req.Name = "source"
+	freshIdentity, err := newVolumeIdentityDecision(req, "source", ProtocolNFS)
+	if err != nil {
+		t.Fatalf("failed to prepare fresh clone identity: %v", err)
+	}
+	for _, tt := range []struct {
+		properties map[string]string
+		name       string
+	}{
+		{
+			name: "v2 source identity matching request",
+			properties: map[string]string{
+				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+				nastyapi.PropertyCSIVolumeName: "source",
+				nastyapi.PropertyProtocol:      ProtocolNFS,
+				propertyCSIRequestName:         req.Name,
+				propertyVolumeUUID:             sourceUUID,
+				propertyIdentityVersion:        identityVersion2,
+			},
+		},
+		{
+			name: "legacy source identity",
+			properties: map[string]string{
+				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+				nastyapi.PropertyCSIVolumeName: "source",
+				nastyapi.PropertyProtocol:      ProtocolNFS,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			destination := &nastyapi.Subvolume{Filesystem: "tank", Name: "source", Properties: tt.properties}
+			decision, classifyErr := classifyCloneIdentity(
+				req, ProtocolNFS, "source", "source", destination, nil, false, false, false, false, freshIdentity,
+			)
+			if classifyErr != nil {
+				t.Fatalf("new snapshot clone identity failed: %v", classifyErr)
+			}
+			if got := decision.properties[propertyVolumeUUID]; got == "" || got == sourceUUID {
+				t.Fatalf("new snapshot clone UUID=%q, must differ from source UUID %q", got, sourceUUID)
+			}
+		})
+	}
+}
+
+func TestDetachedSnapshotCloneIdentityFailsClosed(t *testing.T) {
+	req := identityTestRequest(ProtocolNFS, false)
+	req.Name = "restore"
+	freshIdentity, err := newVolumeIdentityDecision(req, "restore", ProtocolNFS)
+	if err != nil {
+		t.Fatalf("failed to prepare fresh clone identity: %v", err)
+	}
+	for _, tt := range []struct {
+		properties map[string]string
+		name       string
+	}{
+		{
+			name: "different source",
+			properties: map[string]string{
+				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+				nastyapi.PropertyCSIVolumeName: "other-source",
+				nastyapi.PropertyProtocol:      ProtocolNFS,
+				propertyCSIRequestName:         "source-request",
+				propertyVolumeUUID:             "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+				propertyIdentityVersion:        identityVersion2,
+			},
+		},
+		{
+			name: "partial source identity",
+			properties: map[string]string{
+				nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+				nastyapi.PropertyCSIVolumeName: "deleted-source",
+				nastyapi.PropertyProtocol:      ProtocolNFS,
+				propertyIdentityVersion:        identityVersion2,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			destination := &nastyapi.Subvolume{Filesystem: "tank", Name: "restore", Properties: tt.properties}
+			_, classifyErr := classifyCloneIdentity(
+				req, ProtocolNFS, "deleted-source", "restore", destination, nil, false, false, true, false, freshIdentity,
+			)
+			if status.Code(classifyErr) != codes.AlreadyExists {
+				t.Fatalf("detached clone identity code=%v, want AlreadyExists (error: %v)", status.Code(classifyErr), classifyErr)
+			}
+		})
 	}
 }
 
