@@ -53,9 +53,9 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		return nil, status.Errorf(codes.InvalidArgument,
 			"snapshot restore must use source protocol %q, requested %q", protocol, requestedProtocol)
 	}
-	sourceSubvolume, err := s.apiClient.GetSubvolume(ctx, filesystem, parentSubvolume)
+	sourceProperties, sourceExists, err := s.snapshotSourceProperties(ctx, filesystem, parentSubvolume)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to read snapshot source identity: %v", err)
+		return nil, err
 	}
 	newName, err := ResolveVolumeName(params, req.GetName())
 	if err != nil {
@@ -108,7 +108,8 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		return nil, operationErr
 	}
 	identity, identityErr := classifyCloneIdentity(
-		req, protocol, selectedName, clone, sourceSubvolume.Properties, backendCreated, destinationSelection.legacy, freshIdentity,
+		req, protocol, parentSubvolume, selectedName, clone, sourceProperties, sourceExists,
+		backendCreated, destinationSelection.existed, destinationSelection.legacy, freshIdentity,
 	)
 	if identityErr != nil {
 		if backendCreated {
@@ -151,4 +152,25 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 
 	klog.Infof("Created volume %s from snapshot %s (protocol: %s)", req.GetName(), snapshotID, protocol)
 	return resp, nil
+}
+
+func (s *ControllerService) snapshotSourceProperties(
+	ctx context.Context, filesystem, subvolume string,
+) (
+	properties map[string]string,
+	exists bool,
+	err error,
+) {
+
+	source, err := s.apiClient.GetSubvolume(ctx, filesystem, subvolume)
+	if isNotFoundError(err) {
+		return map[string]string{}, false, nil
+	}
+	if err != nil {
+		return nil, false, status.Errorf(codes.Internal, "failed to read snapshot source identity: %v", err)
+	}
+	if source == nil {
+		return map[string]string{}, false, nil
+	}
+	return source.Properties, true, nil
 }

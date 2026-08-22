@@ -944,7 +944,8 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 		return nil, operationErr
 	}
 	identity, identityErr := classifyCloneIdentity(
-		req, protocol, selectedName, clone, sourceSubvolume.Properties, backendCreated, destinationSelection.legacy, freshIdentity,
+		req, protocol, sourceSubvolName, selectedName, clone, sourceSubvolume.Properties, true,
+		backendCreated, destinationSelection.existed, destinationSelection.legacy, freshIdentity,
 	)
 	if identityErr != nil {
 		if backendCreated {

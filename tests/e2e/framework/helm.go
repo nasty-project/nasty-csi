@@ -75,7 +75,6 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 		"--timeout", "5m",
 		"--set", "nasty.url=wss://" + h.config.NAStyHost + "/ws",
 		"--set", "nasty.apiKey=" + h.config.NAStyAPIKey,
-		"--set", "nasty.filesystem=" + h.config.NAStyFilesystem,
 		"--set", "image.repository=" + h.config.CSIImageRepo,
 		"--set", "image.tag=" + h.config.CSIImageTag,
 		"--set", "image.pullPolicy=" + h.config.CSIImagePullPolicy,
@@ -113,7 +112,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[0].filesystem="+h.config.NAStyFilesystem,
 			"--set", "storageClasses[0].server="+h.config.NAStyHost,
 			"--set", "storageClasses[0].transport=tcp",
-			"--set", "storageClasses[0].port=4420",
+			"--set-string", "storageClasses[0].port=4420",
 		)
 	case "iscsi":
 		args = append(args,
@@ -122,7 +121,7 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[0].protocol=iscsi",
 			"--set", "storageClasses[0].filesystem="+h.config.NAStyFilesystem,
 			"--set", "storageClasses[0].server="+h.config.NAStyHost,
-			"--set", "storageClasses[0].port=3260",
+			"--set-string", "storageClasses[0].port=3260",
 		)
 	case protocolSMB:
 		args = append(args,
@@ -152,13 +151,13 @@ func (h *HelmDeployer) Deploy(protocol string) error {
 			"--set", "storageClasses[1].filesystem="+h.config.NAStyFilesystem,
 			"--set", "storageClasses[1].server="+h.config.NAStyHost,
 			"--set", "storageClasses[1].transport=tcp",
-			"--set", "storageClasses[1].port=4420",
+			"--set-string", "storageClasses[1].port=4420",
 			"--set", "storageClasses[2].name=nasty-csi-iscsi",
 			"--set", "storageClasses[2].enabled=true",
 			"--set", "storageClasses[2].protocol=iscsi",
 			"--set", "storageClasses[2].filesystem="+h.config.NAStyFilesystem,
 			"--set", "storageClasses[2].server="+h.config.NAStyHost,
-			"--set", "storageClasses[2].port=3260",
+			"--set-string", "storageClasses[2].port=3260",
 		)
 		if h.config.SMBUsername != "" {
 			args = append(args,

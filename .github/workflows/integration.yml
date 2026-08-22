@@ -423,11 +423,11 @@ jobs:
           KUBECONFIG: /tmp/kubeconfig
           CSI_CHART_PATH: ${{ github.workspace }}/nasty-chart
         run: |
-          FOCUS=""
+          FOCUS=()
           if [ -n "${{ inputs.test }}" ]; then
-            FOCUS="--focus=${{ inputs.test }}"
+            FOCUS=("--focus=(?i)${{ inputs.test }}")
           fi
-          ginkgo -v --timeout=100m --flake-attempts=2 $FOCUS ./tests/e2e/iscsi/...
+          ginkgo -v --timeout=100m --flake-attempts=2 --fail-on-empty "${FOCUS[@]}" ./tests/e2e/iscsi/...
       - name: Collect diagnostic logs
         if: always()
         env:
