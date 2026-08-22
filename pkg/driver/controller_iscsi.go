@@ -58,9 +58,9 @@ func iscsiPropertiesV1(params *iscsiVolumeParams, clusterID string) map[string]s
 }
 
 // generateIQN creates a unique IQN for a volume's dedicated iSCSI target.
-// Format: iqn.2024-01.io.nasty.csi:<volume-name>.
+// Format: iqn.2137-04.storage.nasty:<volume-name>.
 func generateIQN(volumeName string) string {
-	return "iqn.2024-01.io.nasty.csi:" + volumeName
+	return "iqn.2137-04.storage.nasty:" + volumeName
 }
 
 func iscsiTargetUsesDevice(target *nastyapi.ISCSITarget, devicePath string) bool {
@@ -460,7 +460,7 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 	// Always look up by IQN — UUIDs are not stored in xattrs (they don't survive clone/snapshot).
 	iqn := meta.ISCSIIQN
 	if iqn == "" && name != "" {
-		iqn = "iqn.2137-04.storage.nasty:" + name
+		iqn = generateIQN(name)
 	}
 	targetID := ""
 	if iqn != "" {

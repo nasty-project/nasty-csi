@@ -133,12 +133,12 @@ func TestGenerateIQN(t *testing.T) {
 		{
 			name:       "simple volume name",
 			volumeName: "my-volume",
-			want:       "iqn.2024-01.io.nasty.csi:my-volume",
+			want:       "iqn.2137-04.storage.nasty:my-volume",
 		},
 		{
 			name:       "volume with special characters",
 			volumeName: "pvc-abc123-def456",
-			want:       "iqn.2024-01.io.nasty.csi:pvc-abc123-def456",
+			want:       "iqn.2137-04.storage.nasty:pvc-abc123-def456",
 		},
 	}
 

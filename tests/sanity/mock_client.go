@@ -420,7 +420,7 @@ func (m *MockClient) CreateISCSITarget(_ context.Context, params nastyapi.ISCSIT
 	defer m.mu.Unlock()
 
 	id := m.genID()
-	iqn := "iqn.2024-01.io.nasty.csi:" + params.Name
+	iqn := "iqn.2137-04.storage.nasty:" + params.Name
 	target := &nastyapi.ISCSITarget{
 		ID:      id,
 		IQN:     iqn,
