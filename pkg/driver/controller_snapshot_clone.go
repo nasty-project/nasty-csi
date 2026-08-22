@@ -53,42 +53,81 @@ func (s *ControllerService) createVolumeFromSnapshot(ctx context.Context, req *c
 		return nil, status.Errorf(codes.InvalidArgument,
 			"snapshot restore must use source protocol %q, requested %q", protocol, requestedProtocol)
 	}
+	sourceSubvolume, err := s.apiClient.GetSubvolume(ctx, filesystem, parentSubvolume)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to read snapshot source identity: %v", err)
+	}
 	newName, err := ResolveVolumeName(params, req.GetName())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve volume name: %v", err)
+	}
+	destinationSelection, err := s.selectCloneDestination(ctx, req, filesystem, newName, protocol)
+	if err != nil {
+		return nil, err
+	}
+	selectedName := destinationSelection.name
+	freshIdentity, err := newVolumeIdentityDecision(req, selectedName, protocol)
+	if err != nil {
+		return nil, err
 	}
 
 	// 3. Clone through the backend on every attempt. The backend validates
 	// that an existing destination was created from this exact snapshot.
 	klog.V(4).Infof("Cloning snapshot %s/%s@%s into new subvolume %s/%s",
-		filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
-	if _, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
+		filesystem, parentSubvolume, meta.SnapshotName, filesystem, selectedName)
+	clone, cloneErr := s.apiClient.CloneSnapshot(ctx, nastyapi.SnapshotCloneParams{
 		Filesystem: filesystem,
 		Subvolume:  parentSubvolume,
 		Snapshot:   meta.SnapshotName,
-		NewName:    newName,
-	}); cloneErr != nil {
+		NewName:    selectedName,
+	})
+	if cloneErr != nil {
 		klog.Errorf("Failed to clone snapshot %s/%s@%s: %v", filesystem, parentSubvolume, meta.SnapshotName, cloneErr)
 		return nil, createVolumeError("failed to clone snapshot", cloneErr)
 	}
+	backendCreated := clone != nil && clone.Created
+	createdClone := clone
 	klog.Infof("Successfully cloned snapshot %s/%s@%s into subvolume %s/%s",
-		filesystem, parentSubvolume, meta.SnapshotName, filesystem, newName)
+		filesystem, parentSubvolume, meta.SnapshotName, filesystem, selectedName)
 
 	// 4. Ensure the clone satisfies the normalized CSI capacity range.
-	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, newName)
+	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, selectedName)
 	if capacityErr != nil {
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, createdClone, capacityErr)
+		}
 		return nil, capacityErr
 	}
 
-	csiProps := map[string]string{
-		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
-		nastyapi.PropertyCSIVolumeName: req.GetName(),
-		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
-		nastyapi.PropertyProtocol:      protocol,
+	clone, getErr := s.apiClient.GetSubvolume(ctx, filesystem, selectedName)
+	if getErr != nil {
+		operationErr := status.Errorf(codes.Internal, "failed to read cloned subvolume identity: %v", getErr)
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, createdClone, operationErr)
+		}
+		return nil, operationErr
 	}
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, filesystem, newName, csiProps); propErr != nil {
-		return nil, status.Errorf(codes.Internal,
-			"failed to set CSI properties on cloned subvolume %s/%s: %v", filesystem, newName, propErr)
+	identity, identityErr := classifyCloneIdentity(
+		req, protocol, selectedName, clone, sourceSubvolume.Properties, backendCreated, destinationSelection.legacy, freshIdentity,
+	)
+	if identityErr != nil {
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, createdClone, identityErr)
+		}
+		return nil, identityErr
+	}
+	if backendCreated {
+		clone.Properties = nil
+	}
+	csiProps := mergeProperties(map[string]string{
+		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
+	}, identity.properties)
+	if propErr := s.persistVolumeIdentity(ctx, clone, csiProps, identity); propErr != nil {
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, clone, propErr)
+		}
+		return nil, propErr
 	}
 
 	// 5. Delegate to protocol-specific create to set up sharing

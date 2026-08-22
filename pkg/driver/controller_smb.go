@@ -138,7 +138,7 @@ func buildSMBVolumeResponse(volumeName, server string, subvol *nastyapi.Subvolum
 }
 
 // handleExistingSMBSubvolume handles the case when a subvolume already exists (idempotency).
-func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, params *smbVolumeParams, existingSubvol *nastyapi.Subvolume, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
+func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, params *smbVolumeParams, existingSubvol *nastyapi.Subvolume, identity volumeIdentityDecision, timer *metrics.OperationTimer) (*csi.CreateVolumeResponse, bool, error) {
 	klog.V(4).Infof("Subvolume %s/%s already exists, checking idempotency for SMB", existingSubvol.Filesystem, existingSubvol.Name)
 
 	shares, err := s.apiClient.ListSMBShares(ctx)
@@ -150,6 +150,12 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 	var existingShare *nastyapi.SMBShare
 	for i := range shares {
 		if shares[i].Path == existingSubvol.Path {
+			if shares[i].Name != params.subvolumeName {
+				timer.ObserveError()
+				return nil, false, status.Errorf(codes.FailedPrecondition,
+					"SMB share path %s is published under backend name %q instead of %q",
+					existingSubvol.Path, shares[i].Name, params.subvolumeName)
+			}
 			existingShare = &shares[i]
 			break
 		}
@@ -159,13 +165,33 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 		return nil, false, nil
 	}
 	klog.V(4).Infof("SMB volume already exists (share ID: %s), returning existing volume", existingShare.ID)
+	if err := s.persistVolumeIdentity(ctx, existingSubvol, smbPropertiesV1(params, s.clusterID), identity); err != nil {
+		timer.ObserveError()
+		return nil, false, err
+	}
 
 	resp := buildSMBVolumeResponse(params.volumeName, params.server, existingSubvol, existingShare, params.requestedCapacity)
 	timer.ObserveSuccess()
 	return resp, true, nil
 }
 
-// createSMBShareForSubvolume creates an SMB share for a subvolume and stores xattr properties.
+func smbPropertiesV1(params *smbVolumeParams, clusterID string) map[string]string {
+	return nastyapi.VolumeProperties(nastyapi.VolumeParams{
+		VolumeID:       params.volumeName,
+		Protocol:       nastyapi.ProtocolSMB,
+		CapacityBytes:  params.requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: params.deleteStrategy,
+		PVCName:        params.pvcName,
+		PVCNamespace:   params.pvcNamespace,
+		StorageClass:   params.storageClass,
+		Adoptable:      params.markAdoptable,
+		ClusterID:      clusterID,
+		Encrypted:      params.encrypted,
+	})
+}
+
+// createSMBShareForSubvolume creates an SMB share for a subvolume.
 func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subvol *nastyapi.Subvolume, params *smbVolumeParams, timer *metrics.OperationTimer) (*nastyapi.SMBShare, error) {
 	comment := fmt.Sprintf("CSI Volume: %s | Capacity: %d", params.volumeName, params.requestedCapacity)
 	createParams := nastyapi.SMBShareCreateParams{
@@ -182,25 +208,13 @@ func (s *ControllerService) createSMBShareForSubvolume(ctx context.Context, subv
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Failed to create SMB share '%s' for subvolume %s/%s: %v", params.volumeName, subvol.Filesystem, subvol.Name, err)
 	}
+	if smbShare == nil || smbShare.Path != subvol.Path || smbShare.Name != params.volumeName {
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Internal,
+			"created SMB share does not match backend name/path %s:%s", params.volumeName, subvol.Path)
+	}
 
 	klog.V(4).Infof("Created SMB share %q with ID: %s for path: %s", smbShare.Name, smbShare.ID, smbShare.Path)
-
-	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
-		VolumeID:       params.volumeName,
-		Protocol:       nastyapi.ProtocolSMB,
-		CapacityBytes:  params.requestedCapacity,
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy: params.deleteStrategy,
-		PVCName:        params.pvcName,
-		PVCNamespace:   params.pvcNamespace,
-		StorageClass:   params.storageClass,
-		Adoptable:      params.markAdoptable,
-		ClusterID:      s.clusterID,
-		Encrypted:      params.encrypted,
-	})
-	if _, err := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); err != nil {
-		klog.Warningf("Failed to set xattr properties on subvolume %s/%s: %v (volume will still work)", subvol.Filesystem, subvol.Name, err)
-	}
 
 	return smbShare, nil
 }
@@ -223,15 +237,19 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 
 	klog.V(4).Infof("Creating subvolume: %s/%s with capacity: %d bytes", params.filesystem, params.subvolumeName, params.requestedCapacity)
 
-	// Check if subvolume already exists (idempotency)
-	existingSubvol, err := s.apiClient.GetSubvolume(ctx, params.filesystem, params.subvolumeName)
-	if err != nil && !isNotFoundError(err) {
+	existingSubvol, selectedName, identity, err := s.selectExistingCreateSubvolume(
+		ctx, req, params.filesystem, params.subvolumeName, ProtocolSMB,
+	)
+	if err != nil {
 		timer.ObserveError()
-		return nil, status.Errorf(codes.Internal, "Failed to query existing subvolume: %v", err)
+		return nil, err
 	}
+	params.volumeName = selectedName
+	params.subvolumeName = selectedName
+	createdByRequest := false
 
 	if existingSubvol != nil {
-		resp, done, handleErr := s.handleExistingSMBSubvolume(ctx, params, existingSubvol, timer)
+		resp, done, handleErr := s.handleExistingSMBSubvolume(ctx, params, existingSubvol, identity, timer)
 		if handleErr != nil {
 			return nil, handleErr
 		}
@@ -241,11 +259,32 @@ func (s *ControllerService) createSMBVolume(ctx context.Context, req *csi.Create
 		// Subvolume exists but no SMB share - continue with share creation
 	} else {
 		// Create new subvolume
-		newSubvol, _, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, subvolumeTypeFilesystem, params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, "", params.dataReplicas, params.requestedCapacity, timer)
+		identity, err = newVolumeIdentityDecision(req, params.subvolumeName, ProtocolSMB)
+		if err != nil {
+			timer.ObserveError()
+			return nil, err
+		}
+		newSubvol, created, createErr := s.getOrCreateSubvolume(ctx, params.filesystem, params.subvolumeName, subvolumeTypeFilesystem, params.comment, params.compression, params.foregroundTarget, params.backgroundTarget, params.promoteTarget, params.metadataTarget, "", params.dataReplicas, params.requestedCapacity, timer)
 		if createErr != nil {
 			return nil, createErr
 		}
 		existingSubvol = newSubvol
+		createdByRequest = created
+		if !created {
+			identity, err = decideExistingVolumeIdentity(req, ProtocolSMB, params.subvolumeName, newSubvol)
+		}
+		if err != nil {
+			timer.ObserveError()
+			return nil, err
+		}
+	}
+
+	if propertyErr := s.persistVolumeIdentity(ctx, existingSubvol, smbPropertiesV1(params, s.clusterID), identity); propertyErr != nil {
+		timer.ObserveError()
+		if createdByRequest {
+			return nil, s.rollbackCreatedSubvolume(ctx, existingSubvol, propertyErr)
+		}
+		return nil, propertyErr
 	}
 
 	smbShare, err := s.createSMBShareForSubvolume(ctx, existingSubvol, params, timer)
@@ -356,7 +395,7 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 // adoptSMBVolume adopts an orphaned SMB volume by re-creating its SMB share.
 func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateVolumeRequest, subvol *nastyapi.Subvolume, params map[string]string) (*csi.CreateVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolSMB, "adopt")
-	volumeName := req.GetName()
+	volumeName := subvol.Name
 	klog.Infof("Adopting SMB volume: %s (subvolume=%s/%s)", volumeName, subvol.Filesystem, subvol.Name)
 
 	server := params["server"]
@@ -373,7 +412,26 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 		timer.ObserveError()
 		return nil, status.Errorf(codes.Internal, "Subvolume %s/%s has no path", subvol.Filesystem, subvol.Name)
 	}
-
+	deleteStrategy := params["deleteStrategy"]
+	if deleteStrategy == "" {
+		deleteStrategy = nastyapi.DeleteStrategyDelete
+	}
+	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
+		VolumeID:       volumeName,
+		Protocol:       nastyapi.ProtocolSMB,
+		CapacityBytes:  requestedCapacity,
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+		DeleteStrategy: deleteStrategy,
+		PVCName:        params[CSIPVCName],
+		PVCNamespace:   params[CSIPVCNamespace],
+		StorageClass:   params["csi.storage.k8s.io/sc/name"],
+		Adoptable:      params["markAdoptable"] == VolumeContextValueTrue,
+		ClusterID:      s.clusterID,
+	})
+	identity, identityErr := identityProperties(subvol.Properties, req.GetName(), subvol.Name, ProtocolSMB)
+	if identityErr != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate adopted volume identity: %v", identityErr)
+	}
 	existingShares, err := s.apiClient.ListSMBShares(ctx)
 	if err != nil {
 		timer.ObserveError()
@@ -387,6 +445,10 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 			klog.Infof("Found existing SMB share for adopted volume: ID=%s, name=%s", smbShare.ID, smbShare.Name)
 			break
 		}
+	}
+	if err := s.persistVolumeIdentity(ctx, subvol, props, volumeIdentityDecision{properties: identity, persist: true}); err != nil {
+		timer.ObserveError()
+		return nil, err
 	}
 
 	if smbShare == nil {
@@ -405,29 +467,12 @@ func (s *ControllerService) adoptSMBVolume(ctx context.Context, req *csi.CreateV
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Internal, "Failed to create SMB share for adopted volume: %v", createErr)
 		}
+		if newShare == nil || newShare.Path != subvol.Path || newShare.Name != volumeName {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Internal,
+				"created SMB share does not match adopted backend name/path %s:%s", volumeName, subvol.Path)
+		}
 		smbShare = newShare
-	}
-
-	deleteStrategy := params["deleteStrategy"]
-	if deleteStrategy == "" {
-		deleteStrategy = nastyapi.DeleteStrategyDelete
-	}
-	markAdoptable := params["markAdoptable"] == VolumeContextValueTrue
-
-	props := nastyapi.VolumeProperties(nastyapi.VolumeParams{
-		VolumeID:       volumeName,
-		Protocol:       nastyapi.ProtocolSMB,
-		CapacityBytes:  requestedCapacity,
-		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
-		DeleteStrategy: deleteStrategy,
-		PVCName:        params["csi.storage.k8s.io/pvc/name"],
-		PVCNamespace:   params["csi.storage.k8s.io/pvc/namespace"],
-		StorageClass:   params["csi.storage.k8s.io/sc/name"],
-		Adoptable:      markAdoptable,
-		ClusterID:      s.clusterID,
-	})
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, subvol.Filesystem, subvol.Name, props); propErr != nil {
-		klog.Warningf("Failed to update xattr properties on adopted volume %s/%s: %v", subvol.Filesystem, subvol.Name, propErr)
 	}
 
 	volumeID := subvol.Filesystem + "/" + subvol.Name

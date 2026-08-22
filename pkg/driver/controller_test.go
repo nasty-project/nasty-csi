@@ -1586,6 +1586,7 @@ func TestCreateVolumeRPC(t *testing.T) {
 						SubvolumeType: "filesystem",
 						Path:          "/mnt/" + params.Filesystem + "/" + params.Name,
 						Properties:    map[string]string{},
+						Created:       true,
 					}, nil
 				}
 				m.SetSubvolumePropertiesFunc = func(ctx context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {

@@ -117,6 +117,7 @@ func TestCreateNFSVolume(t *testing.T) {
 						Filesystem: params.Filesystem,
 						Name:       params.Name,
 						Path:       "/mnt/tank/test-nfs-volume-default",
+						Created:    true,
 					}, nil
 				}
 				m.CreateNFSShareFunc = func(ctx context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
@@ -232,7 +233,7 @@ func TestCreateNFSVolume(t *testing.T) {
 			wantCode: codes.Internal,
 		},
 		{
-			name: "NFS share failure preserves pre-existing subvolume",
+			name: "unmanaged pre-existing NFS subvolume is rejected before share mutation",
 			req: &csi.CreateVolumeRequest{
 				Name: "test-nfs-volume",
 				VolumeCapabilities: []*csi.VolumeCapability{{
@@ -258,7 +259,7 @@ func TestCreateNFSVolume(t *testing.T) {
 				}
 			},
 			wantErr:  true,
-			wantCode: codes.Internal,
+			wantCode: codes.AlreadyExists,
 		},
 	}
 

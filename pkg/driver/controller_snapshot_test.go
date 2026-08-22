@@ -657,6 +657,7 @@ func TestSnapshotTokenRoundtrip(t *testing.T) {
 
 func TestCreateVolumeFromSnapshot(t *testing.T) {
 	ctx := context.Background()
+	const sourceUUID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 	clonedSubvol := &nastyapi.Subvolume{
 		Name:          "restored-volume",
@@ -664,13 +665,24 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 		SubvolumeType: subvolumeTypeFilesystem,
 		Path:          "/tank/restored-volume",
 		QuotaBytes:    uint64Ptr(MinVolumeSize),
-		Properties:    map[string]string{},
+		Properties:    map[string]string{propertyVolumeUUID: sourceUUID},
 		Snapshots:     []string{},
 	}
+	sourceSubvol := &nastyapi.Subvolume{
+		Name:       "source-vol",
+		Filesystem: "tank",
+		Properties: copyProperties(clonedSubvol.Properties),
+	}
+	cloned := false
+	cloneCalls := 0
+	var shares []nastyapi.NFSShare
 
 	mockClient := &mockAPIClient{
 		GetSubvolumeFunc: func(_ context.Context, filesystem, name string) (*nastyapi.Subvolume, error) {
-			if filesystem == "tank" && name == "restored-volume" {
+			if filesystem == "tank" && name == sourceSubvol.Name {
+				return sourceSubvol, nil
+			}
+			if cloned && filesystem == "tank" && name == "restored-volume" {
 				return clonedSubvol, nil
 			}
 			return nil, nastyapi.ErrDatasetNotFound
@@ -679,20 +691,27 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 			if params.Filesystem != "tank" || params.Subvolume != "source-vol" || params.Snapshot != "snap1" || params.NewName != "restored-volume" {
 				t.Errorf("Unexpected clone params: %+v", params)
 			}
-			return clonedSubvol, nil
+			cloned = true
+			cloneCalls++
+			response := *clonedSubvol
+			response.Created = cloneCalls == 1
+			return &response, nil
 		},
 		SetSubvolumePropertiesFunc: func(_ context.Context, filesystem, name string, props map[string]string) (*nastyapi.Subvolume, error) {
+			clonedSubvol.Properties = props
 			return clonedSubvol, nil
 		},
 		ListNFSSharesFunc: func(_ context.Context) ([]nastyapi.NFSShare, error) {
-			return []nastyapi.NFSShare{}, nil
+			return shares, nil
 		},
 		CreateNFSShareFunc: func(_ context.Context, params nastyapi.NFSShareCreateParams) (*nastyapi.NFSShare, error) {
-			return &nastyapi.NFSShare{
+			share := nastyapi.NFSShare{
 				ID:      "share-1",
 				Path:    params.Path,
 				Enabled: true,
-			}, nil
+			}
+			shares = append(shares, share)
+			return &share, nil
 		},
 	}
 
@@ -741,5 +760,128 @@ func TestCreateVolumeFromSnapshot(t *testing.T) {
 	}
 	if resp.Volume.ContentSource.GetSnapshot().GetSnapshotId() != "nfs:tank/source-vol@snap1" {
 		t.Errorf("Expected snapshot ID in content source, got %s", resp.Volume.ContentSource.GetSnapshot().GetSnapshotId())
+	}
+	cloneUUID := clonedSubvol.Properties[propertyVolumeUUID]
+	if cloneUUID == "" || cloneUUID == sourceUUID {
+		t.Fatalf("new clone UUID = %q, must differ from source UUID %q", cloneUUID, sourceUUID)
+	}
+	if _, err := service.CreateVolume(ctx, req); err != nil {
+		t.Fatalf("snapshot clone retry failed: %v", err)
+	}
+	if retryUUID := clonedSubvol.Properties[propertyVolumeUUID]; retryUUID != cloneUUID {
+		t.Fatalf("snapshot clone retry UUID = %q, want preserved %q", retryUUID, cloneUUID)
+	}
+}
+
+func TestSnapshotCloneLegacyDestinationFailsBeforeV2Duplicate(t *testing.T) {
+	const requestName = "pvc-new"
+	params := map[string]string{
+		"filesystem":    "tank",
+		"protocol":      ProtocolNFS,
+		ParamNamePrefix: "legacy-",
+	}
+	legacyName, err := ResolveLegacyVolumeName(params, requestName)
+	if err != nil {
+		t.Fatalf("ResolveLegacyVolumeName() error = %v", err)
+	}
+	legacy := &nastyapi.Subvolume{
+		Filesystem: "tank",
+		Name:       legacyName,
+		Properties: map[string]string{
+			nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+			nastyapi.PropertyCSIVolumeName: "different-request",
+			nastyapi.PropertyProtocol:      ProtocolNFS,
+		},
+	}
+	client := &mockAPIClient{
+		GetSubvolumeFunc: func(_ context.Context, _, name string) (*nastyapi.Subvolume, error) {
+			if name == "source" {
+				return &nastyapi.Subvolume{Filesystem: "tank", Name: name, Properties: map[string]string{}}, nil
+			}
+			if name == legacyName {
+				return legacy, nil
+			}
+			return nil, nastyapi.ErrDatasetNotFound
+		},
+		CloneSnapshotFunc: func(context.Context, nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error) {
+			t.Fatal("clone backend must not be called when legacy ownership is unprovable")
+			return nil, errors.New("unexpected clone call")
+		},
+	}
+	req := &csi.CreateVolumeRequest{
+		Name:               requestName,
+		Parameters:         params,
+		CapacityRange:      &csi.CapacityRange{RequiredBytes: MinVolumeSize},
+		VolumeCapabilities: []*csi.VolumeCapability{{AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}}}},
+	}
+	service := NewControllerService(client, NewNodeRegistry(), "")
+	_, err = service.createVolumeFromSnapshot(context.Background(), req, "nfs:tank/source@snapshot")
+	if status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("legacy ownership failure code = %v, want AlreadyExists (error: %v)", status.Code(err), err)
+	}
+}
+
+func TestSnapshotCloneRecoversInterruptedDestinationWithCopiedSourceIdentity(t *testing.T) {
+	const sourceUUID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	capacity := uint64(MinVolumeSize)
+	source := &nastyapi.Subvolume{
+		Filesystem: "tank", Name: "source", SubvolumeType: subvolumeTypeFilesystem, QuotaBytes: &capacity,
+		Properties: map[string]string{
+			nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+			nastyapi.PropertyCSIVolumeName: "source",
+			nastyapi.PropertyProtocol:      ProtocolNFS,
+			propertyCSIRequestName:         "source-request",
+			propertyVolumeUUID:             sourceUUID,
+			propertyIdentityVersion:        identityVersion2,
+		},
+	}
+	destination := &nastyapi.Subvolume{
+		Filesystem: "tank", Name: "restore", SubvolumeType: subvolumeTypeFilesystem,
+		Path: "/fs/tank/restore", QuotaBytes: &capacity, Properties: copyProperties(source.Properties),
+	}
+	cloneCalls := 0
+	client := &mockAPIClient{
+		GetSubvolumeFunc: func(_ context.Context, _, name string) (*nastyapi.Subvolume, error) {
+			switch name {
+			case source.Name:
+				return source, nil
+			case destination.Name:
+				return destination, nil
+			default:
+				return nil, nastyapi.ErrDatasetNotFound
+			}
+		},
+		CloneSnapshotFunc: func(context.Context, nastyapi.SnapshotCloneParams) (*nastyapi.Subvolume, error) {
+			cloneCalls++
+			response := *destination
+			response.Created = false
+			return &response, nil
+		},
+		ResizeSubvolumeFunc: func(context.Context, string, string, uint64) (*nastyapi.Subvolume, error) {
+			return destination, nil
+		},
+		SetSubvolumePropertiesFunc: func(_ context.Context, _, _ string, props map[string]string) (*nastyapi.Subvolume, error) {
+			destination.Properties = copyProperties(props)
+			return destination, nil
+		},
+		ListNFSSharesFunc: func(context.Context) ([]nastyapi.NFSShare, error) {
+			return []nastyapi.NFSShare{{ID: "share", Path: destination.Path}}, nil
+		},
+	}
+	req := &csi.CreateVolumeRequest{
+		Name:               "restore",
+		Parameters:         map[string]string{"filesystem": "tank", "protocol": ProtocolNFS},
+		CapacityRange:      &csi.CapacityRange{RequiredBytes: MinVolumeSize},
+		VolumeCapabilities: []*csi.VolumeCapability{{AccessType: &csi.VolumeCapability_Mount{Mount: &csi.VolumeCapability_MountVolume{}}}},
+	}
+	service := NewControllerService(client, NewNodeRegistry(), "")
+	if _, err := service.createVolumeFromSnapshot(context.Background(), req, "nfs:tank/source@snapshot"); err != nil {
+		t.Fatalf("interrupted snapshot clone recovery failed: %v", err)
+	}
+	if cloneCalls != 1 {
+		t.Fatalf("snapshot clone backend calls=%d, want 1", cloneCalls)
+	}
+	if got := destination.Properties[propertyVolumeUUID]; got == "" || got == sourceUUID {
+		t.Fatalf("snapshot destination UUID=%q, must differ from copied source UUID %q", got, sourceUUID)
 	}
 }

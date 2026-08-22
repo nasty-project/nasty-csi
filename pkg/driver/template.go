@@ -3,6 +3,8 @@ package driver
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"regexp"
@@ -74,6 +76,13 @@ var (
 // They cannot start with a hyphen.
 var validNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]*$`)
 
+const (
+	maxBackendNameBytes       = 63
+	backendNameSuffixLength   = 8
+	backendNameSuffixAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	backendNameHashDomain     = "nasty-csi/backend-name/v2\x00"
+)
+
 // parseNameTemplateConfig extracts name templating configuration from StorageClass parameters.
 // Returns nil, nil if no templating is configured (use default naming).
 //
@@ -124,11 +133,10 @@ func extractVolumeNameContext(params map[string]string, pvName string) VolumeNam
 // renderVolumeName generates the final volume name using template configuration.
 // If no templating is configured, returns the original pvName.
 // The rendered name is sanitized to be valid for subvolume names.
-func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string, error) {
+func renderVolumeNameCandidate(config *nameTemplateConfig, ctx VolumeNameContext) (string, error) {
 	var name string
 
 	if config == nil {
-		// No templating - use PV name as-is
 		return ctx.PVName, nil
 	}
 
@@ -144,76 +152,82 @@ func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string
 		name = config.prefix + ctx.PVName + config.suffix
 	}
 
-	// Sanitize the name for bcachefs compatibility
-	name = sanitizeVolumeName(name)
+	return name, nil
+}
 
-	// Validate the final name
+func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string, error) {
+	candidate, err := renderVolumeNameCandidate(config, ctx)
+	if err != nil {
+		return "", err
+	}
+	legacy := candidate
+	if config != nil {
+		legacy = sanitizeVolumeName(candidate)
+	}
+	if config == nil && len(candidate) <= maxBackendNameBytes && validateVolumeName(candidate) == nil {
+		return candidate, nil
+	}
+
+	stem := sanitizeVolumeNameUnlimited(candidate)
+	if stem == "" {
+		return "", ErrVolumeNameEmpty
+	}
+	suffix := "-" + backendNameSuffix(ctx.PVName)
+	stem = truncateASCIIName(stem, maxBackendNameBytes-len(suffix))
+	name := strings.TrimRight(stem, "-") + suffix
 	if err := validateVolumeName(name); err != nil {
 		return "", err
 	}
 
-	klog.V(4).Infof("Rendered volume name: %s (from PVName=%s, PVCName=%s, PVCNamespace=%s)",
-		name, ctx.PVName, ctx.PVCName, ctx.PVCNamespace)
-
+	klog.V(4).Infof("Rendered collision-resistant volume name: %s (legacy=%s, request=%s)", name, legacy, ctx.PVName)
 	return name, nil
+}
+
+func backendNameSuffix(requestName string) string {
+	digest := sha256.Sum256([]byte(backendNameHashDomain + requestName))
+	value := binary.BigEndian.Uint64(digest[:8])
+	var suffix [backendNameSuffixLength]byte
+	for i := len(suffix) - 1; i >= 0; i-- {
+		suffix[i] = backendNameSuffixAlphabet[value%uint64(len(backendNameSuffixAlphabet))]
+		value /= uint64(len(backendNameSuffixAlphabet))
+	}
+	return string(suffix[:])
 }
 
 // sanitizeVolumeName cleans up a volume name to be valid for bcachefs.
 // It replaces invalid characters with hyphens, removes leading hyphens,
 // and truncates to 63 characters for K8s label compatibility.
 func sanitizeVolumeName(name string) string {
-	// Replace common invalid characters with hyphens
-	replacer := strings.NewReplacer(
-		"/", "-",
-		"\\", "-",
-		" ", "-",
-		"@", "-",
-		"#", "-",
-		"$", "-",
-		"%", "-",
-		"^", "-",
-		"&", "-",
-		"*", "-",
-		"(", "-",
-		")", "-",
-		"+", "-",
-		"=", "-",
-		"[", "-",
-		"]", "-",
-		"{", "-",
-		"}", "-",
-		"|", "-",
-		";", "-",
-		"'", "-",
-		"\"", "-",
-		"<", "-",
-		">", "-",
-		",", "-",
-		"?", "-",
-		"`", "-",
-		"~", "-",
-	)
-	name = replacer.Replace(name)
+	return strings.TrimRight(truncateASCIIName(sanitizeVolumeNameUnlimited(name), maxBackendNameBytes), "-")
+}
 
-	// Remove leading hyphens (names can't start with hyphen)
-	name = strings.TrimLeft(name, "-")
-
-	// Collapse multiple consecutive hyphens into one
-	for strings.Contains(name, "--") {
-		name = strings.ReplaceAll(name, "--", "-")
+func sanitizeVolumeNameUnlimited(name string) string {
+	var builder strings.Builder
+	lastHyphen := false
+	for _, char := range name {
+		valid := char < 128 && ((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') || char == '.' || char == '_' || char == ':' || char == '-')
+		if !valid {
+			char = '-'
+		}
+		if char == '-' {
+			if builder.Len() == 0 || lastHyphen {
+				continue
+			}
+			lastHyphen = true
+		} else {
+			lastHyphen = false
+		}
+		builder.WriteRune(char)
 	}
+	return strings.Trim(strings.TrimLeft(builder.String(), "._:"), "-")
+}
 
-	// Trim trailing hyphens
-	name = strings.TrimRight(name, "-")
-
-	// Truncate to 63 characters (K8s label compatibility)
-	if len(name) > 63 {
-		name = name[:63]
-		// Ensure we don't end with a hyphen after truncation
-		name = strings.TrimRight(name, "-")
+func truncateASCIIName(name string, limit int) string {
+	if len(name) <= limit {
+		return name
 	}
-
-	return name
+	return name[:limit]
 }
 
 // validateVolumeName checks if a volume name is valid for bcachefs.
@@ -252,6 +266,27 @@ func ResolveVolumeName(params map[string]string, pvName string) (string, error) 
 
 	// Render the final name
 	return renderVolumeName(config, ctx)
+}
+
+// ResolveLegacyVolumeName returns the unhashed backend candidate produced before
+// collision-resistant names were introduced. It is used only for upgrade lookup.
+func ResolveLegacyVolumeName(params map[string]string, pvName string) (string, error) {
+	config, err := parseNameTemplateConfig(params)
+	if err != nil {
+		return "", err
+	}
+	candidate, err := renderVolumeNameCandidate(config, extractVolumeNameContext(params, pvName))
+	if err != nil {
+		return "", err
+	}
+	if config == nil {
+		return candidate, nil
+	}
+	legacy := sanitizeVolumeName(candidate)
+	if err := validateVolumeName(legacy); err != nil {
+		return "", err
+	}
+	return legacy, nil
 }
 
 // ResolveComment resolves a dataset comment from a commentTemplate StorageClass parameter.

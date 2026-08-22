@@ -209,7 +209,11 @@ func TestCreateISCSIVolumeInitializesOnlyMountedVolumes(t *testing.T) {
 					if !created {
 						t.Fatal("iSCSI target was created before the backend subvolume was ready")
 					}
-					return &nastyapi.ISCSITarget{ID: "target-1", IQN: generateIQN("test-volume")}, nil
+					return &nastyapi.ISCSITarget{
+						ID:   "target-1",
+						IQN:  generateIQN("test-volume"),
+						Luns: []nastyapi.ISCSILun{{BackstorePath: params.DevicePath}},
+					}, nil
 				},
 			}
 			controller := NewControllerService(client, NewNodeRegistry(), "")

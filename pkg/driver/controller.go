@@ -211,6 +211,7 @@ type ControllerService struct {
 	// Used to detect incompatible re-publish attempts per CSI spec.
 	publishedVolumes   map[string]bool
 	clusterID          string
+	identityMu         sync.Mutex
 	publishedVolumesMu sync.RWMutex
 }
 
@@ -861,7 +862,7 @@ func (s *ControllerService) checkExistingVolume(_ context.Context, _ *csi.Create
 // Uses bcachefs's native O(1) writable snapshot — a single
 // `bcachefs subvolume snapshot` (without -r) that creates a COW clone
 // sharing data blocks with the source. No temporary snapshots needed.
-func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) {
+func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi.CreateVolumeRequest, sourceVolumeID string) (*csi.CreateVolumeResponse, error) { //nolint:gocyclo // clone validation and cleanup are intentionally handled together
 	klog.Infof("createVolumeFromVolume called for volume %s from source %s", req.GetName(), sourceVolumeID)
 
 	// 1. Look up the source volume to get filesystem, name, and protocol
@@ -876,6 +877,10 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	filesystem, sourceSubvolName, err := splitSubvolumeID(sourceMeta.DatasetID)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid source volume dataset ID %q: %v", sourceMeta.DatasetID, err)
+	}
+	sourceSubvolume, err := s.apiClient.GetSubvolume(ctx, filesystem, sourceSubvolName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to read source volume identity: %v", err)
 	}
 
 	protocol := sourceMeta.Protocol
@@ -898,32 +903,67 @@ func (s *ControllerService) createVolumeFromVolume(ctx context.Context, req *csi
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to resolve volume name: %v", err)
 	}
+	destinationSelection, err := s.selectCloneDestination(ctx, req, filesystem, newName, protocol)
+	if err != nil {
+		return nil, err
+	}
+	selectedName := destinationSelection.name
+	freshIdentity, err := newVolumeIdentityDecision(req, selectedName, protocol)
+	if err != nil {
+		return nil, err
+	}
 
 	// 3. Clone through the backend on every attempt. The backend records the
 	// source and only treats an existing destination as idempotent when that
 	// source matches exactly.
-	klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
-	if _, cloneErr := s.apiClient.CloneSubvolume(ctx, filesystem, sourceSubvolName, newName); cloneErr != nil {
+	klog.V(4).Infof("Cloning subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, selectedName)
+	clone, cloneErr := s.apiClient.CloneSubvolume(ctx, filesystem, sourceSubvolName, selectedName)
+	if cloneErr != nil {
 		klog.Errorf("Failed to clone subvolume %s/%s: %v", filesystem, sourceSubvolName, cloneErr)
 		return nil, createVolumeError("failed to clone volume", cloneErr)
 	}
-	klog.Infof("Cloned subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, newName)
+	backendCreated := clone != nil && clone.Created
+	createdClone := clone
+	klog.Infof("Cloned subvolume %s/%s to %s/%s", filesystem, sourceSubvolName, filesystem, selectedName)
 
 	// 4. Ensure the clone satisfies the normalized CSI capacity range.
-	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, newName)
+	requestedCapacity, capacityErr := s.ensureClonedVolumeCapacity(ctx, req, filesystem, selectedName)
 	if capacityErr != nil {
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, createdClone, capacityErr)
+		}
 		return nil, capacityErr
 	}
 
-	csiProps := map[string]string{
-		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
-		nastyapi.PropertyCSIVolumeName: req.GetName(),
-		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
-		nastyapi.PropertyProtocol:      protocol,
+	clone, getErr := s.apiClient.GetSubvolume(ctx, filesystem, selectedName)
+	if getErr != nil {
+		operationErr := status.Errorf(codes.Internal, "failed to read cloned subvolume identity: %v", getErr)
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, createdClone, operationErr)
+		}
+		return nil, operationErr
 	}
-	if _, propErr := s.apiClient.SetSubvolumeProperties(ctx, filesystem, newName, csiProps); propErr != nil {
-		return nil, status.Errorf(codes.Internal,
-			"failed to set CSI properties on cloned subvolume %s/%s: %v", filesystem, newName, propErr)
+	identity, identityErr := classifyCloneIdentity(
+		req, protocol, selectedName, clone, sourceSubvolume.Properties, backendCreated, destinationSelection.legacy, freshIdentity,
+	)
+	if identityErr != nil {
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, createdClone, identityErr)
+		}
+		return nil, identityErr
+	}
+	if backendCreated {
+		clone.Properties = nil
+	}
+	csiProps := mergeProperties(map[string]string{
+		nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+		nastyapi.PropertyCapacityBytes: strconv.FormatInt(requestedCapacity, 10),
+	}, identity.properties)
+	if propErr := s.persistVolumeIdentity(ctx, clone, csiProps, identity); propErr != nil {
+		if backendCreated {
+			return nil, s.rollbackCreatedSubvolume(ctx, clone, propErr)
+		}
+		return nil, propErr
 	}
 
 	// 5. Delegate to protocol-specific create to set up sharing
@@ -1408,7 +1448,11 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 	// This handles the case where a PVC is recreated with a new UID — the CSI volume name
 	// changes (pvc-<new-uid>) but the stored pvc_name/pvc_namespace still match.
 	if subvol == nil {
-		subvol = s.findSubvolumeByPVCIdentity(ctx, params, filesystem)
+		var adoptionErr error
+		subvol, adoptionErr = s.findSubvolumeByPVCIdentity(ctx, params, filesystem)
+		if adoptionErr != nil {
+			return nil, true, adoptionErr
+		}
 	}
 
 	if subvol == nil {
@@ -1428,7 +1472,6 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 		klog.V(4).Infof("Subvolume %s/%s is not adoptable (missing required properties)", subvol.Filesystem, subvol.Name)
 		return nil, false, nil
 	}
-
 	// Check if adoption is allowed: either volume has adoptable=true OR StorageClass has adoptExisting=true
 	volumeAdoptable := props[nastyapi.PropertyAdoptable] == VolumeContextValueTrue
 	if !volumeAdoptable && !adoptExisting {
@@ -1491,11 +1534,11 @@ func (s *ControllerService) checkAndAdoptVolume(ctx context.Context, req *csi.Cr
 // the CSI volume name search fails, which happens when a PVC is recreated with
 // a new UID (e.g., cluster rebuild) but the underlying subvolume still has the
 // original PVC identity in its properties.
-func (s *ControllerService) findSubvolumeByPVCIdentity(ctx context.Context, params map[string]string, filesystem string) *nastyapi.Subvolume {
+func (s *ControllerService) findSubvolumeByPVCIdentity(ctx context.Context, params map[string]string, filesystem string) (*nastyapi.Subvolume, error) {
 	pvcName := params[CSIPVCName]
 	pvcNamespace := params[CSIPVCNamespace]
 	if pvcName == "" || pvcNamespace == "" {
-		return nil
+		return nil, nil //nolint:nilnil // missing PVC metadata means there is no fallback match
 	}
 
 	klog.V(4).Infof("Fallback adoption search: looking for subvolume with pvc_name=%s, pvc_namespace=%s", pvcName, pvcNamespace)
@@ -1504,23 +1547,31 @@ func (s *ControllerService) findSubvolumeByPVCIdentity(ctx context.Context, para
 	candidates, err := s.apiClient.FindSubvolumesByProperty(ctx, nastyapi.PropertyPVCName, pvcName, filesystem)
 	if err != nil {
 		klog.V(4).Infof("Error searching by PVC identity (%s/%s): %v", pvcNamespace, pvcName, err)
-		return nil
+		return nil, status.Errorf(codes.Internal, "failed to search by PVC identity %s/%s: %v", pvcNamespace, pvcName, err)
 	}
 
+	var match *nastyapi.Subvolume
 	for i := range candidates {
 		props := candidates[i].Properties
 		if props == nil {
 			continue
 		}
 		if props[nastyapi.PropertyPVCNamespace] == pvcNamespace {
+			if match != nil {
+				return nil, status.Errorf(codes.FailedPrecondition,
+					"multiple subvolumes match PVC identity %s/%s in filesystem %s",
+					pvcNamespace, pvcName, filesystem)
+			}
 			klog.V(4).Infof("Found subvolume by PVC identity: %s/%s (pvc=%s/%s)",
 				candidates[i].Filesystem, candidates[i].Name, pvcNamespace, pvcName)
-			return &candidates[i]
+			match = &candidates[i]
 		}
 	}
 
-	klog.V(4).Infof("No subvolume found with pvc_name=%s, pvc_namespace=%s", pvcName, pvcNamespace)
-	return nil
+	if match == nil {
+		klog.V(4).Infof("No subvolume found with pvc_name=%s, pvc_namespace=%s", pvcName, pvcNamespace)
+	}
+	return match, nil
 }
 
 // ControllerGetCapabilities returns controller capabilities.
