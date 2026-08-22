@@ -282,6 +282,21 @@ func TestValidateVolumeName(t *testing.T) {
 	}
 }
 
+func TestBackendNameSuffix(t *testing.T) {
+	suffix := backendNameSuffix("pvc-12345")
+	if suffix != "1TvW998x" {
+		t.Fatalf("backendNameSuffix() = %q, want %q", suffix, "1TvW998x")
+	}
+	if len(suffix) != backendNameSuffixLength {
+		t.Fatalf("backendNameSuffix() length = %d, want %d", len(suffix), backendNameSuffixLength)
+	}
+	for _, char := range suffix {
+		if !strings.ContainsRune(backendNameSuffixAlphabet, char) {
+			t.Fatalf("backendNameSuffix() contains non-base62 character %q", char)
+		}
+	}
+}
+
 func TestRenderVolumeName(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -308,7 +323,7 @@ func TestRenderVolumeName(t *testing.T) {
 			ctx: VolumeNameContext{
 				PVName: "pvc-12345",
 			},
-			want: "prod-pvc-12345-ff5dad648ddfeea7",
+			want: "prod-pvc-12345-1TvW998x",
 		},
 		{
 			name: "suffix only",
@@ -318,7 +333,7 @@ func TestRenderVolumeName(t *testing.T) {
 			ctx: VolumeNameContext{
 				PVName: "pvc-12345",
 			},
-			want: "pvc-12345-data-ff5dad648ddfeea7",
+			want: "pvc-12345-data-1TvW998x",
 		},
 		{
 			name: "prefix and suffix",
@@ -329,7 +344,7 @@ func TestRenderVolumeName(t *testing.T) {
 			ctx: VolumeNameContext{
 				PVName: "pvc-12345",
 			},
-			want: "prod-pvc-12345-data-ff5dad648ddfeea7",
+			want: "prod-pvc-12345-data-1TvW998x",
 		},
 		{
 			name: "template with PVCName",
@@ -343,7 +358,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVName:  "pvc-12345",
 				PVCName: "my-app-data",
 			},
-			want: "my-app-data-ff5dad648ddfeea7",
+			want: "my-app-data-1TvW998x",
 		},
 		{
 			name: "template with PVCNamespace and PVCName",
@@ -358,7 +373,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVCName:      "my-pvc",
 				PVCNamespace: "production",
 			},
-			want: "production-my-pvc-ff5dad648ddfeea7",
+			want: "production-my-pvc-1TvW998x",
 		},
 		{
 			name: "template sanitizes output",
@@ -373,7 +388,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVCName:      "my-pvc",
 				PVCNamespace: "my-namespace",
 			},
-			want: "my-namespace-my-pvc-ff5dad648ddfeea7",
+			want: "my-namespace-my-pvc-1TvW998x",
 		},
 		{
 			name: "template with missing field uses empty string",
@@ -388,7 +403,7 @@ func TestRenderVolumeName(t *testing.T) {
 				PVCName:      "my-pvc",
 				PVCNamespace: "", // Empty namespace
 			},
-			want: "my-pvc-ff5dad648ddfeea7",
+			want: "my-pvc-1TvW998x",
 		},
 	}
 
@@ -426,7 +441,7 @@ func TestResolveVolumeName(t *testing.T) {
 				ParamNamePrefix: "k8s-",
 			},
 			pvName: "pvc-12345",
-			want:   "k8s-pvc-12345-ff5dad648ddfeea7",
+			want:   "k8s-pvc-12345-1TvW998x",
 		},
 		{
 			name: "simple suffix",
@@ -434,7 +449,7 @@ func TestResolveVolumeName(t *testing.T) {
 				ParamNameSuffix: "-vol",
 			},
 			pvName: "pvc-12345",
-			want:   "pvc-12345-vol-ff5dad648ddfeea7",
+			want:   "pvc-12345-vol-1TvW998x",
 		},
 		{
 			name: "full template with PVC info",
@@ -444,7 +459,7 @@ func TestResolveVolumeName(t *testing.T) {
 				CSIPVCNamespace:   "database",
 			},
 			pvName: "pvc-abcdef-12345",
-			want:   "database-postgres-data-a9473f35cde48291",
+			want:   "database-postgres-data-znHKGGav",
 		},
 		{
 			name: "template using PVName fallback",
@@ -452,7 +467,7 @@ func TestResolveVolumeName(t *testing.T) {
 				ParamNameTemplate: "vol-{{ .PVName }}",
 			},
 			pvName: "pvc-12345",
-			want:   "vol-pvc-12345-ff5dad648ddfeea7",
+			want:   "vol-pvc-12345-1TvW998x",
 		},
 		{
 			name: "invalid template returns error",
@@ -470,7 +485,7 @@ func TestResolveVolumeName(t *testing.T) {
 				CSIPVCNamespace:   "cache",
 			},
 			pvName: "pvc-abc123",
-			want:   "cache-redis-master-0-2e457c95354ecb0a",
+			want:   "cache-redis-master-0-hv06qaKY",
 		},
 	}
 

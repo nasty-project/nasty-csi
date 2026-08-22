@@ -4,6 +4,7 @@ package driver
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"regexp"
@@ -76,9 +77,10 @@ var (
 var validNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]*$`)
 
 const (
-	maxBackendNameBytes   = 63
-	backendNameHashBytes  = 8
-	backendNameHashDomain = "nasty-csi/backend-name/v2\x00"
+	maxBackendNameBytes       = 63
+	backendNameSuffixLength   = 8
+	backendNameSuffixAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	backendNameHashDomain     = "nasty-csi/backend-name/v2\x00"
 )
 
 // parseNameTemplateConfig extracts name templating configuration from StorageClass parameters.
@@ -170,8 +172,7 @@ func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string
 	if stem == "" {
 		return "", ErrVolumeNameEmpty
 	}
-	digest := sha256.Sum256([]byte(backendNameHashDomain + ctx.PVName))
-	suffix := fmt.Sprintf("-%x", digest[:backendNameHashBytes])
+	suffix := "-" + backendNameSuffix(ctx.PVName)
 	stem = truncateASCIIName(stem, maxBackendNameBytes-len(suffix))
 	name := strings.TrimRight(stem, "-") + suffix
 	if err := validateVolumeName(name); err != nil {
@@ -180,6 +181,17 @@ func renderVolumeName(config *nameTemplateConfig, ctx VolumeNameContext) (string
 
 	klog.V(4).Infof("Rendered collision-resistant volume name: %s (legacy=%s, request=%s)", name, legacy, ctx.PVName)
 	return name, nil
+}
+
+func backendNameSuffix(requestName string) string {
+	digest := sha256.Sum256([]byte(backendNameHashDomain + requestName))
+	value := binary.BigEndian.Uint64(digest[:8])
+	var suffix [backendNameSuffixLength]byte
+	for i := len(suffix) - 1; i >= 0; i-- {
+		suffix[i] = backendNameSuffixAlphabet[value%uint64(len(backendNameSuffixAlphabet))]
+		value /= uint64(len(backendNameSuffixAlphabet))
+	}
+	return string(suffix[:])
 }
 
 // sanitizeVolumeName cleans up a volume name to be valid for bcachefs.
