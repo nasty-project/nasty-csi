@@ -9,8 +9,7 @@ const octokit = new Octokit({
   auth: process.env.GITHUB_TOKEN
 });
 
-const OWNER = 'fenio';
-const REPO = 'nasty-csi';
+const [OWNER, REPO] = (process.env.GITHUB_REPOSITORY || 'nasty-project/nasty-csi').split('/');
 const WORKFLOW_ID = 'integration.yml';
 
 async function getWorkflowRuns(days = 30) {
@@ -574,7 +573,10 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch(console.error);
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }
 
 module.exports = { getWorkflowRuns, getWorkflowRunDetails, parseTestResults, generateHTML };
