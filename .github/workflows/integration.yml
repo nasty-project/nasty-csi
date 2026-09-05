@@ -195,12 +195,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-go
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-chart
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-chart
       - uses: actions/setup-go@v6
         with:
@@ -288,12 +286,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-go
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-chart
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-chart
       - uses: actions/setup-go@v6
         with:
@@ -378,12 +374,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-go
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-chart
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-chart
       - uses: actions/setup-go@v6
         with:
@@ -468,12 +462,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-go
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-chart
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-chart
       - uses: actions/setup-go@v6
         with:
@@ -563,12 +555,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-go
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-chart
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-chart
       - uses: actions/setup-go@v6
         with:
