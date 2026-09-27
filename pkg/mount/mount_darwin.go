@@ -6,6 +6,7 @@ package mount
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,8 @@ import (
 
 	"k8s.io/klog/v2"
 )
+
+var errSourceMountUnsupported = errors.New("source mount checks require Linux host mount information")
 
 // IsMounted checks if a path is mounted on macOS.
 // Uses 'mount' command to check mount status since findmnt doesn't exist on macOS.
@@ -51,6 +54,11 @@ func IsMounted(ctx context.Context, targetPath string) (bool, error) {
 func IsDeviceMounted(ctx context.Context, targetPath string) (bool, error) {
 	// For macOS testing, use same logic as IsMounted
 	return IsMounted(ctx, targetPath)
+}
+
+// IsSourceMounted fails closed on macOS, where the Linux host mount table is unavailable.
+func IsSourceMounted(context.Context, string) (bool, error) {
+	return false, errSourceMountUnsupported
 }
 
 // Unmount unmounts a path on macOS.

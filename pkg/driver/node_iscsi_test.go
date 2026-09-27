@@ -164,7 +164,7 @@ printf '1073741824\n'
 		AccessMode: &csi.VolumeCapability_AccessMode{Mode: csi.VolumeCapability_AccessMode_SINGLE_NODE_WRITER},
 	}
 
-	service := &NodeService{}
+	service := &NodeService{isSourceMountedFn: func(context.Context, string) (bool, error) { return false, nil }}
 	if _, err := service.stageISCSIDevice(context.Background(), "volume", devicePath, filepath.Join(t.TempDir(), "stage"), capability, false, map[string]string{
 		"expectedCapacity": "1073741824",
 	}); err != nil {

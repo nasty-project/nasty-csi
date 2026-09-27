@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nasty-project/nasty-csi/pkg/mount"
 	"github.com/nasty-project/nasty-csi/pkg/retry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -321,7 +322,15 @@ func forceDeviceRescan(ctx context.Context, devicePath string) error {
 // prepareFilesystemForMount verifies the backend-created filesystem before
 // repair or mount. The node never initializes media; a missing, conflicting,
 // or unreadable signature is an error rather than permission to run mkfs.
-func prepareFilesystemForMount(ctx context.Context, devicePath, fsType string) error {
+func (s *NodeService) prepareFilesystemForMount(ctx context.Context, devicePath, fsType string) error {
+	check := s.isSourceMountedFn
+	if check == nil {
+		check = mount.IsSourceMounted
+	}
+	return prepareFilesystemForMountWithSourceCheck(ctx, devicePath, fsType, check)
+}
+
+func prepareFilesystemForMountWithSourceCheck(ctx context.Context, devicePath, fsType string, isSourceMounted func(context.Context, string) (bool, error)) error {
 	const maxAttempts = 3
 	var lastFailure string
 	lastNoSignature := false
@@ -380,6 +389,15 @@ func prepareFilesystemForMount(ctx context.Context, devicePath, fsType string) e
 	// Run filesystem check before mounting to recover from dirty journals caused by
 	// unclean shutdowns (NVMe-oF/iSCSI transport disconnect, NASty engine restart, etc).
 	// Without this, kubelet's applyFSGroup readdir fails with EIO on dirty ext4 journals.
+	if fsType == fsTypeExt2 || fsType == fsTypeExt3 || fsType == fsTypeExt4 {
+		mounted, mountErr := isSourceMounted(ctx, devicePath)
+		if mountErr != nil {
+			return status.Errorf(codes.Unavailable, "cannot verify whether device %s is mounted: %v", devicePath, mountErr)
+		}
+		if mounted {
+			return status.Errorf(codes.FailedPrecondition, "refusing to repair mounted device %s", devicePath)
+		}
+	}
 	if err := repairFilesystem(ctx, devicePath, fsType); err != nil {
 		return status.Errorf(codes.FailedPrecondition,
 			"filesystem repair failed for %s; refusing writable mount: %v", devicePath, err)
@@ -408,12 +426,15 @@ func repairFilesystem(ctx context.Context, devicePath, fsType string) error {
 
 	klog.Infof("Running filesystem check on %s (%s) before mount", devicePath, fsType)
 
-	fsckCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	// -p: preen mode — auto-fix safe issues (dirty journal, minor inconsistencies)
 	// -f: force check even if filesystem appears clean
-	cmd := exec.CommandContext(fsckCtx, fsckCmd, "-p", "-f", devicePath)
+	// Once repair starts, do not kill it when kubelet cancels its RPC. Stage and
+	// unstage share a per-volume lock, so unstage cannot disconnect it mid-repair.
+	cmd := exec.CommandContext(context.WithoutCancel(ctx), fsckCmd, "-p", "-f", devicePath)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {

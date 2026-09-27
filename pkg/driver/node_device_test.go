@@ -2,10 +2,12 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -34,7 +36,9 @@ func TestPrepareFilesystemForMountFailClosed(t *testing.T) {
 			writeProbeCommand(t, binDir, "e2fsck", tt.fsck)
 			t.Setenv("PATH", binDir)
 
-			err := prepareFilesystemForMount(context.Background(), "/dev/test", tt.fsType)
+			err := prepareFilesystemForMountWithSourceCheck(context.Background(), "/dev/test", tt.fsType, func(context.Context, string) (bool, error) {
+				return false, nil
+			})
 			if (err != nil) != tt.wantError {
 				t.Errorf("prepareFilesystemForMount() error = %v, wantError %v", err, tt.wantError)
 			}
@@ -42,6 +46,68 @@ func TestPrepareFilesystemForMountFailClosed(t *testing.T) {
 				t.Errorf("prepareFilesystemForMount() code = %v, want %v", status.Code(err), tt.wantCode)
 			}
 		})
+	}
+}
+
+func TestPrepareFilesystemForMountRefusesMountedSource(t *testing.T) {
+	binDir := t.TempDir()
+	fsckCalled := filepath.Join(t.TempDir(), "fsck-called")
+	writeProbeCommand(t, binDir, "blkid", `printf 'ext4\n'`)
+	writeProbeCommand(t, binDir, "e2fsck", `printf called > "$FSCK_CALLED"`)
+	t.Setenv("PATH", binDir)
+	t.Setenv("FSCK_CALLED", fsckCalled)
+
+	//nolint:govet // Field alignment is not relevant for this small test table.
+	for _, tt := range []struct {
+		name     string
+		probe    func(context.Context, string) (bool, error)
+		wantCode codes.Code
+	}{
+		{name: "mounted", probe: func(context.Context, string) (bool, error) { return true, nil }, wantCode: codes.FailedPrecondition},
+		{name: "mount table unavailable", probe: func(context.Context, string) (bool, error) { return false, errors.New("mount table unavailable") }, wantCode: codes.Unavailable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := prepareFilesystemForMountWithSourceCheck(context.Background(), "/dev/test", fsTypeExt4, tt.probe)
+			if status.Code(err) != tt.wantCode {
+				t.Fatalf("prepareFilesystemForMount() = %v, want %v", err, tt.wantCode)
+			}
+			if _, err := os.Stat(fsckCalled); !os.IsNotExist(err) {
+				t.Fatalf("fsck ran despite unsafe mount state: %v", err)
+			}
+		})
+	}
+}
+
+func TestRepairFilesystemContinuesAfterRPCCancellation(t *testing.T) {
+	binDir := t.TempDir()
+	started := filepath.Join(t.TempDir(), "started")
+	finished := filepath.Join(t.TempDir(), "finished")
+	writeProbeCommand(t, binDir, "e2fsck", `printf started > "$FSCK_STARTED"; /bin/sleep 1; printf finished > "$FSCK_FINISHED"`)
+	t.Setenv("PATH", binDir)
+	t.Setenv("FSCK_STARTED", started)
+	t.Setenv("FSCK_FINISHED", finished)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- repairFilesystem(ctx, "/dev/test", fsTypeExt4) }()
+
+	deadline := time.After(3 * time.Second)
+	for {
+		if _, err := os.Stat(started); err == nil {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("fsck did not start")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("repair was interrupted by RPC cancellation: %v", err)
+	}
+	if _, err := os.Stat(finished); err != nil {
+		t.Fatalf("repair did not finish: %v", err)
 	}
 }
 
