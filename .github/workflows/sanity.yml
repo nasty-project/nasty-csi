@@ -33,7 +33,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: nasty-project/nasty-go
-          token: ${{ secrets.NASTY_PAT }}
           path: nasty-go
 
       - name: Set up Go

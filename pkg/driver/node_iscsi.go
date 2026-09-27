@@ -626,7 +626,7 @@ func (s *NodeService) formatAndMountISCSIDevice(ctx context.Context, volumeID, d
 		fsType = mnt.FsType
 	}
 
-	if prepareErr := prepareFilesystemForMount(ctx, devicePath, fsType); prepareErr != nil {
+	if prepareErr := s.prepareFilesystemForMount(ctx, devicePath, fsType); prepareErr != nil {
 		return nil, prepareErr
 	}
 

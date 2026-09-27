@@ -62,14 +62,16 @@ const iscsiSessionStateLoggedIn = "LOGGED_IN"
 // NodeService implements the CSI Node service.
 type NodeService struct {
 	csi.UnimplementedNodeServer
-	apiClient       nastyapi.ClientInterface
-	nodeRegistry    *NodeRegistry
-	nvmeConnectSem  chan struct{}
-	stopCh          chan struct{}
-	recentUnmounts  map[string]time.Time // tracks recently unmounted staging paths to avoid log spam
-	nodeID          string
-	testMode        bool
-	enableDiscovery bool
+	apiClient         nastyapi.ClientInterface
+	nodeRegistry      *NodeRegistry
+	nvmeConnectSem    chan struct{}
+	stopCh            chan struct{}
+	recentUnmounts    map[string]time.Time // tracks recently unmounted staging paths to avoid log spam
+	lifecycleLocks    volumeLifecycleLocks
+	isSourceMountedFn func(context.Context, string) (bool, error)
+	nodeID            string
+	testMode          bool
+	enableDiscovery   bool
 }
 
 // NewNodeService creates a new node service.
@@ -112,6 +114,12 @@ func (s *NodeService) NodeStageVolume(ctx context.Context, req *csi.NodeStageVol
 	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
 	volumeContext := req.GetVolumeContext()
+	unlock, lockErr := s.lifecycleLocks.lock(ctx, volumeID)
+	if lockErr != nil {
+		timer.ObserveError()
+		return nil, status.FromContextError(lockErr).Err()
+	}
+	defer unlock()
 
 	// Determine protocol from VolumeContext
 	// With plain volume IDs (just the volume name), all metadata is passed via VolumeContext
@@ -180,6 +188,12 @@ func (s *NodeService) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstag
 
 	volumeID := req.GetVolumeId()
 	stagingTargetPath := req.GetStagingTargetPath()
+	unlock, lockErr := s.lifecycleLocks.lock(ctx, volumeID)
+	if lockErr != nil {
+		timer.ObserveError()
+		return nil, status.FromContextError(lockErr).Err()
+	}
+	defer unlock()
 
 	// With independent subsystems, we determine the protocol by checking the staging path
 	// NVMe-oF volumes use block devices, NFS volumes use NFS mounts

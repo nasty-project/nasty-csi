@@ -572,7 +572,7 @@ func (s *NodeService) formatAndMountNVMeDevice(ctx context.Context, volumeID, de
 		fsType = mnt.FsType
 	}
 
-	if prepareErr := prepareFilesystemForMount(ctx, devicePath, fsType); prepareErr != nil {
+	if prepareErr := s.prepareFilesystemForMount(ctx, devicePath, fsType); prepareErr != nil {
 		return nil, prepareErr
 	}
 
