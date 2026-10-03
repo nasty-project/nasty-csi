@@ -1,7 +1,7 @@
 # NASty CSI Driver
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Go Version](https://img.shields.io/badge/Go-1.26.0-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.27.1-00ADD8?logo=go)](https://go.dev/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nasty-project/nasty-csi)](https://goreportcard.com/report/github.com/nasty-project/nasty-csi)
 [![CI](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/ci.yml)
 [![Integration Tests](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml/badge.svg)](https://github.com/nasty-project/nasty-csi/actions/workflows/integration.yml)
@@ -28,8 +28,6 @@ This CSI driver enables Kubernetes to provision and manage persistent volumes on
 - **SMB/CIFS** - Authenticated file sharing with Windows compatibility
 
 ## Dashboard and Observability
-
-<img width="1380" height="914" alt="image" src="https://github.com/user-attachments/assets/5d2ce624-2031-442d-8f6f-5422bce9bab7" />
 
 The driver includes two dashboard options and a pre-built Grafana dashboard:
 
@@ -324,7 +322,7 @@ Volumes are adoptable if they have proper `nasty-csi:*` xattr properties set. Se
 
 ### Prerequisites
 
-- Go 1.26+
+- Go 1.27.1+
 - Docker (for building images)
 - Kubernetes cluster for testing
 

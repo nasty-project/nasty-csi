@@ -116,8 +116,8 @@ kubectl apply -f smb-credentials.yaml
 ### Step 2: Install with Helm
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -243,8 +243,8 @@ mountOptions:
 To keep volumes on NASty when PVCs are deleted:
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \

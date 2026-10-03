@@ -300,8 +300,8 @@ The easiest way to deploy the CSI driver is using the Helm chart from Docker Hub
 
 **For NFS:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -315,8 +315,8 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **For NVMe-oF:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -333,8 +333,8 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **For iSCSI:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -350,8 +350,8 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 
 **For SMB:**
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -372,8 +372,8 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 When deploying on OpenShift, enable SecurityContextConstraints support:
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set openshift.enabled=true \
@@ -418,15 +418,15 @@ If you want to build your own image instead of using the published one:
 make build
 
 # Build Docker image
-docker build -t your-registry/nasty-csi-driver:v0.17.3 .
+docker build -t your-registry/nasty-csi-driver:v0.0.11 .
 
 # Push to your registry (DockerHub, GitHub Container Registry, etc.)
-docker push your-registry/nasty-csi-driver:v0.17.3
+docker push your-registry/nasty-csi-driver:v0.0.11
 ```
 
 If using a private registry, ensure your Kubernetes cluster has pull access.
 
-The published image is available at: `bfenski/nasty-csi:v0.17.3`
+The published image is available at: `bfenski/nasty-csi:v0.0.11`
 
 ## Step 3: Configure Deployment Manifests (Manual Deployment Only)
 
@@ -453,7 +453,7 @@ image: your-registry/nasty-csi-driver:latest
 
 With:
 ```yaml
-image: your-registry/nasty-csi-driver:v0.17.3
+image: your-registry/nasty-csi-driver:v0.0.11
 ```
 
 ### 3.3 Update StorageClass
@@ -876,7 +876,7 @@ kubectl --namespace kube-system scale deployment \
   --replicas=0
 
 # Upgrade nodes while the old controller is stopped.
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --version <NEW_VERSION> \
   --namespace kube-system \
   --reuse-values \
@@ -885,7 +885,7 @@ kubectl --namespace kube-system rollout status daemonset \
   --selector app.kubernetes.io/instance=nasty-csi
 
 # Start the upgraded controller.
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --version <NEW_VERSION> \
   --namespace kube-system \
   --reuse-values \
@@ -910,8 +910,8 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 
 2. Upgrade the driver:
    ```bash
-   helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-     --version 0.17.3 \
+   helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+     --version 0.0.10 \
      --namespace kube-system \
      --reuse-values
    ```

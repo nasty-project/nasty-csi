@@ -7,9 +7,9 @@ Helm is the recommended way to install nasty-csi. The raw Kubernetes manifests t
 ### Quick Start
 
 ```bash
-# Add the OCI registry (Docker Hub)
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.8.0 \
+# Install the separately released Helm chart from GHCR
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
@@ -20,43 +20,27 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
-Or using GitHub Container Registry:
-
-```bash
-helm install nasty-csi oci://ghcr.io/fenio/charts/nasty-csi-driver \
-  --version 0.8.0 \
-  --namespace kube-system \
-  --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
-  --set nasty.apiKey="YOUR-API-KEY" \
-  --set storageClasses[0].name=nasty-csi-nfs \
-  --set storageClasses[0].enabled=true \
-  --set storageClasses[0].protocol=nfs \
-  --set storageClasses[0].pool="YOUR-POOL-NAME" \
-  --set storageClasses[0].server="YOUR-NASTY-IP"
-```
+Chart `0.0.10` defaults to driver `v0.0.10`. To deploy driver `v0.0.11`,
+add `--set image.tag=v0.0.11`; chart and driver versions are independent.
 
 ### Version Pinning
 
 **Always use a specific version in production.** The `--version` flag ensures you get a known, tested release.
 
-To see available versions:
-```bash
-# Docker Hub
-helm search repo oci://registry-1.docker.io/bfenski/nasty-csi-driver --versions
-
-# Or check GitHub releases
-# https://github.com/nasty-project/nasty-csi/releases
-```
+See [chart releases](https://github.com/nasty-project/nasty-chart/releases)
+for available chart versions and
+[driver releases](https://github.com/nasty-project/nasty-csi/releases)
+for available image versions.
 
 ### Configuration
 
-See the [Helm chart documentation](../charts/nasty-csi-driver/README.md) for full configuration options.
+See the [Helm chart documentation](https://github.com/nasty-project/nasty-chart#readme) for full configuration options.
 
 Common configuration:
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.8.0 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
@@ -82,8 +66,8 @@ kubectl --namespace kube-system scale deployment \
   --selector app.kubernetes.io/instance=nasty-csi \
   --replicas=0
 
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.8.0 \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --reuse-values \
   --set controller.replicas=0
@@ -91,8 +75,8 @@ helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 kubectl --namespace kube-system rollout status daemonset \
   --selector app.kubernetes.io/instance=nasty-csi
 
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.8.0 \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --reuse-values \
   --set controller.replicas=1

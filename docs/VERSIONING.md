@@ -6,15 +6,15 @@ This document describes the versioning strategy for nasty-csi.
 
 nasty-csi follows [Semantic Versioning](https://semver.org/) (SemVer):
 
-- **MAJOR.MINOR.PATCH** (e.g., `v0.17.3`)
-- Tags are prefixed with `v` (e.g., `v0.17.3`, `v1.0.0`)
+- **MAJOR.MINOR.PATCH** (e.g., `v0.0.11`)
+- Tags are prefixed with `v` (e.g., `v0.0.11`, `v1.0.0`)
 
 ## Version Sources
 
 The version is determined at **build time** and embedded in the binary. The version comes from:
 
 1. **Git tags** (preferred) - When building from a tagged commit, the version is the tag name
-2. **Git describe** - For non-tagged commits, format is `v0.17.3-3-gabc1234` (3 commits after v0.17.3)
+2. **Git describe** - For non-tagged commits, format is `v0.0.11-3-gabc1234` (3 commits after v0.0.11)
 3. **"dev"** - Fallback when git is not available
 
 ## What's Embedded
@@ -23,7 +23,7 @@ Each build includes:
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| Version | Semantic version from git tag | `v0.17.3` |
+| Version | Semantic version from git tag | `v0.0.11` |
 | Git Commit | Short SHA of the commit | `abc1234` |
 | Build Date | Source commit timestamp | `2025-12-21T10:30:00Z` |
 | Go Version | Go compiler version | `go1.26.0` |
@@ -39,7 +39,7 @@ nasty-csi-driver --version
 
 Output:
 ```
-nasty.csi.io version: v0.17.3
+nasty.csi.io version: v0.0.11
   Git commit: abc1234
   Build date: 2025-12-21T10:30:00Z
   Go version: go1.26.0
@@ -61,7 +61,7 @@ curl http://localhost:8080/version
 Response:
 ```json
 {
-  "version": "v0.17.3",
+  "version": "v0.0.11",
   "gitCommit": "abc1234",
   "buildDate": "2025-12-21T10:30:00Z",
   "goVersion": "go1.26.0",
@@ -73,7 +73,7 @@ Response:
 
 The version is logged at startup:
 ```
-Starting NASty CSI Driver v0.17.3 (commit: abc1234, built: 2025-12-21T10:30:00Z)
+Starting NASty CSI Driver v0.0.11 (commit: abc1234, built: 2025-12-21T10:30:00Z)
 ```
 
 ### From Helm
@@ -91,8 +91,8 @@ When a version is released, Docker images are tagged with:
 
 | Tag | Description | Stability |
 |-----|-------------|-----------|
-| `v0.17.3` | Exact version | Immutable |
-| `v0.17` | Major.Minor | Points to latest patch |
+| `v0.0.11` | Exact version | Immutable |
+| `v0.0` | Major.Minor | Points to latest patch |
 | `v0` | Major only | Points to latest minor |
 | `latest` | Most recent release | Mutable - not recommended for production |
 
@@ -106,6 +106,10 @@ tags are produced only by the guarded release workflow.
 The Helm chart and application are versioned independently. A chart release
 records the CSI image version it deploys in `appVersion`:
 
+The current chart release is `0.0.10`, with `appVersion: v0.0.10`.
+The driver release `v0.0.11` can be selected with `--set image.tag=v0.0.11`;
+it does not imply a chart release named `0.0.11`.
+
 | Chart.yaml Field | Value |
 |------------------|-------|
 | `version` | Chart version without a `v` prefix |
@@ -115,7 +119,7 @@ records the CSI image version it deploys in `appVersion`:
 
 The Helm chart resolves the image tag in this order:
 
-1. **Explicit override**: `--set image.tag=v0.17.3`
+1. **Explicit override**: `--set image.tag=v0.0.11`
 2. **Chart's appVersion**: Uses the CSI version selected by that chart release
 
 ## Best Practices
@@ -125,16 +129,16 @@ The Helm chart resolves the image tag in this order:
 **Always pin a specific version:**
 
 ```bash
-# Install specific chart version (uses matching image tag automatically)
+# Install specific chart version (uses that chart's appVersion automatically)
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.17.3 \
+  --version 0.0.10 \
   ...
 ```
 
 Or explicitly set the image tag:
 ```bash
 helm install nasty-csi ./nasty-chart \
-  --set image.tag=v0.17.3 \
+  --set image.tag=v0.0.11 \
   ...
 ```
 
@@ -161,7 +165,7 @@ kubectl logs -n kube-system deployment/nasty-csi-controller | head -1
 Upgrade to a new version:
 ```bash
 helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.17.3 \
+  --version 0.0.10 \
   --reuse-values
 ```
 
@@ -179,6 +183,6 @@ kubectl exec -n kube-system deployment/nasty-csi-controller -- \
 ```
 
 Include in your issue:
-- Version (e.g., `v0.17.3`)
+- Version (e.g., `v0.0.11`)
 - Git commit (e.g., `abc1234`)
 - How you installed (Helm version, custom image, etc.)

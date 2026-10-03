@@ -37,8 +37,8 @@ docker exec nasty-csi-test-worker apt-get install -y nfs-common
 
 ```bash
 # Install from OCI registry
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -128,10 +128,10 @@ docker exec nasty-csi-test-worker apt-get install -y nfs-common
 
 ```bash
 # Build
-docker build -t bfenski/nasty-csi:v0.17.3 .
+docker build -t bfenski/nasty-csi:v0.0.11 .
 
 # Load into Kind
-kind load docker-image bfenski/nasty-csi:v0.17.3 --name nasty-csi-test
+kind load docker-image bfenski/nasty-csi:v0.0.11 --name nasty-csi-test
 ```
 
 ### 4. Create Kubernetes Secret

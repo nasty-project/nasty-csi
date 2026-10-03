@@ -447,8 +447,7 @@ See the [KubeVirt live migration documentation](https://kubevirt.io/user-guide/c
 ### Helm Chart
 - **Status**: ✅ Production-ready chart
 - **Registry**:
-  - Docker Hub (recommended): `oci://registry-1.docker.io/bfenski/nasty-csi-driver`
-  - GitHub Container Registry: `oci://ghcr.io/fenio/nasty-csi-driver`
+  - GitHub Container Registry: `oci://ghcr.io/nasty-project/charts/nasty-csi-driver`
 - **Features**:
   - Configurable resource limits
   - Multiple storage class support (NFS, NVMe-oF, iSCSI, SMB)
@@ -1208,7 +1207,7 @@ See [TESTING.md](TESTING.md) for comprehensive testing documentation.
 
 ### Quick Install (NFS)
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -1223,7 +1222,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ### Quick Install (NVMe-oF)
 ```bash
 # Pre-requisite: Configure NVMe-oF port in NASty first!
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -1238,7 +1237,7 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ### Quick Install (iSCSI)
 ```bash
 # Pre-requisite: Configure iSCSI portal in NASty and install open-iscsi on nodes!
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -1268,6 +1267,6 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 ---
 
 **Last Updated**: 2026-01-29
-**Driver Version**: v0.17.3
+**Driver Version**: v0.0.11
 **Kubernetes Version Tested**: 1.27+
-**Go Version**: 1.26.0+
+**Go Version**: 1.27.1+

@@ -20,9 +20,13 @@ This driver is in early development phase. Use only for testing and evaluation e
 
 The fastest way to get started is using Helm from the OCI registry:
 
+Helm chart versions are independent of driver versions. Chart `0.0.10`
+defaults to driver `v0.0.10`; add `--set image.tag=v0.0.11` to deploy driver
+`v0.0.11` with that chart.
+
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -257,8 +261,8 @@ kubectl describe pvc <pvc-name>
 
 ### Enable Debug Logging
 ```bash
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --reuse-values \
   --set controller.extraArgs="{--v=5}" \
@@ -315,8 +319,8 @@ storageClasses:
 
 Install with values file:
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --values my-values.yaml
@@ -327,8 +331,8 @@ helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
 To keep volumes on NASty even when PVCs are deleted (useful for data protection):
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -357,8 +361,8 @@ The driver will automatically resize the subvolume on NASty.
 To use NVMe-oF instead of NFS:
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -385,8 +389,8 @@ See [QUICKSTART-NVMEOF.md](QUICKSTART-NVMEOF.md) for detailed NVMe-oF setup inst
 To use SMB instead of NFS (requires credentials Secret):
 
 ```bash
-helm install nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -455,8 +459,8 @@ The driver exposes standard CSI metrics that can be scraped by Prometheus:
 To upgrade to a newer version:
 
 ```bash
-helm upgrade nasty-csi oci://registry-1.docker.io/bfenski/nasty-csi-driver \
-  --version 0.17.3 \
+helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
+  --version 0.0.10 \
   --namespace kube-system \
   --reuse-values
 ```
