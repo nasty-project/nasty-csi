@@ -1,6 +1,6 @@
 name: Boot QEMU VM with K3S
 description: >
-  Boot a QEMU virtual machine with Ubuntu Noble, install K3S, and prepare
+  Boot a QEMU virtual machine with Ubuntu 26.04 LTS, install K3S, and prepare
   it for CSI driver E2E testing. Uses SLIRP user-mode networking with port
   forwarding for SSH and K3S API access.
 
@@ -64,6 +64,7 @@ runs:
           "$GITHUB_ACTION_PATH/image.env" | cut -d ' ' -f1 | sha256sum | cut -c1-16)
         echo "cache-prefix=nasty-csi-qemu-${IMAGE_REVISION}-${RECIPE_HASH}-" >> "$GITHUB_OUTPUT"
         echo "k3s-version=${K3S_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "ubuntu-version=${UBUNTU_VERSION}" >> "$GITHUB_OUTPUT"
         echo "ubuntu-release=${UBUNTU_IMAGE_RELEASE}" >> "$GITHUB_OUTPUT"
         echo "ubuntu-sha256=${UBUNTU_IMAGE_SHA256}" >> "$GITHUB_OUTPUT"
 
@@ -96,14 +97,14 @@ runs:
       uses: actions/cache@v5
       with:
         path: /tmp/ubuntu-cloud.img
-        key: ubuntu-noble-cloudimg-amd64-${{ steps.image-config.outputs.ubuntu-release }}
+        key: ubuntu-${{ steps.image-config.outputs.ubuntu-version }}-cloudimg-amd64-${{ steps.image-config.outputs.ubuntu-release }}
 
     - name: Download Ubuntu cloud image
       if: steps.prebuilt.outputs.available != 'true' && steps.cache-image.outputs.cache-hit != 'true'
       shell: bash
       run: |
         curl -fSL -o /tmp/ubuntu-cloud.img \
-          https://cloud-images.ubuntu.com/noble/${{ steps.image-config.outputs.ubuntu-release }}/noble-server-cloudimg-amd64.img
+          https://cloud-images.ubuntu.com/releases/${{ steps.image-config.outputs.ubuntu-version }}/release-${{ steps.image-config.outputs.ubuntu-release }}/ubuntu-${{ steps.image-config.outputs.ubuntu-version }}-server-cloudimg-amd64.img
 
     - name: Validate Ubuntu cloud image
       if: steps.prebuilt.outputs.available != 'true'
@@ -111,7 +112,7 @@ runs:
       run: |
         if ! echo "${{ steps.image-config.outputs.ubuntu-sha256 }}  /tmp/ubuntu-cloud.img" | sha256sum --check; then
           curl -fSL -o /tmp/ubuntu-cloud.img \
-            https://cloud-images.ubuntu.com/noble/${{ steps.image-config.outputs.ubuntu-release }}/noble-server-cloudimg-amd64.img
+            https://cloud-images.ubuntu.com/releases/${{ steps.image-config.outputs.ubuntu-version }}/release-${{ steps.image-config.outputs.ubuntu-release }}/ubuntu-${{ steps.image-config.outputs.ubuntu-version }}-server-cloudimg-amd64.img
         fi
         echo "${{ steps.image-config.outputs.ubuntu-sha256 }}  /tmp/ubuntu-cloud.img" | sha256sum --check
         qemu-img check /tmp/ubuntu-cloud.img
