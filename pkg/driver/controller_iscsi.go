@@ -564,7 +564,7 @@ func (s *ControllerService) expandISCSIVolume(ctx context.Context, meta *VolumeM
 }
 
 // getISCSIVolumeInfo retrieves volume information and health status for an iSCSI volume.
-func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
+func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*controllerVolumeInfo, error) {
 	klog.V(4).Infof("Getting iSCSI volume info: %s (subvolume: %s, IQN: %s)",
 		meta.Name, meta.DatasetName, meta.ISCSIIQN)
 
@@ -624,18 +624,13 @@ func (s *ControllerService) getISCSIVolumeInfo(ctx context.Context, meta *Volume
 
 	klog.V(4).Infof("iSCSI volume %s status: abnormal=%t, message=%s", meta.Name, abnormal, message)
 
-	return &csi.ControllerGetVolumeResponse{
+	return &controllerVolumeInfo{
 		Volume: &csi.Volume{
 			VolumeId:      meta.Name,
 			CapacityBytes: capacityBytes,
 			VolumeContext: volumeContext,
 		},
-		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
-			VolumeCondition: &csi.VolumeCondition{
-				Abnormal: abnormal,
-				Message:  message,
-			},
-		},
+		Health: VolumeHealth{Abnormal: abnormal, Message: message},
 	}, nil
 }
 

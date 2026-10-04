@@ -1663,7 +1663,7 @@ func (s *ControllerService) ControllerGetCapabilities(_ context.Context, _ *csi.
 			{
 				Type: &csi.ControllerServiceCapability_Rpc{
 					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_VOLUME_CONDITION,
+						Type: csi.ControllerServiceCapability_RPC_GET_VOLUME_HEALTH,
 					},
 				},
 			},
@@ -1761,10 +1761,35 @@ func requiresNodeExpansion(protocol string, capability *csi.VolumeCapability) bo
 	}
 }
 
-// ControllerGetVolume returns volume information including health status.
-// This is used by Kubernetes to monitor volume health and report conditions.
-// Per CSI spec, this returns VolumeCondition with Abnormal flag and Message.
+// controllerVolumeInfo keeps protocol checks shared by the info and health RPCs.
+type controllerVolumeInfo struct {
+	Volume *csi.Volume
+	Health VolumeHealth
+}
+
+// ControllerGetVolume returns volume information. CSI 1.13 reports health
+// separately through ControllerGetVolumeHealth.
 func (s *ControllerService) ControllerGetVolume(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	info, err := s.getControllerVolumeInfo(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return &csi.ControllerGetVolumeResponse{
+		Volume: info.Volume,
+		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{},
+	}, nil
+}
+
+// ControllerGetVolumeHealth exposes the existing backend checks through CSI 1.13.
+func (s *ControllerService) ControllerGetVolumeHealth(ctx context.Context, req *csi.ControllerGetVolumeHealthRequest) (*csi.ControllerGetVolumeHealthResponse, error) {
+	info, err := s.getControllerVolumeInfo(ctx, &csi.ControllerGetVolumeRequest{VolumeId: req.GetVolumeId()})
+	if err != nil {
+		return nil, err
+	}
+	return &csi.ControllerGetVolumeHealthResponse{VolumeHealth: info.Health.ToCSI(req.GetVolumeId())}, nil
+}
+
+func (s *ControllerService) getControllerVolumeInfo(ctx context.Context, req *csi.ControllerGetVolumeRequest) (*controllerVolumeInfo, error) {
 	klog.V(4).Infof("ControllerGetVolume called with request: %+v", req)
 
 	// Validate request
@@ -1804,7 +1829,7 @@ func (s *ControllerService) ControllerGetVolume(ctx context.Context, req *csi.Co
 // getNFSVolumeInfo retrieves volume information and health status for an NFS volume.
 //
 //nolint:dupl // Each protocol's health check has unique verification logic despite similar structure
-func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
+func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*controllerVolumeInfo, error) {
 	klog.V(4).Infof("Getting NFS volume info: %s (subvolume: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
 	abnormal := false
@@ -1859,25 +1884,20 @@ func (s *ControllerService) getNFSVolumeInfo(ctx context.Context, meta *VolumeMe
 
 	klog.V(4).Infof("NFS volume %s status: abnormal=%t, message=%s", meta.Name, abnormal, message)
 
-	return &csi.ControllerGetVolumeResponse{
+	return &controllerVolumeInfo{
 		Volume: &csi.Volume{
 			VolumeId:      meta.Name,
 			CapacityBytes: capacityBytes,
 			VolumeContext: buildVolumeContext(*meta),
 		},
-		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
-			VolumeCondition: &csi.VolumeCondition{
-				Abnormal: abnormal,
-				Message:  message,
-			},
-		},
+		Health: VolumeHealth{Abnormal: abnormal, Message: message},
 	}, nil
 }
 
 // getNVMeOFVolumeInfo retrieves volume information and health status for an NVMe-oF volume.
 //
 //nolint:dupl // Each protocol's health check has unique verification logic despite similar structure
-func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
+func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*controllerVolumeInfo, error) {
 	klog.V(4).Infof("Getting NVMe-oF volume info: %s (subvolume: %s, NQN: %s)",
 		meta.Name, meta.DatasetID, meta.NVMeOFNQN)
 
@@ -1928,18 +1948,13 @@ func (s *ControllerService) getNVMeOFVolumeInfo(ctx context.Context, meta *Volum
 
 	klog.V(4).Infof("NVMe-oF volume %s status: abnormal=%t, message=%s", meta.Name, abnormal, message)
 
-	return &csi.ControllerGetVolumeResponse{
+	return &controllerVolumeInfo{
 		Volume: &csi.Volume{
 			VolumeId:      meta.Name,
 			CapacityBytes: capacityBytes,
 			VolumeContext: buildVolumeContext(*meta),
 		},
-		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
-			VolumeCondition: &csi.VolumeCondition{
-				Abnormal: abnormal,
-				Message:  message,
-			},
-		},
+		Health: VolumeHealth{Abnormal: abnormal, Message: message},
 	}, nil
 }
 
