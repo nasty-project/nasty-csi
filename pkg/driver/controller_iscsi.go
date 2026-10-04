@@ -59,8 +59,9 @@ func iscsiPropertiesV1(params *iscsiVolumeParams, clusterID string) map[string]s
 
 // generateIQN creates a unique IQN for a volume's dedicated iSCSI target.
 // Format: iqn.2137-04.storage.nasty:<volume-name>.
+// The backend normalizes IQNs to lowercase, independently of subvolume names.
 func generateIQN(volumeName string) string {
-	return "iqn.2137-04.storage.nasty:" + volumeName
+	return "iqn.2137-04.storage.nasty:" + strings.ToLower(volumeName)
 }
 
 func iscsiTargetUsesDevice(target *nastyapi.ISCSITarget, devicePath string) bool {

@@ -140,6 +140,11 @@ func TestGenerateIQN(t *testing.T) {
 			volumeName: "pvc-abc123-def456",
 			want:       "iqn.2137-04.storage.nasty:pvc-abc123-def456",
 		},
+		{
+			name:       "mixed-case templated suffix",
+			volumeName: "prod-pvc-abc123-data-qq4nQ1cn",
+			want:       "iqn.2137-04.storage.nasty:prod-pvc-abc123-data-qq4nq1cn",
+		},
 	}
 
 	for _, tt := range tests {
@@ -252,5 +257,79 @@ func TestAdoptISCSIVolumeFailsClosedOnTargetListError(t *testing.T) {
 
 	if _, err := controller.adoptISCSIVolume(context.Background(), request, subvolume, map[string]string{"server": "192.0.2.1"}); err == nil {
 		t.Fatal("expected adoption to fail when existing targets cannot be listed")
+	}
+}
+
+func TestCreateISCSIVolumeMixedCaseNameIsIdempotent(t *testing.T) {
+	const name = "prod-pvc-abc123-data-qq4nQ1cn"
+	const iqn = "iqn.2137-04.storage.nasty:prod-pvc-abc123-data-qq4nq1cn"
+	device := "/dev/loop7"
+	var subvolume *nastyapi.Subvolume
+	var target *nastyapi.ISCSITarget
+	creates := 0
+	client := &mockAPIClient{
+		GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+			if subvolume == nil {
+				return nil, nastyapi.ErrDatasetNotFound
+			}
+			return subvolume, nil
+		},
+		CreateSubvolumeFunc: func(_ context.Context, params nastyapi.SubvolumeCreateParams) (*nastyapi.Subvolume, error) {
+			if params.Name != name {
+				t.Fatalf("subvolume name = %q, want %q", params.Name, name)
+			}
+			subvolume = &nastyapi.Subvolume{
+				Filesystem: params.Filesystem, Name: params.Name, BlockDevice: &device,
+				Created: true, Properties: map[string]string{},
+			}
+			return subvolume, nil
+		},
+		SetSubvolumePropertiesFunc: func(_ context.Context, _, _ string, properties map[string]string) (*nastyapi.Subvolume, error) {
+			for key, value := range properties {
+				subvolume.Properties[key] = value
+			}
+			return subvolume, nil
+		},
+		CreateISCSITargetFunc: func(_ context.Context, params nastyapi.ISCSITargetCreateParams) (*nastyapi.ISCSITarget, error) {
+			creates++
+			if creates > 1 {
+				t.Fatal("retry must reuse the existing target")
+			}
+			if params.Name != name {
+				t.Fatalf("target name = %q, want %q", params.Name, name)
+			}
+			// Independent of generateIQN: model the backend's lowercase response.
+			target = &nastyapi.ISCSITarget{
+				ID: "target-1", IQN: iqn,
+				Luns: []nastyapi.ISCSILun{{BackstorePath: params.DevicePath}},
+			}
+			return target, nil
+		},
+		ListISCSITargetsFunc: func(context.Context) ([]nastyapi.ISCSITarget, error) {
+			return []nastyapi.ISCSITarget{*target}, nil
+		},
+	}
+	controller := NewControllerService(client, NewNodeRegistry(), "")
+	request := &csi.CreateVolumeRequest{
+		Name:       name,
+		Parameters: map[string]string{"filesystem": "tank", "server": "192.0.2.1"},
+		VolumeCapabilities: []*csi.VolumeCapability{{
+			AccessType: &csi.VolumeCapability_Block{Block: &csi.VolumeCapability_BlockVolume{}},
+		}},
+	}
+	for attempt := range 2 {
+		response, err := controller.createISCSIVolume(context.Background(), request)
+		if err != nil {
+			t.Fatalf("attempt %d: %v", attempt+1, err)
+		}
+		if response.Volume.VolumeId != "tank/"+name {
+			t.Fatalf("volume ID = %q, want %q", response.Volume.VolumeId, "tank/"+name)
+		}
+		if response.Volume.VolumeContext[VolumeContextKeyISCSIIQN] != iqn {
+			t.Fatalf("volume context IQN = %q, want %q", response.Volume.VolumeContext[VolumeContextKeyISCSIIQN], iqn)
+		}
+	}
+	if creates != 1 {
+		t.Fatalf("target creates = %d, want 1", creates)
 	}
 }
