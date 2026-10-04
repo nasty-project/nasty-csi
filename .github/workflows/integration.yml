@@ -110,6 +110,14 @@ jobs:
         with:
           ref: refs/pull/${{ inputs.pr }}/merge
 
+      - name: Checkout PR build dependency
+        if: inputs.pr != ''
+        uses: actions/checkout@v6
+        with:
+          repository: nasty-project/nasty-go
+          token: ${{ secrets.NASTY_PAT }}
+          path: nasty-go
+
       - name: Set up Docker Buildx
         if: inputs.pr != ''
         uses: docker/setup-buildx-action@v3
