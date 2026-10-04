@@ -546,7 +546,7 @@ func (s *ControllerService) expandSMBVolume(ctx context.Context, meta *VolumeMet
 }
 
 // getSMBVolumeInfo retrieves volume information and health status for an SMB volume.
-func (s *ControllerService) getSMBVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*csi.ControllerGetVolumeResponse, error) {
+func (s *ControllerService) getSMBVolumeInfo(ctx context.Context, meta *VolumeMetadata) (*controllerVolumeInfo, error) {
 	klog.V(4).Infof("Getting SMB volume info: %s (dataset: %s, shareUUID: %s)", meta.Name, meta.DatasetName, meta.SMBShareUUID)
 
 	abnormal := false
@@ -585,17 +585,12 @@ func (s *ControllerService) getSMBVolumeInfo(ctx context.Context, meta *VolumeMe
 
 	volumeContext := buildVolumeContext(*meta)
 
-	return &csi.ControllerGetVolumeResponse{
+	return &controllerVolumeInfo{
 		Volume: &csi.Volume{
 			VolumeId:      meta.Name,
 			CapacityBytes: 0,
 			VolumeContext: volumeContext,
 		},
-		Status: &csi.ControllerGetVolumeResponse_VolumeStatus{
-			VolumeCondition: &csi.VolumeCondition{
-				Abnormal: abnormal,
-				Message:  message,
-			},
-		},
+		Health: VolumeHealth{Abnormal: abnormal, Message: message},
 	}, nil
 }

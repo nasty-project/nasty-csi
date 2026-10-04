@@ -272,11 +272,11 @@ spec:
 ### Volume Health Monitoring
 - **Status**: ✅ Implemented
 - **Protocols**: NFS, NVMe-oF, iSCSI, SMB
-- **Description**: Report volume health status to Kubernetes via CSI `ControllerGetVolume` capability
-- **CSI Capability**: `GET_VOLUME` - enables Kubernetes to query volume health
+- **Description**: Report volume health through the CSI 1.13 alpha `ControllerGetVolumeHealth` and `NodeGetVolumeHealth` RPCs
+- **CSI Capability**: Controller and node `GET_VOLUME_HEALTH`; health listing is not advertised
 - **Features**:
-  - Reports `VolumeCondition` with `Abnormal` flag and descriptive `Message`
-  - Health checks performed on-demand when Kubernetes queries volume status
+  - Reports `VolumeHealth` with the requested volume ID and adverse `health_statuses`
+  - Health checks performed on-demand by clients that support the new RPCs
   - Protocol-specific validation of underlying storage resources
 
 **Health Checks Performed:**
@@ -295,15 +295,17 @@ spec:
 | SMB | SMB share enabled | Share disabled or missing |
 
 **Return Values:**
-- `Abnormal: false` - Volume is healthy, all checks passed
-- `Abnormal: true` - Volume has issues, `Message` contains details
+- Empty `health_statuses` - No adverse condition was detected
+- `DEGRADED`, reason `VolumeHealthCheckFailed` - A check failed; `message` preserves diagnostic details. Existing checks do not establish permanent data loss or cluster-wide inaccessibility.
 
 **Use Cases:**
 - Kubernetes can detect storage issues before pods fail
 - Operators can monitor volume health via CSI events
 - Automated alerting on storage problems
 
-**Note:** This is a controller-side capability. Kubernetes periodically queries volume health for volumes with `GET_VOLUME` capability enabled.
+**Compatibility:** CSI 1.13 removes the old alpha `VolumeCondition` fields from `ControllerGetVolume` and `NodeGetVolumeStats`. Those RPCs now return volume information and usage statistics without health fields. Older Kubernetes/health-monitor clients do not automatically consume the new alpha RPCs; health events and alerts require a compatible consumer. The driver does not implement `ControllerListVolumeHealth`.
+
+**Node paths:** For local accessibility checks, supply an absolute `volume_publish_path` or `staging_target_path`. The published path takes precedence; the staging path is used when no published path is supplied. Both paths are optional in CSI 1.13. If neither is supplied, the response reports `DEGRADED` with reason `VolumePathUnknown` because the driver cannot assess local accessibility from the ID alone. A missing supplied path is reported as an adverse health condition rather than a stats error.
 
 ### Raw Block Volumes with RWX (KubeVirt Live Migration)
 - **Status**: ✅ Implemented (since v0.15.2)

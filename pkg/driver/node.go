@@ -534,10 +534,6 @@ func (s *NodeService) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVo
 					Available: 968884224,  // ~924MB
 				},
 			},
-			VolumeCondition: &csi.VolumeCondition{
-				Abnormal: false,
-				Message:  "",
-			},
 		}, nil
 	}
 
@@ -595,17 +591,37 @@ func (s *NodeService) NodeGetVolumeStats(ctx context.Context, req *csi.NodeGetVo
 			volumePath, totalInodes, usedInodes, freeInodes)
 	}
 
-	// Check volume health and add VolumeCondition to response
-	health := s.checkVolumeHealth(ctx, volumePath, req.GetStagingTargetPath())
-	resp.VolumeCondition = health.ToCSI()
-
-	if health.Abnormal {
-		klog.Warningf("Volume %s health check failed: %s", req.GetVolumeId(), health.Message)
-	} else {
-		klog.V(4).Infof("Volume %s health check passed", req.GetVolumeId())
-	}
-
 	return resp, nil
+}
+
+// NodeGetVolumeHealth reports health independently of capacity statistics.
+func (s *NodeService) NodeGetVolumeHealth(ctx context.Context, req *csi.NodeGetVolumeHealthRequest) (*csi.NodeGetVolumeHealthResponse, error) {
+	if req.GetVolumeId() == "" {
+		return nil, status.Error(codes.InvalidArgument, errMsgVolumeIDRequired)
+	}
+	for _, path := range []string{req.GetVolumePublishPath(), req.GetStagingTargetPath()} {
+		if path != "" && !filepath.IsAbs(path) {
+			return nil, status.Error(codes.InvalidArgument, "Volume health paths must be absolute")
+		}
+	}
+	volumePath := req.GetVolumePublishPath()
+	if volumePath == "" {
+		volumePath = req.GetStagingTargetPath()
+	}
+	if volumePath == "" {
+		// Paths are optional in CSI 1.13. Without one we cannot assess local
+		// accessibility; report that limitation rather than implying health.
+		health := Unhealthy("No published or staging path is available to check volume health").ToCSI(req.GetVolumeId())
+		health.HealthStatuses[0].Reason = "VolumePathUnknown"
+		return &csi.NodeGetVolumeHealthResponse{VolumeHealth: health}, nil
+	}
+	var health VolumeHealth
+	if s.testMode {
+		health = checkBasicHealth(volumePath)
+	} else {
+		health = s.checkVolumeHealth(ctx, volumePath, req.GetStagingTargetPath())
+	}
+	return &csi.NodeGetVolumeHealthResponse{VolumeHealth: health.ToCSI(req.GetVolumeId())}, nil
 }
 
 // NodeExpandVolume expands a volume on the node.
@@ -724,7 +740,7 @@ func (s *NodeService) NodeGetCapabilities(_ context.Context, _ *csi.NodeGetCapab
 			{
 				Type: &csi.NodeServiceCapability_Rpc{
 					Rpc: &csi.NodeServiceCapability_RPC{
-						Type: csi.NodeServiceCapability_RPC_VOLUME_CONDITION,
+						Type: csi.NodeServiceCapability_RPC_GET_VOLUME_HEALTH,
 					},
 				},
 			},

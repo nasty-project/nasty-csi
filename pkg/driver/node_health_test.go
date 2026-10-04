@@ -3,6 +3,8 @@ package driver
 import (
 	"os"
 	"testing"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 func TestHealthy(t *testing.T) {
@@ -71,16 +73,26 @@ func TestVolumeHealthToCSI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			csiCondition := tt.health.ToCSI()
+			csiCondition := tt.health.ToCSI("tank/volume")
 			if csiCondition == nil {
 				t.Fatal("ToCSI() returned nil")
 				return
 			}
-			if csiCondition.Abnormal != tt.health.Abnormal {
-				t.Errorf("ToCSI().Abnormal = %v, want %v", csiCondition.Abnormal, tt.health.Abnormal)
+			if csiCondition.VolumeId != "tank/volume" {
+				t.Errorf("volume ID = %q", csiCondition.VolumeId)
 			}
-			if csiCondition.Message != tt.health.Message {
-				t.Errorf("ToCSI().Message = %q, want %q", csiCondition.Message, tt.health.Message)
+			if !tt.health.Abnormal {
+				if len(csiCondition.HealthStatuses) != 0 {
+					t.Fatal("healthy volume must have no adverse health entries")
+				}
+				return
+			}
+			if len(csiCondition.HealthStatuses) != 1 {
+				t.Fatal("expected one adverse health entry")
+			}
+			entry := csiCondition.HealthStatuses[0]
+			if entry.Status != csi.VolumeHealthErrorType_DEGRADED || entry.Reason != "VolumeHealthCheckFailed" || entry.Message != tt.health.Message {
+				t.Errorf("unexpected health entry: %v", entry)
 			}
 		})
 	}
