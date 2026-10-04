@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -69,6 +70,8 @@ type NodeService struct {
 	recentUnmounts    map[string]time.Time // tracks recently unmounted staging paths to avoid log spam
 	lifecycleLocks    volumeLifecycleLocks
 	isSourceMountedFn func(context.Context, string) (bool, error)
+	getMountRefsFn    func(context.Context, string) ([]string, error)
+	testPublications  sync.Map // volume ID -> target set; accessed under lifecycleLocks
 	nodeID            string
 	testMode          bool
 	enableDiscovery   bool
@@ -362,7 +365,7 @@ func (s *NodeService) isISCSIDevice(devicePath string) bool {
 }
 
 // NodePublishVolume mounts the volume to the target path.
-func (s *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (s *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (response *csi.NodePublishVolumeResponse, publishErr error) {
 	timer := metrics.NewVolumeOperationTimer("node", "publish")
 	klog.V(4).Infof("NodePublishVolume called with request: %+v", req)
 
@@ -384,6 +387,24 @@ func (s *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
 	volumeContext := req.GetVolumeContext()
+	unlock, lockErr := s.lifecycleLocks.lock(ctx, volumeID)
+	if lockErr != nil {
+		timer.ObserveError()
+		return nil, status.FromContextError(lockErr).Err()
+	}
+	defer unlock()
+	if err := s.checkSingleWriterPublication(ctx, req); err != nil {
+		timer.ObserveError()
+		return nil, err
+	}
+	defer func() {
+		if s.testMode && publishErr == nil {
+			value, _ := s.testPublications.LoadOrStore(volumeID, make(map[string]bool))
+			if targets, ok := value.(map[string]bool); ok {
+				targets[filepath.Clean(targetPath)] = true
+			}
+		}
+	}()
 
 	// Determine protocol from VolumeContext
 	protocol := getProtocolFromVolumeContext(volumeContext)
@@ -442,7 +463,7 @@ func (s *NodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 }
 
 // NodeUnpublishVolume unmounts the volume from the target path.
-func (s *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+func (s *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (response *csi.NodeUnpublishVolumeResponse, unpublishErr error) {
 	timer := metrics.NewVolumeOperationTimer("node", "unpublish")
 	klog.V(4).Infof("NodeUnpublishVolume called with request: %+v", req)
 
@@ -458,6 +479,26 @@ func (s *NodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpu
 
 	volumeID := req.GetVolumeId()
 	targetPath := req.GetTargetPath()
+	unlock, lockErr := s.lifecycleLocks.lock(ctx, volumeID)
+	if lockErr != nil {
+		timer.ObserveError()
+		return nil, status.FromContextError(lockErr).Err()
+	}
+	defer unlock()
+	defer func() {
+		if s.testMode && unpublishErr == nil {
+			if value, ok := s.testPublications.Load(volumeID); ok {
+				targets, ok := value.(map[string]bool)
+				if !ok {
+					return
+				}
+				delete(targets, filepath.Clean(targetPath))
+				if len(targets) == 0 {
+					s.testPublications.Delete(volumeID)
+				}
+			}
+		}
+	}()
 
 	klog.V(4).Infof("Unmounting volume %s from %s", volumeID, targetPath)
 

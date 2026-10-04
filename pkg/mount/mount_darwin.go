@@ -61,6 +61,11 @@ func IsSourceMounted(context.Context, string) (bool, error) {
 	return false, errSourceMountUnsupported
 }
 
+// GetBindMountRefs requires the Linux host mount namespace.
+func GetBindMountRefs(context.Context, string) ([]string, error) {
+	return nil, errSourceMountUnsupported
+}
+
 // Unmount unmounts a path on macOS.
 // For testing purposes, this is a no-op if the path is not actually mounted.
 func Unmount(ctx context.Context, targetPath string) error {

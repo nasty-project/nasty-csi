@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// volumeLifecycleLocks serialize stage and unstage for a volume, including an
+// volumeLifecycleLocks serialize stage, publish, unpublish, and unstage for a volume, including an
 // in-progress filesystem repair that must not be interrupted by RPC cancellation.
 type volumeLifecycleLocks struct {
 	entries map[string]*volumeLifecycleEntry
