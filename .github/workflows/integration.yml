@@ -69,7 +69,7 @@ jobs:
   # Check if driver files changed (skip integration tests for plugin-only changes)
   check-driver-changes:
     name: Check Driver Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: github.event_name == 'workflow_run'
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
@@ -93,7 +93,7 @@ jobs:
 
   compute-tag:
     name: Compute Image Tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: check-driver-changes
     if: |
       always() &&
@@ -120,7 +120,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: inputs.pr != ''
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build PR image
         if: inputs.pr != ''
@@ -190,7 +190,7 @@ jobs:
 
   ginkgo-e2e-nfs:
     name: "E2E: NFS"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     needs: compute-tag
     if: |
@@ -281,7 +281,7 @@ jobs:
 
   ginkgo-e2e-nvmeof:
     name: "E2E: NVMe-oF"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     needs: compute-tag
     if: |
@@ -369,7 +369,7 @@ jobs:
 
   ginkgo-e2e-iscsi:
     name: "E2E: iSCSI"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     needs: compute-tag
     if: |
@@ -457,7 +457,7 @@ jobs:
 
   ginkgo-e2e-smb:
     name: "E2E: SMB"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     needs: compute-tag
     if: |
@@ -551,7 +551,7 @@ jobs:
 
   ginkgo-e2e-shared:
     name: "E2E: Shared"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 120
     needs: compute-tag
     if: |
@@ -644,7 +644,7 @@ jobs:
 
   test-summary:
     name: "Test Summary"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     needs: [ginkgo-e2e-nfs, ginkgo-e2e-nvmeof, ginkgo-e2e-iscsi, ginkgo-e2e-smb, ginkgo-e2e-shared]
     if: always()
