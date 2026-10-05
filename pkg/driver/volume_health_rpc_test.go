@@ -15,8 +15,8 @@ import (
 func TestNodeGetVolumeHealth(t *testing.T) {
 	path := t.TempDir()
 	tests := []struct {
-		name     string
 		req      *csi.NodeGetVolumeHealthRequest
+		name     string
 		code     codes.Code
 		abnormal bool
 	}{

@@ -546,7 +546,6 @@ func TestNodeGetVolumeStats_TestMode(t *testing.T) {
 	if !foundBytes {
 		t.Error("Expected BYTES usage in response")
 	}
-
 }
 
 func TestNodeExpandVolume_Validation(t *testing.T) {
