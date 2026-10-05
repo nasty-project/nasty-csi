@@ -24,7 +24,8 @@ func TestBindMountRefs(t *testing.T) {
 		"8 1 8:2 / /fs-staging rw - ext4 /dev/sdd rw\n" +
 		"9 1 8:2 / /fs-target rw - ext4 /dev/sdd rw\n" +
 		`10 1 0:43 /with\040space /space\040staging rw - nfs server:/export rw` + "\n" +
-		`11 1 0:43 /with\040space /space\040target rw - nfs server:/export rw` + "\n"
+		`11 1 0:43 /with\040space /space\040target rw - nfs server:/export rw` + "\n" +
+		"12 1 0:4 net:[4026532506] /run/netns/cni-test rw - nsfs none rw\n"
 	for _, tt := range []struct {
 		name, source string
 		want         []string
@@ -50,6 +51,16 @@ func TestGetBindMountRefsLive(t *testing.T) {
 	if os.Getenv("NASTY_TEST_BIND_MOUNTS") != "1" {
 		t.Skip("requires explicit privileged Linux mount test environment")
 	}
+	// Kubernetes/CNI binds network namespace handles into the host mount table.
+	// Their roots are namespace identifiers, not absolute filesystem paths.
+	namespace := filepath.Join(t.TempDir(), "netns")
+	if err := os.WriteFile(namespace, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("/proc/self/ns/net", namespace, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unix.Unmount(namespace, 0) })
 	for _, block := range []bool{false, true} {
 		t.Run(map[bool]string{false: "filesystem", true: "file-symlink"}[block], func(t *testing.T) {
 			dir := t.TempDir()
@@ -106,6 +117,8 @@ func TestBindMountRefsFailsClosed(t *testing.T) {
 		"", "malformed\n", "1 0 invalid / / rw - ext4 /dev/sda rw\n",
 		"1 0 8:1 relative / rw - ext4 /dev/sda rw\n",
 		"1 0 8:1 / /elsewhere rw - ext4 /dev/sda rw\n",
+		"1 0 0:4 net:[4026532506] relative rw - nsfs none rw\n",
+		"1 0 0:4 net:[4026532506] /staging rw - nsfs none rw\n",
 	} {
 		if _, err := bindMountRefs("/staging", strings.NewReader(table)); err == nil {
 			t.Errorf("accepted unusable mount table %q", table)

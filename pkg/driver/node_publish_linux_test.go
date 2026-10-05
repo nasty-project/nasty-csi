@@ -18,6 +18,15 @@ func TestNodePublishSingleWriterLive(t *testing.T) {
 	if os.Getenv("NASTY_TEST_BIND_MOUNTS") != "1" {
 		t.Skip("requires explicit privileged Linux mount test environment")
 	}
+	// Reproduce the CNI namespace mounts found on Kubernetes hosts.
+	namespace := filepath.Join(t.TempDir(), "netns")
+	if err := os.WriteFile(namespace, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("/proc/self/ns/net", namespace, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unix.Unmount(namespace, 0) })
 	for _, block := range []bool{false, true} {
 		t.Run(map[bool]string{false: "filesystem", true: "block-file"}[block], func(t *testing.T) {
 			ctx := context.Background()

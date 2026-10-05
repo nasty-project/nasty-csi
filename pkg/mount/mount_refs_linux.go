@@ -48,7 +48,11 @@ func bindMountRefs(source string, reader io.Reader) ([]string, error) {
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
 	for scanner.Scan() {
 		parts := strings.SplitN(scanner.Text(), " - ", 2)
-		if len(parts) != 2 || len(strings.Fields(parts[1])) < 3 {
+		if len(parts) != 2 {
+			return nil, errMalformedMountInfo
+		}
+		filesystem := strings.Fields(parts[1])
+		if len(filesystem) < 3 {
 			return nil, errMalformedMountInfo
 		}
 		fields := strings.Fields(parts[0])
@@ -65,7 +69,10 @@ func bindMountRefs(source string, reader io.Reader) ([]string, error) {
 			}
 		}
 		e := entry{device: fields[2], root: unescape.Replace(fields[3]), target: unescape.Replace(fields[4])}
-		if !filepath.IsAbs(e.root) || !filepath.IsAbs(e.target) {
+		// Namespace bind mounts have roots such as net:[4026532506]. They
+		// are valid host mount entries, but cannot match a storage volume's
+		// absolute filesystem root. Other non-path roots still fail closed.
+		if !filepath.IsAbs(e.target) || (!filepath.IsAbs(e.root) && filesystem[0] != "nsfs") {
 			return nil, errMalformedMountInfo
 		}
 		entries = append(entries, e)
@@ -81,6 +88,9 @@ func bindMountRefs(source string, reader io.Reader) ([]string, error) {
 	}
 	if containing == nil {
 		return nil, fmt.Errorf("%w: no mount contains staged source", errMalformedMountInfo)
+	}
+	if !filepath.IsAbs(containing.root) {
+		return nil, fmt.Errorf("%w: staged source is a namespace handle, not a storage volume", errMalformedMountInfo)
 	}
 	relative, err := filepath.Rel(containing.target, source)
 	if err != nil {
