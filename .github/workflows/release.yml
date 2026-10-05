@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: nasty-project/nasty-go
-          ref: 9c384afe026f40355a344400388688ba9a0789d8
+          ref: 29fb4acdf10d8783c2beea61cffb5180e4b5749f # Match the nasty-go version in go.mod
           path: nasty-go
 
       - name: Set up Go
