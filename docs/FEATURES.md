@@ -1000,7 +1000,7 @@ reclaimPolicy: Delete
 ### Access Modes
 - **NFS**:
   - ✅ ReadWriteMany (RWX) - Multiple pods on multiple nodes
-  - ✅ ReadWriteOnce (RWO) - Single pod access
+  - ✅ ReadWriteOnce (RWO) - Single node access; multiple pods on that node are allowed
   - ✅ ReadWriteOncePod (RWOP) - Single pod access with stricter enforcement
 - **NVMe-oF**:
   - ✅ ReadWriteOnce (RWO) - Block storage limitation
@@ -1010,8 +1010,10 @@ reclaimPolicy: Delete
   - ✅ ReadWriteOncePod (RWOP) - Single pod access with stricter enforcement
 - **SMB**:
   - ✅ ReadWriteMany (RWX) - Multiple pods on multiple nodes
-  - ✅ ReadWriteOnce (RWO) - Single pod access
+  - ✅ ReadWriteOnce (RWO) - Single node access; multiple pods on that node are allowed
   - ✅ ReadWriteOncePod (RWOP) - Single pod access with stricter enforcement
+
+For CSI `SINGLE_NODE_SINGLE_WRITER`, the node rejects a second publish target with `FailedPrecondition`, including read-only requests. Same-target retries remain idempotent, and a new target is allowed after unpublishing the old one. The Linux host mount table preserves this check across driver restarts for both filesystem and raw-block bind mounts. `SINGLE_NODE_WRITER` and `SINGLE_NODE_MULTI_WRITER` still allow multiple targets on the same node.
 
 ### Volume Binding Modes
 - ✅ Immediate - Volume provisioned immediately when PVC created
