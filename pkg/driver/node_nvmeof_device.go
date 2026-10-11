@@ -209,18 +209,13 @@ func (s *NodeService) rescanNVMeNamespace(ctx context.Context, devicePath string
 	return nil
 }
 
-// extractNVMeController extracts the controller device path from a namespace device path
-// (e.g., /dev/nvme0n1 -> /dev/nvme0, /dev/nvme1n2 -> /dev/nvme1).
+// extractNVMeController resolves a controller from the namespace's sysfs owner.
 func extractNVMeController(devicePath string) string {
-	// Find the position of 'n' followed by a digit (the namespace part)
-	for i := len(devicePath) - 1; i >= 0; i-- {
-		if devicePath[i] == 'n' && i > 0 && devicePath[i-1] >= '0' && devicePath[i-1] <= '9' {
-			if i+1 < len(devicePath) && devicePath[i+1] >= '0' && devicePath[i+1] <= '9' {
-				return devicePath[:i]
-			}
-		}
+	controller, _, err := nvmeControllerForNamespace(sysBlockPath, devicePath)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return controller
 }
 
 // waitForDeviceInitialization waits for an NVMe device to be fully initialized.

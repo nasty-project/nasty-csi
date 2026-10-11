@@ -146,9 +146,16 @@ func triggerUdevForNVMeSubsystem(ctx context.Context) {
 }
 
 // findNVMeDeviceByNQN finds the device path for a given NQN.
-// With independent subsystems, NSID is always 1, so we just need to find the controller
-// and return the n1 device.
+// Each visible namespace must match the requested NQN in sysfs, including when
+// native multipath gives it a different instance number than its controller.
 func (s *NodeService) findNVMeDeviceByNQN(ctx context.Context, nqn string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	// Resolve identity first so ambiguity is not hidden by CLI parsing/fallbacks.
+	if _, err := nvmeNamespaceDeviceForNQN(sysBlockPath, nqn); errors.Is(err, errNVMeAmbiguousNamespace) {
+		return "", err
+	}
 	klog.V(4).Infof("Searching for NVMe device: NQN=%s (NSID=1)", nqn)
 
 	// Use nvme list-subsys which shows NQN
@@ -177,7 +184,7 @@ func (s *NodeService) runNVMeListSubsys(ctx context.Context) ([]byte, error) {
 }
 
 // parseNVMeListSubsysOutputForNQN parses nvme list-subsys JSON output to find device path.
-// With independent subsystems, NSID is always 1.
+// Namespace identity comes from sysfs, not the CLI controller name.
 func (s *NodeService) parseNVMeListSubsysOutputForNQN(output []byte, nqn string) string {
 	lines := strings.Split(string(output), "\n")
 	foundNQN := false
@@ -221,8 +228,11 @@ func (s *NodeService) extractDevicePathFromLinesForNQN(lines []string, startIdx 
 			continue
 		}
 
-		// With independent subsystems, NSID is always 1
-		devicePath := fmt.Sprintf("/dev/%sn1", controllerName)
+		// The CLI controller number is not a namespace device number.
+		devicePath, err := nvmeNamespaceDeviceForNQN(sysBlockPath, nqn)
+		if err != nil {
+			return ""
+		}
 		klog.V(4).Infof("Found NVMe device from list-subsys: %s (controller: %s, NQN: %s)",
 			devicePath, controllerName, nqn)
 		return devicePath
@@ -243,6 +253,12 @@ func (s *NodeService) extractControllerFromParts(parts []string) string {
 // findNVMeDeviceByNQNFromSys finds NVMe device by checking /sys/class/nvme.
 // With independent subsystems, NSID is always 1.
 func (s *NodeService) findNVMeDeviceByNQNFromSys(ctx context.Context, nqn string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if _, err := nvmeNamespaceDeviceForNQN(sysBlockPath, nqn); errors.Is(err, errNVMeAmbiguousNamespace) {
+		return "", err
+	}
 	klog.V(4).Infof("Searching for NVMe device via sysfs: NQN=%s (NSID=1)", nqn)
 
 	// Read /sys/class/nvme/nvmeX/subsysnqn for each device
@@ -281,8 +297,14 @@ func (s *NodeService) findNVMeDeviceByNQNFromSys(ctx context.Context, nqn string
 			deviceName, deviceNQN, nqn, deviceNQN == nqn)
 
 		if deviceNQN == nqn {
-			// Found the device, construct path with NSID=1 (independent subsystems)
-			devicePath := fmt.Sprintf("/dev/%sn1", deviceName)
+			// Resolve the actual visible namespace owned by this NQN.
+			devicePath, identityErr := nvmeNamespaceDeviceForNQN(sysBlockPath, nqn)
+			if errors.Is(identityErr, errNVMeAmbiguousNamespace) {
+				return "", identityErr
+			}
+			if identityErr != nil {
+				return "", fmt.Errorf("%w: namespace for %s not ready: %w", ErrNVMeDeviceUnhealthy, nqn, identityErr)
+			}
 			// Check if device exists AND is healthy (non-zero size block device)
 			if _, err := os.Stat(devicePath); err == nil {
 				if s.isDeviceHealthy(ctx, devicePath) {
@@ -387,6 +409,15 @@ func (s *NodeService) waitForNVMeDevice(ctx context.Context, nqn string, timeout
 					s.forceNamespaceRescan(ctx, ctrl)
 				}
 			}
+		case errors.Is(err, ErrNVMeDeviceNotFound) && controllerName != "":
+			// A live controller can precede namespace enumeration. Rescan that
+			// controller, but never invent a namespace path from its number.
+			if controllerName != lastControllerFound || attempt%5 == 0 {
+				lastControllerFound = controllerName
+				s.forceNamespaceRescan(ctx, "/dev/"+controllerName)
+			}
+		case errors.Is(err, errNVMeAmbiguousNamespace):
+			return "", err
 		default:
 			// Can't find device - do diagnostic dump every 10 attempts
 			if attempt%10 == 0 {
@@ -414,6 +445,12 @@ func (s *NodeService) waitForNVMeDevice(ctx context.Context, nqn string, timeout
 
 // findNVMeDeviceByNQNWithController finds NVMe device and returns both device path and controller name.
 func (s *NodeService) findNVMeDeviceByNQNWithController(ctx context.Context, nqn string) (devicePath, controllerName string, err error) {
+	if contextErr := ctx.Err(); contextErr != nil {
+		return "", "", contextErr
+	}
+	if _, identityErr := nvmeNamespaceDeviceForNQN(sysBlockPath, nqn); errors.Is(identityErr, errNVMeAmbiguousNamespace) {
+		return "", "", identityErr
+	}
 	// Use nvme list-subsys which shows NQN and controller mapping
 	subsysOutput, listErr := s.runNVMeListSubsys(ctx)
 	if listErr != nil {
@@ -425,8 +462,15 @@ func (s *NodeService) findNVMeDeviceByNQNWithController(ctx context.Context, nqn
 	// Parse the output to find controller name for this NQN
 	controllerName = s.findControllerForNQN(string(subsysOutput), nqn)
 	if controllerName != "" {
-		devicePath = fmt.Sprintf("/dev/%sn1", controllerName)
-		return devicePath, controllerName, nil
+		devicePath, err = nvmeNamespaceDeviceForNQN(sysBlockPath, nqn)
+		if err == nil {
+			controller, _, ownerErr := nvmeControllerForNamespace(sysBlockPath, devicePath)
+			if ownerErr != nil {
+				return "", "", ownerErr
+			}
+			controllerName = filepath.Base(controller)
+		}
+		return devicePath, controllerName, err
 	}
 
 	// Fall back to sysfs
@@ -449,7 +493,7 @@ func (s *NodeService) findControllerForNQN(output, nqn string) string {
 			for k := range len(parts) - 1 {
 				if parts[k] == "Name" && k+2 < len(parts) {
 					name := strings.TrimSpace(parts[k+2])
-					if strings.HasPrefix(name, "nvme") && !strings.Contains(name, "n") {
+					if nvmeControllerName.MatchString(name) {
 						return name
 					}
 				}
