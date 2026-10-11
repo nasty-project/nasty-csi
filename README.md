@@ -328,6 +328,12 @@ Volumes are adoptable if they have proper `nasty-csi:*` xattr properties set. Se
 
 ### Building
 
+Builds use the `nasty-go` revision pinned in `go.mod`; no sibling checkout is
+required. For local SDK development, use a temporary Go workspace containing
+this repository and your SDK checkout (`go work init . ../nasty-go`). Do not
+commit local workspace files or change the dependency pin merely to use a local
+checkout. CI and container builds use the pinned module.
+
 ```bash
 make build
 ```

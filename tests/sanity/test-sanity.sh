@@ -8,9 +8,8 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-# Phase 3 baseline: 75 tests passing (Identity, Controller, Node, and Snapshot services fully functional)
-# All CSI specification compliance tests passing (100% pass rate)
-BASELINE_PASS_COUNT=75
+# Ratchet from the observed mock-driver suite. Skipped/pending specs are not passes.
+BASELINE_PASS_COUNT=81
 
 echo "=== CSI Sanity Tests ==="
 echo "Project root: ${PROJECT_ROOT}"
@@ -47,6 +46,12 @@ if ! grep -A 5 "^func TestSanity(t \*testing.T)" tests/sanity/sanity_test.go | g
     # Clean up temp file
     rm -f "${TEST_OUTPUT}"
 
+    # A pass-count floor is not permission to ignore failed specs or panics.
+    if [ "${TEST_EXIT_CODE}" -ne 0 ] || [ "${FAILED}" -ne 0 ]; then
+        echo "Sanity suite failed (go test exit=${TEST_EXIT_CODE}, failed specs=${FAILED})"
+        exit 1
+    fi
+
     # Check if we meet the baseline
     if [ "${PASSED}" -ge "${BASELINE_PASS_COUNT}" ]; then
         echo ""
@@ -58,7 +63,7 @@ if ! grep -A 5 "^func TestSanity(t \*testing.T)" tests/sanity/sanity_test.go | g
         echo "  ✅ Controller service tests passing (100%)"
         echo "  ✅ Node service tests passing (100%)"
         echo "  ✅ Snapshot service tests passing (100%)"
-        echo "  ✅ ALL CSI specification tests passing (100%)"
+        echo "  ✅ Pass floor met; unsupported/pending specs may still be skipped"
         exit 0
     else
         echo ""

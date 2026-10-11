@@ -92,7 +92,7 @@ test-sanity:
 
 test-unit:
 	@echo "Running unit tests..."
-	$(GOTEST) -v -short ./pkg/...
+	$(GOTEST) -v -short -race -shuffle=on ./pkg/... ./cmd/...
 
 test-coverage:
 	@echo "Running tests with coverage (for SonarQube)..."
