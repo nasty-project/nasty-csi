@@ -101,6 +101,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nasty-project/nasty-go v0.0.0-20261004052917-29fb4acdf10d h1:gvG5pCLMjOw4RmhRv9I0JGV+zNXcreYL4D4Ccs2yecQ=
 github.com/nasty-project/nasty-go v0.0.0-20261004052917-29fb4acdf10d/go.mod h1:mliUWvqKgcs6yTSuAuHoNBpxaeNStoh2FR/SeSmaPSA=
+github.com/nasty-project/nasty-go v0.0.0-20261011203058-a327c3fe68f8 h1:PzLzGk/5q07uGVgFiN1MJPIHUsmbVfwaun00ehItIrQ=
+github.com/nasty-project/nasty-go v0.0.0-20261011203058-a327c3fe68f8/go.mod h1:mliUWvqKgcs6yTSuAuHoNBpxaeNStoh2FR/SeSmaPSA=
 github.com/onsi/ginkgo/v2 v2.33.0 h1:C8gBA6Uc2ZEubiV+SXiu5tZnMTwEmXHgkJwGozKtZf8=
 github.com/onsi/ginkgo/v2 v2.33.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=

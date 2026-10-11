@@ -3,6 +3,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -525,6 +526,10 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 		klog.V(4).Infof("Deleting subvolume: %s/%s", filesystem, subvolName)
 
 		firstErr := s.apiClient.DeleteSubvolume(ctx, filesystem, subvolName)
+		if errors.Is(firstErr, nastyapi.ErrUncertainOutcome) {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Unavailable, "Subvolume deletion outcome uncertain; reconcile before retrying: %v", firstErr)
+		}
 		if firstErr != nil && !isNotFoundError(firstErr) {
 			retryConfig := retry.DeletionConfig("delete-nfs-subvolume")
 			retryErr := retry.WithRetryNoResult(ctx, retryConfig, func() error {

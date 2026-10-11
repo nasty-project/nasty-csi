@@ -113,6 +113,9 @@ func isCapacityError(err error) bool {
 // createVolumeError returns an appropriate gRPC status error for volume creation failures.
 // Maps capacity-related errors to ResourceExhausted per CSI spec.
 func createVolumeError(msg string, err error) error {
+	if errors.Is(err, nastyapi.ErrUncertainOutcome) {
+		return status.Errorf(codes.Unavailable, "%s: outcome uncertain; reconcile server state before retrying: %v", msg, err)
+	}
 	if isCapacityError(err) {
 		return status.Errorf(codes.ResourceExhausted, "%s: %v", msg, err)
 	}
