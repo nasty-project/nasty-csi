@@ -11,6 +11,7 @@ permissions:
 
 env:
   GOLANGCI_LINT_VERSION: v2.14.0
+  GO_VERSION: 1.27.2
 
 jobs:
   lint:
@@ -21,13 +22,27 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --config .golangci.yml
+
+      - name: CI-ratchet regression tests
+        run: python3 -m unittest discover -s tests/ci
+
+      - name: Suppression budget (no growth against main)
+        run: |
+          git fetch origin main --depth=1
+          python3 tests/ci/check_nolint_budget.py --baseline-ref origin/main
+
+      - name: Reachable vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+      - name: Read-only module tidiness check
+        run: go mod tidy -diff
 
   test:
     name: Unit Tests
@@ -37,13 +52,31 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Download dependencies
         run: go mod download
 
       - name: Run tests
         run: make test-unit
+
+      - name: Current coverage
+        run: go test -short -coverprofile="$RUNNER_TEMP/csi-current.cover" ./pkg/... ./cmd/...
+
+      - name: Prepare main coverage baseline
+        run: |
+          git fetch origin main --depth=1
+          git worktree add --detach "$RUNNER_TEMP/csi-coverage-base" origin/main
+
+      - name: Main coverage (same Go version and platform)
+        working-directory: ${{ runner.temp }}/csi-coverage-base
+        run: |
+          go mod edit -dropreplace github.com/nasty-project/nasty-go
+          go mod download github.com/nasty-project/nasty-go
+          go test -short -coverprofile="$RUNNER_TEMP/csi-baseline.cover" ./pkg/... ./cmd/...
+
+      - name: Package coverage must not decrease
+        run: python3 tests/ci/check_coverage.py "$RUNNER_TEMP/csi-current.cover" "$RUNNER_TEMP/csi-baseline.cover"
 
       - name: Sanity runner regressions
         run: bash tests/sanity/test-runner.sh
