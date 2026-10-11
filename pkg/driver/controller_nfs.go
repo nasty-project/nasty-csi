@@ -422,7 +422,7 @@ func (s *ControllerService) createNFSVolume(ctx context.Context, req *csi.Create
 }
 
 // deleteNFSVolume deletes an NFS volume with ownership verification.
-func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) { //nolint:gocognit,gocyclo // deletion has many fallback paths by design
+func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) { //nolint:gocyclo // deletion has many fallback paths by design
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolNFS, "delete")
 	klog.V(4).Infof("Deleting NFS volume: %s (subvolumeID: %s, shareUUID: %s)", meta.Name, meta.DatasetID, meta.NFSShareUUID)
 
@@ -447,7 +447,8 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 				timer.ObserveSuccess()
 				return &csi.DeleteVolumeResponse{}, nil
 			}
-			klog.Warningf("Failed to verify subvolume ownership via xattr properties: %v (continuing with deletion)", getErr)
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", getErr)
 		} else if subvol.Properties != nil {
 			props := subvol.Properties
 
@@ -499,23 +500,18 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 		case isNotFoundError(err):
 			klog.Infof("NFS share %s not found, assuming already deleted", shareUUID)
 		default:
-			klog.Warningf("Failed to delete NFS share %s: %v", shareUUID, err)
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Unavailable, "Failed to delete NFS share %s: %v", shareUUID, err)
 		}
 	}
 	// Fallback: if share UUID was empty or deletion failed, try to find and delete by path
 	if filesystem != "" && subvolName != "" {
 		sharePath := "/fs/" + filesystem + "/" + subvolName
-		shares, listErr := s.apiClient.ListNFSShares(ctx)
-		if listErr == nil {
-			for _, share := range shares {
-				if share.Path == sharePath {
-					klog.Infof("Found NFS share by path %s (id=%s), deleting", sharePath, share.ID)
-					if err := s.apiClient.DeleteNFSShare(ctx, share.ID); err != nil && !isNotFoundError(err) {
-						klog.Warningf("Failed to delete NFS share %s by path lookup: %v", share.ID, err)
-					}
-					break
-				}
-			}
+		cleanupErr := deleteShareByPath(ctx, ProtocolNFS, sharePath, s.apiClient.ListNFSShares,
+			func(share nastyapi.NFSShare) (string, string) { return share.ID, share.Path }, s.apiClient.DeleteNFSShare)
+		if cleanupErr != nil {
+			timer.ObserveError()
+			return nil, cleanupErr
 		}
 	}
 

@@ -481,7 +481,8 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 			timer.ObserveSuccess()
 			return &csi.DeleteVolumeResponse{}, nil
 		}
-		klog.Warningf("Failed to verify subvolume ownership: %v (continuing with deletion)", err)
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", err)
 	}
 
 	if subvol != nil && subvol.Properties != nil {
@@ -509,6 +510,10 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	if nqn != "" {
 		klog.V(4).Infof("Looking up NVMe-oF subsystem by NQN: %s", nqn)
 		subsystem, lookupErr := s.apiClient.GetNVMeOFSubsystemByNQN(ctx, nqn)
+		if lookupErr != nil && !isNotFoundError(lookupErr) {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Unavailable, "Cannot verify NVMe-oF subsystem cleanup: %v", lookupErr)
+		}
 		if lookupErr == nil && subsystem != nil {
 			subsystemID = subsystem.ID
 		}
