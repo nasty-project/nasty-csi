@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	exec "github.com/nasty-project/nasty-csi/pkg/cmdexec"
 
 	"github.com/nasty-project/nasty-csi/pkg/mount"
 	"github.com/nasty-project/nasty-csi/pkg/retry"
