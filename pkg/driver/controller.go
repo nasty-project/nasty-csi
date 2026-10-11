@@ -1054,10 +1054,10 @@ func (s *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 	// Try property-based lookup first (preferred method - uses xattr properties as source of truth)
 	// Pass empty prefix to search all datasets across all pools
-	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
+	volumeMeta, err := s.lookupDeletionVolume(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("Property-based lookup failed for volume %s: %v", volumeID, err)
-		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", err)
+		return nil, err
 	}
 
 	if volumeMeta == nil {

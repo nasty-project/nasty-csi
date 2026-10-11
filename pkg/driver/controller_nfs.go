@@ -449,6 +449,9 @@ func (s *ControllerService) deleteNFSVolume(ctx context.Context, meta *VolumeMet
 			}
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", getErr)
+		} else if ownershipErr := validateDeletionOwnership(subvol, meta, ProtocolNFS); ownershipErr != nil {
+			timer.ObserveError()
+			return nil, ownershipErr
 		} else if subvol.Properties != nil {
 			props := subvol.Properties
 

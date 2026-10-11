@@ -485,6 +485,10 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 		return nil, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", err)
 	}
 
+	if ownershipErr := validateDeletionOwnership(subvol, meta, ProtocolNVMeOF); ownershipErr != nil {
+		timer.ObserveError()
+		return nil, ownershipErr
+	}
 	if subvol != nil && subvol.Properties != nil {
 		props := subvol.Properties
 		if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
