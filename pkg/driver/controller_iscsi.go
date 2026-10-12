@@ -395,8 +395,7 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 		if isNotFoundError(err) {
 			return "", true, nil
 		}
-		klog.Warningf("Failed to verify subvolume ownership: %v (continuing with deletion)", err)
-		return deleteStrategy, false, nil
+		return "", false, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", err)
 	}
 
 	props := subvol.Properties
@@ -427,7 +426,7 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 const deleteStrategyDelete = "delete"
 
 // deleteISCSIVolume deletes an iSCSI volume and all associated resources.
-// Subvolume is deleted first; if it fails, iSCSI target is preserved to prevent orphaning.
+// Presentation is deleted first; any lookup or cleanup failure preserves the subvolume for retry.
 func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeMetadata) (*csi.DeleteVolumeResponse, error) {
 	timer := metrics.NewVolumeOperationTimer(metrics.ProtocolISCSI, deleteStrategyDelete)
 	klog.Infof("Deleting iSCSI volume: %s (subvolume: %s, IQN: %s)",
@@ -467,6 +466,10 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 	if iqn != "" {
 		klog.V(4).Infof("Looking up iSCSI target by IQN: %s", iqn)
 		target, lookupErr := s.apiClient.GetISCSITargetByIQN(ctx, iqn)
+		if lookupErr != nil && !isNotFoundError(lookupErr) {
+			timer.ObserveError()
+			return nil, status.Errorf(codes.Unavailable, "Cannot verify iSCSI target cleanup: %v", lookupErr)
+		}
 		if lookupErr == nil && target != nil {
 			targetID = target.ID
 		}
