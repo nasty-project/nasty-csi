@@ -6,7 +6,6 @@ package mount
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,46 +19,30 @@ import (
 	"k8s.io/klog/v2"
 )
 
-var errMalformedMountInfo = errors.New("malformed host mount information")
-
 // IsMounted checks if a path is mounted.
 func IsMounted(ctx context.Context, targetPath string) (bool, error) {
-	// Use findmnt to check if path is mounted with timeout
-	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(checkCtx, "findmnt", "-o", "TARGET", "-n", "-l", targetPath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// findmnt returns non-zero exit code if path is not found
-		exitErr := &exec.ExitError{}
-		if errors.As(err, &exitErr) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to check mount: %w", err)
+	if err := ctx.Err(); err != nil {
+		return false, err
 	}
-
-	// If we got output, the path is mounted
-	return len(output) > 0, nil
+	// Read our mount namespace without stat-ing a potentially hung remote share.
+	file, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return false, fmt.Errorf("failed to open mount information: %w", err)
+	}
+	defer file.Close()
+	mounted, err := isPathInMountInfo(targetPath, file)
+	if err != nil {
+		return false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return mounted, nil
 }
 
 // IsDeviceMounted checks if a device path is mounted (for block devices).
 func IsDeviceMounted(ctx context.Context, targetPath string) (bool, error) {
-	// For block devices, check if it's bind mounted with timeout
-	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(checkCtx, "findmnt", "-o", "SOURCE", "-n", targetPath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// findmnt returns non-zero if not found
-		exitErr := &exec.ExitError{}
-		if errors.As(err, &exitErr) {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to check mount: %w", err)
-	}
-
-	// If we got output, the path is mounted
-	return len(output) > 0, nil
+	return IsMounted(ctx, targetPath)
 }
 
 // IsSourceMounted checks the host mount namespace by device number, so aliases

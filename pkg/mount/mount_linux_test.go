@@ -5,6 +5,8 @@ package mount
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -52,5 +54,29 @@ func TestIsSourceMountedRefusesInvalidDevice(t *testing.T) {
 	cancel()
 	if _, err := IsSourceMounted(ctx, "/dev/null"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled mount check = %v, want context canceled", err)
+	}
+}
+
+func TestMountChecksDoNotExecuteFindmnt(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "findmnt-was-run")
+	script := "#!/bin/sh\ntouch '" + marker + "'\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "findmnt"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	for _, check := range []func(context.Context, string) (bool, error){IsMounted, IsDeviceMounted} {
+		mounted, err := check(context.Background(), "/")
+		if !mounted || err != nil {
+			t.Fatalf("root mount check = %v, %v", mounted, err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, err := check(ctx, "/"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled mount check = %v", err)
+		}
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("mount check executed findmnt: %v", err)
 	}
 }
