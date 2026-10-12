@@ -61,7 +61,7 @@ func TestMountChecksDoNotExecuteFindmnt(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "findmnt-was-run")
 	script := "#!/bin/sh\ntouch '" + marker + "'\nexit 1\n"
-	if err := os.WriteFile(filepath.Join(dir, "findmnt"), []byte(script), 0700); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "findmnt"), []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
