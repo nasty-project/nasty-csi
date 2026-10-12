@@ -20,7 +20,7 @@ func TestUnstagePreservesUnexpectedContents(t *testing.T) {
 		t.Run(protocol, func(t *testing.T) {
 			dir := t.TempDir()
 			file := filepath.Join(dir, "must-survive")
-			if err := os.WriteFile(file, []byte("live data"), 0600); err != nil {
+			if err := os.WriteFile(file, []byte("live data"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			req := &csi.NodeUnstageVolumeRequest{VolumeId: "test", StagingTargetPath: dir}
@@ -45,7 +45,7 @@ func TestUnstageEmptyAndMissingDirectories(t *testing.T) {
 	for _, protocol := range []string{"nfs", "smb"} {
 		t.Run(protocol, func(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "stage")
-			if err := os.Mkdir(dir, 0700); err != nil {
+			if err := os.Mkdir(dir, 0o700); err != nil {
 				t.Fatal(err)
 			}
 			req := &csi.NodeUnstageVolumeRequest{VolumeId: "test", StagingTargetPath: dir}

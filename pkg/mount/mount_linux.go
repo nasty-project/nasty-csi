@@ -29,10 +29,13 @@ func IsMounted(ctx context.Context, targetPath string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to open mount information: %w", err)
 	}
-	defer file.Close()
 	mounted, err := isPathInMountInfo(targetPath, file)
+	closeErr := file.Close()
 	if err != nil {
 		return false, err
+	}
+	if closeErr != nil {
+		return false, fmt.Errorf("failed to close mount information: %w", closeErr)
 	}
 	if err := ctx.Err(); err != nil {
 		return false, err
