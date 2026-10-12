@@ -14,9 +14,8 @@ WORKDIR /workspace
 # Install build dependencies
 RUN apk add --no-cache make git
 
-# Copy go mod files and local replace dependency
+# Use the same pinned SDK in local, CI and container builds.
 COPY go.mod go.sum ./
-COPY nasty-go/ ./nasty-go/
 RUN go mod download
 
 # Copy source code
