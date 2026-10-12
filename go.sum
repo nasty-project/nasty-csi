@@ -99,8 +99,6 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFd
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/nasty-project/nasty-go v0.0.0-20261004052917-29fb4acdf10d h1:gvG5pCLMjOw4RmhRv9I0JGV+zNXcreYL4D4Ccs2yecQ=
-github.com/nasty-project/nasty-go v0.0.0-20261004052917-29fb4acdf10d/go.mod h1:mliUWvqKgcs6yTSuAuHoNBpxaeNStoh2FR/SeSmaPSA=
 github.com/nasty-project/nasty-go v0.0.0-20261011203058-a327c3fe68f8 h1:PzLzGk/5q07uGVgFiN1MJPIHUsmbVfwaun00ehItIrQ=
 github.com/nasty-project/nasty-go v0.0.0-20261011203058-a327c3fe68f8/go.mod h1:mliUWvqKgcs6yTSuAuHoNBpxaeNStoh2FR/SeSmaPSA=
 github.com/onsi/ginkgo/v2 v2.33.0 h1:C8gBA6Uc2ZEubiV+SXiu5tZnMTwEmXHgkJwGozKtZf8=
