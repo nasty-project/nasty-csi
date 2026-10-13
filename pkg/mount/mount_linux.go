@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
+
+	exec "github.com/nasty-project/nasty-csi/pkg/cmdexec"
 
 	"golang.org/x/sys/unix"
 	"k8s.io/klog/v2"

@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	exec "github.com/nasty-project/nasty-csi/pkg/cmdexec"
 
 	"k8s.io/klog/v2"
 )
