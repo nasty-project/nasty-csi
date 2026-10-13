@@ -178,6 +178,7 @@ func (d *Driver) Run() error {
 // Stop stops the driver.
 func (d *Driver) Stop() {
 	klog.Info("Stopping NASty CSI Driver")
+	drainDeadline := time.Now().Add(25 * time.Second)
 
 	// Stop health monitor
 	if d.node != nil {
@@ -200,12 +201,31 @@ func (d *Driver) Stop() {
 
 	// Stop gRPC server
 	if d.srv != nil {
-		d.srv.GracefulStop()
+		stopGRPCServer(d.srv, time.Until(drainDeadline))
 	}
 
 	// Close API client
 	if d.apiClient != nil {
 		d.apiClient.Close()
+	}
+}
+
+// Drain in-flight RPCs, but do not let a hung storage command pin shutdown.
+func stopGRPCServer(server *grpc.Server, timeout time.Duration) {
+	done := make(chan struct{})
+	go func() {
+		server.GracefulStop()
+		close(done)
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		klog.Warning("CSI RPC drain deadline reached; forcing gRPC shutdown")
+		// gRPC can hold its mutex while GracefulStop waits for a handler
+		// ignoring cancellation. Even Stop must not pin process shutdown.
+		go server.Stop()
 	}
 }
 
