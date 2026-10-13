@@ -398,10 +398,10 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 		return "", false, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", err)
 	}
 
-	props := subvol.Properties
-	if props == nil {
-		return deleteStrategy, false, nil
+	if ownershipErr := validateDeletionOwnership(subvol, meta, ProtocolISCSI); ownershipErr != nil {
+		return "", false, ownershipErr
 	}
+	props := subvol.Properties
 
 	if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
 		return "", false, status.Errorf(codes.FailedPrecondition,

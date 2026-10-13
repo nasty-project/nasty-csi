@@ -1669,8 +1669,12 @@ func TestDeleteVolumeRPC(t *testing.T) {
 			req: &csi.DeleteVolumeRequest{
 				VolumeId: "unknown-volume",
 			},
-			mockSetup: func(m *mockAPIClient) {},
-			wantErr:   false, // DeleteVolume is idempotent
+			mockSetup: func(m *mockAPIClient) {
+				m.FindSubvolumeByCSIVolumeNameFunc = func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+					return nil, nastyapi.ErrDatasetNotFound
+				}
+			},
+			wantErr: false, // DeleteVolume is idempotent
 		},
 		{
 			name: "successful NFS volume deletion",

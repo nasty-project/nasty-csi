@@ -317,22 +317,11 @@ func (s *ControllerService) deleteSMBVolume(ctx context.Context, meta *VolumeMet
 			}
 			timer.ObserveError()
 			return nil, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", getErr)
+		} else if ownershipErr := validateDeletionOwnership(subvol, meta, ProtocolSMB); ownershipErr != nil {
+			timer.ObserveError()
+			return nil, ownershipErr
 		} else if subvol.Properties != nil {
 			props := subvol.Properties
-
-			if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
-				timer.ObserveError()
-				return nil, status.Errorf(codes.FailedPrecondition,
-					"Subvolume %s/%s is not managed by nasty-csi (managed_by=%s)", filesystem, subvolName, managedBy)
-			}
-
-			if volumeName, ok := props[nastyapi.PropertyCSIVolumeName]; ok {
-				if volumeName != meta.DatasetName {
-					timer.ObserveError()
-					return nil, status.Errorf(codes.FailedPrecondition,
-						"Subvolume %s/%s volume name mismatch (stored=%s, requested=%s)", filesystem, subvolName, volumeName, meta.DatasetName)
-				}
-			}
 
 			if strategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && strategy != "" {
 				deleteStrategy = strategy
