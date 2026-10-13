@@ -45,6 +45,11 @@ jobs:
       - name: Run tests
         run: make test-unit
 
+      - name: Workload image regressions (no live cluster)
+        run: |
+          go test -race ./tests/e2e/framework
+          python3 -m unittest discover -s tests/ci
+
       - name: Sanity runner regressions
         run: bash tests/sanity/test-runner.sh
 
