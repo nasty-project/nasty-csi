@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	nastyapi "github.com/nasty-project/nasty-go"
 	"k8s.io/klog/v2"
 )
 
@@ -109,6 +110,11 @@ func WithRetry[T any](ctx context.Context, config Config, fn func() (T, error)) 
 		}
 
 		lastErr = err
+		// Return to the CSI reconciliation boundary rather than replaying a
+		// mutation whose server-side outcome was lost, even with a custom policy.
+		if errors.Is(err, nastyapi.ErrUncertainOutcome) {
+			return zero, err
+		}
 
 		// Check if error is retryable
 		if config.RetryableFunc != nil && !config.RetryableFunc(err) {
