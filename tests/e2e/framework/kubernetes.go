@@ -395,7 +395,7 @@ type PodOptions struct {
 // CreatePod creates a test pod with a volume mount.
 func (k *KubernetesClient) CreatePod(ctx context.Context, opts PodOptions) (*corev1.Pod, error) {
 	if opts.Image == "" {
-		opts.Image = "public.ecr.aws/docker/library/busybox:latest"
+		opts.Image = TestImage()
 	}
 	if opts.Command == nil {
 		opts.Command = []string{"sleep", "3600"}
@@ -409,9 +409,10 @@ func (k *KubernetesClient) CreatePod(ctx context.Context, opts PodOptions) (*cor
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:    "test",
-					Image:   opts.Image,
-					Command: opts.Command,
+					Name:            "test",
+					Image:           opts.Image,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Command:         opts.Command,
 				},
 			},
 			Volumes: []corev1.Volume{
@@ -1016,7 +1017,7 @@ spec:
 // CreateStatefulSet creates a StatefulSet with volumeClaimTemplates using kubectl.
 func (k *KubernetesClient) CreateStatefulSet(ctx context.Context, opts StatefulSetOptions) error {
 	if opts.Image == "" {
-		opts.Image = "public.ecr.aws/docker/library/busybox:latest"
+		opts.Image = TestImage()
 	}
 	if opts.MountPath == "" {
 		opts.MountPath = "/data"
@@ -1063,6 +1064,7 @@ spec:
       containers:
       - name: test
         image: %s
+        imagePullPolicy: IfNotPresent
         %s
         volumeMounts:
         - name: data
