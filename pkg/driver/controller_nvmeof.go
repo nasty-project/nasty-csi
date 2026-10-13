@@ -492,12 +492,6 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 	}
 	if subvol != nil && subvol.Properties != nil {
 		props := subvol.Properties
-		if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
-			timer.ObserveError()
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"Subvolume %s is not managed by nasty-csi (managed_by=%s)", meta.DatasetID, managedBy)
-		}
-
 		if deleteStrategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && deleteStrategy == nastyapi.DeleteStrategyRetain {
 			klog.Infof("Volume %s has delete strategy 'retain', skipping deletion", meta.Name)
 			timer.ObserveSuccess()
