@@ -5,7 +5,7 @@ go 1.27.1
 require (
 	github.com/container-storage-interface/spec v1.13.0
 	github.com/kubernetes-csi/csi-test/v5 v5.6.0
-	github.com/nasty-project/nasty-go v0.0.0-20261004052917-29fb4acdf10d
+	github.com/nasty-project/nasty-go v0.0.0-20261013104316-5627578a73f9
 	github.com/onsi/ginkgo/v2 v2.33.0
 	github.com/onsi/gomega v1.44.0
 	github.com/prometheus/client_golang v1.24.1
@@ -18,6 +18,7 @@ require (
 	k8s.io/apimachinery v0.37.1
 	k8s.io/client-go v0.37.1
 	k8s.io/klog/v2 v2.140.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -75,5 +76,4 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
 )

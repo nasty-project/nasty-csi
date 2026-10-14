@@ -3,6 +3,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -398,10 +399,10 @@ func (s *ControllerService) verifyISCSIOwnership(ctx context.Context, meta *Volu
 		return "", false, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", err)
 	}
 
-	props := subvol.Properties
-	if props == nil {
-		return deleteStrategy, false, nil
+	if ownershipErr := validateDeletionOwnership(subvol, meta, ProtocolISCSI); ownershipErr != nil {
+		return "", false, ownershipErr
 	}
+	props := subvol.Properties
 
 	if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
 		return "", false, status.Errorf(codes.FailedPrecondition,
@@ -490,6 +491,10 @@ func (s *ControllerService) deleteISCSIVolume(ctx context.Context, meta *VolumeM
 
 	// Step 2: Delete subvolume (target is gone, no guard will block)
 	deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
+	if errors.Is(deleteErr, nastyapi.ErrUncertainOutcome) {
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Unavailable, "Subvolume deletion outcome uncertain; reconcile before retrying: %v", deleteErr)
+	}
 	if deleteErr != nil && !isNotFoundError(deleteErr) {
 		retryConfig := retry.DeletionConfig("delete-iscsi-subvol")
 		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {

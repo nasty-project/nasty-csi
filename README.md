@@ -198,7 +198,8 @@ See the [Helm chart repository](https://github.com/nasty-project/nasty-chart) fo
 - `--node-id` - Node identifier (typically the node name)
 - `--driver-name` - CSI driver name (default: `nasty.csi.io`)
 - `--api-url` - NASty API WebSocket URL (e.g., `wss://YOUR-NASTY-IP/api/current`)
-- `--api-key` - NASty API key
+- `NASTY_API_KEY` - preferred API credential source, avoiding exposure in process arguments
+- `--api-key` - compatibility override; takes precedence over `NASTY_API_KEY` but exposes the credential in process arguments
 - `--max-concurrent-nvme-connects` - Maximum concurrent NVMe-oF connect operations per node (default: `5`)
 
 ### Storage Class Parameters

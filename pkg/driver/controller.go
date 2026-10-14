@@ -113,6 +113,9 @@ func isCapacityError(err error) bool {
 // createVolumeError returns an appropriate gRPC status error for volume creation failures.
 // Maps capacity-related errors to ResourceExhausted per CSI spec.
 func createVolumeError(msg string, err error) error {
+	if errors.Is(err, nastyapi.ErrUncertainOutcome) {
+		return status.Errorf(codes.Unavailable, "%s: outcome uncertain; reconcile server state before retrying: %v", msg, err)
+	}
 	if isCapacityError(err) {
 		return status.Errorf(codes.ResourceExhausted, "%s: %v", msg, err)
 	}
@@ -1054,10 +1057,10 @@ func (s *ControllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 	// Try property-based lookup first (preferred method - uses xattr properties as source of truth)
 	// Pass empty prefix to search all datasets across all pools
-	volumeMeta, err := s.lookupVolumeByCSIName(ctx, volumeID)
+	volumeMeta, err := s.lookupDeletionVolume(ctx, volumeID)
 	if err != nil {
 		klog.Errorf("Property-based lookup failed for volume %s: %v", volumeID, err)
-		return nil, status.Errorf(codes.Internal, "Failed to lookup volume: %v", err)
+		return nil, err
 	}
 
 	if volumeMeta == nil {

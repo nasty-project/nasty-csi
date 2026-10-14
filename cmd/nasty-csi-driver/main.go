@@ -67,6 +67,9 @@ func main() {
 	}
 
 	if *apiKey == "" {
+		*apiKey = os.Getenv("NASTY_API_KEY")
+	}
+	if *apiKey == "" {
 		klog.Fatal("Storage API key must be provided")
 	}
 
@@ -99,14 +102,19 @@ func main() {
 	// Handle graceful shutdown on SIGTERM/SIGINT
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(sigCh)
+	shutdownDone := make(chan struct{})
 
 	go func() {
 		sig := <-sigCh
 		klog.Infof("Received signal %v — initiating graceful shutdown", sig)
 		drv.Stop()
+		close(shutdownDone)
 	}()
 
 	if err := drv.Run(); err != nil {
 		klog.Fatalf("Failed to run driver: %v", err)
 	}
+	// Serve can return as soon as gRPC stops; let remaining cleanup finish.
+	<-shutdownDone
 }

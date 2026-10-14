@@ -52,7 +52,8 @@ runs:
         sudo apt-get install -y --no-install-recommends \
           qemu-system-x86 \
           qemu-utils \
-          genisoimage
+          genisoimage \
+          skopeo
 
     - name: Read prebuilt image configuration
       id: image-config
@@ -202,6 +203,46 @@ runs:
         echo ""
         echo "Loaded kernel modules:"
         ssh $SSH_OPTS ci@localhost "lsmod | grep -E 'nvme_tcp|iscsi_tcp|nfs|cifs' || echo 'WARNING: some modules not loaded'"
+
+    - name: Cache pinned workload image archive
+      id: workload-cache
+      continue-on-error: true
+      uses: actions/cache/restore@v5
+      with:
+        path: /tmp/e2e-workload-images.tar
+        key: e2e-workload-oci-v1-${{ hashFiles('tests/e2e/framework/test-image.txt') }}
+
+    - name: Prepare and preload pinned workload image
+      shell: bash
+      run: |
+        REFERENCE_FILE="$GITHUB_ACTION_PATH/../../../tests/e2e/framework/test-image.txt"
+        bash "$GITHUB_ACTION_PATH/prepare-test-image.sh" "$REFERENCE_FILE" /tmp/e2e-workload-images.tar
+        IMAGE=$(tr -d '\n\r' < "$REFERENCE_FILE")
+        SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -p 2222"
+        SCP_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i /tmp/vm-key -P 2222"
+        scp $SCP_OPTS /tmp/e2e-workload-images.tar ci@localhost:/tmp/e2e-workload-images.tar
+        timeout 3m ssh $SSH_OPTS ci@localhost "sudo k3s ctr images import --all-platforms --digests --no-unpack --base-name '${IMAGE%@*}' /tmp/e2e-workload-images.tar"
+        ssh $SSH_OPTS ci@localhost bash -s -- "$IMAGE" <<'REMOTE'
+        set -euo pipefail
+        sudo k3s ctr images list | awk -v image="$1" -v digest="${1##*@}" \
+          '$1 == image && $3 == digest { found=1 } END { exit !found }'
+        trap 'sudo kubectl delete pod e2e-image-preflight --ignore-not-found --wait=false' EXIT
+        sudo kubectl run e2e-image-preflight --image="$1" --image-pull-policy=Never \
+          --restart=Never --command -- sh -c 'echo preloaded-image-ok; dd if=/dev/zero of=/tmp/check bs=1 count=1; sync; test -s /tmp/check'
+        if ! sudo kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/e2e-image-preflight --timeout=90s; then
+          sudo kubectl describe pod e2e-image-preflight
+          sudo kubectl logs e2e-image-preflight || true
+          exit 1
+        fi
+        REMOTE
+
+    - name: Save verified workload image archive
+      if: steps.workload-cache.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@v5
+      with:
+        path: /tmp/e2e-workload-images.tar
+        key: e2e-workload-oci-v1-${{ hashFiles('tests/e2e/framework/test-image.txt') }}
 
     - name: Connect host to Tailscale
       if: inputs.tailscale_authkey != ''

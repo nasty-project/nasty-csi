@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	exec "github.com/nasty-project/nasty-csi/pkg/cmdexec"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"k8s.io/klog/v2"
@@ -298,33 +299,8 @@ func getSourceDevice(ctx context.Context, mountPath string) (string, error) {
 
 // getNVMeControllerState reads the NVMe controller state from sysfs.
 func getNVMeControllerState(devicePath string) (string, error) {
-	// Device path is like /dev/nvme0n1 or /dev/nvme0n1p1
-	// We need to extract the controller name (nvme0)
-	base := filepath.Base(devicePath)
-	if !strings.HasPrefix(base, "nvme") {
-		return "", fmt.Errorf("%w: %s", errNotNVMeDevice, devicePath)
-	}
-
-	// Extract controller name (nvme0 from nvme0n1)
-	var ctrlName string
-	for i, c := range base {
-		if c == 'n' && i > 4 { // Skip "nvme" prefix
-			ctrlName = base[:i]
-			break
-		}
-	}
-	if ctrlName == "" {
-		ctrlName = base // Fallback
-	}
-
-	// Read state from /sys/class/nvme/<ctrl>/state
-	statePath := "/sys/class/nvme/" + ctrlName + "/state"
-	data, err := os.ReadFile(statePath) //nolint:gosec // path is constructed from device name
-	if err != nil {
-		return "", fmt.Errorf("failed to read NVMe state: %w", err)
-	}
-
-	return strings.TrimSpace(string(data)), nil
+	_, state, err := nvmeControllerForNamespace(sysBlockPath, devicePath)
+	return state, err
 }
 
 // getISCSISessionState gets the state of an iSCSI session for a device.

@@ -3,6 +3,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -485,14 +486,12 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 		return nil, status.Errorf(codes.Unavailable, "Cannot verify subvolume ownership; refusing deletion: %v", err)
 	}
 
+	if ownershipErr := validateDeletionOwnership(subvol, meta, ProtocolNVMeOF); ownershipErr != nil {
+		timer.ObserveError()
+		return nil, ownershipErr
+	}
 	if subvol != nil && subvol.Properties != nil {
 		props := subvol.Properties
-		if managedBy, ok := props[nastyapi.PropertyManagedBy]; ok && managedBy != nastyapi.ManagedByValue {
-			timer.ObserveError()
-			return nil, status.Errorf(codes.FailedPrecondition,
-				"Subvolume %s is not managed by nasty-csi (managed_by=%s)", meta.DatasetID, managedBy)
-		}
-
 		if deleteStrategy, ok := props[nastyapi.PropertyDeleteStrategy]; ok && deleteStrategy == nastyapi.DeleteStrategyRetain {
 			klog.Infof("Volume %s has delete strategy 'retain', skipping deletion", meta.Name)
 			timer.ObserveSuccess()
@@ -534,6 +533,10 @@ func (s *ControllerService) deleteNVMeOFVolume(ctx context.Context, meta *Volume
 
 	// Step 2: Delete subvolume (subsystem is gone, no guard will block)
 	deleteErr := s.apiClient.DeleteSubvolume(ctx, filesystem, name)
+	if errors.Is(deleteErr, nastyapi.ErrUncertainOutcome) {
+		timer.ObserveError()
+		return nil, status.Errorf(codes.Unavailable, "Subvolume deletion outcome uncertain; reconcile before retrying: %v", deleteErr)
+	}
 	if deleteErr != nil && !isNotFoundError(deleteErr) {
 		retryConfig := retry.DeletionConfig("delete-nvmeof-subvol")
 		err := retry.WithRetryNoResult(ctx, retryConfig, func() error {

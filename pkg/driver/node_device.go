@@ -3,9 +3,10 @@ package driver
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
+
+	exec "github.com/nasty-project/nasty-csi/pkg/cmdexec"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/mount"

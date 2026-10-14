@@ -77,6 +77,10 @@ jobs:
 
       - name: Package coverage must not decrease
         run: python3 tests/ci/check_coverage.py "$RUNNER_TEMP/csi-current.cover" "$RUNNER_TEMP/csi-baseline.cover"
+      - name: Workload image regressions (no live cluster)
+        run: |
+          go test -race ./tests/e2e/framework
+          python3 -m unittest discover -s tests/ci
 
       - name: Sanity runner regressions
         run: bash tests/sanity/test-runner.sh
