@@ -9,6 +9,11 @@ permissions:
   contents: write
   packages: write
 
+env:
+  GO_VERSION: 1.27.2
+  GOLANGCI_LINT_VERSION: v2.14.0
+  GOTOOLCHAIN: local
+
 jobs:
   release:
     name: Build and Release
@@ -19,17 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout nasty-go
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: nasty-project/nasty-go
-          ref: 29fb4acdf10d8783c2beea61cffb5180e4b5749f # Match the nasty-go version in go.mod
-          path: nasty-go
-
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Validate release
         id: version
@@ -52,13 +50,33 @@ jobs:
             echo "date=$(git show -s --format=%cI "$GITHUB_SHA")"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Verify pinned SDK and module tidiness
+        run: |
+          test -z "$(go list -m -f '{{if .Replace}}{{.Replace.Path}}{{end}}' github.com/nasty-project/nasty-go)"
+          go mod download
+          go mod verify
+          go mod tidy -diff
+
       - name: Run tests
         run: make test-unit
+
+      - name: Workload and CI regressions
+        run: |
+          go test -race ./tests/e2e/framework
+          python3 -m unittest discover -s tests/ci
+          bash tests/sanity/test-runner.sh
+          make test-sanity
+
+      - name: Suppression budget
+        run: python3 tests/ci/check_nolint_budget.py --baseline-ref origin/main
+
+      - name: Reachable vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
       - name: Run linter
         uses: golangci/golangci-lint-action@db9de0fc1a667e1a49d2291a1a042dff081d78f6 # v9
         with:
-          version: v2.13.1
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
           args: --config .golangci.yml
 
       - name: Generate changelog with git-cliff
