@@ -44,13 +44,13 @@ func (s *ControllerService) lookupDeletionVolume(ctx context.Context, volumeID s
 		subvol, err = s.apiClient.FindSubvolumeByCSIVolumeName(ctx, "", volumeID)
 	}
 	if err != nil {
-		if errors.Is(err, nastyapi.ErrDatasetNotFound) || isNotFoundError(err) {
-			return nil, nil //nolint:nilnil // confirmed absence is idempotent
+		if !errors.Is(err, nastyapi.ErrDatasetNotFound) && !isNotFoundError(err) {
+			return nil, status.Errorf(codes.Unavailable, "Cannot verify deletion ownership: %v", err)
 		}
-		return nil, status.Errorf(codes.Unavailable, "Cannot verify deletion ownership: %v", err)
+		subvol = nil
 	}
 	if subvol == nil {
-		return nil, nil //nolint:nilnil // a successful lookup with no object is confirmed absence
+		return nil, nil //nolint:nilnil // a not-found response or successful empty lookup is confirmed absence
 	}
 	meta := &VolumeMetadata{DatasetID: subvol.Filesystem + "/" + subvol.Name, DatasetName: subvol.Name}
 	protocol := subvol.Properties[nastyapi.PropertyProtocol]

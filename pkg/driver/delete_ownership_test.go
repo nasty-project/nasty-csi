@@ -2,6 +2,8 @@ package driver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -9,6 +11,33 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestDeletionLookupAbsenceAndReadErrors(t *testing.T) {
+	for _, tt := range []struct {
+		err    error
+		subvol *nastyapi.Subvolume
+		name   string
+		code   codes.Code
+	}{
+		{name: "successful empty lookup", code: codes.OK},
+		{name: "not found", err: nastyapi.ErrDatasetNotFound, code: codes.OK},
+		{name: "wrapped not found", err: fmt.Errorf("lookup: %w", nastyapi.ErrDatasetNotFound), code: codes.OK},
+		{name: "not found with stale object", subvol: &nastyapi.Subvolume{}, err: nastyapi.ErrDatasetNotFound, code: codes.OK},
+		{name: "read failure", err: errors.New("connection lost"), code: codes.Unavailable},
+		{name: "uncertain outcome", err: nastyapi.ErrUncertainOutcome, code: codes.Unavailable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &MockAPIClient{GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) {
+				return tt.subvol, tt.err
+			}}
+			s := &ControllerService{apiClient: client}
+			meta, err := s.lookupDeletionVolume(t.Context(), "tank/test")
+			if status.Code(err) != tt.code || meta != nil {
+				t.Fatalf("lookup returned metadata %v, error %v; expected code %v", meta, err, tt.code)
+			}
+		})
+	}
+}
 
 func TestStrictDeletionOwnership(t *testing.T) {
 	for _, protocol := range []string{ProtocolNFS, ProtocolSMB, ProtocolISCSI, ProtocolNVMeOF} {
