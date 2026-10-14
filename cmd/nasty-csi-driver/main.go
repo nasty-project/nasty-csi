@@ -67,6 +67,9 @@ func main() {
 	}
 
 	if *apiKey == "" {
+		*apiKey = os.Getenv("NASTY_API_KEY")
+	}
+	if *apiKey == "" {
 		klog.Fatal("Storage API key must be provided")
 	}
 
