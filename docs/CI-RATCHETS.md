@@ -3,7 +3,7 @@
 - Unit tests cover `pkg/` and `cmd/` with race detection and shuffle. The mock CSI
   sanity runner rejects failed specs and nonzero test exits regardless of the pass
   count; its current floor is 81. This is not real-storage integration coverage.
-- `govulncheck` v1.9.0 scans reachable vulnerabilities on Go 1.27.2, matching the
+- `govulncheck` v1.9.0 scans reachable vulnerabilities on Go 1.27.3, matching the
   container builder. The vulnerability database changes over time; a future gate
   failure needs investigation, not suppression of the scan.
 - `go mod tidy -diff` checks module tidiness without silently rewriting it.
