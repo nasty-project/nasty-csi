@@ -13,6 +13,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/nasty-project/nasty-csi/pkg/dashboard"
 	"github.com/nasty-project/nasty-csi/pkg/metrics"
+	"github.com/nasty-project/nasty-csi/pkg/retry"
 	nastyapi "github.com/nasty-project/nasty-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -171,8 +172,27 @@ func (d *Driver) Run() error {
 	// Start background health monitor for proactive storage session recovery
 	d.node.StartHealthMonitor()
 
+	// Only the controller runs without a node ID; node pods would otherwise
+	// each export every volume's capacity.
+	if d.config.NodeID == "" && !d.testMode {
+		go d.seedVolumeCapacityMetrics()
+	}
+
 	klog.Info("NASty CSI Driver is ready")
 	return d.srv.Serve(listener)
+}
+
+// seedVolumeCapacityMetrics retries until the NASty API answers, since the
+// controller can start before the API connection is up.
+func (d *Driver) seedVolumeCapacityMetrics() {
+	config := retry.DefaultConfig()
+	config.MaxAttempts = 10
+	config.OperationName = "seed-volume-capacity-metrics"
+	if err := retry.WithRetryNoResult(context.Background(), config, func() error {
+		return d.controller.seedVolumeCapacityMetrics(context.Background())
+	}); err != nil {
+		klog.Warningf("Volume capacity metrics not seeded; they fill in as volumes change: %v", err)
+	}
 }
 
 // Stop stops the driver.
