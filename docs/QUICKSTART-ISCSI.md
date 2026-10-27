@@ -96,7 +96,7 @@ That's it! Unlike NVMe-oF, iSCSI doesn't require pre-configured portals or targe
 
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.10 \
+  --version 0.0.12 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -255,7 +255,7 @@ To keep volumes on NASty when PVCs are deleted:
 
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.10 \
+  --version 0.0.12 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
