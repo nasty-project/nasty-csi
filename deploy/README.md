@@ -9,7 +9,7 @@ Helm is the recommended way to install nasty-csi. The raw Kubernetes manifests t
 ```bash
 # Install the separately released Helm chart from GHCR
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.10 \
+  --version 0.0.12 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
@@ -20,8 +20,9 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
   --set storageClasses[0].server="YOUR-NASTY-IP"
 ```
 
-Chart `0.0.10` defaults to driver `v0.0.10`. To deploy driver `v0.0.11`,
-add `--set image.tag=v0.0.11`; chart and driver versions are independent.
+Chart `0.0.12` defaults to driver `v0.0.14`. Chart and driver versions are
+independent; don't set `image.tag` to `v0.0.12` or older with this chart, as
+those images lack its Secret-backed API key path.
 
 ### Version Pinning
 
@@ -40,7 +41,7 @@ Common configuration:
 
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.10 \
+  --version 0.0.12 \
   --namespace kube-system \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
   --set nasty.apiKey="YOUR-API-KEY" \
@@ -67,7 +68,7 @@ kubectl --namespace kube-system scale deployment \
   --replicas=0
 
 helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.10 \
+  --version 0.0.12 \
   --namespace kube-system \
   --reuse-values \
   --set controller.replicas=0
@@ -76,7 +77,7 @@ kubectl --namespace kube-system rollout status daemonset \
   --selector app.kubernetes.io/instance=nasty-csi
 
 helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.10 \
+  --version 0.0.12 \
   --namespace kube-system \
   --reuse-values \
   --set controller.replicas=1

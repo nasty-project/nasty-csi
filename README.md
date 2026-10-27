@@ -127,7 +127,7 @@ The NASty CSI Driver is published to both Docker Hub and GitHub Container Regist
 
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.4 \
+  --version 0.0.12 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
@@ -142,7 +142,7 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
 **NVMe-oF:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.4 \
+  --version 0.0.12 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
@@ -159,7 +159,7 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
 **iSCSI:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.4 \
+  --version 0.0.12 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
@@ -174,7 +174,7 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
 **SMB:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.4 \
+  --version 0.0.12 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP/api/current" \
