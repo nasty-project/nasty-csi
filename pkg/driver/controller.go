@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/nasty-project/nasty-csi/pkg/metrics"
 	nastyapi "github.com/nasty-project/nasty-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1332,6 +1333,34 @@ func (s *ControllerService) listManagedVolumes(ctx context.Context) ([]*csi.List
 
 	klog.V(5).Infof("Found %d managed volumes", len(entries))
 	return entries, nil
+}
+
+// seedVolumeCapacityMetrics restores volume_capacity_bytes after a controller
+// restart; otherwise the gauge only fills in as volumes are created or expanded.
+func (s *ControllerService) seedVolumeCapacityMetrics(ctx context.Context) error {
+	subvols, err := s.apiClient.FindManagedSubvolumes(ctx, "")
+	if err != nil {
+		return fmt.Errorf("failed to find managed subvolumes: %w", err)
+	}
+
+	seeded := 0
+	for i := range subvols {
+		props := subvols[i].Properties
+		// Same rule as the dashboard: legacy volumes without a cluster ID count as ours.
+		if owner := props[nastyapi.PropertyClusterID]; s.clusterID != "" && owner != "" && owner != s.clusterID {
+			continue
+		}
+		protocol := props[nastyapi.PropertyProtocol]
+		capacity := nastyapi.StringToInt64(props[nastyapi.PropertyCapacityBytes])
+		if protocol == "" || capacity <= 0 {
+			continue
+		}
+		metrics.SetVolumeCapacity(subvols[i].Filesystem+"/"+subvols[i].Name, protocol, capacity)
+		seeded++
+	}
+
+	klog.Infof("Seeded capacity metrics for %d volumes", seeded)
+	return nil
 }
 
 // GetCapacity returns the capacity of the storage filesystem.
