@@ -166,3 +166,40 @@ func writeProbeCommand(t *testing.T, dir, name, body string) {
 		t.Fatalf("write %s probe: %v", name, err)
 	}
 }
+
+func TestRefuseTeardownWhileStaged(t *testing.T) {
+	dir := t.TempDir()
+	plainDir := filepath.Join(dir, "plain")
+	if err := os.Mkdir(plainDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	blockLink := filepath.Join(dir, "block")
+	if err := os.Symlink("/dev/nvme0n1", blockLink); err != nil {
+		t.Fatal(err)
+	}
+
+	notMounted := func(context.Context, string) (bool, error) { return false, nil }
+	mounted := func(context.Context, string) (bool, error) { return true, nil }
+	unreadable := func(context.Context, string) (bool, error) { return false, errors.New("mountinfo unreadable") }
+
+	tests := []struct {
+		isMounted func(context.Context, string) (bool, error)
+		name      string
+		path      string
+		want      codes.Code
+	}{
+		{notMounted, "missing staging path", filepath.Join(dir, "missing"), codes.OK},
+		{notMounted, "unmounted directory", plainDir, codes.OK},
+		{notMounted, "block-mode symlink", blockLink, codes.Unavailable},
+		{mounted, "mounted filesystem", plainDir, codes.Unavailable},
+		{unreadable, "unreadable mount table", plainDir, codes.Unavailable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &NodeService{isMountedFn: tt.isMounted}
+			if got := status.Code(s.refuseTeardownWhileStaged(context.Background(), tt.path)); got != tt.want {
+				t.Fatalf("refuseTeardownWhileStaged(%s) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}

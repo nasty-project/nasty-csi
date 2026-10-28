@@ -134,6 +134,38 @@ func (s *NodeService) publishFilesystemVolume(ctx context.Context, stagingTarget
 }
 
 // stageBlockDevice stages a raw block device by creating a symlink at staging path.
+// refuseTeardownWhileStaged stops NodeStageVolume from disconnecting a session
+// that may still back a staged volume. The kubelet re-stages already-mounted
+// volumes (e.g. after it restarts); tearing the session down then leaves the
+// mount or block symlink on a dead device. Staged means a mount point or the
+// block-mode symlink; an unreadable mount table also refuses.
+func (s *NodeService) refuseTeardownWhileStaged(ctx context.Context, stagingTargetPath string) error {
+	info, err := os.Lstat(stagingTargetPath)
+	switch {
+	case err == nil && info.Mode()&os.ModeSymlink != 0:
+		return status.Errorf(codes.Unavailable,
+			"block volume is still staged at %s; refusing to disconnect its session", stagingTargetPath)
+	case err != nil && !os.IsNotExist(err):
+		return status.Errorf(codes.Unavailable,
+			"cannot inspect staging path %s; refusing to disconnect its session: %v", stagingTargetPath, err)
+	}
+
+	isMounted := s.isMountedFn
+	if isMounted == nil {
+		isMounted = mount.IsMounted
+	}
+	mounted, err := isMounted(ctx, stagingTargetPath)
+	if err != nil {
+		return status.Errorf(codes.Unavailable,
+			"cannot tell whether %s is mounted; refusing to disconnect its session: %v", stagingTargetPath, err)
+	}
+	if mounted {
+		return status.Errorf(codes.Unavailable,
+			"volume is still mounted at %s; refusing to disconnect its session", stagingTargetPath)
+	}
+	return nil
+}
+
 func (s *NodeService) stageBlockDevice(devicePath, stagingTargetPath string) (*csi.NodeStageVolumeResponse, error) {
 	klog.Infof("Staging block device %s to %s", devicePath, stagingTargetPath)
 

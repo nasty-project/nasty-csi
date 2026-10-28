@@ -1161,14 +1161,20 @@ func (s *ControllerService) ControllerUnpublishVolume(_ context.Context, req *cs
 	volumeID := req.GetVolumeId()
 	nodeID := req.GetNodeId()
 
-	// Remove from published volumes tracking
+	// Remove from published volumes tracking. Per the CSI spec, an empty node ID
+	// unpublishes the volume from every node.
+	s.publishedVolumesMu.Lock()
 	if nodeID != "" {
-		publishKey := fmt.Sprintf("%s:%s", volumeID, nodeID)
-		s.publishedVolumesMu.Lock()
-		delete(s.publishedVolumes, publishKey)
-		s.publishedVolumesMu.Unlock()
-		klog.V(4).Infof("ControllerUnpublishVolume: unpublished volume %s from node %s", volumeID, nodeID)
+		delete(s.publishedVolumes, fmt.Sprintf("%s:%s", volumeID, nodeID))
+	} else {
+		for key := range s.publishedVolumes {
+			if strings.HasPrefix(key, volumeID+":") {
+				delete(s.publishedVolumes, key)
+			}
+		}
 	}
+	s.publishedVolumesMu.Unlock()
+	klog.V(4).Infof("ControllerUnpublishVolume: unpublished volume %s from node %q", volumeID, nodeID)
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }

@@ -129,6 +129,9 @@ func (s *NodeService) tryReuseExistingConnection(ctx context.Context, params *nv
 	// This is different from "not found" - we need to disconnect it before reconnecting
 	if errors.Is(findErr, ErrNVMeDeviceUnhealthy) {
 		klog.Warningf("Found stale NVMe connection for NQN %s (unhealthy device) - disconnecting before reconnect", params.nqn)
+		if guardErr := s.refuseTeardownWhileStaged(ctx, stagingTargetPath); guardErr != nil {
+			return nil, "", guardErr
+		}
 		if disconnectErr := s.disconnectNVMeOF(ctx, params.nqn); disconnectErr != nil {
 			klog.Warningf("Failed to disconnect stale NVMe-oF connection: %v", disconnectErr)
 		}
@@ -153,6 +156,9 @@ func (s *NodeService) tryReuseExistingConnection(ctx context.Context, params *nv
 		klog.V(4).Infof("Failed to get NVMe controller state for %s: %v (will check device health)", devicePath, ctrlErr)
 	} else if ctrlState != nvmeSubsystemStateLive {
 		klog.Warningf("NVMe controller for %s is %q (not live) - disconnecting to force reconnect", devicePath, ctrlState)
+		if guardErr := s.refuseTeardownWhileStaged(ctx, stagingTargetPath); guardErr != nil {
+			return nil, "", guardErr
+		}
 		if disconnectErr := s.disconnectNVMeOF(ctx, params.nqn); disconnectErr != nil {
 			klog.Warningf("Failed to disconnect stale NVMe-oF connection: %v", disconnectErr)
 		}
@@ -169,6 +175,9 @@ func (s *NodeService) tryReuseExistingConnection(ctx context.Context, params *nv
 	// A stale connection may have the device file but report zero size
 	if healthy := s.verifyDeviceHealthy(ctx, devicePath); !healthy {
 		klog.Warningf("Existing NVMe device %s appears stale (zero size) - disconnecting to force reconnect", devicePath)
+		if guardErr := s.refuseTeardownWhileStaged(ctx, stagingTargetPath); guardErr != nil {
+			return nil, "", guardErr
+		}
 		if disconnectErr := s.disconnectNVMeOF(ctx, params.nqn); disconnectErr != nil {
 			klog.Warningf("Failed to disconnect stale NVMe-oF connection: %v", disconnectErr)
 		}

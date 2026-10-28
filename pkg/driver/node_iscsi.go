@@ -84,8 +84,8 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 		volumeID, isBlockVolume, params.server, params.port, params.iqn, params.lun, datasetName)
 
 	// Try to reuse existing connection (idempotency), or clean up orphaned sessions.
-	// NodeStageVolume is only called for new pods, so any existing session for this
-	// IQN belongs to a deleted pod and is safe to force-kill.
+	// The kubelet also re-stages volumes that are still mounted (e.g. after it
+	// restarts), so a session is only force-killed once nothing is staged on it.
 	if devicePath, findErr := s.findISCSIDevice(ctx, params); findErr == nil && devicePath != "" {
 		// Verify the iSCSI session is healthy before reusing.
 		sessionState, stateErr := getISCSISessionState(ctx, devicePath)
@@ -99,6 +99,9 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 			klog.Warningf("iSCSI session for %s is %q (not LOGGED_IN) - forcing cleanup", devicePath, sessionState)
 		}
 
+		if guardErr := s.refuseTeardownWhileStaged(ctx, stagingTargetPath); guardErr != nil {
+			return nil, guardErr
+		}
 		// Session is stale (orphaned from a deleted pod). Force-kill it by
 		// setting replacement_timeout=0 so the kernel gives up immediately,
 		// then logout and delete the node record.
@@ -107,6 +110,9 @@ func (s *NodeService) stageISCSIVolume(ctx context.Context, req *csi.NodeStageVo
 		// No device found via session -P 3, but there might still be an orphaned
 		// session in recovery state (e.g., after a force-deleted pod where the
 		// device has already disappeared from sysfs). Check by IQN and kill it.
+		if guardErr := s.refuseTeardownWhileStaged(ctx, stagingTargetPath); guardErr != nil {
+			return nil, guardErr
+		}
 		s.forceKillISCSISessionByIQN(params) //nolint:contextcheck // intentionally uses Background context
 	}
 

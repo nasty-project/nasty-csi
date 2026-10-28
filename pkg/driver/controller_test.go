@@ -637,6 +637,23 @@ func TestControllerUnpublishVolume(t *testing.T) {
 	}
 }
 
+func TestControllerUnpublishVolumeWithoutNodeUnpublishesEveryNode(t *testing.T) {
+	service := NewControllerService(&mockAPIClient{}, NewNodeRegistry(), "")
+	service.publishedVolumes["tank/vol:node-a"] = false
+	service.publishedVolumes["tank/vol:node-b"] = true
+	service.publishedVolumes["tank/vol-other:node-a"] = false
+
+	if _, err := service.ControllerUnpublishVolume(context.Background(), &csi.ControllerUnpublishVolumeRequest{VolumeId: "tank/vol"}); err != nil {
+		t.Fatalf("ControllerUnpublishVolume: %v", err)
+	}
+	if len(service.publishedVolumes) != 1 {
+		t.Fatalf("published volumes = %v, want only tank/vol-other:node-a", service.publishedVolumes)
+	}
+	if _, ok := service.publishedVolumes["tank/vol-other:node-a"]; !ok {
+		t.Fatalf("other volume's publication was removed: %v", service.publishedVolumes)
+	}
+}
+
 func TestRequestedBlockFilesystem(t *testing.T) {
 	mountCapability := func(fsType string) *csi.VolumeCapability {
 		return &csi.VolumeCapability{
