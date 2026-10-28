@@ -106,8 +106,8 @@ tags are produced only by the guarded release workflow.
 The Helm chart and application are versioned independently. A chart release
 records the CSI image version it deploys in `appVersion`:
 
-The current chart release is `0.0.12`, with `appVersion: v0.0.14`.
-Driver release `v0.0.14` does not imply a chart release named `0.0.14`.
+The current chart release is `0.0.13`, with `appVersion: v0.0.15`.
+Driver release `v0.0.15` does not imply a chart release named `0.0.15`.
 
 | Chart.yaml Field | Value |
 |------------------|-------|
@@ -118,7 +118,7 @@ Driver release `v0.0.14` does not imply a chart release named `0.0.14`.
 
 The Helm chart resolves the image tag in this order:
 
-1. **Explicit override**: `--set image.tag=v0.0.14`
+1. **Explicit override**: `--set image.tag=v0.0.15`
 2. **Chart's appVersion**: Uses the CSI version selected by that chart release
 
 ## Best Practices
@@ -130,14 +130,14 @@ The Helm chart resolves the image tag in this order:
 ```bash
 # Install specific chart version (uses that chart's appVersion automatically)
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   ...
 ```
 
 Or explicitly set the image tag:
 ```bash
 helm install nasty-csi ./nasty-chart \
-  --set image.tag=v0.0.14 \
+  --set image.tag=v0.0.15 \
   ...
 ```
 
@@ -164,7 +164,7 @@ kubectl logs -n kube-system deployment/nasty-csi-controller | head -1
 Upgrade to a new version:
 ```bash
 helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --reuse-values
 ```
 

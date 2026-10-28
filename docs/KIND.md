@@ -38,7 +38,7 @@ docker exec nasty-csi-test-worker apt-get install -y nfs-common
 ```bash
 # Install from OCI registry
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
