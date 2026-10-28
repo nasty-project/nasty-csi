@@ -301,7 +301,7 @@ The easiest way to deploy the CSI driver is using the Helm chart from Docker Hub
 **For NFS:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -316,7 +316,7 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
 **For NVMe-oF:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -334,7 +334,7 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
 **For iSCSI:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -351,7 +351,7 @@ helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
 **For SMB:**
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --namespace kube-system \
   --create-namespace \
   --set nasty.url="wss://YOUR-NASTY-IP:443/api/current" \
@@ -373,7 +373,7 @@ When deploying on OpenShift, enable SecurityContextConstraints support:
 
 ```bash
 helm install nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-  --version 0.0.12 \
+  --version 0.0.13 \
   --namespace kube-system \
   --create-namespace \
   --set openshift.enabled=true \
@@ -426,7 +426,7 @@ docker push your-registry/nasty-csi-driver:v0.0.11
 
 If using a private registry, ensure your Kubernetes cluster has pull access.
 
-The published image is available at: `bfenski/nasty-csi:v0.0.14`
+The published image is available at: `bfenski/nasty-csi:v0.0.15`
 
 ## Step 3: Configure Deployment Manifests (Manual Deployment Only)
 
@@ -911,7 +911,7 @@ Volumes created with earlier versions will **not be recognized** by the new driv
 2. Upgrade the driver:
    ```bash
    helm upgrade nasty-csi oci://ghcr.io/nasty-project/charts/nasty-csi-driver \
-     --version 0.0.12 \
+     --version 0.0.13 \
      --namespace kube-system \
      --reuse-values
    ```
