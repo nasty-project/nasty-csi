@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
@@ -80,5 +81,36 @@ func TestExistingSMBShareRequiresSelectedBackendName(t *testing.T) {
 	controller := NewControllerService(client, NewNodeRegistry(), "")
 	if _, err := controller.createSMBVolume(context.Background(), identityTestRequest(ProtocolSMB, false)); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("wrong-name SMB retry code=%v, want FailedPrecondition (error: %v)", status.Code(err), err)
+	}
+}
+
+func TestExistingSMBShareRejectsDifferentCapacity(t *testing.T) {
+	subvol := &nastyapi.Subvolume{
+		Filesystem: "tank",
+		Name:       "claim",
+		Path:       "/fs/tank/claim",
+		Properties: map[string]string{
+			nastyapi.PropertyManagedBy:     nastyapi.ManagedByValue,
+			nastyapi.PropertyCSIVolumeName: "claim",
+			nastyapi.PropertyProtocol:      ProtocolSMB,
+			propertyCSIRequestName:         "claim",
+			propertyVolumeUUID:             "12345678-1234-4123-8123-123456789abc",
+			propertyIdentityVersion:        identityVersion2,
+		},
+	}
+	comment := fmt.Sprintf("CSI Volume: claim | Capacity: %d", 2*MinVolumeSize)
+	client := &mockAPIClient{
+		GetSubvolumeFunc: func(context.Context, string, string) (*nastyapi.Subvolume, error) { return subvol, nil },
+		ListSMBSharesFunc: func(context.Context) ([]nastyapi.SMBShare, error) {
+			return []nastyapi.SMBShare{{ID: "share", Name: "claim", Path: subvol.Path, Comment: &comment}}, nil
+		},
+		SetSubvolumePropertiesFunc: func(context.Context, string, string, map[string]string) (*nastyapi.Subvolume, error) {
+			t.Fatal("capacity mismatch must fail before property mutation")
+			return nil, errors.New("unexpected property mutation")
+		},
+	}
+	controller := NewControllerService(client, NewNodeRegistry(), "")
+	if _, err := controller.createSMBVolume(context.Background(), identityTestRequest(ProtocolSMB, false)); status.Code(err) != codes.AlreadyExists {
+		t.Fatalf("SMB retry with different capacity code=%v, want AlreadyExists (error: %v)", status.Code(err), err)
 	}
 }

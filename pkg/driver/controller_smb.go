@@ -164,13 +164,32 @@ func (s *ControllerService) handleExistingSMBSubvolume(ctx context.Context, para
 	if existingShare == nil {
 		return nil, false, nil
 	}
-	klog.V(4).Infof("SMB volume already exists (share ID: %s), returning existing volume", existingShare.ID)
+	klog.V(4).Infof("SMB volume already exists (share ID: %s), checking capacity compatibility", existingShare.ID)
+
+	var existingCapacity int64
+	if existingShare.Comment != nil {
+		existingCapacity = parseCapacityFromComment(*existingShare.Comment)
+	}
+
+	// CSI spec: return AlreadyExists if volume exists with incompatible capacity
+	if existingCapacity > 0 && existingCapacity != params.requestedCapacity {
+		timer.ObserveError()
+		return nil, false, status.Errorf(codes.AlreadyExists,
+			"Volume %s already exists with different capacity (existing: %d bytes, requested: %d bytes)",
+			params.volumeName, existingCapacity, params.requestedCapacity)
+	}
+
 	if err := s.persistVolumeIdentity(ctx, existingSubvol, smbPropertiesV1(params, s.clusterID), identity); err != nil {
 		timer.ObserveError()
 		return nil, false, err
 	}
 
-	resp := buildSMBVolumeResponse(params.volumeName, params.server, existingSubvol, existingShare, params.requestedCapacity)
+	capacityToReturn := params.requestedCapacity
+	if existingCapacity > 0 {
+		capacityToReturn = existingCapacity
+	}
+
+	resp := buildSMBVolumeResponse(params.volumeName, params.server, existingSubvol, existingShare, capacityToReturn)
 	timer.ObserveSuccess()
 	return resp, true, nil
 }

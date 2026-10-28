@@ -71,6 +71,7 @@ type NodeService struct {
 	recentUnmounts    map[string]time.Time // tracks recently unmounted staging paths to avoid log spam
 	lifecycleLocks    volumeLifecycleLocks
 	isSourceMountedFn func(context.Context, string) (bool, error)
+	isMountedFn       func(context.Context, string) (bool, error)
 	getMountRefsFn    func(context.Context, string) ([]string, error)
 	testPublications  sync.Map // volume ID -> target set; accessed under lifecycleLocks
 	nodeID            string

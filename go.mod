@@ -1,11 +1,11 @@
 module github.com/nasty-project/nasty-csi
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/container-storage-interface/spec v1.13.0
 	github.com/kubernetes-csi/csi-test/v5 v5.6.0
-	github.com/nasty-project/nasty-go v0.0.0-20261013104316-5627578a73f9
+	github.com/nasty-project/nasty-go v0.0.0-20261028065748-b4ba4553d170
 	github.com/onsi/ginkgo/v2 v2.33.0
 	github.com/onsi/gomega v1.44.0
 	github.com/prometheus/client_golang v1.24.1
