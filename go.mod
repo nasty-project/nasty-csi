@@ -1,6 +1,6 @@
 module github.com/nasty-project/nasty-csi
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/container-storage-interface/spec v1.13.0
