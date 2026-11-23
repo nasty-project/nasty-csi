@@ -320,23 +320,33 @@ func getISCSISessionState(ctx context.Context, devicePath string) (string, error
 		return state, nil
 	}
 
-	// Alternative: use iscsiadm to check session state
-	cmd := iscsiadmCmd(ctx, "-m", "session", "-P", "1")
-	output, cmdErr := cmd.CombinedOutput()
+	// Alternative: ask iscsiadm for the session the device is attached to.
+	output, cmdErr := runISCSIAdm(ctx, iscsiadmQueryTimeout, "-m", "session", "-P", "3")
 	if cmdErr != nil {
 		return "", fmt.Errorf("iscsiadm failed: %w", cmdErr)
 	}
+	if state := parseISCSISessionStateForDevice(string(output), base); state != "" {
+		return state, nil
+	}
+	return "", errISCSIStateUnknown
+}
 
-	// Parse output for session state
-	// Look for "iSCSI Session State:" line
-	for _, line := range strings.Split(string(output), "\n") {
-		if strings.Contains(line, "iSCSI Session State:") {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				return strings.TrimSpace(parts[1]), nil
+// parseISCSISessionStateForDevice returns the "iSCSI Session State" of the session whose
+// attached disk is deviceName, from iscsiadm -m session -P 3 output.
+func parseISCSISessionStateForDevice(output, deviceName string) string {
+	sessionState := ""
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "Target:"):
+			sessionState = ""
+		case strings.HasPrefix(line, "iSCSI Session State:"):
+			sessionState = strings.TrimSpace(strings.TrimPrefix(line, "iSCSI Session State:"))
+		case strings.Contains(line, "Attached scsi disk"):
+			if fields := strings.Fields(line); len(fields) > 3 && fields[3] == deviceName {
+				return sessionState
 			}
 		}
 	}
-
-	return "", errISCSIStateUnknown
+	return ""
 }
