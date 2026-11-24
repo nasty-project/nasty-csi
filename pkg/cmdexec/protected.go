@@ -123,18 +123,17 @@ func RunProtected(ctx context.Context, softTimeout, hardCeiling time.Duration, n
 	}
 	select {
 	case <-done:
-		return result()
 	case <-waitCtx.Done():
-		// select picks at random when both are ready: a command that exited just as the
-		// deadline fired has finished, and its result must not be reported as still running.
-		select {
-		case <-done:
-			return result()
-		default:
-		}
-		output.capFurther(ProtectedOutputLimit)
-		return output.Bytes(), &StillRunningError{Name: name, Done: done, Err: waitCtx.Err(), result: result}
 	}
+	// Check done again: select picks at random when both are ready, and a command that exited
+	// just as the deadline fired has finished, so it must not be reported as still running.
+	select {
+	case <-done:
+		return result()
+	default:
+	}
+	output.capFurther(ProtectedOutputLimit)
+	return output.Bytes(), &StillRunningError{Name: name, Done: done, Err: waitCtx.Err(), result: result}
 }
 
 // cappedBuffer collects combined output. It keeps everything until capFurther is called,
