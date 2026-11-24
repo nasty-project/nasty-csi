@@ -22,6 +22,9 @@ func TestMetricsAvailability(t *testing.T) {
 	RecordWSMessageDuration("fs.subvolume.create", 100*time.Millisecond)
 	SetWSConnectionDuration(5 * time.Minute)
 	SetVolumeCapacity("test-vol", ProtocolNFS, 1024*1024*1024)
+	ISCSIAdmWaiting()
+	ISCSIAdmDoneWaiting()
+	RecordISCSIStaleDBLockRecovery()
 
 	// Create a test HTTP server with the metrics handler
 	server := httptest.NewServer(promhttp.Handler())
@@ -63,6 +66,8 @@ func TestMetricsAvailability(t *testing.T) {
 		"nasty_csi_websocket_message_duration_seconds",
 		"nasty_csi_websocket_connection_duration_seconds",
 		"nasty_csi_volume_capacity_bytes",
+		"nasty_csi_iscsiadm_waiting",
+		"nasty_csi_iscsi_stale_db_lock_recoveries_total",
 	}
 
 	for _, metric := range expectedMetrics {
