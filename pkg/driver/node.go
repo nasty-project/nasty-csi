@@ -685,6 +685,14 @@ func (s *NodeService) NodeExpandVolume(ctx context.Context, req *csi.NodeExpandV
 
 	volumeID := req.GetVolumeId()
 	volumePath := req.GetVolumePath()
+	// Hold the volume lock across the resize, as stage and unstage do: the resize is not
+	// canceled with the RPC, so without it an unstage could unmount under a running
+	// resize2fs, or two expands could resize the same filesystem at once.
+	unlock, lockErr := s.lifecycleLocks.lock(ctx, volumeID)
+	if lockErr != nil {
+		return nil, status.FromContextError(lockErr).Err()
+	}
+	defer unlock()
 
 	// Check if volume path exists
 	if _, statErr := os.Stat(volumePath); os.IsNotExist(statErr) {
@@ -862,8 +870,11 @@ func resizeFilesystem(ctx context.Context, mountPath, fsType string) error {
 		}
 
 		klog.V(4).Infof("Resizing ext filesystem on device %s", device)
+		// Never kill a resize when kubelet cancels its RPC: one interrupted part way can leave
+		// the filesystem inconsistent. The volume lock held by NodeExpandVolume keeps
+		// unstage and other expands out until it exits.
 		// #nosec G204 -- device path is validated via findmnt output
-		cmd = exec.CommandContext(ctx, "resize2fs", device)
+		cmd = exec.CommandContext(context.WithoutCancel(ctx), "resize2fs", device)
 		output, err = cmd.CombinedOutput()
 		if err != nil {
 			return status.Errorf(codes.Internal, "resize2fs failed: %v, output: %s", err, string(output))
@@ -874,7 +885,7 @@ func resizeFilesystem(ctx context.Context, mountPath, fsType string) error {
 	case fsTypeXFS:
 		// For XFS, xfs_growfs operates on the mount point
 		klog.V(4).Infof("Resizing XFS filesystem at mount point %s", mountPath)
-		cmd := exec.CommandContext(ctx, "xfs_growfs", mountPath)
+		cmd := exec.CommandContext(context.WithoutCancel(ctx), "xfs_growfs", mountPath)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			return status.Errorf(codes.Internal, "xfs_growfs failed: %v, output: %s", err, string(output))

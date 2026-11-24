@@ -3,6 +3,7 @@ package cmdexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"time"
@@ -44,4 +45,25 @@ func (c *Cmd) outcome(err error) error {
 		return fmt.Errorf("command interrupted: %w: %w", c.ctx.Err(), err)
 	}
 	return err
+}
+
+// IsTimeout reports whether err came from a command killed for exceeding its deadline.
+// A protected command left running past its deadline (IsStillRunning) was not killed and
+// is not a timeout in this sense.
+func IsTimeout(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) && !IsStillRunning(err)
+}
+
+// ExitCode returns the exit code of a command that ran to completion and exited
+// non-zero. It reports false for commands that were killed (timeout, cancellation,
+// signal) or never started, so callers cannot mistake a killed probe for an answer.
+func ExitCode(err error) (int, bool) {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return 0, false
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() >= 0 {
+		return exitErr.ExitCode(), true
+	}
+	return 0, false
 }

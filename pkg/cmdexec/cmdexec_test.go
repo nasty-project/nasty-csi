@@ -3,6 +3,7 @@ package cmdexec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
@@ -86,5 +87,41 @@ func TestProductionUsesBoundedExecutor(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestIsTimeoutAndExitCode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	exited := CommandContext(t.Context(), "/bin/sh", "-c", "exit 21").Run()
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	killed := CommandContext(ctx, "/bin/sh", "-c", "sleep 5").Run()
+	leftRunning := &StillRunningError{Name: "iscsiadm", Err: context.DeadlineExceeded}
+
+	tests := []struct {
+		err         error
+		name        string
+		wantCode    int
+		wantTimeout bool
+		wantExited  bool
+	}{
+		{nil, "success", 0, false, false},
+		{exited, "non-zero exit", 21, false, true},
+		{killed, "killed at deadline", 0, true, false},
+		{fmt.Errorf("wrapped: %w", leftRunning), "left running", 0, false, false},
+		{context.Canceled, "canceled", 0, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsTimeout(tt.err); got != tt.wantTimeout {
+				t.Errorf("IsTimeout(%v) = %v, want %v", tt.err, got, tt.wantTimeout)
+			}
+			code, ok := ExitCode(tt.err)
+			if code != tt.wantCode || ok != tt.wantExited {
+				t.Errorf("ExitCode(%v) = (%d, %v), want (%d, %v)", tt.err, code, ok, tt.wantCode, tt.wantExited)
+			}
+		})
 	}
 }

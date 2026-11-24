@@ -281,7 +281,7 @@ func (s *NodeService) connectAndStageDevice(ctx context.Context, params *nvmeOFC
 			lastErr = connectErr
 			klog.Warningf("NVMe-oF connect attempt %d failed: %v", attempt, connectErr)
 			if attempt < maxConnectRetries {
-				time.Sleep(retryDelay)
+				sleepContext(ctx, retryDelay)
 			}
 			continue
 		}
@@ -302,7 +302,7 @@ func (s *NodeService) connectAndStageDevice(ctx context.Context, params *nvmeOFC
 
 			if attempt < maxConnectRetries {
 				klog.V(4).Infof("Waiting %v before retry...", retryDelay)
-				time.Sleep(retryDelay)
+				sleepContext(ctx, retryDelay)
 			}
 			continue
 		}
@@ -331,7 +331,7 @@ func (s *NodeService) connectAndStageDevice(ctx context.Context, params *nvmeOFC
 					klog.Warningf("Failed to disconnect after staging failure: %v", disconnectErr)
 				}
 				if attempt < maxConnectRetries {
-					time.Sleep(retryDelay)
+					sleepContext(ctx, retryDelay)
 				}
 				continue
 			}
@@ -352,7 +352,7 @@ func (s *NodeService) connectAndStageDevice(ctx context.Context, params *nvmeOFC
 		// Delay before retry to let things settle
 		if attempt < maxConnectRetries {
 			klog.V(4).Infof("Waiting %v before retry...", retryDelay)
-			time.Sleep(retryDelay)
+			sleepContext(ctx, retryDelay)
 		}
 	}
 

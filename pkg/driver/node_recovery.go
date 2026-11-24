@@ -525,11 +525,7 @@ func getISCSISessionInfo(ctx context.Context, sysBlockPath string) (iqn, portal 
 // lines that let us correlate a device back to its target, even when sysfs session
 // symlinks are gone (transport-offline/blocked sessions).
 func getISCSISessionInfoFromIscsiadm(ctx context.Context, devName string) (iqn, portal string) {
-	sessionCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	cmd := iscsiadmCmd(sessionCtx, "-m", "session", "-P", "3")
-	output, err := cmd.CombinedOutput()
+	output, err := runISCSIAdm(ctx, iscsiadmQueryTimeout, "-m", "session", "-P", "3")
 	if err != nil {
 		klog.V(4).Infof("iscsiadm -m session -P 3 failed: %v", err)
 		return "", ""
@@ -590,16 +586,11 @@ func parseISCSISessionInfo(output, devName string) (iqn, portal string) {
 // a session-level rescan/relogin via iscsiadm.
 func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 	// First try: session-level rescan (non-destructive, triggers kernel reconnect)
-	rescanCtx, rescanCancel := context.WithTimeout(ctx, 15*time.Second)
-	defer rescanCancel()
-
-	var rescanCmd *exec.Cmd
+	rescanArgs := []string{"-m", "session", "--rescan"}
 	if portal != "" {
-		rescanCmd = iscsiadmCmd(rescanCtx, "-m", "session", "-r", iqn, "--rescan")
-	} else {
-		rescanCmd = iscsiadmCmd(rescanCtx, "-m", "session", "--rescan")
+		rescanArgs = []string{"-m", "session", "-r", iqn, "--rescan"}
 	}
-	if output, err := rescanCmd.CombinedOutput(); err != nil {
+	if output, err := runISCSIAdm(ctx, 15*time.Second, rescanArgs...); err != nil {
 		klog.V(4).Infof("Session rescan for %s: %v (%s)", iqn, err, strings.TrimSpace(string(output)))
 	}
 
@@ -607,10 +598,7 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 	time.Sleep(3 * time.Second)
 
 	// Check session state after rescan using iscsiadm
-	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer checkCancel()
-	checkCmd := iscsiadmCmd(checkCtx, "-m", "session", "-P", "1")
-	checkOutput, checkErr := checkCmd.CombinedOutput()
+	checkOutput, checkErr := runISCSIAdm(ctx, 5*time.Second, "-m", "session", "-P", "1")
 	if checkErr == nil && strings.Contains(string(checkOutput), iscsiSessionStateLoggedIn) {
 		return nil // Recovered via rescan
 	}
@@ -618,10 +606,7 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 	// Second try: force logout and re-login
 	klog.Infof("Rescan did not recover session for %s — forcing logout/re-login", iqn)
 
-	logoutCtx, logoutCancel := context.WithTimeout(ctx, 15*time.Second)
-	defer logoutCancel()
-	logoutCmd := iscsiadmCmd(logoutCtx, "-m", "node", "-T", iqn, "--logout")
-	if output, err := logoutCmd.CombinedOutput(); err != nil {
+	if output, err := runISCSIAdm(ctx, 15*time.Second, "-m", "node", "-T", iqn, "--logout"); err != nil {
 		klog.V(4).Infof("Logout for recovery of %s: %v (%s)", iqn, err, strings.TrimSpace(string(output)))
 	}
 
@@ -629,16 +614,11 @@ func recoverISCSISession(ctx context.Context, iqn, portal string) error {
 	time.Sleep(2 * time.Second)
 
 	// Re-login
-	loginCtx, loginCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer loginCancel()
-
-	var loginCmd *exec.Cmd
+	loginArgs := []string{"-m", iscsiadmModeNode, "-T", iqn, iscsiadmLogin}
 	if portal != "" {
-		loginCmd = iscsiadmCmd(loginCtx, "-m", "node", "-T", iqn, "-p", portal, "--login")
-	} else {
-		loginCmd = iscsiadmCmd(loginCtx, "-m", "node", "-T", iqn, "--login")
+		loginArgs = []string{"-m", iscsiadmModeNode, "-T", iqn, "-p", portal, iscsiadmLogin}
 	}
-	output, err := loginCmd.CombinedOutput()
+	output, err := runISCSIAdm(ctx, iscsiadmDBTimeout, loginArgs...)
 	if err != nil {
 		if strings.Contains(string(output), "already present") || strings.Contains(string(output), "session exists") {
 			return nil // Session recovered somehow
