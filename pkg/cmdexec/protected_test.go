@@ -150,3 +150,17 @@ func TestStillRunningErrorReportsResultAfterDone(t *testing.T) {
 		t.Fatalf("Result() output = %q, want the output written after the caller left", out)
 	}
 }
+
+// Tested directly: through a pipe, whether a write straddles the cap depends on chunking.
+func TestCappedBufferTruncatesWriteAtCap(t *testing.T) {
+	var b cappedBuffer
+	_, _ = b.Write([]byte("ab"))
+	b.capFurther(3)
+	if n, _ := b.Write([]byte("cdefg")); n != 5 {
+		t.Fatalf("Write() = %d, want the full length so the writer is not failed", n)
+	}
+	_, _ = b.Write([]byte("h"))
+	if got := string(b.Bytes()); got != "abcde" {
+		t.Fatalf("buffer = %q, want %q", got, "abcde")
+	}
+}
